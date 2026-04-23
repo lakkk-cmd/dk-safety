@@ -1,0 +1,867 @@
+{
+  "apartments": [
+    {
+      "id": "apt-1",
+      "name": "유니버시아드힐스테이트3단지",
+      "city": "광주",
+      "yearsOld": 8,
+      "createdAt": "2026-04-22T12:39:48.449Z"
+    },
+    {
+      "id": "apt-2",
+      "name": "봉선한국아델리움",
+      "city": "광주",
+      "yearsOld": 9,
+      "createdAt": "2026-04-22T12:39:48.449Z"
+    },
+    {
+      "id": "apt-3",
+      "name": "첨단중흥S클래스",
+      "city": "광주",
+      "yearsOld": 10,
+      "createdAt": "2026-04-22T12:39:48.449Z"
+    },
+    {
+      "id": "apt-4",
+      "name": "상무자이",
+      "city": "광주",
+      "yearsOld": 11,
+      "createdAt": "2026-04-22T12:39:48.449Z"
+    },
+    {
+      "id": "apt-5",
+      "name": "수완대주피오레",
+      "city": "광주",
+      "yearsOld": 12,
+      "createdAt": "2026-04-22T12:39:48.449Z"
+    },
+    {
+      "id": "apt-6",
+      "name": "운암동두산위브",
+      "city": "광주",
+      "yearsOld": 13,
+      "createdAt": "2026-04-22T12:39:48.449Z"
+    },
+    {
+      "id": "apt-7",
+      "name": "화정아이파크",
+      "city": "광주",
+      "yearsOld": 14,
+      "createdAt": "2026-04-22T12:39:48.449Z"
+    },
+    {
+      "id": "apt-8",
+      "name": "진월힐스테이트",
+      "city": "광주",
+      "yearsOld": 15,
+      "createdAt": "2026-04-22T12:39:48.449Z"
+    },
+    {
+      "id": "apt-9",
+      "name": "풍암금호타운",
+      "city": "광주",
+      "yearsOld": 16,
+      "createdAt": "2026-04-22T12:39:48.449Z"
+    },
+    {
+      "id": "apt-10",
+      "name": "문흥라인아파트",
+      "city": "광주",
+      "yearsOld": 8,
+      "createdAt": "2026-04-22T12:39:48.449Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "usr-25def5e3-2fac-4c81-9e88-79e4e61cbfd0",
+      "name": "ㄲ",
+      "phone": "010-5555-5555",
+      "apartmentId": "apt-10",
+      "apartmentName": "문흥라인아파트",
+      "unitNumber": "404동 502호",
+      "createdAt": "2026-04-23T14:02:59.459Z",
+      "lastLoginAt": "2026-04-23T14:02:59.459Z"
+    },
+    {
+      "id": "usr-06405a12-d669-4e11-b260-811a55443d81",
+      "name": "지지지",
+      "phone": "010-6666-6666",
+      "apartmentId": "apt-9",
+      "apartmentName": "풍암금호타운",
+      "unitNumber": "101동 102호",
+      "createdAt": "2026-04-23T13:54:57.273Z",
+      "lastLoginAt": "2026-04-23T13:54:57.273Z"
+    },
+    {
+      "id": "usr-b945b32c-9132-496c-b178-e8a2b5f67bb8",
+      "name": "디디디",
+      "phone": "010-3333-3333",
+      "apartmentId": "apt-6",
+      "apartmentName": "운암동두산위브",
+      "unitNumber": "301동 301호",
+      "createdAt": "2026-04-23T13:51:59.746Z",
+      "lastLoginAt": "2026-04-23T13:51:59.746Z"
+    },
+    {
+      "id": "usr-a4330623-b4b4-42fd-a203-06cde444b81f",
+      "name": "이이이",
+      "phone": "010-1111-1111",
+      "apartmentId": "apt-1",
+      "apartmentName": "유니버시아드힐스테이트3단지",
+      "unitNumber": "101동 101호",
+      "createdAt": "2026-04-23T13:40:49.334Z",
+      "lastLoginAt": "2026-04-23T13:40:49.334Z"
+    },
+    {
+      "id": "usr-bed7145b-f540-460a-8c53-6a55147747e5",
+      "name": "나나나",
+      "phone": "010-5555-5555",
+      "apartmentId": "apt-1",
+      "apartmentName": "유니버시아드힐스테이트3단지",
+      "unitNumber": "306동 1204호",
+      "createdAt": "2026-04-23T13:36:12.843Z",
+      "lastLoginAt": "2026-04-23T13:36:12.843Z"
+    },
+    {
+      "id": "usr-40822cfb-beb6-453f-b5ab-0332c64f0400",
+      "name": "zzz",
+      "phone": "010-3333-3333",
+      "apartmentId": "apt-8",
+      "apartmentName": "진월힐스테이트",
+      "unitNumber": "201동 104호",
+      "createdAt": "2026-04-23T12:49:18.198Z",
+      "lastLoginAt": "2026-04-23T12:49:18.198Z"
+    },
+    {
+      "id": "usr-3a6c977f-bf3c-499e-9066-48bc4774d971",
+      "name": "aaa",
+      "phone": "010-2222-2222",
+      "apartmentId": "apt-4",
+      "apartmentName": "상무자이",
+      "unitNumber": "105동 103호",
+      "createdAt": "2026-04-23T12:18:24.822Z",
+      "lastLoginAt": "2026-04-23T12:18:24.822Z"
+    },
+    {
+      "id": "usr-cf5ff32b-d364-4869-90fd-72fd06a1328b",
+      "name": "ㅂㅂㅂ",
+      "phone": "010-5566-6666",
+      "apartmentId": "apt-1",
+      "apartmentName": "유니버시아드힐스테이트3단지",
+      "unitNumber": "101동 705호",
+      "createdAt": "2026-04-23T12:04:59.301Z",
+      "lastLoginAt": "2026-04-23T12:04:59.301Z"
+    },
+    {
+      "id": "usr-93526aa3-fb73-4e23-8efc-27d0067205ba",
+      "name": "ㅁㅁㅁ",
+      "phone": "010-3333-3333",
+      "apartmentId": "apt-10",
+      "apartmentName": "문흥라인아파트",
+      "unitNumber": "105동 101호",
+      "createdAt": "2026-04-22T22:59:42.263Z",
+      "lastLoginAt": "2026-04-22T22:59:42.263Z"
+    },
+    {
+      "id": "usr-336b8a25-db66-4f81-93b5-35c1ea8ecd7f",
+      "name": "ㅂㅂㅂ",
+      "phone": "010-1111-1111",
+      "apartmentId": "apt-1",
+      "apartmentName": "유니버시아드힐스테이트3단지",
+      "unitNumber": "102동 405호",
+      "createdAt": "2026-04-22T22:25:45.473Z",
+      "lastLoginAt": "2026-04-22T22:25:45.473Z"
+    },
+    {
+      "id": "usr-5f402fb1-f4ab-4ab4-97d8-8743cb722fa4",
+      "name": "강강강",
+      "phone": "010-5211-1111",
+      "apartmentId": "apt-1",
+      "apartmentName": "유니버시아드힐스테이트3단지",
+      "unitNumber": "105동 304호",
+      "createdAt": "2026-04-22T22:06:41.590Z",
+      "lastLoginAt": "2026-04-22T22:06:45.732Z"
+    },
+    {
+      "id": "usr-3da6c843-c367-41b7-b5ad-7518795b528d",
+      "name": "홍길동",
+      "phone": "010-5622-5454",
+      "apartmentId": "apt-1",
+      "apartmentName": "유니버시아드힐스테이트3단지",
+      "unitNumber": "101동 304호",
+      "createdAt": "2026-04-22T13:02:20.508Z",
+      "lastLoginAt": "2026-04-22T13:02:27.969Z"
+    },
+    {
+      "id": "usr-cc01ac21-0c0e-450b-b7ee-3b6c471b888f",
+      "name": "홍길동",
+      "phone": "010-5555-2222",
+      "apartmentId": "apt-10",
+      "apartmentName": "문흥라인아파트",
+      "unitNumber": "101동 305호",
+      "createdAt": "2026-04-22T12:53:39.296Z",
+      "lastLoginAt": "2026-04-22T12:53:39.296Z"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "sess-3030aa77-d365-4984-bc1a-405988f889c7",
+      "userId": "usr-25def5e3-2fac-4c81-9e88-79e4e61cbfd0",
+      "createdAt": "2026-04-23T14:02:59.459Z"
+    },
+    {
+      "id": "sess-9663dc7d-a01b-43ff-961e-1792f6e55b50",
+      "userId": "usr-bed7145b-f540-460a-8c53-6a55147747e5",
+      "createdAt": "2026-04-23T13:36:12.843Z"
+    },
+    {
+      "id": "sess-87b62f97-5d94-4346-8169-d6a07ec61539",
+      "userId": "usr-40822cfb-beb6-453f-b5ab-0332c64f0400",
+      "createdAt": "2026-04-23T12:49:18.198Z"
+    },
+    {
+      "id": "sess-a9015c43-30e9-4cf4-902f-b94619cf7c92",
+      "userId": "usr-3a6c977f-bf3c-499e-9066-48bc4774d971",
+      "createdAt": "2026-04-23T12:18:24.822Z"
+    },
+    {
+      "id": "sess-a64eb6b9-5469-4959-b7af-ae3bfb7588a0",
+      "userId": "usr-93526aa3-fb73-4e23-8efc-27d0067205ba",
+      "createdAt": "2026-04-22T22:59:42.263Z"
+    },
+    {
+      "id": "sess-9b2d87a3-8bba-449b-8337-eaf891fe7c3c",
+      "userId": "usr-336b8a25-db66-4f81-93b5-35c1ea8ecd7f",
+      "createdAt": "2026-04-22T22:25:45.473Z"
+    },
+    {
+      "id": "sess-521000b1-3c08-4d7a-9e36-90aeb1ae2e45",
+      "userId": "usr-5f402fb1-f4ab-4ab4-97d8-8743cb722fa4",
+      "createdAt": "2026-04-22T22:06:45.732Z"
+    },
+    {
+      "id": "sess-c7d15b59-321c-45f2-8762-dd000626c08c",
+      "userId": "usr-5f402fb1-f4ab-4ab4-97d8-8743cb722fa4",
+      "createdAt": "2026-04-22T22:06:41.590Z"
+    },
+    {
+      "id": "sess-43ddfd68-9764-4e98-89f5-bd548b33760a",
+      "userId": "usr-3da6c843-c367-41b7-b5ad-7518795b528d",
+      "createdAt": "2026-04-22T13:02:27.969Z"
+    },
+    {
+      "id": "sess-2e0ecff4-4290-455d-8e65-488660aaa645",
+      "userId": "usr-3da6c843-c367-41b7-b5ad-7518795b528d",
+      "createdAt": "2026-04-22T13:02:20.508Z"
+    }
+  ],
+  "diagnoses": [
+    {
+      "id": "diag-6542d9d5-3777-4d05-886b-f957e30e880e",
+      "userId": "usr-06405a12-d669-4e11-b260-811a55443d81",
+      "createdAt": "2026-04-23T13:56:49.028Z",
+      "answers": [
+        {
+          "questionId": 1,
+          "answer": "high"
+        },
+        {
+          "questionId": 2,
+          "answer": "caution"
+        },
+        {
+          "questionId": 3,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 4,
+          "answer": "caution"
+        },
+        {
+          "questionId": 5,
+          "answer": "safe"
+        },
+        {
+          "questionId": 6,
+          "answer": "high"
+        },
+        {
+          "questionId": 7,
+          "answer": "caution"
+        },
+        {
+          "questionId": 8,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 9,
+          "answer": "caution"
+        },
+        {
+          "questionId": 10,
+          "answer": "caution"
+        },
+        {
+          "questionId": 11,
+          "answer": "caution"
+        },
+        {
+          "questionId": 12,
+          "answer": "caution"
+        },
+        {
+          "questionId": 13,
+          "answer": "caution"
+        },
+        {
+          "questionId": 14,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 15,
+          "answer": "high"
+        }
+      ],
+      "riskScore": 62,
+      "scoreVersion": 3,
+      "sectorScores": [
+        {
+          "id": "breaker",
+          "title": "차단기·분전반 상태",
+          "score": 53
+        },
+        {
+          "id": "outlet",
+          "title": "콘센트·배선 사용",
+          "score": 67
+        },
+        {
+          "id": "habit",
+          "title": "생활 습관·환경 점검",
+          "score": 67
+        }
+      ],
+      "summary": "주의: 전문가 점검을 권장합니다."
+    },
+    {
+      "id": "diag-f65ebb46-93f5-4924-9433-d0df79de1aab",
+      "userId": "usr-40822cfb-beb6-453f-b5ab-0332c64f0400",
+      "createdAt": "2026-04-23T12:56:30.960Z",
+      "answers": [
+        {
+          "questionId": 1,
+          "answer": "high"
+        },
+        {
+          "questionId": 2,
+          "answer": "caution"
+        },
+        {
+          "questionId": 3,
+          "answer": "caution"
+        },
+        {
+          "questionId": 4,
+          "answer": "caution"
+        },
+        {
+          "questionId": 5,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 6,
+          "answer": "caution"
+        },
+        {
+          "questionId": 7,
+          "answer": "caution"
+        },
+        {
+          "questionId": 8,
+          "answer": "caution"
+        },
+        {
+          "questionId": 9,
+          "answer": "caution"
+        },
+        {
+          "questionId": 10,
+          "answer": "caution"
+        },
+        {
+          "questionId": 11,
+          "answer": "caution"
+        },
+        {
+          "questionId": 12,
+          "answer": "caution"
+        },
+        {
+          "questionId": 13,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 14,
+          "answer": "safe"
+        },
+        {
+          "questionId": 15,
+          "answer": "high"
+        }
+      ],
+      "riskScore": 62,
+      "scoreVersion": 3,
+      "sectorScores": [
+        {
+          "id": "breaker",
+          "title": "차단기·분전반 상태",
+          "score": 67
+        },
+        {
+          "id": "outlet",
+          "title": "콘센트·배선 사용",
+          "score": 67
+        },
+        {
+          "id": "habit",
+          "title": "생활 습관·환경 점검",
+          "score": 53
+        }
+      ],
+      "summary": "주의: 전문가 점검을 권장합니다."
+    },
+    {
+      "id": "diag-32483fda-8d64-4824-96bd-732ae447dd87",
+      "userId": "usr-93526aa3-fb73-4e23-8efc-27d0067205ba",
+      "createdAt": "2026-04-22T23:00:58.116Z",
+      "answers": [
+        {
+          "questionId": 1,
+          "answer": "yes"
+        },
+        {
+          "questionId": 2,
+          "answer": "yes"
+        },
+        {
+          "questionId": 3,
+          "answer": "no"
+        },
+        {
+          "questionId": 4,
+          "answer": "no"
+        },
+        {
+          "questionId": 5,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 6,
+          "answer": "yes"
+        },
+        {
+          "questionId": 7,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 8,
+          "answer": "no"
+        },
+        {
+          "questionId": 9,
+          "answer": "yes"
+        },
+        {
+          "questionId": 10,
+          "answer": "yes"
+        },
+        {
+          "questionId": 11,
+          "answer": "no"
+        },
+        {
+          "questionId": 12,
+          "answer": "no"
+        },
+        {
+          "questionId": 13,
+          "answer": "yes"
+        },
+        {
+          "questionId": 14,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 15,
+          "answer": "unknown"
+        }
+      ],
+      "riskScore": 53,
+      "scoreVersion": 2,
+      "summary": "주의: 전문가 점검을 권장합니다."
+    },
+    {
+      "id": "diag-8ea1c348-41c4-4e2a-b3f0-73ab2359873f",
+      "userId": "usr-336b8a25-db66-4f81-93b5-35c1ea8ecd7f",
+      "createdAt": "2026-04-22T22:27:32.226Z",
+      "answers": [
+        {
+          "questionId": 1,
+          "answer": "yes"
+        },
+        {
+          "questionId": 2,
+          "answer": "yes"
+        },
+        {
+          "questionId": 3,
+          "answer": "no"
+        },
+        {
+          "questionId": 4,
+          "answer": "yes"
+        },
+        {
+          "questionId": 5,
+          "answer": "yes"
+        },
+        {
+          "questionId": 6,
+          "answer": "yes"
+        },
+        {
+          "questionId": 7,
+          "answer": "yes"
+        },
+        {
+          "questionId": 8,
+          "answer": "yes"
+        },
+        {
+          "questionId": 9,
+          "answer": "no"
+        },
+        {
+          "questionId": 10,
+          "answer": "yes"
+        },
+        {
+          "questionId": 11,
+          "answer": "yes"
+        },
+        {
+          "questionId": 12,
+          "answer": "yes"
+        },
+        {
+          "questionId": 13,
+          "answer": "no"
+        },
+        {
+          "questionId": 14,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 15,
+          "answer": "no"
+        }
+      ],
+      "riskScore": 21,
+      "summary": "주의: 전문가 점검을 권장합니다."
+    },
+    {
+      "id": "diag-b93f2f8c-7ff0-4ff7-8912-a36568c42959",
+      "userId": "usr-3da6c843-c367-41b7-b5ad-7518795b528d",
+      "createdAt": "2026-04-22T13:19:19.173Z",
+      "answers": [
+        {
+          "questionId": 1,
+          "answer": "no"
+        },
+        {
+          "questionId": 2,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 3,
+          "answer": "no"
+        },
+        {
+          "questionId": 4,
+          "answer": "yes"
+        },
+        {
+          "questionId": 5,
+          "answer": "yes"
+        },
+        {
+          "questionId": 6,
+          "answer": "yes"
+        },
+        {
+          "questionId": 7,
+          "answer": "yes"
+        },
+        {
+          "questionId": 8,
+          "answer": "no"
+        },
+        {
+          "questionId": 9,
+          "answer": "yes"
+        },
+        {
+          "questionId": 10,
+          "answer": "no"
+        },
+        {
+          "questionId": 11,
+          "answer": "no"
+        },
+        {
+          "questionId": 12,
+          "answer": "yes"
+        },
+        {
+          "questionId": 13,
+          "answer": "no"
+        },
+        {
+          "questionId": 14,
+          "answer": "no"
+        },
+        {
+          "questionId": 15,
+          "answer": "yes"
+        }
+      ],
+      "riskScore": 15,
+      "summary": "주의: 전문가 점검을 권장합니다."
+    },
+    {
+      "id": "diag-34c3dfd5-c1f7-49bc-98ec-0a586e98a81d",
+      "userId": "usr-cc01ac21-0c0e-450b-b7ee-3b6c471b888f",
+      "createdAt": "2026-04-22T12:54:19.114Z",
+      "answers": [
+        {
+          "questionId": 1,
+          "answer": "yes"
+        },
+        {
+          "questionId": 2,
+          "answer": "no"
+        },
+        {
+          "questionId": 3,
+          "answer": "no"
+        },
+        {
+          "questionId": 4,
+          "answer": "yes"
+        },
+        {
+          "questionId": 5,
+          "answer": "no"
+        },
+        {
+          "questionId": 6,
+          "answer": "no"
+        },
+        {
+          "questionId": 7,
+          "answer": "yes"
+        },
+        {
+          "questionId": 8,
+          "answer": "no"
+        },
+        {
+          "questionId": 9,
+          "answer": "yes"
+        },
+        {
+          "questionId": 10,
+          "answer": "no"
+        },
+        {
+          "questionId": 11,
+          "answer": "no"
+        },
+        {
+          "questionId": 12,
+          "answer": "yes"
+        },
+        {
+          "questionId": 13,
+          "answer": "yes"
+        },
+        {
+          "questionId": 14,
+          "answer": "no"
+        },
+        {
+          "questionId": 15,
+          "answer": "unknown"
+        }
+      ],
+      "riskScore": 13,
+      "summary": "주의: 전문가 점검을 권장합니다."
+    }
+  ],
+  "activities": [
+    {
+      "id": "act-85108979-b4c3-43be-bd8a-fb6c6de70378",
+      "userId": "usr-25def5e3-2fac-4c81-9e88-79e4e61cbfd0",
+      "action": "login",
+      "message": "ㄲ 입주민 로그인",
+      "createdAt": "2026-04-23T14:02:59.459Z"
+    },
+    {
+      "id": "act-c8dbeeb0-dab3-4a69-b71d-2008b56008cd",
+      "userId": "usr-06405a12-d669-4e11-b260-811a55443d81",
+      "action": "diagnosis_submitted",
+      "message": "지지지 입주민 자가진단 제출 (위험지수 62/100점, 원점수 28/45)",
+      "createdAt": "2026-04-23T13:56:49.028Z"
+    },
+    {
+      "id": "act-fd21d611-1e94-4374-877e-afb3911e477b",
+      "userId": "usr-06405a12-d669-4e11-b260-811a55443d81",
+      "action": "login",
+      "message": "지지지 입주민 로그인",
+      "createdAt": "2026-04-23T13:54:57.273Z"
+    },
+    {
+      "id": "act-d6ceb54a-63a9-4f5b-b4c8-32abaed2765b",
+      "userId": "usr-b945b32c-9132-496c-b178-e8a2b5f67bb8",
+      "action": "login",
+      "message": "디디디 입주민 로그인",
+      "createdAt": "2026-04-23T13:51:59.746Z"
+    },
+    {
+      "id": "act-6f1cecf0-7e4c-42eb-9387-40906de7c1b7",
+      "userId": "usr-a4330623-b4b4-42fd-a203-06cde444b81f",
+      "action": "login",
+      "message": "이이이 입주민 로그인",
+      "createdAt": "2026-04-23T13:40:49.334Z"
+    },
+    {
+      "id": "act-705d84b0-7dc4-48aa-94bc-63ea5216e4ac",
+      "userId": "usr-bed7145b-f540-460a-8c53-6a55147747e5",
+      "action": "login",
+      "message": "나나나 입주민 로그인",
+      "createdAt": "2026-04-23T13:36:12.843Z"
+    },
+    {
+      "id": "act-93e8dbaa-c93d-46ba-bc4c-2fba0346cfda",
+      "createdAt": "2026-04-23T12:57:15.600Z",
+      "userId": "usr-40822cfb-beb6-453f-b5ab-0332c64f0400",
+      "action": "emergency_requested",
+      "message": "zzz 입주민 긴급출동 요청"
+    },
+    {
+      "id": "act-f3671446-b1af-47de-9332-2ec4637aead3",
+      "userId": "usr-40822cfb-beb6-453f-b5ab-0332c64f0400",
+      "action": "diagnosis_submitted",
+      "message": "zzz 입주민 자가진단 제출 (위험지수 62/100점, 원점수 28/45)",
+      "createdAt": "2026-04-23T12:56:30.960Z"
+    },
+    {
+      "id": "act-b4050aa2-79af-47ad-9c9b-43bfb4762886",
+      "userId": "usr-40822cfb-beb6-453f-b5ab-0332c64f0400",
+      "action": "login",
+      "message": "zzz 입주민 로그인",
+      "createdAt": "2026-04-23T12:49:18.198Z"
+    },
+    {
+      "id": "act-89ba8a47-0483-4465-95cc-41d141b7a041",
+      "userId": "usr-3a6c977f-bf3c-499e-9066-48bc4774d971",
+      "action": "login",
+      "message": "aaa 입주민 로그인",
+      "createdAt": "2026-04-23T12:18:24.822Z"
+    },
+    {
+      "id": "act-b0d84f83-e67a-443e-9874-3be284ba1ddf",
+      "userId": "usr-cf5ff32b-d364-4869-90fd-72fd06a1328b",
+      "action": "login",
+      "message": "ㅂㅂㅂ 입주민 로그인",
+      "createdAt": "2026-04-23T12:04:59.301Z"
+    },
+    {
+      "id": "act-d742be15-0eae-4e50-9dc8-d8ac23be3565",
+      "userId": "usr-93526aa3-fb73-4e23-8efc-27d0067205ba",
+      "action": "diagnosis_submitted",
+      "message": "ㅁㅁㅁ 입주민 자가진단 제출 (위험지수 53/100점, 원점수 16/30)",
+      "createdAt": "2026-04-22T23:00:58.116Z"
+    },
+    {
+      "id": "act-0887f891-9eb2-44df-b0be-b1bed78b9d0a",
+      "userId": "usr-93526aa3-fb73-4e23-8efc-27d0067205ba",
+      "action": "login",
+      "message": "ㅁㅁㅁ 입주민 로그인",
+      "createdAt": "2026-04-22T22:59:42.263Z"
+    },
+    {
+      "id": "act-83394ef7-c8df-4654-80b0-2ccf0887a65c",
+      "userId": "usr-336b8a25-db66-4f81-93b5-35c1ea8ecd7f",
+      "action": "diagnosis_submitted",
+      "message": "ㅂㅂㅂ 입주민 자가진단 제출 (점수 21)",
+      "createdAt": "2026-04-22T22:27:32.226Z"
+    },
+    {
+      "id": "act-5ab42282-56d0-4054-80fd-512811a550a2",
+      "userId": "usr-336b8a25-db66-4f81-93b5-35c1ea8ecd7f",
+      "action": "login",
+      "message": "ㅂㅂㅂ 입주민 로그인",
+      "createdAt": "2026-04-22T22:25:45.473Z"
+    },
+    {
+      "id": "act-d9290105-0a56-4c14-85bd-a117bac0c13a",
+      "userId": "usr-5f402fb1-f4ab-4ab4-97d8-8743cb722fa4",
+      "action": "login",
+      "message": "강강강 입주민 로그인",
+      "createdAt": "2026-04-22T22:06:45.732Z"
+    },
+    {
+      "id": "act-d02f1342-2280-4aa7-af95-6f70913769a0",
+      "userId": "usr-5f402fb1-f4ab-4ab4-97d8-8743cb722fa4",
+      "action": "login",
+      "message": "강강강 입주민 로그인",
+      "createdAt": "2026-04-22T22:06:41.590Z"
+    },
+    {
+      "id": "act-8c0f1edd-12af-41a6-b838-7cc69ea4d5fe",
+      "userId": "usr-3da6c843-c367-41b7-b5ad-7518795b528d",
+      "action": "diagnosis_submitted",
+      "message": "홍길동 입주민 자가진단 제출 (점수 15)",
+      "createdAt": "2026-04-22T13:19:19.173Z"
+    },
+    {
+      "id": "act-a2013c36-db8a-4264-9a8d-f0e55abb363d",
+      "userId": "usr-3da6c843-c367-41b7-b5ad-7518795b528d",
+      "action": "login",
+      "message": "홍길동 입주민 로그인",
+      "createdAt": "2026-04-22T13:02:27.969Z"
+    },
+    {
+      "id": "act-e62c8d42-e765-40bf-b923-937bfb46c88b",
+      "userId": "usr-3da6c843-c367-41b7-b5ad-7518795b528d",
+      "action": "login",
+      "message": "홍길동 입주민 로그인",
+      "createdAt": "2026-04-22T13:02:20.508Z"
+    },
+    {
+      "id": "act-f2a84a34-40b4-4a76-a137-fbcd80d8943f",
+      "userId": "usr-cc01ac21-0c0e-450b-b7ee-3b6c471b888f",
+      "action": "diagnosis_submitted",
+      "message": "홍길동 입주민 자가진단 제출 (점수 13)",
+      "createdAt": "2026-04-22T12:54:19.114Z"
+    },
+    {
+      "id": "act-10633771-2f33-4cfe-b177-a5d7bc560994",
+      "userId": "usr-cc01ac21-0c0e-450b-b7ee-3b6c471b888f",
+      "action": "login",
+      "message": "홍길동 입주민 로그인",
+      "createdAt": "2026-04-22T12:53:39.296Z"
+    }
+  ]
+}

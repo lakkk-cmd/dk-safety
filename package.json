@@ -1,0 +1,32 @@
+{
+  "name": "dk-safety",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "sync:supabase": "node scripts/sync-local-to-supabase.mjs",
+    "env:production": "node -e \"require('fs').copyFileSync('.env.example','.env.production'); console.log('Wrote .env.production from .env.example');\"",
+    "setup:deploy": "node scripts/setup-github-vercel.mjs"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.8.1",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.12.0",
+    "eslint-config-next": "^15.0.0",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3"
+  }
+}

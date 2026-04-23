@@ -1,0 +1,8 @@
+<svg width="320" height="120" viewBox="0 0 320 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="120" rx="20" fill="#EFF6FF"/>
+  <rect x="8" y="8" width="304" height="104" rx="16" stroke="#0A5EB0" stroke-dasharray="6 6"/>
+  <circle cx="52" cy="60" r="24" fill="#0A5EB0"/>
+  <path d="M52 42L43 62H50L47 78L61 56H53L58 42H52Z" fill="white"/>
+  <text x="90" y="53" fill="#0A5EB0" font-family="Arial, sans-serif" font-size="20" font-weight="700">DK Safety Electric</text>
+  <text x="90" y="76" fill="#334155" font-family="Arial, sans-serif" font-size="14">Home Electric Care</text>
+</svg>

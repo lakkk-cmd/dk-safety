@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_BUSINESS_PHONE: "010-0000-0000"
+          NEXT_PUBLIC_KAKAO_OPENCHAT_URL: "https://open.kakao.com/"
+          ADMIN_PASSWORD: "ci-placeholder"
