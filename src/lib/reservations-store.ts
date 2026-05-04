@@ -45,6 +45,12 @@ export type Reservation = {
   orderFinalPaymentStatus?: "PENDING" | "REQUESTED" | "PAID" | "FAILED" | "CANCELLED" | null;
   orderTotalFinalFee?: number | null;
   orderWarrantyIssuedAt?: string | null;
+  /** orders.payment_status (예약금 등) — Supabase DB 모드에서만 채워질 수 있습니다. */
+  orderPaymentStatus?: string | null;
+  /** orders.dispatch_status — Supabase DB 모드에서만 채워질 수 있습니다. */
+  orderDispatchStatus?: string | null;
+  /** orders.prepayment_confirmed — Supabase DB 모드에서만 채워질 수 있습니다. */
+  orderPrepaymentConfirmed?: boolean;
 };
 
 export type BackupSnapshot = {

@@ -56,11 +56,17 @@ type ReservationRow = {
   tasks: TaskRow[] | TaskRow | null;
   orders?:
     | {
+        payment_status: string | null;
+        dispatch_status: string | null;
+        prepayment_confirmed: boolean | null;
         final_payment_status: "PENDING" | "REQUESTED" | "PAID" | "FAILED" | "CANCELLED" | null;
         total_final_fee: number | null;
         warranty_issued_at: string | null;
       }
     | {
+        payment_status: string | null;
+        dispatch_status: string | null;
+        prepayment_confirmed: boolean | null;
         final_payment_status: "PENDING" | "REQUESTED" | "PAID" | "FAILED" | "CANCELLED" | null;
         total_final_fee: number | null;
         warranty_issued_at: string | null;
@@ -229,7 +235,10 @@ function mapReservation(row: ReservationRow): Reservation {
     assignedWorkerName: t ? workerNameFromJoin(t.workers) : null,
     orderFinalPaymentStatus: o?.final_payment_status ?? null,
     orderTotalFinalFee: Number.isFinite(o?.total_final_fee) ? Number(o?.total_final_fee) : null,
-    orderWarrantyIssuedAt: o?.warranty_issued_at ?? null
+    orderWarrantyIssuedAt: o?.warranty_issued_at ?? null,
+    orderPaymentStatus: o?.payment_status ?? null,
+    orderDispatchStatus: o?.dispatch_status ?? null,
+    orderPrepaymentConfirmed: Boolean(o?.prepayment_confirmed)
   };
 }
 
@@ -270,6 +279,9 @@ export async function pgReadReservations(): Promise<Reservation[]> {
         workers ( name )
       ),
       orders (
+        payment_status,
+        dispatch_status,
+        prepayment_confirmed,
         final_payment_status,
         total_final_fee,
         warranty_issued_at

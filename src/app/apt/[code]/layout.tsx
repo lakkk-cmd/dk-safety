@@ -3,6 +3,7 @@ import { pgFindApartmentByCode, pgListApartments } from "@/lib/apartments-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { MobileNavProvider } from "@/components/mobile/mobile-nav-provider";
 import TenantPageHeader from "@/components/mobile/tenant-page-header";
+import ReservationStatusBar from "@/components/reservation/reservation-status-bar";
 
 export default async function ApartmentLayout({
   children,
@@ -30,6 +31,7 @@ export default async function ApartmentLayout({
     <MobileNavProvider>
       <div className="min-h-screen">
         <TenantPageHeader title={headerTitle} />
+        <ReservationStatusBar aptCode={code} />
         <div className="mx-auto w-full max-w-3xl px-4 py-4">{children}</div>
       </div>
     </MobileNavProvider>

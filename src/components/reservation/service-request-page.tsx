@@ -8,6 +8,11 @@ import DepositPaymentPanel from "@/components/payment/deposit-payment-panel";
 import { validateReservationInput } from "@/lib/reservation-validation";
 import { formatResidentDongHoDepositHolder } from "@/lib/resident-unit-label";
 import { cn } from "@/lib/utils";
+import {
+  ACTIVE_RESERVATION_CHANGED_EVENT,
+  ACTIVE_RESERVATION_STORAGE_KEY,
+  type StoredReservation
+} from "@/components/reservation/reservation-status-bar";
 
 type ApartmentInfo = {
   id: string;
@@ -612,6 +617,19 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
       const orderData = (await orderResponse.json()) as { message?: string; order?: { id?: string } };
       if (!orderResponse.ok || !orderData.order?.id) throw new Error(orderData.message ?? "주문 생성 실패");
       setOrderId(orderData.order.id);
+      try {
+        const active: StoredReservation = {
+          reservationId: data.reservation.id,
+          orderId: orderData.order.id,
+          aptCode: apartment.code,
+          serviceType: requestInfo[requestType].serviceType,
+          submittedAt: new Date().toISOString()
+        };
+        window.localStorage.setItem(ACTIVE_RESERVATION_STORAGE_KEY, JSON.stringify(active));
+        window.dispatchEvent(new CustomEvent(ACTIVE_RESERVATION_CHANGED_EVENT));
+      } catch {
+        /* ignore quota / private mode */
+      }
       setOrderPaymentStatus("PENDING");
       setOrderDispatchStatus("BLOCKED");
       setFlowStatus("pending_payment");
