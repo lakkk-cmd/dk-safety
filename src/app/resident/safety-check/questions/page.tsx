@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function ResidentHistoryPage() {
+export default function ResidentSafetyCheckQuestionsPage() {
   redirect("/resident/safety-check");
 }
