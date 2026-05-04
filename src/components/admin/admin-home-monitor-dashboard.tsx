@@ -6,6 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import type { AdminOrderRow } from "@/lib/orders-pg";
 import type { Reservation } from "@/lib/reservations-store";
+import {
+  finalPaymentStatusKo,
+  orderPaymentStatusKo,
+  reservationStatusKo,
+  taskStatusKo
+} from "@/lib/admin-customer-care-display";
 import { cn } from "@/lib/utils";
 
 type WorkerRow = { id: string; name: string; phone: string; active: boolean; createdAt: string };
@@ -147,7 +153,8 @@ export default function AdminHomeMonitorDashboard() {
       const fs = norm(o.final_payment_status);
       if (fs === "REQUESTED") finalRequested += 1;
       if (fs === "PAID") finalPaid += 1;
-      if (ps === "PAID" && norm(o.dispatch_status) === "IDLE") dispatchIdlePaid += 1;
+      const ds = norm(o.dispatch_status);
+      if (ps === "PAID" && (ds === "READY" || ds === "IDLE" || ds === "ACTIVE")) dispatchIdlePaid += 1;
     }
     const recent = orders.slice(0, 8);
     return { prepPending, prepWaitBank, prepPaid, prepOther, finalRequested, finalPaid, dispatchIdlePaid, recent };
@@ -215,7 +222,7 @@ export default function AdminHomeMonitorDashboard() {
                 <tbody className="divide-y divide-slate-100">
                   {reception.recent.map((r) => (
                     <tr key={r.id} className="bg-white">
-                      <td className="px-2 py-1.5 font-bold text-slate-800">{r.status}</td>
+                      <td className="px-2 py-1.5 font-bold text-slate-800">{reservationStatusKo(r.status)}</td>
                       <td className="px-2 py-1.5 text-slate-700">{r.priority === "emergency" ? "긴급" : "일반"}</td>
                       <td className="max-w-[7rem] truncate px-2 py-1.5 text-slate-700" title={r.name}>
                         {r.name}
@@ -290,7 +297,7 @@ export default function AdminHomeMonitorDashboard() {
                   ) : (
                     crew.activeRows.map((r) => (
                       <tr key={r.id} className="bg-white">
-                        <td className="px-2 py-1.5 font-bold text-slate-800">{r.taskStatus}</td>
+                        <td className="px-2 py-1.5 font-bold text-slate-800">{taskStatusKo(r.taskStatus)}</td>
                         <td className="max-w-[7rem] truncate px-2 py-1.5 text-slate-700" title={r.assignedWorkerName ?? ""}>
                           {r.assignedWorkerName ?? "—"}
                         </td>
@@ -328,7 +335,7 @@ export default function AdminHomeMonitorDashboard() {
           </CardHeader>
           <CardContent className="space-y-3 pt-4">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <Stat label="예약금 대기(PENDING)" value={money.prepPending} tone="warn" />
+              <Stat label="예약금 대기" value={money.prepPending} tone="warn" />
               <Stat label="가상계좌 입금중" value={money.prepWaitBank} tone="warn" />
               <Stat label="예약금 입금완료" value={money.prepPaid} tone="ok" />
               <Stat label="배정 대기(입금완료)" value={money.dispatchIdlePaid} tone="danger" />
@@ -351,8 +358,8 @@ export default function AdminHomeMonitorDashboard() {
                     const name = o.resident_info?.name ?? "—";
                     return (
                       <tr key={o.id} className="bg-white">
-                        <td className="px-2 py-1.5 font-bold text-slate-800">{o.payment_status}</td>
-                        <td className="px-2 py-1.5 text-slate-700">{o.final_payment_status}</td>
+                        <td className="px-2 py-1.5 font-bold text-slate-800">{orderPaymentStatusKo(o.payment_status)}</td>
+                        <td className="px-2 py-1.5 text-slate-700">{finalPaymentStatusKo(o.final_payment_status)}</td>
                         <td className="max-w-[6rem] truncate px-2 py-1.5 text-slate-700" title={name}>
                           {name}
                         </td>
@@ -378,8 +385,8 @@ export default function AdminHomeMonitorDashboard() {
       </div>
 
       <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-3 text-xs text-slate-600">
-        <strong className="text-slate-800">배정 대기(입금완료)</strong>은 예약금은 입금되었으나 <code className="rounded bg-white px-1">dispatch_status=IDLE</code> 인
-        주문 수로, 실시간 배정 관제에서 우선 처리할 수 있습니다.
+        <strong className="text-slate-800">배정 대기(입금완료)</strong>은 예약금 입금 후{" "}
+        <code className="rounded bg-white px-1">dispatch_status=READY</code>(구 스키마: IDLE/ACTIVE)인 주문 수로, 실시간 배정 관제에서 우선 처리할 수 있습니다.
       </div>
     </div>
   );

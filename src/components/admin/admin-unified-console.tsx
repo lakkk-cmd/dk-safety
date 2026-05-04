@@ -21,6 +21,7 @@ import type { ApartmentTenant } from "@/lib/apartments-pg";
 import type { AdminOrderRow } from "@/lib/orders-pg";
 import type { WorkerPublic } from "@/lib/reservations-pg";
 import type { Reservation } from "@/lib/reservations-store";
+import { finalPaymentStatusKo, orderPaymentStatusKo, taskStatusKo } from "@/lib/admin-customer-care-display";
 
 type SectionKey =
   | "apartment-master"
@@ -304,7 +305,7 @@ export default function AdminUnifiedConsole({ initial }: { initial: Snapshot }) 
                         <td className="px-3 py-2">{resident.dong ?? "-"}-{resident.ho ?? "-"}</td>
                         <td className="px-3 py-2">{order.virtual_account_number ?? "-"}</td>
                         <td className="px-3 py-2">{(order.virtual_account_amount ?? order.base_fee ?? 0).toLocaleString("ko-KR")}원</td>
-                        <td className="px-3 py-2 font-bold">{order.payment_status}</td>
+                        <td className="px-3 py-2 font-bold">{orderPaymentStatusKo(order.payment_status)}</td>
                       </tr>
                     );
                   })}
@@ -338,7 +339,9 @@ export default function AdminUnifiedConsole({ initial }: { initial: Snapshot }) 
                       <td className="px-3 py-2 font-semibold">{r.apartmentName ?? "미지정"}</td>
                       <td className="px-3 py-2">{r.address.match(/(\d+동\s*\d+호)/)?.[1] ?? "-"}</td>
                       <td className="px-3 py-2">{r.name}</td>
-                      <td className="px-3 py-2 font-bold">{r.taskStatus ? `배정완료(${r.taskStatus})` : "배정대기"}</td>
+                      <td className="px-3 py-2 font-bold">
+                        {r.taskStatus ? `배정완료(${taskStatusKo(r.taskStatus)})` : "배정대기"}
+                      </td>
                       <td className="px-3 py-2">{r.assignedWorkerName ?? "-"}</td>
                     </tr>
                   ))}
@@ -375,7 +378,7 @@ export default function AdminUnifiedConsole({ initial }: { initial: Snapshot }) 
                         <td className="px-3 py-2">{resident.dong ?? "-"}-{resident.ho ?? "-"}</td>
                         <td className="px-3 py-2">{(order.total_final_fee ?? reservation.totalAmount).toLocaleString("ko-KR")}원</td>
                         <td className="px-3 py-2 font-bold text-amber-700">{extra.toLocaleString("ko-KR")}원</td>
-                        <td className="px-3 py-2">{order.final_payment_status}</td>
+                        <td className="px-3 py-2">{finalPaymentStatusKo(order.final_payment_status)}</td>
                       </tr>
                     );
                   })}
@@ -413,7 +416,9 @@ export default function AdminUnifiedConsole({ initial }: { initial: Snapshot }) 
                           <td className="px-3 py-2 font-semibold">{aptName}</td>
                           <td className="px-3 py-2">{resident.dong ?? "-"}-{resident.ho ?? "-"}</td>
                           <td className="px-3 py-2">{order.warranty_issued_at ? new Date(order.warranty_issued_at).toLocaleString("ko-KR") : "-"}</td>
-                          <td className="px-3 py-2 font-bold">{order.final_payment_status === "PAID" ? "ISSUED" : "PENDING"}</td>
+                          <td className="px-3 py-2 font-bold">
+                            {order.final_payment_status === "PAID" ? "발급 완료" : "미발급"}
+                          </td>
                         </tr>
                       );
                     })}
