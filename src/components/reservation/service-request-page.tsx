@@ -79,7 +79,9 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
   const [paymentPopupOpen, setPaymentPopupOpen] = useState(false);
   const [serviceKickoffVisible, setServiceKickoffVisible] = useState(false);
   const [orderPaymentStatus, setOrderPaymentStatus] = useState<"PENDING" | "WAITING_FOR_DEPOSIT" | "PAID" | "FAILED" | "UNKNOWN">("UNKNOWN");
-  const [orderDispatchStatus, setOrderDispatchStatus] = useState<"IDLE" | "ACTIVE" | "UNKNOWN">("UNKNOWN");
+  const [orderDispatchStatus, setOrderDispatchStatus] = useState<
+    "BLOCKED" | "READY" | "ASSIGNED" | "IN_PROGRESS" | "DONE" | "CANCELLED" | "IDLE" | "ACTIVE" | "UNKNOWN"
+  >("UNKNOWN");
   const [orderFinalPaymentStatus, setOrderFinalPaymentStatus] = useState<"PENDING" | "REQUESTED" | "PAID" | "FAILED" | "CANCELLED" | "UNKNOWN">("UNKNOWN");
   const [orderTotalFinalFee, setOrderTotalFinalFee] = useState<number | null>(null);
   const [orderWarrantyIssuedAt, setOrderWarrantyIssuedAt] = useState<string | null>(null);
@@ -219,6 +221,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
               setTaskStatus(rowTaskStatus);
               setFlowStatus("assigned_done");
               setServiceKickoffVisible(true);
+              setPaymentPopupOpen(false);
               return;
             }
             if (row.prepayment_confirmed) {
@@ -228,6 +231,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
               } else {
                 setFlowStatus("assigned_waiting");
               }
+              setPaymentPopupOpen(false);
             }
           }
         )
@@ -258,6 +262,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
             setTaskStatus(next);
             setFlowStatus("assigned_done");
             setServiceKickoffVisible(true);
+            setPaymentPopupOpen(false);
           }
         )
         .subscribe();
@@ -284,10 +289,35 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
           setTaskStatus(nextTask);
           setFlowStatus("assigned_done");
           setServiceKickoffVisible(true);
+          setPaymentPopupOpen(false);
           return;
         }
         if (data.reservation?.isPaid) {
           setFlowStatus((prev) => (prev === "assigned_done" ? prev : "assigned_waiting"));
+          setPaymentPopupOpen(false);
+        }
+        if (orderId) {
+          try {
+            const supabase = createBrowserSupabase();
+            const { data: orderRow } = await supabase
+              .from("orders")
+              .select("payment_status, dispatch_status")
+              .eq("id", orderId)
+              .maybeSingle();
+            if (orderRow) {
+              const payment = String(orderRow.payment_status ?? "").trim().toUpperCase();
+              const dispatch = String(orderRow.dispatch_status ?? "").trim().toUpperCase();
+              if (payment === "PAID" || dispatch === "READY" || dispatch === "ACTIVE") {
+                if (payment === "PAID") setOrderPaymentStatus("PAID");
+                if (dispatch === "READY" || dispatch === "ACTIVE") setOrderDispatchStatus("READY");
+                setFlowStatus((prev) => (prev === "assigned_done" ? prev : "assigned_waiting"));
+                setServiceKickoffVisible(true);
+                setPaymentPopupOpen(false);
+              }
+            }
+          } catch {
+            // ignore order poll (RLS 등)
+          }
         }
       } catch {
         // ignore polling errors
@@ -299,7 +329,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
       void tick();
     }, 3500);
     return () => window.clearInterval(id);
-  }, [reservationId]);
+  }, [reservationId, orderId]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -322,7 +352,18 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
             virtual_account_amount?: number | null;
           };
           const payment = (row.payment_status ?? "UNKNOWN").toUpperCase() as "PENDING" | "WAITING_FOR_DEPOSIT" | "PAID" | "FAILED" | "UNKNOWN";
-          const dispatch = (row.dispatch_status ?? "UNKNOWN").toUpperCase() as "IDLE" | "ACTIVE" | "UNKNOWN";
+          const dispatch = String(row.dispatch_status ?? "UNKNOWN")
+            .trim()
+            .toUpperCase() as
+            | "BLOCKED"
+            | "READY"
+            | "ASSIGNED"
+            | "IN_PROGRESS"
+            | "DONE"
+            | "CANCELLED"
+            | "IDLE"
+            | "ACTIVE"
+            | "UNKNOWN";
           const finalPayment = (row.final_payment_status ?? "UNKNOWN").toUpperCase() as
             | "PENDING"
             | "REQUESTED"
@@ -347,9 +388,10 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
               amount: typeof row.virtual_account_amount === "number" ? row.virtual_account_amount : prepaymentAmount
             });
           }
-          if (dispatch === "ACTIVE" || payment === "PAID") {
+          if (dispatch === "ACTIVE" || dispatch === "READY" || payment === "PAID") {
             setFlowStatus("assigned_waiting");
             setServiceKickoffVisible(true);
+            setPaymentPopupOpen(false);
           }
         })
         .subscribe();
@@ -571,7 +613,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
       if (!orderResponse.ok || !orderData.order?.id) throw new Error(orderData.message ?? "주문 생성 실패");
       setOrderId(orderData.order.id);
       setOrderPaymentStatus("PENDING");
-      setOrderDispatchStatus("IDLE");
+      setOrderDispatchStatus("BLOCKED");
       setFlowStatus("pending_payment");
       setPaymentPopupOpen(true);
       setMessage("접수가 생성되었습니다. 팝업에서 계좌 입금 안내를 확인해 주세요.");
@@ -713,6 +755,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
       const data = (await response.json()) as { message?: string };
       if (!response.ok) throw new Error(data.message ?? "입금대기 상태 변경 실패");
       setOrderPaymentStatus("WAITING_FOR_DEPOSIT");
+      setPaymentPopupOpen(false);
       setMessage("입금 완료 요청이 접수되었습니다. 관리자가 확인하면 서비스가 시작됩니다.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "입금대기 처리 실패");
@@ -1162,7 +1205,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
         <p className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-2xl font-black text-emerald-700">
           {taskStatus === "completed" ? "작업 완료" : "기사 배정 완료"}
         </p>
-      ) : orderPaymentStatus === "PAID" || orderDispatchStatus === "ACTIVE" ? (
+      ) : orderPaymentStatus === "PAID" || orderDispatchStatus === "READY" || orderDispatchStatus === "ACTIVE" ? (
         <p className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-2xl font-black text-emerald-700">기사 배정 중</p>
       ) : null}
       {orderTotalFinalFee !== null ? (
