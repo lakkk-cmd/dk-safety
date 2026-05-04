@@ -31,6 +31,7 @@ export default async function ApartmentLayout({
     <MobileNavProvider>
       <div className="min-h-screen">
         <TenantPageHeader title={headerTitle} />
+        {/* 헤더 바로 아래 (클라이언트 컴포넌트; 서버 layout에서 import 가능) */}
         <ReservationStatusBar aptCode={code} />
         <div className="mx-auto w-full max-w-3xl px-4 py-4">{children}</div>
       </div>
