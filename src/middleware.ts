@@ -1,58 +1,81 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ADMIN_AUTH_COOKIE, RESIDENT_AUTH_COOKIE } from "@/lib/site-config";
+import { ADMIN_AUTH_COOKIE, RESIDENT_AUTH_COOKIE, WORKER_AUTH_COOKIE } from "@/lib/site-config";
+import { residentSessionNotRequired } from "@/lib/service-journey";
+import { verifyWorkerSessionTokenEdge } from "@/lib/worker-session-verify-edge";
 
 const FIRST_VISIT_COOKIE = "dk_first_visit_checked";
 
-export function middleware(request: NextRequest) {
+function withFirstVisitCookie(res: NextResponse, isFirstVisit: boolean) {
+  if (isFirstVisit) {
+    res.cookies.set(FIRST_VISIT_COOKIE, "1", { path: "/", maxAge: 60 * 60 * 24 * 365 });
+  }
+  return res;
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isStaticAsset = /\.[^/]+$/.test(pathname);
-  if (isStaticAsset) {
+  if (/\.[^/]+$/.test(pathname)) {
     return NextResponse.next();
   }
 
-  const isAdminRoute = pathname.startsWith("/admin");
-  const isAdminLogin = pathname === "/admin/login";
-  const isResidentLogin = pathname === "/resident/login";
-  const isPublicHome = pathname === "/" || pathname === "/home";
   const isFirstVisit = !request.cookies.get(FIRST_VISIT_COOKIE)?.value;
 
   let response: NextResponse | null = null;
   if (isFirstVisit) {
-    // 브라우저 세션의 첫 진입에서는 항상 로그아웃 상태로 시작합니다.
     response = NextResponse.next();
     response.cookies.delete(ADMIN_AUTH_COOKIE);
     response.cookies.delete(RESIDENT_AUTH_COOKIE);
     response.cookies.set(FIRST_VISIT_COOKIE, "1", { path: "/", maxAge: 60 * 60 * 24 * 365 });
   }
 
-  if (isAdminRoute && !isAdminLogin) {
-    const adminAuth =
-      response?.cookies.get(ADMIN_AUTH_COOKIE)?.value ?? request.cookies.get(ADMIN_AUTH_COOKIE)?.value;
-    if (adminAuth !== "ok") {
-      const loginUrl = new URL("/admin/login", request.url);
-      const redirectResponse = NextResponse.redirect(loginUrl);
-      if (isFirstVisit) {
-        redirectResponse.cookies.set(FIRST_VISIT_COOKIE, "1", { path: "/", maxAge: 60 * 60 * 24 * 365 });
-      }
-      return redirectResponse;
+  const adminAuth =
+    response?.cookies.get(ADMIN_AUTH_COOKIE)?.value ?? request.cookies.get(ADMIN_AUTH_COOKIE)?.value;
+
+  if (pathname === "/admin" && adminAuth === "ok") {
+    return withFirstVisitCookie(NextResponse.redirect(new URL("/admin/home", request.url)), isFirstVisit);
+  }
+
+  const isAdminRoute = pathname.startsWith("/admin");
+  const isAdminLogin = pathname === "/admin/login";
+
+  if (isAdminRoute && !isAdminLogin && adminAuth !== "ok") {
+    return withFirstVisitCookie(NextResponse.redirect(new URL("/admin/login", request.url)), isFirstVisit);
+  }
+
+  const isWorkerRoute = pathname.startsWith("/worker");
+  const isWorkerLogin = pathname === "/worker/login";
+
+  if (isWorkerRoute && !isWorkerLogin) {
+    const token =
+      response?.cookies.get(WORKER_AUTH_COOKIE)?.value ?? request.cookies.get(WORKER_AUTH_COOKIE)?.value;
+    if (!(await verifyWorkerSessionTokenEdge(token))) {
+      const loginUrl = new URL("/worker/login", request.url);
+      loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+      return withFirstVisitCookie(NextResponse.redirect(loginUrl), isFirstVisit);
     }
   }
 
-  if (!isAdminRoute && !isResidentLogin && !isPublicHome) {
-    const residentAuth =
-      response?.cookies.get(RESIDENT_AUTH_COOKIE)?.value ?? request.cookies.get(RESIDENT_AUTH_COOKIE)?.value;
-    if (!residentAuth) {
-      const loginUrl = new URL("/resident/login", request.url);
-      const redirectResponse = NextResponse.redirect(loginUrl);
-      if (isFirstVisit) {
-        redirectResponse.cookies.set(FIRST_VISIT_COOKIE, "1", { path: "/", maxAge: 60 * 60 * 24 * 365 });
-      }
-      return redirectResponse;
-    }
+  if (isWorkerRoute || isAdminRoute) {
+    return response ?? NextResponse.next();
   }
 
-  return response ?? NextResponse.next();
+  const isResidentLogin =
+    pathname === "/resident/login" || /^\/apt\/[^/]+\/resident\/login$/.test(pathname);
+
+  if (residentSessionNotRequired(pathname) || isResidentLogin) {
+    return response ?? NextResponse.next();
+  }
+
+  const residentAuth =
+    response?.cookies.get(RESIDENT_AUTH_COOKIE)?.value ?? request.cookies.get(RESIDENT_AUTH_COOKIE)?.value;
+  if (residentAuth) {
+    return response ?? NextResponse.next();
+  }
+
+  const loginUrl = new URL("/resident/login", request.url);
+  loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+  return withFirstVisitCookie(NextResponse.redirect(loginUrl), isFirstVisit);
 }
 
 export const config = {
