@@ -11,6 +11,7 @@ export default function GlobalQuickActions() {
   const pathname = usePathname();
   if (!pathname) return null;
   if (pathname.startsWith("/admin")) return null;
+  if (pathname.startsWith("/worker")) return null;
   const homeActive = pathname === "/home";
   const diagnosisActive = pathname.startsWith("/resident/safety-check") || pathname.startsWith("/resident/history");
 

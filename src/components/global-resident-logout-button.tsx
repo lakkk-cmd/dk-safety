@@ -27,6 +27,8 @@ export default function GlobalResidentLogoutButton() {
 
   if (!visible) return null;
 
+  const isAptTenantShell = Boolean(pathname?.startsWith("/apt/"));
+
   const onLogout = async () => {
     setLoading(true);
     try {
@@ -43,7 +45,9 @@ export default function GlobalResidentLogoutButton() {
       type="button"
       onClick={() => void onLogout()}
       disabled={loading}
-      className="fixed right-4 top-4 z-50 rounded-xl border border-slate-300 bg-white/95 px-3 py-2 text-xs font-semibold text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.16)] backdrop-blur hover:bg-white disabled:opacity-60"
+      className={`fixed right-4 z-50 rounded-xl border border-slate-300 bg-white/95 px-3 py-2 text-xs font-semibold text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.16)] backdrop-blur hover:bg-white disabled:opacity-60 ${
+        isAptTenantShell ? "top-16 max-[380px]:top-[4.25rem]" : "top-4"
+      }`}
     >
       {loading ? "로그아웃 중..." : "로그아웃"}
     </button>

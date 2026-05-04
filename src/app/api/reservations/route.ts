@@ -1,16 +1,68 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createReservation, hasReservationTimeConflict, readReservations } from "@/lib/reservations-store";
 import { normalizePhone, validateReservationInput } from "@/lib/reservation-validation";
 import { appendActivityLog } from "@/lib/activity-log";
 import { saveImageFiles } from "@/lib/upload-store";
+import { readPaymentSettings } from "@/lib/payment-settings";
+import { getResidentBySessionId } from "@/lib/resident-db";
+import { RESIDENT_AUTH_COOKIE } from "@/lib/site-config";
+import { pushReservationProgressNotifications } from "@/lib/live-notify";
 
 export async function GET() {
+  const cookieStore = await cookies();
+  const sessionId = cookieStore.get(RESIDENT_AUTH_COOKIE)?.value;
+  if (!sessionId) {
+    return NextResponse.json({ message: "로그인이 필요합니다.", reservations: [] }, { status: 401 });
+  }
+  const resident = await getResidentBySessionId(sessionId);
+  if (!resident) {
+    return NextResponse.json({ message: "로그인 세션이 유효하지 않습니다.", reservations: [] }, { status: 401 });
+  }
+
   const reservations = await readReservations();
-  return NextResponse.json({ reservations });
+  const residentPhone = normalizePhone(resident.phone);
+  const residentUnit = resident.unitNumber.trim();
+  const residentApartment = resident.apartmentName.trim();
+  const normalizedResidentUnit = residentUnit.replaceAll(/\s/g, "");
+  const normalizedResidentApartment = residentApartment.replaceAll(/\s/g, "");
+  const normalizedResidentName = resident.name.trim().replaceAll(/\s/g, "");
+
+  const parseDongHo = (value: string) => {
+    const compact = value.replaceAll(/\s/g, "");
+    const match = compact.match(/(\d+)동(\d+)호/);
+    if (!match) return null;
+    return `${match[1]}-${match[2]}`;
+  };
+
+  const residentDongHo = parseDongHo(residentUnit);
+  const filtered = reservations.filter((item) => {
+    const samePhone = normalizePhone(item.phone) === residentPhone;
+    if (!samePhone) return false;
+
+    const normalizedAddress = item.address.replaceAll(/\s/g, "");
+    const normalizedItemApartment = (item.apartmentName ?? "").trim().replaceAll(/\s/g, "");
+    const normalizedItemName = item.name.trim().replaceAll(/\s/g, "");
+    const itemDongHo = parseDongHo(item.address);
+
+    const sameUnit =
+      (normalizedResidentUnit && normalizedAddress.includes(normalizedResidentUnit)) ||
+      (residentDongHo && itemDongHo ? residentDongHo === itemDongHo : false);
+    const sameApartment =
+      !normalizedResidentApartment || (normalizedItemApartment && normalizedItemApartment.includes(normalizedResidentApartment));
+    const sameName = normalizedItemName === normalizedResidentName;
+
+    // 전화번호를 기본 식별자로 사용하고, 주소/아파트/이름 중 하나라도 맞으면 본인 예약으로 판단.
+    return sameUnit || sameApartment || sameName;
+  });
+  return NextResponse.json({ reservations: filtered });
 }
 
 export async function POST(request: Request) {
   let body: {
+    apartmentId?: string;
+    apartmentName?: string;
+    apartmentCode?: string;
     name?: string;
     phone?: string;
     address?: string;
@@ -26,6 +78,9 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     body = {
       name: String(formData.get("name") ?? ""),
+      apartmentId: String(formData.get("apartmentId") ?? ""),
+      apartmentName: String(formData.get("apartmentName") ?? ""),
+      apartmentCode: String(formData.get("apartmentCode") ?? ""),
       phone: String(formData.get("phone") ?? ""),
       address: String(formData.get("address") ?? ""),
       serviceType: String(formData.get("serviceType") ?? ""),
@@ -47,28 +102,45 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: error }, { status: 400 });
   }
 
+  const normalizedName = (body.name?.trim() || "비로그인 사용자").slice(0, 20);
+  const normalizedPhone = normalizePhone(body.phone?.trim() || "01000000000");
+  const normalizedAddress = (body.address?.trim() || `${body.apartmentName?.trim() || "아파트"} 방문 요청`).slice(0, 120);
+  const normalizedDetail = (body.detail?.trim() || `${body.serviceType?.trim() || "점검"} 아이콘 접수`).slice(0, 500);
+
   const hasConflict = await hasReservationTimeConflict(body.preferredDate!.trim(), body.preferredTime!.trim());
   if (hasConflict) {
     return NextResponse.json({ message: "선택하신 방문 요청시간은 이미 예약되어 있습니다. 다른 시간을 선택해주세요." }, { status: 409 });
   }
 
+  const paymentSettings = await readPaymentSettings();
   const created = await createReservation({
-    name: body.name!.trim(),
-    phone: normalizePhone(body.phone!),
-    address: body.address!.trim(),
+    name: normalizedName,
+    apartmentId: body.apartmentId?.trim() || undefined,
+    apartmentName: body.apartmentName?.trim() || undefined,
+    apartmentCode: body.apartmentCode?.trim() || undefined,
+    phone: normalizedPhone,
+    address: normalizedAddress,
     serviceType: body.serviceType!.trim(),
     preferredDate: body.preferredDate!,
     preferredTime: body.preferredTime!,
-    detail: body.detail!.trim(),
+    detail: normalizedDetail,
     imageUrls,
-    priority: "normal"
+    priority: "normal",
+    baseFee: paymentSettings.baseDispatchFee
   });
 
   await appendActivityLog({
     action: "reservation_created",
     reservationId: created.id,
-    message: `${created.name} 고객 예약이 접수되었습니다.`
+    message: `${created.name} 고객 예약이 입금대기 상태로 접수되었습니다.`
+  });
+  await pushReservationProgressNotifications({
+    reservationId: created.id,
+    customerName: created.name,
+    customerPhone: created.phone,
+    adminMessage: `${created.name}님의 예약이 접수 대기 상태로 생성되었습니다.`,
+    residentMessage: `${created.name}님 예약이 접수되었습니다. 결제 완료 후 기사 배정이 시작됩니다.`
   });
 
-  return NextResponse.json({ message: "예약이 등록되었습니다.", reservation: created }, { status: 201 });
+  return NextResponse.json({ message: "접수되었습니다. 입금 확인 후 연락드립니다.", reservation: created }, { status: 201 });
 }

@@ -1,12 +1,10 @@
 import Link from "next/link";
 import ResidentSafetyDashboard from "@/components/admin/resident/resident-safety-dashboard";
-import PageNavButtons from "@/components/page-nav-buttons";
 import AdminLogoutButton from "@/components/admin-logout-button";
 
 export default function AdminResidentSafetyPage() {
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-6 py-10 md:py-14">
-      <PageNavButtons homeHref="/admin" homeLabel="관리자 홈" />
+    <main className="page-fit max-w-6xl">
       <div className="surface-editorial mb-6 flex items-center justify-between rounded-[2rem] p-6 md:p-8">
         <div>
           <p className="section-kicker">입주민 통합 모니터링</p>
@@ -14,8 +12,8 @@ export default function AdminResidentSafetyPage() {
           <p className="mt-2 text-sm text-slate-600">단지별 위험도를 집계하고 고위험 입주민을 빠르게 확인합니다.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/admin" className="btn-outline px-3 py-2 text-sm">
-            예약 관리자 홈
+          <Link href="/admin/home" className="btn-outline px-3 py-2 text-sm">
+            메인화면
           </Link>
           <AdminLogoutButton />
         </div>

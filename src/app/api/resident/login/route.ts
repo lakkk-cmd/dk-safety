@@ -5,19 +5,35 @@ import { RESIDENT_AUTH_COOKIE } from "@/lib/site-config";
 const FIRST_VISIT_COOKIE = "dk_first_visit_checked";
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as {
+  let body: {
     name?: string;
     phone?: string;
     apartmentId?: string;
+    apartmentName?: string;
+    apartmentCode?: string;
     unitNumber?: string;
-  };
+  } = {};
+  try {
+    body = (await request.json()) as {
+      name?: string;
+      phone?: string;
+      apartmentId?: string;
+      apartmentName?: string;
+      apartmentCode?: string;
+      unitNumber?: string;
+    };
+  } catch {
+    return NextResponse.json({ message: "요청 형식이 올바르지 않습니다. 다시 시도해주세요." }, { status: 400 });
+  }
 
   const name = body.name?.trim() ?? "";
   const phone = body.phone?.trim() ?? "";
   const apartmentId = body.apartmentId?.trim() ?? "";
+  const apartmentName = body.apartmentName?.trim() ?? "";
+  const apartmentCode = body.apartmentCode?.trim() ?? "";
   const unitNumber = body.unitNumber?.trim() ?? "";
 
-  if (!name || !phone || !apartmentId || !unitNumber) {
+  if (!name || !phone || (!apartmentId && !apartmentName) || !unitNumber) {
     return NextResponse.json({ message: "성함, 연락처, 아파트, 동호수를 모두 입력해주세요." }, { status: 400 });
   }
 
@@ -26,7 +42,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { user, session } = await createResidentSession({ name, phone, apartmentId, unitNumber });
+    const { user, session } = await createResidentSession({ name, phone, apartmentId, apartmentName, apartmentCode, unitNumber });
     const response = NextResponse.json({ message: "입주민 로그인 완료", user });
     response.cookies.set({
       name: RESIDENT_AUTH_COOKIE,

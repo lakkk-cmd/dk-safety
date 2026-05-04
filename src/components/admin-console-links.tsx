@@ -1,13 +1,25 @@
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
-type SectionKey = "reservations" | "payment-settings" | "workers" | "activity-logs" | "backups";
+type SectionKey =
+  | "main"
+  | "customers"
+  | "reservations"
+  | "apartments"
+  | "payment-settings"
+  | "dispatch-fee"
+  | "workers"
+  | "backups";
 
 const items: Array<{ key: SectionKey; label: string; href: string }> = [
+  { key: "main", label: "메인화면", href: "/admin/home" },
+  { key: "customers", label: "고객관리", href: "/admin/customers" },
   { key: "reservations", label: "예약/정산", href: "/admin/reservations" },
+  { key: "apartments", label: "아파트 관리", href: "/admin/apartments" },
+  { key: "workers", label: "기사 관리", href: "/admin/technicians" },
   { key: "payment-settings", label: "결제 계좌 설정", href: "/admin/payment-settings" },
-  { key: "workers", label: "기사 등록", href: "/admin/workers" },
-  { key: "activity-logs", label: "활동 로그", href: "/admin/activity-logs" },
-  { key: "backups", label: "백업 상태", href: "/admin/backups" }
+  { key: "dispatch-fee", label: "기본 출장비", href: "/admin/base-dispatch-fee" },
+  { key: "backups", label: "백업 관리", href: "/admin/backups" }
 ];
 
 type Props = {
@@ -18,7 +30,7 @@ type Props = {
 export default function AdminConsoleLinks({ active, mode = "chips" }: Props) {
   if (mode === "sidebar") {
     return (
-      <nav className="space-y-2">
+      <nav className="dk-admin-sidebar-links">
         {items.map((item) => (
           <Link
             key={item.key}
@@ -37,7 +49,7 @@ export default function AdminConsoleLinks({ active, mode = "chips" }: Props) {
   }
 
   return (
-    <nav className="mt-4 flex flex-wrap gap-2">
+    <nav className={cn("dk-admin-chips", "flex flex-wrap gap-2")}>
       {items.map((item) => (
         <Link
           key={item.key}

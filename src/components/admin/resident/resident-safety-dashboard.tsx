@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { BoltIcon, ShieldIcon } from "@/components/ui/icons";
 
@@ -178,9 +179,9 @@ export default function ResidentSafetyDashboard() {
               placeholder="이름/연락처/단지 검색"
               className="soft-input text-sm"
             />
-            <a href="/api/admin/resident-safety/export" className="btn-primary px-3 py-2 text-sm">
+            <Link href="/api/admin/resident-safety/export" className="btn-primary px-3 py-2 text-sm">
               CSV
-            </a>
+            </Link>
           </div>
         </div>
         <div className="mt-3 overflow-x-auto">

@@ -42,12 +42,21 @@ export function diagnosisRiskScoreOn100(record: DiagnosisScoreFields): number {
 
 export function summaryFromScore100(score100: number): string {
   if (score100 >= DIAGNOSIS_HIGH_RISK_MIN) {
-    return "고위험: 빠른 점검이 필요합니다.";
+    return [
+      "응답을 종합해 보면, 전기 안전 측면에서 우려되는 신호가 다소 많게 나타났습니다.",
+      "감전·과열·화재로 이어질 수 있는 상황일 수 있어, 가능한 한 빨리 긴급 출동이나 전문 점검을 검토해 주시길 권해 드립니다. 불안하시면 먼저 전화 상담으로 현장 여부를 결정하셔도 됩니다."
+    ].join("\n\n");
   }
   if (score100 >= DIAGNOSIS_CAUTION_MIN) {
-    return "주의: 전문가 점검을 권장합니다.";
+    return [
+      "지금 당장 큰 위험이 있다고 단정하기는 어렵지만, 응답만으로도 콘센트·차단기·누전 가능 영역은 평소보다 조금 더 살펴보실 만합니다.",
+      "전문가 점검으로 가능성을 확인하거나, 우선 상담으로 우선순위를 정해 보셔도 좋습니다."
+    ].join("\n\n");
   }
-  return "양호: 현재 상태를 유지하고 정기 점검하세요.";
+  return [
+    "현재 응답만으로는 특별히 크게 걱정할 만한 패턴은 두드러지지 않습니다.",
+    "입주 연차·계절·가전 교체 등에 따라 상태는 달라질 수 있으니, 가벼운 자가 점검 습관과 함께 주기적인 전문 점검을 이어 가시면 좋습니다."
+  ].join("\n\n");
 }
 
 export function scoreToneClass(score100: number): string {

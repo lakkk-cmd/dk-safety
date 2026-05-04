@@ -6,9 +6,19 @@ import {
   SUPABASE_ENABLED,
   writeJsonObject
 } from "@/lib/supabase-server";
+import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
+import {
+  pgCreateReservation,
+  pgHasReservationTimeConflict,
+  pgReadReservations,
+  pgUpdateReservation
+} from "@/lib/reservations-pg";
 
 export type Reservation = {
   id: string;
+  apartmentId?: string | null;
+  apartmentName?: string | null;
+  apartmentCode?: string | null;
   name: string;
   phone: string;
   address: string;
@@ -18,10 +28,23 @@ export type Reservation = {
   detail: string;
   imageUrls: string[];
   priority: "normal" | "emergency";
-  status: "접수" | "진행중" | "완료";
+  status: "waiting_payment" | "접수" | "진행중" | "완료";
   note: string;
   noteUpdatedAt: string | null;
+  baseFee: number;
+  extraFee: number;
+  totalAmount: number;
+  isPaid: boolean;
+  paidAt?: string | null;
   createdAt: string;
+  /** Supabase DB 모드에서만 채워질 수 있습니다. */
+  taskId?: string | null;
+  taskStatus?: "assigned" | "in_progress" | "completed" | null;
+  assignedWorkerId?: string | null;
+  assignedWorkerName?: string | null;
+  orderFinalPaymentStatus?: "PENDING" | "REQUESTED" | "PAID" | "FAILED" | "CANCELLED" | null;
+  orderTotalFinalFee?: number | null;
+  orderWarrantyIssuedAt?: string | null;
 };
 
 export type BackupSnapshot = {
@@ -140,13 +163,36 @@ function normalizeReservation(
 ): Reservation {
   return {
     ...item,
+    apartmentId: "apartmentId" in item && typeof item.apartmentId === "string" ? item.apartmentId : null,
+    apartmentName: "apartmentName" in item && typeof item.apartmentName === "string" ? item.apartmentName : null,
+    apartmentCode: "apartmentCode" in item && typeof item.apartmentCode === "string" ? item.apartmentCode : null,
     preferredTime: "preferredTime" in item && typeof item.preferredTime === "string" ? item.preferredTime : "",
     imageUrls: "imageUrls" in item && Array.isArray(item.imageUrls) ? item.imageUrls : [],
     priority: "priority" in item && item.priority ? item.priority : "normal",
     status: "status" in item && item.status ? item.status : "접수",
     note: "note" in item && typeof item.note === "string" ? item.note : "",
-    noteUpdatedAt: "noteUpdatedAt" in item && typeof item.noteUpdatedAt === "string" ? item.noteUpdatedAt : null
+    noteUpdatedAt: "noteUpdatedAt" in item && typeof item.noteUpdatedAt === "string" ? item.noteUpdatedAt : null,
+    baseFee: "baseFee" in item && typeof item.baseFee === "number" ? item.baseFee : 50000,
+    extraFee: "extraFee" in item && typeof item.extraFee === "number" ? item.extraFee : 0,
+    totalAmount:
+      "totalAmount" in item && typeof item.totalAmount === "number"
+        ? item.totalAmount
+        : ("baseFee" in item && typeof item.baseFee === "number" ? item.baseFee : 50000) +
+          ("extraFee" in item && typeof item.extraFee === "number" ? item.extraFee : 0),
+    isPaid: "isPaid" in item && typeof item.isPaid === "boolean" ? item.isPaid : false,
+    paidAt: "paidAt" in item && typeof item.paidAt === "string" ? item.paidAt : null,
+    taskId: "taskId" in item ? item.taskId ?? null : null,
+    taskStatus: "taskStatus" in item ? item.taskStatus ?? null : null,
+    assignedWorkerId: "assignedWorkerId" in item ? item.assignedWorkerId ?? null : null,
+    assignedWorkerName: "assignedWorkerName" in item ? item.assignedWorkerName ?? null : null,
+    orderFinalPaymentStatus: "orderFinalPaymentStatus" in item ? item.orderFinalPaymentStatus ?? null : null,
+    orderTotalFinalFee: "orderTotalFinalFee" in item ? item.orderTotalFinalFee ?? null : null,
+    orderWarrantyIssuedAt: "orderWarrantyIssuedAt" in item ? item.orderWarrantyIssuedAt ?? null : null
   };
+}
+
+function shouldUsePgReservations(): boolean {
+  return isSupabaseReservationsDbReady();
 }
 
 async function createBackupSnapshot(type: "auto" | "manual" | "checkpoint" = "auto"): Promise<string> {
@@ -186,6 +232,10 @@ async function writeReservations(next: Reservation[], options?: { snapshotOnWrit
 }
 
 export async function readReservations(): Promise<Reservation[]> {
+  if (shouldUsePgReservations()) {
+    return pgReadReservations();
+  }
+
   let parsed:
     | Array<Reservation | Omit<Reservation, "status" | "note" | "noteUpdatedAt" | "priority" | "preferredTime">>
     | null = null;
@@ -209,19 +259,35 @@ export async function readReservations(): Promise<Reservation[]> {
 }
 
 export async function createReservation(
-  payload: Omit<Reservation, "id" | "createdAt" | "status" | "note" | "noteUpdatedAt" | "priority"> & {
+  payload: Omit<
+    Reservation,
+    "id" | "createdAt" | "status" | "note" | "noteUpdatedAt" | "priority" | "baseFee" | "extraFee" | "totalAmount" | "isPaid" | "paidAt"
+  > & {
     priority?: Reservation["priority"];
     imageUrls?: string[];
+    baseFee?: number;
   }
 ): Promise<Reservation> {
+  if (shouldUsePgReservations()) {
+    return pgCreateReservation(payload);
+  }
+
   const current = await readReservations();
   const nextItem: Reservation = {
     ...payload,
+    apartmentId: "apartmentId" in payload && typeof payload.apartmentId === "string" ? payload.apartmentId : null,
+    apartmentName: "apartmentName" in payload && typeof payload.apartmentName === "string" ? payload.apartmentName : null,
+    apartmentCode: "apartmentCode" in payload && typeof payload.apartmentCode === "string" ? payload.apartmentCode : null,
     imageUrls: payload.imageUrls ?? [],
     priority: payload.priority ?? "normal",
-    status: "접수",
+    status: "waiting_payment",
     note: "",
     noteUpdatedAt: null,
+    baseFee: typeof payload.baseFee === "number" && Number.isFinite(payload.baseFee) ? Math.max(50000, Math.round(payload.baseFee)) : 50000,
+    extraFee: 0,
+    totalAmount: typeof payload.baseFee === "number" && Number.isFinite(payload.baseFee) ? Math.max(50000, Math.round(payload.baseFee)) : 50000,
+    isPaid: false,
+    paidAt: null,
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString()
   };
@@ -232,6 +298,10 @@ export async function createReservation(
 }
 
 export async function hasReservationTimeConflict(preferredDate: string, preferredTime: string) {
+  if (shouldUsePgReservations()) {
+    return pgHasReservationTimeConflict(preferredDate, preferredTime);
+  }
+
   const current = await readReservations();
   return current.some(
     (item) =>
@@ -246,6 +316,10 @@ export async function updateReservation(
   id: string,
   update: Partial<Pick<Reservation, "status" | "note" | "noteUpdatedAt">>
 ): Promise<Reservation | null> {
+  if (shouldUsePgReservations()) {
+    return pgUpdateReservation(id, update);
+  }
+
   const current = await readReservations();
   const index = current.findIndex((item) => item.id === id);
   if (index === -1) {

@@ -17,7 +17,7 @@ function extFromFile(file: File): string {
   return ".jpg";
 }
 
-export async function saveImageFiles(files: File[], bucket: "reservations" | "emergency") {
+export async function saveImageFiles(files: File[], bucket: "reservations" | "emergency" | "worker-tasks") {
   if (files.length === 0) return [];
 
   const urls: string[] = [];

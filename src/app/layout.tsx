@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
-import GlobalQuickActions from "@/components/global-quick-actions";
 import GlobalResidentLogoutButton from "@/components/global-resident-logout-button";
 import PwaRegister from "@/components/pwa-register";
 
@@ -20,11 +19,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body className={`${notoSansKr.className} pb-24 md:pb-0`}>
+      <body className={notoSansKr.className}>
         <PwaRegister />
         {children}
         <GlobalResidentLogoutButton />
-        <GlobalQuickActions />
       </body>
     </html>
   );

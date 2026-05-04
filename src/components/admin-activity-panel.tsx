@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ActivityLog } from "@/lib/activity-log";
 import { ChatIcon } from "@/components/ui/icons";
@@ -38,9 +39,9 @@ export default function AdminActivityPanel({ logs }: Props) {
           </h2>
           <p className="mt-1 text-sm text-slate-500">상태 변경, 메모 수정, 신규 접수 이력을 확인합니다.</p>
         </div>
-        <a href="/api/admin/activity-logs/export" className="rounded-md bg-slate-900 px-3 py-2 text-xs font-medium text-white">
+        <Link href="/api/admin/activity-logs/export" className="rounded-md bg-slate-900 px-3 py-2 text-xs font-medium text-white">
           로그 CSV
-        </a>
+        </Link>
       </div>
 
       <div className="mt-3 flex gap-2">
@@ -63,6 +64,7 @@ export default function AdminActivityPanel({ logs }: Props) {
         >
           <option value="all">전체</option>
           <option value="reservation_created">신규접수</option>
+          <option value="reservation_deleted">예약삭제</option>
           <option value="status_updated">상태변경</option>
           <option value="note_updated">메모변경</option>
           <option value="backup_restored">백업복원</option>

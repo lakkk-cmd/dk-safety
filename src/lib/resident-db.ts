@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
 import {
@@ -21,6 +22,8 @@ import {
 export type Apartment = {
   id: string;
   name: string;
+  address?: string;
+  addressType?: "road" | "jibun";
   city: string;
   yearsOld: number;
   createdAt: string;
@@ -83,10 +86,11 @@ type ResidentDb = {
 
 const dbPath = path.join(process.cwd(), "data", "resident-db.json");
 const cloudDbKey = "resident-db.json";
+const RESIDENT_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 const diagnosisSectors = [
-  { id: "breaker", title: "차단기·분전반 상태", questionIds: [1, 2, 3, 4, 5] },
-  { id: "outlet", title: "콘센트·배선 사용", questionIds: [6, 7, 8, 9, 10] },
-  { id: "habit", title: "생활 습관·환경 점검", questionIds: [11, 12, 13, 14, 15] }
+  { id: "breaker", title: "차단기", questionIds: [1, 2] },
+  { id: "outlet", title: "콘센트·스위치", questionIds: [3, 4] },
+  { id: "habit", title: "생활환경", questionIds: [5, 6] }
 ] as const;
 
 const defaultApartments = [
@@ -102,27 +106,113 @@ const defaultApartments = [
   "문흥라인아파트"
 ];
 
+function buildSeedDb(now: string): ResidentDb {
+  return {
+    apartments: defaultApartments.map((name, index) => ({
+      id: `apt-${index + 1}`,
+      name,
+      city: "광주",
+      yearsOld: 8 + (index % 9),
+      createdAt: now
+    })),
+    users: [],
+    sessions: [],
+    diagnoses: [],
+    activities: []
+  };
+}
+
+function getResidentFallbackDb(): ResidentDb {
+  const g = globalThis as typeof globalThis & { __dkResidentFallbackDb?: ResidentDb };
+  if (!g.__dkResidentFallbackDb) {
+    g.__dkResidentFallbackDb = buildSeedDb(new Date().toISOString());
+  }
+  return g.__dkResidentFallbackDb;
+}
+
+function isReadonlyFsError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = (error as Error & { code?: string }).message ?? "";
+  const code = (error as Error & { code?: string }).code ?? "";
+  return code === "EROFS" || message.includes("EROFS: read-only file system");
+}
+
+function residentSessionSecret(): string {
+  return process.env.RESIDENT_SESSION_SECRET?.trim() || process.env.WORKER_SESSION_SECRET?.trim() || "resident-session-fallback";
+}
+
+function signResidentSessionUser(user: ResidentUser): string {
+  const payload = JSON.stringify({
+    id: user.id,
+    name: user.name,
+    phone: user.phone,
+    apartmentId: user.apartmentId,
+    apartmentName: user.apartmentName,
+    unitNumber: user.unitNumber,
+    exp: Date.now() + RESIDENT_SESSION_TTL_MS
+  });
+  const payloadB64 = Buffer.from(payload, "utf-8").toString("base64url");
+  const sig = createHmac("sha256", residentSessionSecret()).update(payloadB64).digest("base64url");
+  return `rsess.${payloadB64}.${sig}`;
+}
+
+function verifyResidentSessionUser(token: string): ResidentUser | null {
+  if (!token.startsWith("rsess.")) return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const payloadB64 = parts[1];
+  const sig = parts[2];
+  const expected = createHmac("sha256", residentSessionSecret()).update(payloadB64).digest("base64url");
+  try {
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf-8")) as {
+      id: string;
+      name: string;
+      phone: string;
+      apartmentId: string;
+      apartmentName: string;
+      unitNumber: string;
+      exp: number;
+    };
+    if (!parsed.id || !parsed.name || !parsed.phone || !parsed.apartmentId || !parsed.unitNumber) return null;
+    if (!Number.isFinite(parsed.exp) || parsed.exp < Date.now()) return null;
+    const now = new Date().toISOString();
+    return {
+      id: parsed.id,
+      name: parsed.name,
+      phone: parsed.phone,
+      apartmentId: parsed.apartmentId,
+      apartmentName: parsed.apartmentName || "",
+      unitNumber: parsed.unitNumber,
+      createdAt: now,
+      lastLoginAt: now
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function ensureDb() {
   if (SUPABASE_ENABLED) {
     return;
   }
   try {
     await fs.access(dbPath);
-  } catch {
+  } catch (error) {
+    if (isReadonlyFsError(error)) {
+      getResidentFallbackDb();
+      return;
+    }
     const now = new Date().toISOString();
-    const seed: ResidentDb = {
-      apartments: defaultApartments.map((name, index) => ({
-        id: `apt-${index + 1}`,
-        name,
-        city: "광주",
-        yearsOld: 8 + (index % 9),
-        createdAt: now
-      })),
-      users: [],
-      sessions: [],
-      diagnoses: [],
-      activities: []
-    };
+    const seed: ResidentDb = buildSeedDb(now);
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
     await fs.writeFile(dbPath, JSON.stringify(seed, null, 2), "utf-8");
   }
@@ -154,37 +244,38 @@ function parseResidentDbJson(raw: string): ResidentDb {
 
 async function readDb(): Promise<ResidentDb> {
   if (SUPABASE_ENABLED) {
-    const cloud = await readJsonObject<ResidentDb>(SUPABASE_DATA_BUCKET, cloudDbKey);
-    if (cloud) {
-      return {
-        apartments: Array.isArray(cloud.apartments) ? cloud.apartments : [],
-        users: Array.isArray(cloud.users) ? cloud.users : [],
-        sessions: Array.isArray(cloud.sessions) ? cloud.sessions : [],
-        diagnoses: Array.isArray(cloud.diagnoses) ? cloud.diagnoses : [],
-        activities: Array.isArray(cloud.activities) ? cloud.activities : []
-      };
+    try {
+      const cloud = await readJsonObject<ResidentDb>(SUPABASE_DATA_BUCKET, cloudDbKey);
+      if (cloud) {
+        return {
+          apartments: Array.isArray(cloud.apartments) ? cloud.apartments : [],
+          users: Array.isArray(cloud.users) ? cloud.users : [],
+          sessions: Array.isArray(cloud.sessions) ? cloud.sessions : [],
+          diagnoses: Array.isArray(cloud.diagnoses) ? cloud.diagnoses : [],
+          activities: Array.isArray(cloud.activities) ? cloud.activities : []
+        };
+      }
+      const seed = buildSeedDb(new Date().toISOString());
+      await writeJsonObject(SUPABASE_DATA_BUCKET, cloudDbKey, seed);
+      return seed;
+    } catch (error) {
+      // Supabase 스토리지 읽기 실패(권한/엔드포인트/일시 장애)에도 로그인 화면이 멈추지 않게
+      // 기본 아파트 목록으로 폴백합니다.
+      console.error("[resident-db] Supabase read fallback:", error);
+      return getResidentFallbackDb();
     }
-    const now = new Date().toISOString();
-    const seed: ResidentDb = {
-      apartments: defaultApartments.map((name, index) => ({
-        id: `apt-${index + 1}`,
-        name,
-        city: "광주",
-        yearsOld: 8 + (index % 9),
-        createdAt: now
-      })),
-      users: [],
-      sessions: [],
-      diagnoses: [],
-      activities: []
-    };
-    await writeJsonObject(SUPABASE_DATA_BUCKET, cloudDbKey, seed);
-    return seed;
   }
 
   await ensureDb();
-  const raw = await fs.readFile(dbPath, "utf-8");
-  return parseResidentDbJson(raw);
+  try {
+    const raw = await fs.readFile(dbPath, "utf-8");
+    return parseResidentDbJson(raw);
+  } catch (error) {
+    if (isReadonlyFsError(error)) {
+      return getResidentFallbackDb();
+    }
+    throw error;
+  }
 }
 
 async function writeDb(next: ResidentDb) {
@@ -192,7 +283,16 @@ async function writeDb(next: ResidentDb) {
     await writeJsonObject(SUPABASE_DATA_BUCKET, cloudDbKey, next);
     return;
   }
-  await fs.writeFile(dbPath, JSON.stringify(next, null, 2), "utf-8");
+  try {
+    await fs.writeFile(dbPath, JSON.stringify(next, null, 2), "utf-8");
+  } catch (error) {
+    if (isReadonlyFsError(error)) {
+      const g = globalThis as typeof globalThis & { __dkResidentFallbackDb?: ResidentDb };
+      g.__dkResidentFallbackDb = next;
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function listApartments() {
@@ -201,9 +301,10 @@ export async function listApartments() {
   return [...list].sort((a, b) => a.name.localeCompare(b.name, "ko"));
 }
 
-export async function addApartment(name: string) {
+export async function addApartment(name: string, address?: string, addressType?: "road" | "jibun") {
   const db = await readDb();
   const trimmed = name.trim();
+  const trimmedAddress = (address ?? "").trim();
   if (!trimmed) {
     throw new Error("아파트명을 입력해주세요.");
   }
@@ -214,6 +315,8 @@ export async function addApartment(name: string) {
   const next: Apartment = {
     id: `apt-${crypto.randomUUID()}`,
     name: trimmed,
+    address: trimmedAddress || undefined,
+    addressType: addressType ?? undefined,
     city: "광주",
     yearsOld: 8,
     createdAt: new Date().toISOString()
@@ -234,11 +337,36 @@ export async function addApartment(name: string) {
 export async function createResidentSession(payload: {
   name: string;
   phone: string;
-  apartmentId: string;
+  apartmentId?: string;
+  apartmentName?: string;
+  apartmentCode?: string;
   unitNumber: string;
 }) {
   const db = await readDb();
-  const apartment = db.apartments.find((item) => item.id === payload.apartmentId);
+  let apartment =
+    (payload.apartmentId ? db.apartments.find((item) => item.id === payload.apartmentId) : null) ??
+    (payload.apartmentName ? db.apartments.find((item) => item.name === payload.apartmentName) : null) ??
+    null;
+
+  if (!apartment && payload.apartmentName?.trim()) {
+    apartment = {
+      id: `apt-${crypto.randomUUID()}`,
+      name: payload.apartmentName.trim(),
+      city: "광주",
+      yearsOld: 0,
+      createdAt: new Date().toISOString()
+    };
+    db.apartments.push(apartment);
+    db.activities.unshift({
+      id: `act-${crypto.randomUUID()}`,
+      userId: "system",
+      action: "apartment_added",
+      message: `멀티테넌트 로그인 자동매핑: ${apartment.name}${payload.apartmentCode ? ` (${payload.apartmentCode})` : ""}`,
+      createdAt: new Date().toISOString()
+    });
+    db.activities = db.activities.slice(0, 1000);
+  }
+
   if (!apartment) {
     throw new Error("선택한 아파트를 찾을 수 없습니다.");
   }
@@ -270,7 +398,7 @@ export async function createResidentSession(payload: {
   }
 
   const session: ResidentSession = {
-    id: `sess-${crypto.randomUUID()}`,
+    id: signResidentSessionUser(user),
     userId: user.id,
     createdAt: now
   };
@@ -288,23 +416,43 @@ export async function createResidentSession(payload: {
 }
 
 export async function getResidentBySessionId(sessionId: string) {
-  const db = await readDb();
-  const session = db.sessions.find((item) => item.id === sessionId);
-  if (!session) {
+  const stateless = verifyResidentSessionUser(sessionId);
+  if (stateless) {
+    return stateless;
+  }
+  try {
+    const db = await readDb();
+    const session = db.sessions.find((item) => item.id === sessionId);
+    if (!session) {
+      return null;
+    }
+    return db.users.find((item) => item.id === session.userId) ?? null;
+  } catch (error) {
+    console.error("[resident-db] getResidentBySessionId:", error);
     return null;
   }
-  return db.users.find((item) => item.id === session.userId) ?? null;
 }
 
 export async function removeSession(sessionId: string) {
+  if (sessionId.startsWith("rsess.")) {
+    return;
+  }
   const db = await readDb();
   db.sessions = db.sessions.filter((item) => item.id !== sessionId);
   await writeDb(db);
 }
 
-export async function saveDiagnosis(userId: string, answers: DiagnosisAnswer[]) {
+export async function saveDiagnosis(userId: string, answers: DiagnosisAnswer[], userFallback?: ResidentUser) {
   const db = await readDb();
-  const user = db.users.find((item) => item.id === userId);
+  let user = db.users.find((item) => item.id === userId);
+  if (!user && userFallback) {
+    user = {
+      ...userFallback,
+      createdAt: userFallback.createdAt || new Date().toISOString(),
+      lastLoginAt: new Date().toISOString()
+    };
+    db.users.unshift(user);
+  }
   if (!user) {
     throw new Error("로그인 세션이 유효하지 않습니다.");
   }

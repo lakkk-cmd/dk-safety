@@ -152,3 +152,294 @@ select.soft-input {
   min-height: 2.75rem;
   cursor: pointer;
 }
+
+/* Layout helpers used across apt · admin · worker */
+.page-fit {
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  max-width: min(1100px, 100vw - 2rem);
+  padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.warranty-band {
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
+  box-shadow: var(--shadow-soft);
+}
+
+/* 긴급출동 요청 화면 — 경고·고대비 톤 (ServiceRequestPage requestType=emergency) */
+.emergency-request {
+  position: relative;
+  border-radius: 1.25rem;
+  padding: 0.5rem;
+  margin: -0.5rem -0.25rem 0;
+  background:
+    radial-gradient(ellipse 130% 90% at 50% -15%, rgba(252, 165, 165, 0.45), transparent 52%),
+    radial-gradient(ellipse 80% 55% at 100% 100%, rgba(251, 146, 60, 0.28), transparent 50%),
+    linear-gradient(180deg, #fff1f2 0%, #fff7ed 42%, #ffedd5 100%);
+}
+
+.emergency-request .surface-card {
+  border-color: rgba(251, 113, 133, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #fffbfb 100%);
+  box-shadow: 0 14px 40px rgba(185, 28, 28, 0.14);
+}
+
+.emergency-request .warranty-band {
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  background: linear-gradient(135deg, #fef2f2 0%, #ffe4e6 38%, #fed7aa 100%);
+  box-shadow: 0 16px 44px rgba(220, 38, 38, 0.2);
+}
+
+.emergency-request .soft-input:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.18);
+}
+
+.emergency-request .btn-primary {
+  border-radius: 0.875rem;
+  background: linear-gradient(135deg, #b91c1c 0%, #ea580c 55%, #f97316 100%);
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(185, 28, 28, 0.4);
+}
+
+.emergency-request .btn-primary:hover {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+}
+
+/* 입금(가상계좌) 패널 — 모든 화면에서 동일 보조 타이포 */
+.deposit-payment-panel-footnote {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #475569;
+}
+
+.warranty-badge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 0.22rem 0.55rem;
+  text-transform: uppercase;
+}
+
+.partner-panel-glass {
+  border-radius: 1.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+}
+
+.partner-section-label {
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #0b4ea2;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Admin Control Center — plain CSS fallbacks (Tailwind 유실·청크 이슈 대비) */
+/* flex 자식에 min-width 미지정 시 본문 폭 0 → 표가 안 보이는 현상 방지       */
+/* -------------------------------------------------------------------------- */
+
+.dk-admin-root {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 100vh;
+  box-sizing: border-box;
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.dk-admin-root > aside {
+  flex: 0 0 auto;
+  width: 280px;
+  max-width: min(280px, 100vw);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.dk-admin-root > aside ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dk-admin-root > aside ul > li {
+  list-style: none;
+}
+
+.dk-admin-main {
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: auto;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+.dk-admin-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.dk-admin-sidebar-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dk-customer-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dk-customer-table {
+  width: 100%;
+  min-width: 960px;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.dk-customer-table th,
+.dk-customer-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.dk-customer-table thead th {
+  background: #f1f5f9;
+  font-weight: 800;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  color: #0f172a;
+}
+
+.dk-customer-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.dk-section-head {
+  padding: 1rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.dk-section-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.dk-section-head p {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.dk-link-id {
+  color: #4338ca;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dk-link-id:hover {
+  color: #312e81;
+}
+
+.dk-muted-xs {
+  margin-top: 0.15rem;
+  font-size: 0.65rem;
+  color: #64748b;
+}
+
+.dk-cell-strong {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.dk-cell-em {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.dk-pill {
+  display: inline-block;
+  border-radius: 0.35rem;
+  background: #f1f5f9;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dk-nowrap {
+  white-space: nowrap;
+}
+
+.dk-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.7rem;
+}
+
+.dk-empty-cell {
+  padding: 2.5rem 1rem !important;
+  text-align: center;
+  color: #475569;
+  font-size: 0.875rem;
+}
+
+.dk-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+
+.dk-filter-grid label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #475569;
+  margin-bottom: 0.12rem;
+}
+
+.dk-filter-grid input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.78rem;
+  padding: 0.38rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: #0f172a;
+}
+
+.dk-filter-grid input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}

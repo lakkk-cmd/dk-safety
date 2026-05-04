@@ -3,7 +3,6 @@ import Image from "next/image";
 import { cookies } from "next/headers";
 import { RESIDENT_AUTH_COOKIE, siteConfig } from "@/lib/site-config";
 import ResidentWelcomeBanner from "@/components/resident/resident-welcome-banner";
-import ResidentHomeEmergencyButton from "@/components/resident/resident-home-emergency-button";
 import { BoltIcon, ChatIcon, PhoneIcon, ShieldIcon } from "@/components/ui/icons";
 
 const toLoginWithNext = (path: string) => `/resident/login?next=${encodeURIComponent(path)}`;
@@ -142,8 +141,27 @@ export default async function MainHomePage() {
             </a>
           </div>
         </div>
-        <div id="emergency">
-          <ResidentHomeEmergencyButton />
+        <div id="emergency" className="surface-card-strong rounded-3xl p-6">
+          <p className="section-kicker w-fit">긴급</p>
+          <h3 className="mt-2 text-xl font-bold text-slate-900">전기 긴급 출동</h3>
+          <p className="mt-2 text-sm text-slate-600">
+            스파크·타는 냄새·차단기 반복 하강 등 위험 상황에서는 즉시 요청해 주세요.
+          </p>
+          <div className="mt-5 flex flex-col gap-3">
+            <Link
+              href="/emergency"
+              className="btn-primary inline-flex items-center justify-center px-5 py-3 text-center text-sm font-semibold"
+            >
+              긴급 출동 요청하기
+            </Link>
+            <a
+              href={`tel:${businessPhone}`}
+              className="btn-outline inline-flex items-center justify-center px-5 py-3 text-center text-sm font-semibold"
+            >
+              <PhoneIcon className="mr-2 h-4 w-4" />
+              전화로 알리기
+            </a>
+          </div>
         </div>
       </section>
 

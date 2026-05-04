@@ -2,7 +2,6 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -27,7 +26,7 @@ export default function AdminLoginPage() {
         throw new Error(data.message || "로그인 실패");
       }
 
-      router.replace("/admin");
+      router.replace("/admin/home");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "로그인 실패");
@@ -37,17 +36,12 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl items-center px-6 py-10">
+    <main className="page-fit flex max-w-4xl items-center">
       <div className="w-full space-y-5">
         <div className="surface-editorial rounded-[2rem] p-7">
           <p className="section-kicker">관리자 콘솔</p>
           <h1 className="mt-3 text-3xl font-black tracking-[-0.02em] text-slate-950 md:text-4xl">관리자 보안 로그인</h1>
           <p className="mt-2 text-sm text-slate-600">예약/자가진단/백업 관리 기능은 관리자 인증 후 접근할 수 있습니다.</p>
-          <div className="mt-4">
-            <Link href="/home" className="btn-outline px-4 py-2 text-sm">
-              서비스 홈으로
-            </Link>
-          </div>
         </div>
         <form onSubmit={onSubmit} className="surface-card-strong w-full rounded-2xl p-6">
           <p className="text-sm font-semibold text-primary">대경안심전기 관리자</p>
