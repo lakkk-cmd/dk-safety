@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { AlertTriangle, CheckCircle2, MessageCircle, Stethoscope, Wrench } from "lucide-react";
 import PartnerWorkCarousel from "@/components/reservation/partner-work-carousel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { siteConfig } from "@/lib/site-config";
@@ -191,14 +190,11 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
     setModalKind(kind);
   };
 
-  const actionClass =
-    "relative z-[1] inline-flex min-h-[4.75rem] w-full cursor-pointer touch-manipulation items-center justify-center gap-3 rounded-[1.25rem] px-4 text-center text-base font-bold text-[#fffefc] shadow-[0_14px_36px_rgba(44,40,37,0.14)] transition hover:brightness-[1.04] sm:min-h-[5.25rem] sm:text-lg";
-
   return (
     <main className="mx-auto w-full max-w-2xl space-y-5 pb-8">
       <section className="warranty-band relative overflow-hidden rounded-[1.75rem] p-5">
         <div className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/15 blur-2xl" aria-hidden />
-        <div className="relative flex items-start gap-3">
+        <div className="relative flex items-center gap-3">
           {apartment.logoUrl ? (
             <Image
               src={apartment.logoUrl}
@@ -211,45 +207,48 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/95 text-2xl shadow-md">🏢</div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="inline-flex items-center gap-1.5 rounded-full border border-blue-200/90 bg-white/90 px-2.5 py-1 text-[11px] font-bold tracking-wide text-blue-900 shadow-sm">
-              <Stethoscope className="pointer-events-none h-3.5 w-3.5 shrink-0 text-primary" aria-hidden strokeWidth={2} />
-              우리집 전기 주치의
-            </p>
-            <h1 className="mt-2 text-xl font-extrabold leading-snug tracking-tight text-slate-900">대경안심전기</h1>
-            <p className="mt-1 text-xs font-medium text-slate-600">{apartment.name}</p>
-            <p className="mt-1.5 text-sm leading-relaxed text-slate-700">
-              전기 안전·점검을 어디서부터 할지 막막했던 분들을 위해, 필요한 만큼만 단계적으로 안내할게요.
-            </p>
+            <h1 className="text-xl font-extrabold leading-snug tracking-tight text-slate-900">대경안심전기 · {apartment.name}</h1>
+            <p className="mt-1 text-sm leading-relaxed text-slate-700">{apartment.name} 입주민 전용 전기 안전 서비스</p>
           </div>
+        </div>
+        <div className="relative mt-4 grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => startRequest("repair")}
+            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-white"
+          >
+            🔧 점검·수리
+          </button>
+          <button
+            type="button"
+            onClick={() => window.location.assign(`/resident/safety-check?tenant=${encodeURIComponent(apartment.code)}`)}
+            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-white"
+          >
+            🛡️ 자가진단
+          </button>
+          <button
+            type="button"
+            onClick={() => setConsultModalOpen(true)}
+            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-white"
+          >
+            💬 상담
+          </button>
         </div>
       </section>
 
-      <PartnerWorkCarousel />
-
-      <div className="partner-panel-glass relative z-[1] p-4 sm:p-5">
-        <p className="partner-section-label">01 · 먼저 확인하기</p>
-        <a
-          href={`/resident/safety-check?tenant=${encodeURIComponent(apartment.code)}`}
-          className={`${actionClass} bg-gradient-to-br from-[#5a9885] via-[#4d806f] to-[#355a4d]`}
-        >
-          <CheckCircle2 className="pointer-events-none h-8 w-8 shrink-0 opacity-95" aria-hidden strokeWidth={2} />
-          <span>자가진단 시작</span>
-        </a>
-      </div>
-
-      <div className="partner-panel-glass relative z-[1] p-4 sm:p-5">
-        <p className="partner-section-label">02 · 서비스 접수</p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button type="button" onClick={() => startRequest("repair")} className={`${actionClass} bg-gradient-to-br from-[#6d93a8] to-[#4a6575]`}>
-            <Wrench className="pointer-events-none h-7 w-7 shrink-0 opacity-95" aria-hidden strokeWidth={2} />
-            <span>점검 / 수리</span>
-          </button>
-          <button type="button" onClick={() => startRequest("emergency")} className={`${actionClass} bg-gradient-to-br from-[#df8068] via-[#cf6b4e] to-[#a85d48]`}>
-            <AlertTriangle className="pointer-events-none h-7 w-7 shrink-0 opacity-95" aria-hidden strokeWidth={2} />
-            <span>긴급출동</span>
-          </button>
+      <button
+        type="button"
+        onClick={() => startRequest("emergency")}
+        className="w-full rounded-2xl bg-gradient-to-r from-[#c0392b] to-[#922b21] p-4 text-left text-white shadow-[0_14px_36px_rgba(146,43,33,0.35)] transition hover:brightness-105"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-lg font-extrabold">🚨 긴급출동</p>
+            <p className="mt-0.5 text-sm text-white/90">지금 당장 위험하다면</p>
+          </div>
+          <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold">즉시 접수 →</span>
         </div>
-      </div>
+      </button>
 
       {electricalTips.length > 0 ? (
         <section className="partner-panel-glass relative z-[1] border-t border-slate-200/90 p-4 sm:p-5 dark:border-slate-600/80">
@@ -257,8 +256,8 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
             <p className="text-base font-extrabold tracking-tight text-slate-900 dark:text-slate-50">💡 생활전기정보</p>
             <p className="mt-1 text-sm font-medium leading-snug text-slate-600 dark:text-slate-400">대경안심전기가 알려드리는 전기 안전</p>
           </div>
-          <div className="-mx-1 mt-4 flex gap-3 overflow-x-auto pb-1 pt-0.5 [scrollbar-width:thin] snap-x snap-mandatory">
-            {electricalTips.map((tip) => (
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            {electricalTips.slice(0, 4).map((tip) => (
               <article
                 key={tip.id}
                 role="button"
@@ -270,7 +269,7 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
                     setTipDetail(tip);
                   }
                 }}
-                className="min-w-[min(100%,17.5rem)] max-w-[85vw] shrink-0 snap-start cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-slate-600 dark:bg-slate-950 dark:hover:border-slate-500 sm:min-w-[17.5rem]"
+                className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-slate-600 dark:bg-slate-950 dark:hover:border-slate-500"
               >
                 <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${tipBadgeClass(tip.category)}`}>
                   {TIP_CATEGORY_LABEL[tip.category] ?? tip.category}
@@ -284,13 +283,16 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
         </section>
       ) : null}
 
-      <div className="partner-panel-glass relative z-[1] p-4 sm:p-5">
-        <p className="partner-section-label">03 · 편하게 문의하기</p>
-        <button type="button" onClick={() => setConsultModalOpen(true)} className={`${actionClass} bg-gradient-to-br from-[#c9a882] via-[#b8956e] to-[#8f7355]`}>
-          <MessageCircle className="pointer-events-none h-7 w-7 shrink-0 opacity-95" aria-hidden strokeWidth={2} />
-          <span>전화 · 카톡 상담</span>
-        </button>
-      </div>
+      <PartnerWorkCarousel />
+
+      <button
+        type="button"
+        onClick={() => setConsultModalOpen(true)}
+        className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left shadow-sm transition hover:bg-slate-100"
+      >
+        <span className="text-base font-bold text-slate-800">💬 전화 · 카카오톡 상담</span>
+        <span className="text-lg font-bold text-slate-500">→</span>
+      </button>
 
       {modalKind ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-3 sm:items-center">
