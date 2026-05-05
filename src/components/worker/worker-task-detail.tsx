@@ -18,6 +18,13 @@ type Row = {
   reservation: Reservation;
 };
 
+function taskStatusLabel(status: string) {
+  if (status === "assigned") return "배정 완료";
+  if (status === "in_progress") return "진행 중";
+  if (status === "completed") return "작업 완료";
+  return status;
+}
+
 export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
   const [row, setRow] = useState<Row | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -205,7 +212,7 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
       </Link>
 
       <section className="warranty-band rounded-2xl p-4">
-        <p className="warranty-badge">WORK ORDER</p>
+        <p className="warranty-badge">작업 지시서</p>
         <p className="mt-2 text-xs font-semibold text-slate-500">고객</p>
         <p className="text-lg font-black text-slate-900">{reservation.name}</p>
         <p className="mt-1 text-sm text-slate-700">{reservation.phone}</p>
@@ -245,7 +252,7 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
 
       <section className="rounded-2xl border border-[#d6deec] bg-white p-4 shadow-[0_12px_24px_rgba(11,28,58,0.12)]">
         <h2 className="text-sm font-black text-slate-900">작업 진행</h2>
-        <p className="mt-1 text-xs text-slate-600">상태: {task.status}</p>
+        <p className="mt-1 text-xs text-slate-600">상태: {taskStatusLabel(task.status)}</p>
         {reservation.orderTotalFinalFee != null ? (
           <p className="mt-1 text-xs font-semibold text-emerald-700">
             최종 정산: {reservation.orderTotalFinalFee.toLocaleString("ko-KR")}원 · 최종결제:{" "}

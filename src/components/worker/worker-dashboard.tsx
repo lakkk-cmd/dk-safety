@@ -10,9 +10,9 @@ type Item = {
 };
 
 function statusLabel(status: string) {
-  if (status === "assigned") return "배정됨";
+  if (status === "assigned") return "배정 완료";
   if (status === "in_progress") return "진행 중";
-  if (status === "completed") return "완료";
+  if (status === "completed") return "작업 완료";
   return status;
 }
 

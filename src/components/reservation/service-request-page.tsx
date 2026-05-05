@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import LiveNotificationToast from "@/components/live/live-notification-toast";
 import DepositPaymentPanel from "@/components/payment/deposit-payment-panel";
@@ -74,6 +74,7 @@ const requestInfo: Record<RequestType, { title: string; serviceType: string; ser
 };
 
 export default function ServiceRequestPage({ apartment, requestType }: Props) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [serviceItems, setServiceItems] = useState<ServiceItemInfo[]>([]);
   const [reservationId, setReservationId] = useState("");
@@ -120,6 +121,8 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const scheduleTimeInputRef = useRef<HTMLInputElement>(null);
   const pendingSlotRef = useRef<number | null>(null);
+  const flowStatusRef = useRef<FlowStatus>("draft");
+  const paymentRedirectTimerRef = useRef<number | null>(null);
 
   const requestPhotos = useMemo(() => photoSlots.filter((f): f is File => f != null), [photoSlots]);
 
@@ -210,6 +213,30 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
   }, [apartment.code]);
 
   useEffect(() => {
+    flowStatusRef.current = flowStatus;
+  }, [flowStatus]);
+
+  useEffect(() => {
+    return () => {
+      if (paymentRedirectTimerRef.current !== null) {
+        window.clearTimeout(paymentRedirectTimerRef.current);
+      }
+    };
+  }, []);
+
+  const closePaymentPopupAfterPaid = useCallback(() => {
+    setPaymentPopupOpen(false);
+    if (flowStatusRef.current === "assigned_waiting" || flowStatusRef.current === "assigned_done") return;
+    if (paymentRedirectTimerRef.current !== null) {
+      window.clearTimeout(paymentRedirectTimerRef.current);
+    }
+    paymentRedirectTimerRef.current = window.setTimeout(() => {
+      if (flowStatusRef.current === "assigned_waiting" || flowStatusRef.current === "assigned_done") return;
+      router.push(`/apt/${apartment.code}`);
+    }, 2000);
+  }, [apartment.code, router]);
+
+  useEffect(() => {
     if (!reservationId) return;
     let unsubscribe = () => {};
     try {
@@ -236,7 +263,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
               } else {
                 setFlowStatus("assigned_waiting");
               }
-              setPaymentPopupOpen(false);
+              closePaymentPopupAfterPaid();
             }
           }
         )
@@ -248,7 +275,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
       // ignore realtime setup failure
     }
     return () => unsubscribe();
-  }, [reservationId]);
+  }, [closePaymentPopupAfterPaid, reservationId]);
 
   useEffect(() => {
     if (!reservationId) return;
@@ -299,7 +326,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
         }
         if (data.reservation?.isPaid) {
           setFlowStatus((prev) => (prev === "assigned_done" ? prev : "assigned_waiting"));
-          setPaymentPopupOpen(false);
+          closePaymentPopupAfterPaid();
         }
         if (orderId) {
           try {
@@ -317,7 +344,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
                 if (dispatch === "READY" || dispatch === "ACTIVE") setOrderDispatchStatus("READY");
                 setFlowStatus((prev) => (prev === "assigned_done" ? prev : "assigned_waiting"));
                 setServiceKickoffVisible(true);
-                setPaymentPopupOpen(false);
+                closePaymentPopupAfterPaid();
               }
             }
           } catch {
@@ -334,7 +361,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
       void tick();
     }, 3500);
     return () => window.clearInterval(id);
-  }, [reservationId, orderId]);
+  }, [closePaymentPopupAfterPaid, reservationId, orderId]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -396,7 +423,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
           if (dispatch === "ACTIVE" || dispatch === "READY" || payment === "PAID") {
             setFlowStatus("assigned_waiting");
             setServiceKickoffVisible(true);
-            setPaymentPopupOpen(false);
+            closePaymentPopupAfterPaid();
           }
         })
         .subscribe();
@@ -407,7 +434,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
       // ignore realtime setup failure
     }
     return () => unsubscribe();
-  }, [orderId, prepaymentAmount, dong, ho, apartment.name]);
+  }, [apartment.name, closePaymentPopupAfterPaid, dong, ho, orderId, prepaymentAmount]);
 
   useEffect(() => {
     const base = prepaymentAmount;
