@@ -18,7 +18,7 @@ export default function AdminHomePage() {
       <header className="warranty-band dk-admin-band-header mb-6 rounded-[2rem] p-6 md:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="warranty-badge dk-admin-warranty-badge">ADMIN CONSOLE</p>
+            <p className="warranty-badge dk-admin-warranty-badge">관리자 콘솔</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">관리자 메인화면</h1>
             <p className="dk-admin-band-lead mt-2 max-w-2xl text-sm leading-relaxed text-slate-700">
               <strong className="font-bold text-slate-900">접수·기사·입금·정산</strong> 현황을 한 화면에서 모니터링한 뒤, 필요 시 각 업무 화면으로 바로

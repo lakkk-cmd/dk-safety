@@ -160,6 +160,26 @@ export default function AdminHomeMonitorDashboard() {
     return { prepPending, prepWaitBank, prepPaid, prepOther, finalRequested, finalPaid, dispatchIdlePaid, recent };
   }, [orders]);
 
+  const urgentItems = useMemo(() => {
+    const prep = orders
+      .filter((o) => norm(o.dispatch_status) === "READY" && (o as AdminOrderRow & { prepayment_confirmed?: boolean }).prepayment_confirmed)
+      .map((o) => ({
+        type: "dispatch" as const,
+        name: o.resident_info?.name ?? "고객",
+        apt: o.apt_id ?? "아파트 정보 없음",
+        href: "/admin/dispatch"
+      }));
+    const settle = orders
+      .filter((o) => norm(o.final_payment_status) === "REQUESTED")
+      .map((o) => ({
+        type: "settle" as const,
+        name: o.resident_info?.name ?? "고객",
+        apt: o.apt_id ?? "아파트 정보 없음",
+        href: "/admin/billing"
+      }));
+    return [...prep, ...settle].slice(0, 3);
+  }, [orders]);
+
   if (error) {
     return (
       <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950">
@@ -190,6 +210,28 @@ export default function AdminHomeMonitorDashboard() {
           새로고침
         </button>
       </div>
+
+      {urgentItems.length > 0 ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-3 shadow-sm">
+          <p className="text-sm font-extrabold text-rose-900">🚨 지금 처리 필요</p>
+          <div className="mt-2 space-y-2">
+            {urgentItems.map((item, i) => (
+              <Link
+                key={`${item.type}-${item.name}-${i}`}
+                href={item.href}
+                className="flex items-center justify-between gap-2 rounded-xl border border-rose-100 bg-white px-3 py-2 hover:bg-rose-50"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-rose-700">{item.type === "dispatch" ? "배정 필요" : "정산 요청"}</p>
+                  <p className="truncate text-sm font-bold text-slate-900">{item.name}</p>
+                  <p className="truncate text-xs text-slate-600">{item.apt}</p>
+                </div>
+                <span className="shrink-0 text-xs font-bold text-rose-700">처리 →</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="border-slate-200 shadow-md">

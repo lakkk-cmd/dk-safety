@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Sidebar,
@@ -20,6 +20,36 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isLoginPage = pathname === "/admin/login";
+  const [prepPending, setPrepPending] = useState(0);
+  const [settlePending, setSettlePending] = useState(0);
+
+  useEffect(() => {
+    if (isLoginPage) return;
+    let disposed = false;
+    const syncBadgeCount = async () => {
+      try {
+        const response = await fetch("/api/admin/console-snapshot", { cache: "no-store" });
+        if (!response.ok) return;
+        const json = (await response.json()) as { orders?: Array<Record<string, unknown>> };
+        const orders = Array.isArray(json.orders) ? json.orders : [];
+        const prep = orders.filter((o) => String(o.dispatch_status ?? "").toUpperCase() === "READY" && o.prepayment_confirmed === true).length;
+        const settle = orders.filter((o) => String(o.final_payment_status ?? "").toUpperCase() === "REQUESTED").length;
+        if (disposed) return;
+        setPrepPending(prep);
+        setSettlePending(settle);
+      } catch {
+        // ignore polling errors
+      }
+    };
+    void syncBadgeCount();
+    const timer = window.setInterval(() => {
+      void syncBadgeCount();
+    }, 10000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [isLoginPage]);
 
   const shellClass =
     "flex min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-slate-100";
@@ -41,9 +71,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <div className={cn(shellClass, "dk-admin-root")} data-dk-admin-root>
       <Sidebar className="bg-gradient-to-b from-slate-100 to-slate-200 dark:from-slate-950 dark:to-slate-900">
         <SidebarHeader>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Control Center</p>
-          <h1 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">대경안심전기 관리자</h1>
-          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">네이비/그레이 기반 관제 대시보드</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">관제 센터</p>
+          <h1 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">대경안심전기</h1>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">운영 관리 시스템</p>
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
@@ -55,6 +85,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   <SidebarMenuButton isActive={active} onClick={() => router.push(menu.href)}>
                     <Icon className="h-4 w-4 shrink-0" />
                     <span>{menu.label}</span>
+                    {menu.href === "/admin/dispatch" && prepPending > 0 ? (
+                      <span className="ml-auto inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-white">
+                        {prepPending > 99 ? "99+" : prepPending}
+                      </span>
+                    ) : null}
+                    {menu.href === "/admin/billing" && settlePending > 0 ? (
+                      <span className="ml-auto inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-amber-950">
+                        {settlePending}
+                      </span>
+                    ) : null}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               );
