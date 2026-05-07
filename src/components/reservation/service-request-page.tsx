@@ -938,6 +938,18 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
         ) : null}
       </section>
 
+      {flowStatus === "draft" ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-500">
+            <span>진행 단계</span>
+            <span>1/3 · 기본 정보 입력</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-dk-navy to-dk-blue" />
+          </div>
+        </section>
+      ) : null}
+
       <section className="surface-card rounded-2xl p-4">
         <p className={cn("text-sm font-black", isEmergency ? "text-red-950" : "text-slate-900")}>
           {requestInfo[requestType].title} 요청 내용{" "}
@@ -1261,6 +1273,9 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
       ) : null}
       {flowStatus === "assigned_done" || orderFinalPaymentStatus === "REQUESTED" || orderFinalPaymentStatus === "PAID" ? (
         <section className="rounded-3xl border border-dk-blue bg-gradient-to-b from-[#eef4ff] to-white p-4">
+          <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+            <p className="text-sm font-extrabold text-emerald-800">✅ 작업 완료 — 최종 정산 확인</p>
+          </div>
           <p className="text-base font-black text-dk-navy">최종 정산 확인</p>
           <p className="mt-2 text-lg font-extrabold text-dk-blue">
             총 {additionalDueAmount.toLocaleString("ko-KR")}원이 추가되었습니다.
@@ -1299,7 +1314,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
       ) : null}
       {orderFinalPaymentStatus === "PAID" ? (
         <section className="rounded-3xl border-2 border-[#c89a2c] bg-gradient-to-b from-dk-navy to-[#123a77] p-4 text-white shadow-xl">
-          <p className="text-lg font-black">안심 보증서가 발급되었습니다</p>
+          <p className="text-lg font-black">🛡️ 안심 보증서가 발급되었습니다</p>
           <p className="mt-1 text-sm text-slate-100">대경 안심 전기가 디지털 기술 보증서를 보관하고 있습니다.</p>
           {warranty?.warrantyNumber ? (
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1325,14 +1340,27 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
       ) : null}
       {serviceKickoffVisible ? (
         <section className="surface-card rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-          <p className="animate-pulse text-base font-extrabold text-emerald-700">결제 완료! 베테랑 기사님 매칭을 시작합니다...</p>
-          <div className="mt-3 rounded-xl border border-emerald-300 bg-white p-3 shadow-sm">
-            <p className="text-xs font-bold text-emerald-700">기사 정보 카드</p>
-            <p className="mt-1 text-sm font-semibold text-slate-800">
-              배정 상태: {taskStatus ? (taskStatus === "completed" ? "작업 완료" : "배정 완료") : flowStatus === "assigned_done" ? "배정 완료" : "매칭 진행 중"}
-            </p>
-            <p className="mt-1 text-sm text-slate-600">접수번호: {reservationId || "-"}</p>
-            <p className="mt-1 text-sm text-slate-600">확정 즉시 기사 정보가 자동 갱신됩니다.</p>
+          <div className="rounded-xl border border-emerald-300 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-xl">🔨</div>
+              <div>
+                <p className="text-base font-extrabold text-emerald-800">기사님이 배정되었습니다</p>
+                <p className="text-sm text-slate-600">현장 도착 전 연락드립니다</p>
+              </div>
+            </div>
+            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-xs font-bold text-slate-600">접수 정보</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">접수번호: {reservationId || "-"}</p>
+              <p className="mt-1 text-sm text-slate-600">
+                배정 상태: {taskStatus ? (taskStatus === "completed" ? "작업 완료" : "배정 완료") : flowStatus === "assigned_done" ? "배정 완료" : "매칭 진행 중"}
+              </p>
+            </div>
+            <div className="mt-3 overflow-hidden rounded-full bg-emerald-100">
+              <div className="animate-pulse bg-gradient-to-r from-emerald-500 to-emerald-400 px-3 py-1 text-center text-xs font-bold text-white">
+                기사님 이동 중
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">확정 즉시 기사 정보가 자동 갱신됩니다.</p>
           </div>
         </section>
       ) : null}
