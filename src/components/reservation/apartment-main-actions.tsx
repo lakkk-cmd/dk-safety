@@ -38,9 +38,9 @@ type Props = {
 
 type RequestKind = "repair" | "emergency";
 
-const requestConfig: Record<RequestKind, { title: string; href: string; tone: string }> = {
-  repair: { title: "점검/수리", href: "repair", tone: "from-dk-blue/60 to-dk-navy/70" },
-  emergency: { title: "긴급출동", href: "emergency", tone: "from-dk-red to-red-800" }
+const requestConfig: Record<RequestKind, { title: string; href: string }> = {
+  repair: { title: "점검/수리", href: "repair" },
+  emergency: { title: "긴급출동", href: "emergency" }
 };
 
 const TIP_CATEGORY_LABEL: Record<string, string> = {
@@ -192,44 +192,47 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
 
   return (
     <main className="mx-auto w-full max-w-2xl space-y-5 pb-8">
-      <section className="warranty-band relative overflow-hidden rounded-[1.75rem] p-5">
-        <div className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/15 blur-2xl" aria-hidden />
-        <div className="relative flex items-center gap-3">
-          {apartment.logoUrl ? (
-            <Image
-              src={apartment.logoUrl}
-              alt={`${apartment.name} 로고`}
-              width={64}
-              height={64}
-              className="h-16 w-16 rounded-2xl bg-white/95 p-1.5 object-contain shadow-md"
-            />
-          ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/95 text-2xl shadow-md">🏢</div>
-          )}
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-extrabold leading-snug tracking-tight text-slate-900">대경안심전기 · {apartment.name}</h1>
-            <p className="mt-1 text-sm leading-relaxed text-slate-700">{apartment.name} 입주민 전용 전기 안전 서비스</p>
+      <section className="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-dk-navy to-[#1a3460] p-5 text-white shadow-[0_18px_46px_rgba(11,28,58,0.4)]">
+        <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" aria-hidden />
+        <div className="relative">
+          <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-bold">⚡ 대경안심전기</span>
+          <div className="mt-3 flex items-center gap-3">
+            {apartment.logoUrl ? (
+              <Image
+                src={apartment.logoUrl}
+                alt={`${apartment.name} 로고`}
+                width={56}
+                height={56}
+                className="h-14 w-14 rounded-2xl bg-white/95 p-1.5 object-contain shadow-md"
+              />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/95 text-2xl text-slate-800 shadow-md">🏢</div>
+            )}
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-black tracking-tight">{apartment.name}</h1>
+              <p className="mt-1 text-sm text-white/85">{apartment.name} 입주민 전용</p>
+            </div>
           </div>
         </div>
         <div className="relative mt-4 grid grid-cols-3 gap-2">
           <button
             type="button"
             onClick={() => startRequest("repair")}
-            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-white"
+            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-900 shadow-sm transition hover:bg-white"
           >
             🔧 점검·수리
           </button>
           <button
             type="button"
             onClick={() => window.location.assign(`/resident/safety-check?tenant=${encodeURIComponent(apartment.code)}`)}
-            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-white"
+            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-900 shadow-sm transition hover:bg-white"
           >
             🛡️ 자가진단
           </button>
           <button
             type="button"
             onClick={() => setConsultModalOpen(true)}
-            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-white"
+            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-900 shadow-sm transition hover:bg-white"
           >
             💬 상담
           </button>
@@ -239,7 +242,7 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
       <button
         type="button"
         onClick={() => startRequest("emergency")}
-        className="w-full rounded-2xl bg-gradient-to-r from-[#c0392b] to-[#922b21] p-4 text-left text-white shadow-[0_14px_36px_rgba(146,43,33,0.35)] transition hover:brightness-105"
+        className="w-full rounded-2xl bg-gradient-to-r from-dk-red to-red-900 p-4 text-left text-white shadow-[0_14px_36px_rgba(146,43,33,0.35)] transition hover:brightness-105"
       >
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -251,10 +254,10 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
       </button>
 
       {electricalTips.length > 0 ? (
-        <section className="partner-panel-glass relative z-[1] border-t border-slate-200/90 p-4 sm:p-5 dark:border-slate-600/80">
-          <div className="rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm dark:border-slate-600 dark:bg-slate-900/60">
-            <p className="text-base font-extrabold tracking-tight text-slate-900 dark:text-slate-50">💡 생활전기정보</p>
-            <p className="mt-1 text-sm font-medium leading-snug text-slate-600 dark:text-slate-400">대경안심전기가 알려드리는 전기 안전</p>
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl bg-slate-50 px-4 py-3">
+            <p className="text-base font-extrabold tracking-tight text-slate-900">💡 생활전기정보</p>
+            <p className="mt-1 text-sm font-medium leading-snug text-slate-600">대경안심전기가 알려드리는 전기 안전</p>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
             {electricalTips.slice(0, 4).map((tip) => (
@@ -269,14 +272,14 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
                     setTipDetail(tip);
                   }
                 }}
-                className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-slate-600 dark:bg-slate-950 dark:hover:border-slate-500"
+                className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md"
               >
                 <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${tipBadgeClass(tip.category)}`}>
                   {TIP_CATEGORY_LABEL[tip.category] ?? tip.category}
                 </span>
-                <h2 className="mt-2 line-clamp-2 text-base font-extrabold leading-snug text-slate-900 dark:text-slate-50">{tip.title}</h2>
-                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{tip.summary}</p>
-                <span className="mt-3 inline-flex text-xs font-bold text-[#4a6575] dark:text-[#8eb4c9]">더보기 →</span>
+                <h2 className="mt-2 line-clamp-2 text-base font-extrabold leading-snug text-slate-900">{tip.title}</h2>
+                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-600">{tip.summary}</p>
+                <span className="mt-3 inline-flex text-xs font-bold text-dk-blue">더보기 →</span>
               </article>
             ))}
           </div>
@@ -358,7 +361,11 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
                   window.location.assign(moveHrefFor(modalKind));
                 }}
                 className={`inline-flex h-12 items-center justify-center rounded-xl bg-gradient-to-r text-sm font-extrabold text-white ${
-                  canMove ? requestConfig[modalKind].tone : "from-slate-300 to-slate-400"
+                  canMove
+                    ? modalKind === "emergency"
+                      ? "from-dk-red to-red-800"
+                      : "from-dk-blue/60 to-dk-navy/70"
+                    : "from-slate-300 to-slate-400"
                 }`}
               >
                 이동하기
