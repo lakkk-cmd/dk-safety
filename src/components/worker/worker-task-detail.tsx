@@ -25,12 +25,19 @@ function taskStatusLabel(status: string) {
   return status;
 }
 
+function statusBadgeClass(status: string) {
+  if (status === "in_progress") return "bg-amber-100 text-amber-900";
+  if (status === "completed") return "bg-emerald-100 text-emerald-800";
+  return "bg-blue-100 text-blue-800";
+}
+
 export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
   const [row, setRow] = useState<Row | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
   const [extraFee, setExtraFee] = useState("0");
+  const [showCompletePanel, setShowCompletePanel] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
@@ -252,7 +259,9 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
 
       <section className="rounded-2xl border border-[#d6deec] bg-white p-4 shadow-[0_12px_24px_rgba(11,28,58,0.12)]">
         <h2 className="text-sm font-black text-slate-900">작업 진행</h2>
-        <p className="mt-1 text-xs text-slate-600">상태: {taskStatusLabel(task.status)}</p>
+        <div className="mt-2">
+          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${statusBadgeClass(task.status)}`}>{taskStatusLabel(task.status)}</span>
+        </div>
         {reservation.orderTotalFinalFee != null ? (
           <p className="mt-1 text-xs font-semibold text-emerald-700">
             최종 정산: {reservation.orderTotalFinalFee.toLocaleString("ko-KR")}원 · 최종결제:{" "}
@@ -310,25 +319,35 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
               </div>
             </div>
 
-            <div>
-              <p className="text-xs font-semibold text-slate-800">현장 추가 비용(원)</p>
-              <input
-                type="number"
-                min={0}
-                value={extraFee}
-                onChange={(e) => setExtraFee(e.target.value.replaceAll(/[^0-9]/g, "") || "0")}
-                className="soft-input mt-2 w-full text-sm"
-              />
-            </div>
-
             <button
               type="button"
-              disabled={busy}
-              onClick={() => void complete()}
-              className="w-full rounded-xl bg-gradient-to-r from-dk-gold to-dk-blue py-3 text-sm font-bold text-white disabled:opacity-60"
+              onClick={() => setShowCompletePanel((prev) => !prev)}
+              className="w-full rounded-xl border border-dk-gold bg-amber-50 py-3 text-sm font-bold text-amber-900"
             >
-              작업 완료
+              작업완료 처리
             </button>
+            <div className={`overflow-hidden transition-all duration-300 ${showCompletePanel ? "max-h-72 opacity-100" : "max-h-0 opacity-0"}`}>
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                <p className="text-xs font-semibold text-slate-800">현장 추가 비용(원)</p>
+                <input
+                  type="number"
+                  min={0}
+                  value={extraFee}
+                  onChange={(e) => setExtraFee(e.target.value.replaceAll(/[^0-9]/g, "") || "0")}
+                  className="soft-input mt-2 w-full text-sm"
+                />
+                <p className="mt-2 text-sm font-bold text-slate-800">최종 예상: {(50000 + Number(extraFee || "0")).toLocaleString()}원</p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void complete()}
+                  className="mt-3 w-full rounded-xl bg-gradient-to-r from-dk-gold to-dk-blue py-3 text-sm font-bold text-white disabled:opacity-60"
+                >
+                  작업 완료 제출
+                </button>
+                <p className="mt-2 text-xs text-slate-600">관리자 승인 후 보증서가 자동 발급됩니다.</p>
+              </div>
+            </div>
           </div>
         ) : null}
 
