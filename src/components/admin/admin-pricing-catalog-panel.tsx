@@ -257,7 +257,7 @@ export default function AdminPricingCatalogPanel() {
                           type="button"
                           disabled={saving}
                           onClick={() => void saveDraft()}
-                          className="rounded-lg bg-[#0b1c3a] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50 dark:bg-slate-200 dark:text-slate-900"
+                          className="rounded-lg bg-dk-navy px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50 dark:bg-slate-200 dark:text-slate-900"
                         >
                           {saving ? "저장…" : "저장"}
                         </button>

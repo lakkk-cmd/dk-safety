@@ -71,14 +71,14 @@ export default function DepositPaymentPanel({
     <div className="deposit-payment-panel mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[15px] leading-normal text-slate-900 antialiased">
       <p className="text-xs font-bold leading-snug text-amber-800">가상계좌</p>
       <p className="mt-1 text-lg font-bold leading-snug tracking-tight">{activeBank}</p>
-      <p className="mt-1 text-2xl font-black leading-tight tracking-tight text-[#0b1c3a]">{activeAccount}</p>
+      <p className="mt-1 text-2xl font-black leading-tight tracking-tight text-dk-navy">{activeAccount}</p>
       <p className="mt-1 text-sm font-medium leading-snug text-slate-700">예금주: {activeHolder}</p>
       <p className="mt-1 text-sm font-medium leading-snug text-slate-700">입금금액: {activeAmount.toLocaleString("ko-KR")}원</p>
       <p className="mt-1 text-xs font-medium leading-snug text-amber-900">
         입금기한: {virtualAccount?.dueAt ? new Date(virtualAccount.dueAt).toLocaleString("ko-KR") : "발급 후 안내"}
       </p>
       <div className="mt-3 grid gap-2">
-        <a href={deepLink} className="inline-flex h-12 items-center justify-center rounded-xl bg-[#0b1c3a] text-sm font-bold leading-snug text-white">
+        <a href={deepLink} className="inline-flex h-12 items-center justify-center rounded-xl bg-dk-navy text-sm font-bold leading-snug text-white">
           Toss 송금으로 바로 입금하기
         </a>
         <a

@@ -540,7 +540,7 @@ export default function AdminCustomerCarePanel({ initialRows }: Props) {
                     }
                     setPage(Math.min(Math.max(1, n), totalPages));
                   }}
-                  className="rounded-md bg-[#0b1c3a] px-2 py-0.5 text-[11px] font-bold text-white hover:brightness-110"
+                  className="rounded-md bg-dk-navy px-2 py-0.5 text-[11px] font-bold text-white hover:brightness-110"
                 >
                   이동
                 </button>

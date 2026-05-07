@@ -22,7 +22,7 @@ export default function AdminElectricalTipsPage() {
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
                 href="/admin/home"
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-[#0b1c3a] shadow-sm transition hover:bg-slate-100"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-dk-navy shadow-sm transition hover:bg-slate-100"
               >
                 메인화면
               </Link>

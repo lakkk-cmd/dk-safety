@@ -19,10 +19,10 @@ export default function AdminPricingPage() {
               기본 출장비·서비스 항목별 금액과 안내 문구를 관리합니다. 표시 금액은 DB(`payment_settings`)와 동일하게 동기화됩니다. 각 행의「수정」에서 금액·비고를 바꾼 뒤 저장하세요.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link href="/admin/home" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-[#0b1c3a] shadow-sm transition hover:bg-slate-100">
+              <Link href="/admin/home" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-dk-navy shadow-sm transition hover:bg-slate-100">
                 메인화면
               </Link>
-              <Link href="/admin/base-dispatch-fee" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-[#0b1c3a] shadow-sm transition hover:bg-slate-100">
+              <Link href="/admin/base-dispatch-fee" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-dk-navy shadow-sm transition hover:bg-slate-100">
                 기본 출장비만 빠르게
               </Link>
             </div>

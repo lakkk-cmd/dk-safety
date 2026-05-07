@@ -61,15 +61,15 @@ export default function AdminWorkflowFlow({ className }: Props) {
                 href={step.href}
                 className={cn(
                   "group relative flex min-w-0 flex-1 flex-col rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-sm transition",
-                  "hover:border-[#0b1c3a]/40 hover:shadow-md md:min-w-[158px]",
+                  "hover:border-dk-navy/40 hover:shadow-md md:min-w-[158px]",
                   "dark:border-slate-600 dark:bg-slate-950 dark:hover:border-sky-500/40"
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#0b1c3a] text-xs font-black text-white dark:bg-slate-700">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-dk-navy text-xs font-black text-white dark:bg-slate-700">
                     {step.step}
                   </span>
-                  <Icon className="h-5 w-5 shrink-0 text-[#1a4b8c] opacity-90 dark:text-sky-400" aria-hidden />
+                  <Icon className="h-5 w-5 shrink-0 text-dk-blue opacity-90 dark:text-sky-400" aria-hidden />
                 </div>
                 <span className="mt-3 break-keep text-sm font-bold leading-snug text-slate-900 dark:text-slate-100">{step.label}</span>
                 <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{step.flowRole}</p>

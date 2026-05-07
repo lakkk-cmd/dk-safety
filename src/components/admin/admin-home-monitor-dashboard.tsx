@@ -196,7 +196,7 @@ export default function AdminHomeMonitorDashboard() {
           <CardHeader className="border-b border-slate-100 pb-3">
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="text-lg">1. 접수 현황</CardTitle>
-              <Link href="/admin/reservations" className="shrink-0 text-xs font-bold text-[#0b1c3a] underline-offset-2 hover:underline">
+              <Link href="/admin/reservations" className="shrink-0 text-xs font-bold text-dk-navy underline-offset-2 hover:underline">
                 예약/정산 →
               </Link>
             </div>
@@ -228,7 +228,7 @@ export default function AdminHomeMonitorDashboard() {
                         {r.name}
                       </td>
                       <td className="px-1 py-1.5">
-                        <Link href={`/admin/reservations?id=${encodeURIComponent(r.id)}`} className="font-bold text-[#0b1c3a] hover:underline">
+                        <Link href={`/admin/reservations?id=${encodeURIComponent(r.id)}`} className="font-bold text-dk-navy hover:underline">
                           보기
                         </Link>
                       </td>
@@ -245,7 +245,7 @@ export default function AdminHomeMonitorDashboard() {
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="text-lg">2. 기사 현황</CardTitle>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <Link href="/admin/dispatch" className="text-xs font-bold text-[#0b1c3a] underline-offset-2 hover:underline">
+                <Link href="/admin/dispatch" className="text-xs font-bold text-dk-navy underline-offset-2 hover:underline">
                   배정 관제 →
                 </Link>
                 <Link href="/admin/technicians" className="text-xs font-bold text-slate-600 underline-offset-2 hover:underline">
@@ -270,7 +270,7 @@ export default function AdminHomeMonitorDashboard() {
                   {crew.topLoad.map(([id, row]) => (
                     <li key={id} className="flex justify-between gap-2 font-semibold text-slate-800">
                       <span className="truncate">{row.name}</span>
-                      <span className="tabular-nums text-[#0b1c3a]">{row.count}건</span>
+                      <span className="tabular-nums text-dk-navy">{row.count}건</span>
                     </li>
                   ))}
                 </ul>
@@ -302,7 +302,7 @@ export default function AdminHomeMonitorDashboard() {
                           {r.assignedWorkerName ?? "—"}
                         </td>
                         <td className="px-1 py-1.5">
-                          <Link href={`/admin/reservations?id=${encodeURIComponent(r.id)}`} className="font-bold text-[#0b1c3a] hover:underline">
+                          <Link href={`/admin/reservations?id=${encodeURIComponent(r.id)}`} className="font-bold text-dk-navy hover:underline">
                             보기
                           </Link>
                         </td>
@@ -320,7 +320,7 @@ export default function AdminHomeMonitorDashboard() {
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="text-lg">3. 입금·정산 현황</CardTitle>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <Link href="/admin/finance" className="text-xs font-bold text-[#0b1c3a] underline-offset-2 hover:underline">
+                <Link href="/admin/finance" className="text-xs font-bold text-dk-navy underline-offset-2 hover:underline">
                   금융/가상계좌 →
                 </Link>
                 <Link href="/admin/billing" className="text-xs font-bold text-slate-600 underline-offset-2 hover:underline">
@@ -365,7 +365,7 @@ export default function AdminHomeMonitorDashboard() {
                         </td>
                         <td className="px-1 py-1.5">
                           {ri ? (
-                            <Link href={`/admin/reservations?id=${encodeURIComponent(ri)}`} className="font-bold text-[#0b1c3a] hover:underline">
+                            <Link href={`/admin/reservations?id=${encodeURIComponent(ri)}`} className="font-bold text-dk-navy hover:underline">
                               보기
                             </Link>
                           ) : (

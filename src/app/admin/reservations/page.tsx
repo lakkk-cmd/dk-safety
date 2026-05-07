@@ -33,10 +33,10 @@ export default async function AdminReservationsPage({ searchParams }: PageProps)
             <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">예약/정산</h1>
             <p className="mt-2 text-sm text-slate-700">예약 상태, 입금 상태, 기사 배정을 관리합니다.</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Link href="/admin/home" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-[#0b1c3a] shadow-sm transition hover:bg-slate-100">
+              <Link href="/admin/home" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-dk-navy shadow-sm transition hover:bg-slate-100">
                 메인화면
               </Link>
-              <Link href="/worker/login" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-[#0b1c3a] shadow-sm transition hover:bg-slate-100">
+              <Link href="/worker/login" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-dk-navy shadow-sm transition hover:bg-slate-100">
                 기사 현장 페이지
               </Link>
             </div>

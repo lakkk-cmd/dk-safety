@@ -339,7 +339,7 @@ export default function ReservationStatusBar({ aptCode }: Props) {
     <>
       <div
         className={cn(
-          "fixed left-0 right-0 top-[52px] z-[25] w-full bg-[#0b1c3a] px-4 py-2 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
+          "fixed left-0 right-0 top-[52px] z-[25] w-full bg-dk-navy px-4 py-2 shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
         )}
         role="status"
         aria-live="polite"
@@ -367,8 +367,8 @@ export default function ReservationStatusBar({ aptCode }: Props) {
                   <div
                     className={cn(
                       "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors",
-                      i < currentStep && "bg-[#c9922a] text-white",
-                      i === currentStep && "animate-pulse bg-white text-[#0b1c3a] ring-2 ring-[#c9922a]",
+                      i < currentStep && "bg-dk-gold text-white",
+                      i === currentStep && "animate-pulse bg-white text-dk-navy ring-2 ring-dk-gold",
                       i > currentStep && "bg-white/20"
                     )}
                     aria-hidden
@@ -381,7 +381,7 @@ export default function ReservationStatusBar({ aptCode }: Props) {
                     <div className="h-full w-full rounded-full bg-white/20" />
                     <div
                       className={cn(
-                        "absolute inset-y-0 left-0 rounded-full bg-[#c9922a] transition-[width] duration-300",
+                        "absolute inset-y-0 left-0 rounded-full bg-dk-gold transition-[width] duration-300",
                         i < currentStep ? "w-full" : "w-0"
                       )}
                     />

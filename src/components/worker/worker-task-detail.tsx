@@ -270,7 +270,7 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
             type="button"
             disabled={busy}
             onClick={() => void start()}
-            className="mt-4 w-full rounded-xl bg-gradient-to-r from-[#0b1c3a] to-[#1a4b8c] py-3 text-sm font-bold text-white disabled:opacity-60"
+            className="mt-4 w-full rounded-xl bg-gradient-to-r from-dk-navy to-dk-blue py-3 text-sm font-bold text-white disabled:opacity-60"
           >
             작업 시작
           </button>
@@ -325,7 +325,7 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
               type="button"
               disabled={busy}
               onClick={() => void complete()}
-              className="w-full rounded-xl bg-gradient-to-r from-[#c9922a] to-[#1a4b8c] py-3 text-sm font-bold text-white disabled:opacity-60"
+              className="w-full rounded-xl bg-gradient-to-r from-dk-gold to-dk-blue py-3 text-sm font-bold text-white disabled:opacity-60"
             >
               작업 완료
             </button>

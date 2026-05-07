@@ -28,7 +28,7 @@ export default function AdminHomePage() {
             <div className="dk-admin-link-row mt-4 flex flex-wrap gap-2">
               <Link
                 href="/worker/login"
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-[#0b1c3a] shadow-sm transition hover:bg-slate-100"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-dk-navy shadow-sm transition hover:bg-slate-100"
               >
                 기사 현장 페이지
               </Link>

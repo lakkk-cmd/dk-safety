@@ -20,12 +20,12 @@ export default function AdminBaseDispatchFeePage() {
               고객에게 안내되는 기본 출장비(예약금) 금액만 설정합니다. 입금 계좌는「결제 계좌 설정」화면에서 다룹니다.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Link href="/admin/home" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-[#0b1c3a] shadow-sm transition hover:bg-slate-100">
+              <Link href="/admin/home" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-dk-navy shadow-sm transition hover:bg-slate-100">
                 메인화면
               </Link>
               <Link
                 href="/admin/payment-settings"
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-[#0b1c3a] shadow-sm transition hover:bg-slate-100"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-dk-navy shadow-sm transition hover:bg-slate-100"
               >
                 결제 계좌 설정
               </Link>

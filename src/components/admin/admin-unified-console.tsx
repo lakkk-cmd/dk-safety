@@ -210,7 +210,7 @@ export default function AdminUnifiedConsole({ initial }: { initial: Snapshot }) 
                 key={item.key}
                 onClick={() => setSection(item.key)}
                 variant={section === item.key ? "default" : "outline"}
-                className={cn("h-auto w-full justify-start whitespace-normal py-2 text-left", section === item.key && "border-[#0b1c3a]")}
+                className={cn("h-auto w-full justify-start whitespace-normal py-2 text-left", section === item.key && "border-dk-navy")}
               >
                 <Icon className="h-4 w-4" />
                 {item.label}
@@ -476,7 +476,7 @@ export default function AdminUnifiedConsole({ initial }: { initial: Snapshot }) 
                     <span>{row.amount.toLocaleString("ko-KR")}원 · {row.count}건</span>
                   </div>
                   <div className="h-3 rounded-full bg-slate-100">
-                    <div className="h-3 rounded-full bg-gradient-to-r from-[#0b1c3a] to-[#1a4b8c]" style={{ width: `${Math.max(4, Math.round((row.amount / maxSales) * 100))}%` }} />
+                    <div className="h-3 rounded-full bg-gradient-to-r from-dk-navy to-dk-blue" style={{ width: `${Math.max(4, Math.round((row.amount / maxSales) * 100))}%` }} />
                   </div>
                 </div>
               ))}

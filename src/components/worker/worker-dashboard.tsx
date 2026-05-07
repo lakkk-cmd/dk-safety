@@ -108,7 +108,7 @@ export default function WorkerDashboard() {
         <button
           type="button"
           onClick={() => void load()}
-          className="mt-3 w-full rounded-xl border border-slate-300 bg-white py-2 text-sm font-semibold text-[#0b1c3a] shadow-sm hover:bg-slate-100"
+          className="mt-3 w-full rounded-xl border border-slate-300 bg-white py-2 text-sm font-semibold text-dk-navy shadow-sm hover:bg-slate-100"
         >
           새로고침
         </button>
@@ -134,7 +134,7 @@ export default function WorkerDashboard() {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-sm font-bold text-slate-900">{row.reservation.name}</p>
-                  <p className="mt-1 text-[11px] font-semibold text-[#1a4b8c]">{row.reservation.apartmentName ?? "미지정 아파트"}</p>
+                  <p className="mt-1 text-[11px] font-semibold text-dk-blue">{row.reservation.apartmentName ?? "미지정 아파트"}</p>
                   <p className="mt-1 text-xs text-slate-600">{row.reservation.address}</p>
                 </div>
                 <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-bold ${statusClass(row.task.status)}`}>
@@ -157,7 +157,7 @@ export default function WorkerDashboard() {
               ) : null}
               <Link
                 href={`/worker/tasks/${row.task.id}`}
-                className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#0b1c3a] to-[#1a4b8c] py-2.5 text-sm font-bold text-white"
+                className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-dk-navy to-dk-blue py-2.5 text-sm font-bold text-white"
               >
                 작업 상세
               </Link>

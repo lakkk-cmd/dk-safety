@@ -223,7 +223,7 @@ function ResidentSafetyResultContent() {
         </Link>
       </div>
 
-      <div className="diag-result-wrap relative overflow-hidden rounded-3xl border border-[#2f4f7e] bg-gradient-to-br from-[#0b1c3a] via-[#102a52] to-[#1a4b8c] p-[clamp(0.85rem,2.2vh,1.6rem)] text-white shadow-[0_22px_54px_rgba(11,28,58,0.45)] ring-4 ring-[#c9922a]/30">
+      <div className="diag-result-wrap relative overflow-hidden rounded-3xl border border-[#2f4f7e] bg-gradient-to-br from-dk-navy via-[#102a52] to-dk-blue p-[clamp(0.85rem,2.2vh,1.6rem)] text-white shadow-[0_22px_54px_rgba(11,28,58,0.45)] ring-4 ring-dk-gold/30">
         <div className="absolute right-4 top-4 rounded-full border border-[#f0c96a]/40 bg-[#f0c96a]/20 px-3 py-1 text-xs font-bold text-[#f0c96a]">자가진단 결과</div>
         <p className="text-sm font-semibold text-slate-300">위험지수 (만점 100점)</p>
         <p className="mt-2 flex flex-wrap items-baseline gap-1">
@@ -265,7 +265,7 @@ function ResidentSafetyResultContent() {
             type="button"
             onClick={() => openRequestModal("repair")}
             disabled={moveLoading || emergencyLoading || homeLoading}
-            className="inline-flex h-[clamp(2.6rem,5vh,3rem)] w-full items-center justify-center rounded-xl bg-white px-4 text-center text-sm font-bold text-[#0b1c3a] shadow hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex h-[clamp(2.6rem,5vh,3rem)] w-full items-center justify-center rounded-xl bg-white px-4 text-center text-sm font-bold text-dk-navy shadow hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {moveLoading ? "점검/수리 요청 페이지 이동 중..." : "점검/수리 요청 페이지로 이동"}
           </button>
@@ -273,7 +273,7 @@ function ResidentSafetyResultContent() {
             type="button"
             onClick={() => openRequestModal("emergency")}
             disabled={moveLoading || emergencyLoading || homeLoading}
-            className="inline-flex h-[clamp(2.6rem,5vh,3rem)] w-full items-center justify-center rounded-xl border border-[#f0c96a]/55 bg-[#c9922a] px-4 text-center text-sm font-bold text-white shadow hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex h-[clamp(2.6rem,5vh,3rem)] w-full items-center justify-center rounded-xl border border-[#f0c96a]/55 bg-dk-gold px-4 text-center text-sm font-bold text-white shadow hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {emergencyLoading ? "긴급출동 페이지 이동 중..." : "긴급출동 페이지로 이동"}
           </button>
@@ -327,7 +327,7 @@ function ResidentSafetyResultContent() {
                 type="button"
                 onClick={() => void submitRequestModal()}
                 disabled={moveLoading || emergencyLoading}
-                className="h-12 rounded-xl bg-gradient-to-r from-[#0b1c3a] to-[#1a4b8c] text-sm font-extrabold text-white disabled:opacity-50"
+                className="h-12 rounded-xl bg-gradient-to-r from-dk-navy to-dk-blue text-sm font-extrabold text-white disabled:opacity-50"
               >
                 {requestModal === "repair"
                   ? moveLoading

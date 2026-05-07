@@ -81,7 +81,7 @@ export default function PaymentSuccessClient() {
               href={`/api/warranties/${encodeURIComponent(warrantyNumber)}/pdf`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-[#0b1c3a] text-sm font-bold text-white"
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-dk-navy text-sm font-bold text-white"
             >
               보증서 PDF
             </a>

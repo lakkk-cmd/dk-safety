@@ -1043,7 +1043,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
                   onClick={triggerCameraForPendingSlot}
                   className={cn(
                     "h-12 rounded-xl text-sm font-extrabold text-white touch-manipulation",
-                    isEmergency ? "bg-gradient-to-r from-red-700 to-orange-600 shadow-md shadow-red-500/30" : "bg-[#0b1c3a]"
+                    isEmergency ? "bg-gradient-to-r from-red-700 to-orange-600 shadow-md shadow-red-500/30" : "bg-dk-navy"
                   )}
                 >
                   사진 촬영
@@ -1161,7 +1161,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
                                     ? "cursor-not-allowed text-slate-300"
                                     : draftPreferredDate ===
                                         `${cell.date.getFullYear()}-${String(cell.date.getMonth() + 1).padStart(2, "0")}-${String(cell.date.getDate()).padStart(2, "0")}`
-                                      ? "bg-[#0b1c3a] text-white shadow-inner"
+                                      ? "bg-dk-navy text-white shadow-inner"
                                       : "bg-white text-slate-800 hover:bg-slate-100"
                                 }`}
                               >
@@ -1216,7 +1216,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
                   type="button"
                   disabled={loading}
                   onClick={() => void confirmScheduleAndSubmit()}
-                  className="h-12 rounded-xl bg-[#0b1c3a] text-sm font-extrabold text-white"
+                  className="h-12 rounded-xl bg-dk-navy text-sm font-extrabold text-white"
                 >
                   {loading ? "접수 중..." : "접수하기"}
                 </button>
@@ -1260,16 +1260,16 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
         </div>
       ) : null}
       {flowStatus === "assigned_done" || orderFinalPaymentStatus === "REQUESTED" || orderFinalPaymentStatus === "PAID" ? (
-        <section className="rounded-3xl border border-[#1a4b8c] bg-gradient-to-b from-[#eef4ff] to-white p-4">
-          <p className="text-base font-black text-[#0b1c3a]">최종 정산 확인</p>
-          <p className="mt-2 text-lg font-extrabold text-[#1a4b8c]">
+        <section className="rounded-3xl border border-dk-blue bg-gradient-to-b from-[#eef4ff] to-white p-4">
+          <p className="text-base font-black text-dk-navy">최종 정산 확인</p>
+          <p className="mt-2 text-lg font-extrabold text-dk-blue">
             총 {additionalDueAmount.toLocaleString("ko-KR")}원이 추가되었습니다.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => setShowSettlementDetail((prev) => !prev)}
-              className="h-14 rounded-xl border border-[#1a4b8c] bg-white text-base font-black text-[#1a4b8c]"
+              className="h-14 rounded-xl border border-dk-blue bg-white text-base font-black text-dk-blue"
             >
               상세내역 보기
             </button>
@@ -1285,7 +1285,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
                 }
               }}
               disabled={loading || orderFinalPaymentStatus === "PAID"}
-              className="h-14 rounded-xl bg-gradient-to-r from-[#0b1c3a] to-[#1a4b8c] text-base font-black text-white disabled:opacity-60"
+              className="h-14 rounded-xl bg-gradient-to-r from-dk-navy to-dk-blue text-base font-black text-white disabled:opacity-60"
             >
               {orderFinalPaymentStatus === "PAID" ? "보증서 발급 완료" : "결제하고 보증서 받기"}
             </button>
@@ -1298,7 +1298,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
         </section>
       ) : null}
       {orderFinalPaymentStatus === "PAID" ? (
-        <section className="rounded-3xl border-2 border-[#c89a2c] bg-gradient-to-b from-[#0b1c3a] to-[#123a77] p-4 text-white shadow-xl">
+        <section className="rounded-3xl border-2 border-[#c89a2c] bg-gradient-to-b from-dk-navy to-[#123a77] p-4 text-white shadow-xl">
           <p className="text-lg font-black">안심 보증서가 발급되었습니다</p>
           <p className="mt-1 text-sm text-slate-100">대경 안심 전기가 디지털 기술 보증서를 보관하고 있습니다.</p>
           {warranty?.warrantyNumber ? (
@@ -1307,7 +1307,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
                 href={`/api/warranties/${encodeURIComponent(warranty.warrantyNumber)}/image`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex h-12 items-center justify-center rounded-xl bg-white font-black text-[#0b1c3a]"
+                className="inline-flex h-12 items-center justify-center rounded-xl bg-white font-black text-dk-navy"
               >
                 보증서 이미지
               </a>
@@ -1315,7 +1315,7 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
                 href={`/api/warranties/${encodeURIComponent(warranty.warrantyNumber)}/pdf`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex h-12 items-center justify-center rounded-xl bg-[#c89a2c] font-black text-[#0b1c3a]"
+                className="inline-flex h-12 items-center justify-center rounded-xl bg-[#c89a2c] font-black text-dk-navy"
               >
                 보증서 PDF
               </a>

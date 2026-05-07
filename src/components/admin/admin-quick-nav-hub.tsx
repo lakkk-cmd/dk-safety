@@ -131,11 +131,11 @@ export default function AdminQuickNavHub() {
                 href={menu.href}
                 className={cn(
                   "group flex flex-1 flex-col p-5 pb-3 transition",
-                  "hover:border-[#0b1c3a]/45 dark:hover:border-sky-500/40"
+                  "hover:border-dk-navy/45 dark:hover:border-sky-500/40"
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#0b1c3a]/10 text-[#0b1c3a] dark:bg-sky-500/15 dark:text-sky-300">
+                  <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-dk-navy/10 text-dk-navy dark:bg-sky-500/15 dark:text-sky-300">
                     <Icon className="h-5 w-5" aria-hidden />
                   </span>
                 </div>

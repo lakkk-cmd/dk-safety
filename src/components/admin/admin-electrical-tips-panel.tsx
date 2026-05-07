@@ -289,7 +289,7 @@ export default function AdminElectricalTipsPanel() {
             onClick={() => setFilter(tab.key)}
             className={`rounded-full border px-4 py-2 text-sm font-bold transition ${
               filter === tab.key
-                ? "border-[#0b1c3a] bg-[#0b1c3a] text-white shadow-sm"
+                ? "border-dk-navy bg-dk-navy text-white shadow-sm"
                 : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
             }`}
           >

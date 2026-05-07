@@ -39,8 +39,8 @@ type Props = {
 type RequestKind = "repair" | "emergency";
 
 const requestConfig: Record<RequestKind, { title: string; href: string; tone: string }> = {
-  repair: { title: "점검/수리", href: "repair", tone: "from-[#6d93a8] to-[#4a6575]" },
-  emergency: { title: "긴급출동", href: "emergency", tone: "from-[#df8068] to-[#a85d48]" }
+  repair: { title: "점검/수리", href: "repair", tone: "from-dk-blue/60 to-dk-navy/70" },
+  emergency: { title: "긴급출동", href: "emergency", tone: "from-dk-red to-red-800" }
 };
 
 const TIP_CATEGORY_LABEL: Record<string, string> = {
@@ -406,7 +406,7 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
               {tipDetail.service_type ? (
                 <a
                   href={bookingHrefForSubpath(serviceTypeToBookingSubpath(tipDetail.service_type))}
-                  className="mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-[#6d93a8] to-[#4a6575] text-base font-extrabold text-[#fffefc] shadow-[0_10px_26px_rgba(74,101,117,0.28)]"
+                  className="mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-dk-blue/60 to-dk-navy/70 text-base font-extrabold text-[#fffefc] shadow-[0_10px_26px_rgba(74,101,117,0.28)]"
                 >
                   전문가에게 점검 받기
                 </a>
