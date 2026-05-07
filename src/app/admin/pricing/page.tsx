@@ -13,7 +13,7 @@ export default function AdminPricingPage() {
       <header className="warranty-band mb-6 rounded-[2rem] p-6 md:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="warranty-badge">ADMIN CONSOLE</p>
+            <p className="warranty-badge">관리자 콘솔</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">요금/단가표</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-700">
               기본 출장비·서비스 항목별 금액과 안내 문구를 관리합니다. 표시 금액은 DB(`payment_settings`)와 동일하게 동기화됩니다. 각 행의「수정」에서 금액·비고를 바꾼 뒤 저장하세요.

@@ -14,7 +14,7 @@ export default function AdminPaymentSettingsPage() {
       <header className="warranty-band mb-6 rounded-[2rem] p-6 md:p-8">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="warranty-badge">ADMIN CONSOLE</p>
+            <p className="warranty-badge">관리자 콘솔</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">결제 계좌 설정</h1>
             <p className="mt-2 text-sm text-slate-700">고객에게 안내되는 무통장 입금 계좌(은행·번호·예금주)를 설정합니다.</p>
             <div className="mt-3 flex flex-wrap gap-2">

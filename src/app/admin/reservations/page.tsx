@@ -29,7 +29,7 @@ export default async function AdminReservationsPage({ searchParams }: PageProps)
       <header className="warranty-band mb-6 rounded-[2rem] p-6 md:p-8">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="warranty-badge">ADMIN CONSOLE</p>
+            <p className="warranty-badge">관리자 콘솔</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">예약/정산</h1>
             <p className="mt-2 text-sm text-slate-700">예약 상태, 입금 상태, 기사 배정을 관리합니다.</p>
             <div className="mt-3 flex flex-wrap gap-2">

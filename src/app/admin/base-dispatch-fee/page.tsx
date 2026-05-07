@@ -14,7 +14,7 @@ export default function AdminBaseDispatchFeePage() {
       <header className="warranty-band mb-6 rounded-[2rem] p-6 md:p-8">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="warranty-badge">ADMIN CONSOLE</p>
+            <p className="warranty-badge">관리자 콘솔</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">기본 출장비 설정</h1>
             <p className="mt-2 text-sm text-slate-700">
               고객에게 안내되는 기본 출장비(예약금) 금액만 설정합니다. 입금 계좌는「결제 계좌 설정」화면에서 다룹니다.

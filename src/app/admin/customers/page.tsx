@@ -15,7 +15,7 @@ export default async function AdminCustomersPage() {
         <header className="warranty-band mb-6 rounded-[2rem] p-6 md:p-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="warranty-badge">ADMIN CONSOLE</p>
+              <p className="warranty-badge">관리자 콘솔</p>
               <h1 className="mt-2 text-3xl font-black text-slate-900">고객관리</h1>
               <p className="mt-2 text-sm text-slate-700">Supabase DB 모드에서 접수·주문 통합 조회를 사용할 수 있습니다.</p>
             </div>
@@ -39,7 +39,7 @@ export default async function AdminCustomersPage() {
       <header className="warranty-band mb-6 rounded-[2rem] p-6 md:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="warranty-badge">ADMIN CONSOLE</p>
+            <p className="warranty-badge">관리자 콘솔</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">고객관리</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-700">
               접수 시 등록한 <strong className="text-slate-900">고객·주소·일정</strong>을 기준으로, 연결된{" "}

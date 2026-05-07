@@ -10,7 +10,7 @@ export default function AdminWorkflowPage() {
       <header className="warranty-band mb-6 rounded-[2rem] p-6 md:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="warranty-badge">ADMIN CONSOLE</p>
+            <p className="warranty-badge">관리자 콘솔</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">업무 진행 흐름</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-700">
               <strong className="font-bold text-slate-900">실제 업무가 진행되는 순서</strong>입니다. 단지 기준 → 예약·입금 → 기사 준비·배정 → 현장 정산·보증서·통계까지 한 화면에서 단계별로 이동할 수

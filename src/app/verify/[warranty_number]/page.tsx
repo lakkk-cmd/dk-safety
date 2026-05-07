@@ -19,7 +19,7 @@ export default async function WarrantyVerifyPage({
   return (
     <main className="page-fit max-w-4xl space-y-4">
       <section className="warranty-band rounded-3xl p-5">
-        <p className="warranty-badge">WARRANTY VERIFY</p>
+        <p className="warranty-badge">안심 보증서 확인</p>
         <h1 className="mt-2 text-2xl font-black text-slate-900">보증서 번호: {warranty.warrantyNumber}</h1>
         <p className={`mt-2 text-sm font-bold ${warranty.status === "ISSUED" ? "text-emerald-700" : "text-rose-700"}`}>
           {warranty.status === "ISSUED" ? "정상 발급된 보증서입니다." : "유효하지 않은 보증 상태입니다."}

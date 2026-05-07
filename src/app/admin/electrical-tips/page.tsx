@@ -14,7 +14,7 @@ export default function AdminElectricalTipsPage() {
       <header className="warranty-band mb-6 rounded-[2rem] p-6 md:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="warranty-badge">ADMIN CONSOLE</p>
+            <p className="warranty-badge">관리자 콘솔</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">생활전기정보 관리</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-700">
               안전·절약·자가점검·계절별 콘텐츠를 관리합니다. 발행된 항목만 입주민 쪽에서 조회할 수 있습니다. 목록은 노출 순서(`display_order`) 기준입니다.
