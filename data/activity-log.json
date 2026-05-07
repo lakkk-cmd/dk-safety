@@ -1,5 +1,460 @@
 [
   {
+    "action": "task_assigned",
+    "reservationId": "3361a3ff-5130-42da-921d-321a743a1bb0",
+    "message": "사사사 예약이 기사에게 배정되었습니다.",
+    "id": "33fe2817-389a-4a96-8a7e-fbc550b4f222",
+    "createdAt": "2026-05-04T14:45:00.573Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "3361a3ff-5130-42da-921d-321a743a1bb0",
+    "message": "사사사 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "765eb966-146d-4eab-ac2f-5115807a387f",
+    "createdAt": "2026-05-04T14:43:34.660Z"
+  },
+  {
+    "action": "task_assigned",
+    "reservationId": "d421ac1e-ddac-462f-9f54-bfa8495bdc3b",
+    "message": "사사사 예약이 기사에게 배정되었습니다.",
+    "id": "6f97526b-cbe1-4f84-9f04-b12b764739ce",
+    "createdAt": "2026-05-04T07:06:29.362Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "d421ac1e-ddac-462f-9f54-bfa8495bdc3b",
+    "message": "사사사 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "5365ecd0-b304-409f-b00f-41ba35c28791",
+    "createdAt": "2026-05-04T07:05:54.402Z"
+  },
+  {
+    "action": "task_assigned",
+    "reservationId": "df29e45d-5efc-4ca4-acb3-753bfb370949",
+    "message": "사사사 예약이 기사에게 배정되었습니다.",
+    "id": "072cd5ba-b88d-43ef-8493-41fe3541837b",
+    "createdAt": "2026-05-04T07:04:14.179Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "df29e45d-5efc-4ca4-acb3-753bfb370949",
+    "message": "사사사 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "5e912ddd-0eeb-4f8a-af10-52673afb7091",
+    "createdAt": "2026-05-04T06:44:57.409Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "b8d477d9-79a2-4cc3-a1af-bd8c9a5e9688",
+    "message": "가가가 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "ce114cc4-cc8b-4d80-8d9a-25b50b8d4ec0",
+    "createdAt": "2026-05-04T01:28:44.570Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "4623a6c8-6337-40d3-b996-33975726d875",
+    "message": "가가가 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "6564cf06-d6c7-4d70-8d77-ad5926b5fbeb",
+    "createdAt": "2026-05-04T00:52:17.363Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "259b3c61-8bc7-4eb6-b22c-aff44717f9af",
+    "message": "가가가 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "10d4a748-e155-4d7b-afc4-9bf6db8b9be3",
+    "createdAt": "2026-05-03T11:06:49.624Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "fba26f05-4727-44dc-8649-c16a34cab65b",
+    "message": "가가가 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "1359c486-2bc2-40af-b4b1-44460f6f7ae8",
+    "createdAt": "2026-05-03T04:37:38.415Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "6418c441-7b3d-4c3a-8a86-db603a86a9cb",
+    "message": "가가가 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "fd463de2-4b46-401a-a089-92d01575c64c",
+    "createdAt": "2026-05-03T02:46:25.164Z"
+  },
+  {
+    "action": "task_assigned",
+    "reservationId": "695ac03f-25ad-49bb-bada-7da3c133a161",
+    "message": "두우리 예약이 기사에게 배정되었습니다.",
+    "id": "09a5f5d2-6470-40ce-9215-279e8bbd3c16",
+    "createdAt": "2026-05-01T16:56:50.206Z"
+  },
+  {
+    "action": "task_assigned",
+    "reservationId": "695ac03f-25ad-49bb-bada-7da3c133a161",
+    "message": "두우리 예약이 기사에게 배정되었습니다.",
+    "id": "7572c2d2-10ee-473f-a68c-e1d41233ab8b",
+    "createdAt": "2026-05-01T16:55:07.996Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "695ac03f-25ad-49bb-bada-7da3c133a161",
+    "message": "두우리 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "4753bbfa-18eb-4721-ac11-707734aa8075",
+    "createdAt": "2026-05-01T16:53:40.043Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "7685ad55-2034-4500-9746-4bfa38921bc5",
+    "message": "두우리 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "0c19766c-04de-434f-98ac-b30a99289182",
+    "createdAt": "2026-05-01T16:43:41.817Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "451d032b-8aa4-47d8-8e37-3b378e5c6e04",
+    "message": "한나라 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "a785892c-56ef-436b-856f-18fc58226744",
+    "createdAt": "2026-05-01T16:30:46.475Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "d34c9980-4f21-43e1-99d1-4c516cba091a",
+    "message": "한나라 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "acbd0366-96a2-419a-be9b-287da2217303",
+    "createdAt": "2026-05-01T16:22:47.468Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "deae9db4-d23a-4f66-bd0e-fd0f5f521d67",
+    "message": "한나라 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "46292c45-a3ec-4000-bc58-0d51ec3464bb",
+    "createdAt": "2026-05-01T15:58:21.881Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "8cbce62b-7db1-4165-97e9-cfde50368e48",
+    "message": "나경문 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "e3db52e9-6e12-40a0-a570-b12153e0da91",
+    "createdAt": "2026-05-01T15:01:44.829Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "3a2d574e-816b-4e56-a956-5d9c99b37194",
+    "message": "나경문 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "d61177e9-8891-4ce0-886d-4973a6e4f9f0",
+    "createdAt": "2026-05-01T14:58:10.286Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "0a5bde1a-c914-40d9-980d-b64634fd71ba",
+    "message": "경문 고객 예약이 선결제 완료 상태로 변경되었습니다.",
+    "id": "3fd37866-9941-472e-9e09-046d2dcec42b",
+    "createdAt": "2026-05-01T14:44:00.301Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "0a5bde1a-c914-40d9-980d-b64634fd71ba",
+    "message": "경문 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "fb622af5-19ff-43ca-970e-5114232142fb",
+    "createdAt": "2026-05-01T14:43:06.594Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "85b0242b-41da-4f20-b8a1-05aacf5d638c",
+    "message": "경문 고객 예약이 선결제 완료 상태로 변경되었습니다.",
+    "id": "b6cc0626-a0ab-4ad2-ace1-002af7513c7b",
+    "createdAt": "2026-05-01T13:05:23.574Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "85b0242b-41da-4f20-b8a1-05aacf5d638c",
+    "message": "경문 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "c347a7f8-9abb-436f-91d9-c860b8a2222f",
+    "createdAt": "2026-05-01T13:05:04.972Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "bb7bf42b-a3d5-4a70-a5a7-39049b0047bb",
+    "message": "나경문 고객 예약이 선결제 완료 상태로 변경되었습니다.",
+    "id": "4f53a23b-8ffd-4320-bd01-286b9e01538c",
+    "createdAt": "2026-05-01T12:17:25.602Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "bb7bf42b-a3d5-4a70-a5a7-39049b0047bb",
+    "message": "나경문 고객 예약이 선결제 완료 상태로 변경되었습니다.",
+    "id": "2c547b19-a119-4a3c-8958-f1dda3d9e472",
+    "createdAt": "2026-05-01T12:16:52.606Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "bb7bf42b-a3d5-4a70-a5a7-39049b0047bb",
+    "message": "나경문 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "be1963e6-69ce-4d7d-8498-fce30620bc4e",
+    "createdAt": "2026-05-01T12:16:41.994Z"
+  },
+  {
+    "action": "task_assigned",
+    "reservationId": "b4fb7e51-9f55-4eea-a78f-1bb1555a4dad",
+    "message": "테스트고객-1777201681393 예약이 기사에게 배정되었습니다.",
+    "id": "9c0ce826-357f-4877-8955-453a7240e35c",
+    "createdAt": "2026-04-26T11:08:05.507Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "b4fb7e51-9f55-4eea-a78f-1bb1555a4dad",
+    "message": "테스트고객-1777201681393 예약 입금 상태가 입금완료로 변경되었습니다.",
+    "id": "3831d2f3-0d62-452c-a47a-76c8b203445c",
+    "createdAt": "2026-04-26T11:08:04.748Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "b4fb7e51-9f55-4eea-a78f-1bb1555a4dad",
+    "message": "테스트고객-1777201681393 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "376e234c-fddf-4480-8b96-cf979701486d",
+    "createdAt": "2026-04-26T11:08:02.750Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "e4b966aa-b208-479b-b644-cebcbf9f1bda",
+    "message": "나경문 고객 예약 상태가 '접수'로 변경되었습니다.",
+    "id": "a2070e7c-d839-4a73-82ad-9a608bc369ce",
+    "createdAt": "2026-04-26T09:06:50.673Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "e4b966aa-b208-479b-b644-cebcbf9f1bda",
+    "message": "나경문 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "9631be39-6049-48de-ab46-3af2581a8bc6",
+    "createdAt": "2026-04-26T09:06:23.839Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "328e7570-94b4-4cf3-815e-0a000aedd012",
+    "message": "나나나 고객 예약 상태가 '접수'로 변경되었습니다.",
+    "id": "05152cc8-3bd0-4996-ac0a-c0772483b301",
+    "createdAt": "2026-04-26T07:14:56.064Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "328e7570-94b4-4cf3-815e-0a000aedd012",
+    "message": "[긴급출동] 나나나 입주민 긴급출동 요청 접수",
+    "id": "1e44921a-7c91-4f2c-9fa3-cad94ea40d65",
+    "createdAt": "2026-04-26T07:14:42.336Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "9ec154b7-dba8-4470-8828-d7e8047feb6e",
+    "message": "[긴급출동] 나나나 입주민 긴급출동 요청 접수",
+    "id": "818d1bb0-ccfd-4420-af18-acb9e5f92b09",
+    "createdAt": "2026-04-26T07:11:48.282Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "adf4dcb2-9ce0-465a-aad2-f036073ff326",
+    "message": "나나나 고객 예약 상태가 '접수'로 변경되었습니다.",
+    "id": "070b516b-d91b-4201-8dbe-2397262bc190",
+    "createdAt": "2026-04-26T07:01:48.252Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "adf4dcb2-9ce0-465a-aad2-f036073ff326",
+    "message": "나나나 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "efd3af93-e0bf-4998-a11b-e45e59e9c85c",
+    "createdAt": "2026-04-26T06:57:45.644Z"
+  },
+  {
+    "action": "task_completed",
+    "reservationId": "9f0a0f59-d81e-4783-b04a-a663814df453",
+    "message": "테스트고객-1777125711792 현장 작업이 완료 처리되었습니다.",
+    "id": "2890a6ca-1e4b-4498-9d27-b2e49ef44d30",
+    "createdAt": "2026-04-25T14:02:00.729Z"
+  },
+  {
+    "action": "task_assigned",
+    "reservationId": "9f0a0f59-d81e-4783-b04a-a663814df453",
+    "message": "테스트고객-1777125711792 예약이 기사에게 배정되었습니다.",
+    "id": "dbb4aa83-fc51-4d5c-9df5-408a524e7b0e",
+    "createdAt": "2026-04-25T14:01:57.491Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "9f0a0f59-d81e-4783-b04a-a663814df453",
+    "message": "테스트고객-1777125711792 예약 입금 상태가 입금완료로 변경되었습니다.",
+    "id": "5b2a5eae-4a9a-4cce-bcb0-1860ff1e9490",
+    "createdAt": "2026-04-25T14:01:56.963Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "9f0a0f59-d81e-4783-b04a-a663814df453",
+    "message": "테스트고객-1777125711792 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "3c87bacd-aaf7-466c-ae55-a41baa16a988",
+    "createdAt": "2026-04-25T14:01:55.636Z"
+  },
+  {
+    "action": "task_completed",
+    "reservationId": "619a9696-2cde-487b-a943-7f54640c81b5",
+    "message": "테스트고객-1777124665383 현장 작업이 완료 처리되었습니다.",
+    "id": "ada88e36-d74f-4f4a-9444-9a2823f3bc75",
+    "createdAt": "2026-04-25T13:44:34.206Z"
+  },
+  {
+    "action": "task_assigned",
+    "reservationId": "619a9696-2cde-487b-a943-7f54640c81b5",
+    "message": "테스트고객-1777124665383 예약이 기사에게 배정되었습니다.",
+    "id": "988b8bab-0201-4e64-b5ee-c3959687abe3",
+    "createdAt": "2026-04-25T13:44:31.000Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "619a9696-2cde-487b-a943-7f54640c81b5",
+    "message": "테스트고객-1777124665383 예약 입금 상태가 입금완료로 변경되었습니다.",
+    "id": "b27c368e-c083-4f23-90f7-687c26137c33",
+    "createdAt": "2026-04-25T13:44:30.519Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "619a9696-2cde-487b-a943-7f54640c81b5",
+    "message": "테스트고객-1777124665383 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "7036e78e-ccdc-4d18-b86d-ab94f3b21c85",
+    "createdAt": "2026-04-25T13:44:29.225Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "062ba0fe-0f35-4e0d-8aa4-79565246ff1e",
+    "message": "테스트고객-1777124270896 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "a1dc45b3-b37e-40aa-a9d1-0f5a8f0234f0",
+    "createdAt": "2026-04-25T13:37:54.541Z"
+  },
+  {
+    "action": "task_completed",
+    "reservationId": "a49c1535-aa66-43b5-82cd-8932a61d4e8b",
+    "message": "테스트고객-1777123463307 현장 작업이 완료 처리되었습니다.",
+    "id": "a5efb502-317b-4914-84c1-7a5a7a29eb94",
+    "createdAt": "2026-04-25T13:24:28.737Z"
+  },
+  {
+    "action": "task_assigned",
+    "reservationId": "a49c1535-aa66-43b5-82cd-8932a61d4e8b",
+    "message": "테스트고객-1777123463307 예약이 기사에게 배정되었습니다.",
+    "id": "3093fd36-8fb7-43b8-98fb-0ed897cb89ca",
+    "createdAt": "2026-04-25T13:24:25.494Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "a49c1535-aa66-43b5-82cd-8932a61d4e8b",
+    "message": "테스트고객-1777123463307 예약 입금 상태가 입금완료로 변경되었습니다.",
+    "id": "24b295cd-3bb0-4382-9bcf-03557a473447",
+    "createdAt": "2026-04-25T13:24:25.049Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "a49c1535-aa66-43b5-82cd-8932a61d4e8b",
+    "message": "테스트고객-1777123463307 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "89809f27-43f4-441c-857e-261f5c4d1daf",
+    "createdAt": "2026-04-25T13:24:24.113Z"
+  },
+  {
+    "action": "task_completed",
+    "reservationId": "33467988-016d-4555-9a59-6c8de0ff1bc9",
+    "message": "테스트고객-1777123233355 현장 작업이 완료 처리되었습니다.",
+    "id": "ab3e347c-b177-43ad-b8f0-560502ee619d",
+    "createdAt": "2026-04-25T13:20:38.294Z"
+  },
+  {
+    "action": "task_assigned",
+    "reservationId": "33467988-016d-4555-9a59-6c8de0ff1bc9",
+    "message": "테스트고객-1777123233355 예약이 기사에게 배정되었습니다.",
+    "id": "a8ab1aca-1ca2-40e9-8af8-b428197147aa",
+    "createdAt": "2026-04-25T13:20:34.724Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "33467988-016d-4555-9a59-6c8de0ff1bc9",
+    "message": "테스트고객-1777123233355 예약 입금 상태가 입금완료로 변경되었습니다.",
+    "id": "20b85d91-500e-4947-902b-e4e5a2e09c76",
+    "createdAt": "2026-04-25T13:20:34.416Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "33467988-016d-4555-9a59-6c8de0ff1bc9",
+    "message": "테스트고객-1777123233355 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "b30ec7ec-0c89-417e-8428-3d13466fa8e4",
+    "createdAt": "2026-04-25T13:20:33.678Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "5f59b2a9-3372-4acb-a681-1793a791781a",
+    "message": "테스트고객-1777123189056 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "38a6a029-cf37-4a4d-90c1-ee172b1063af",
+    "createdAt": "2026-04-25T13:19:49.742Z"
+  },
+  {
+    "action": "task_assigned",
+    "reservationId": "95343044-d572-400b-b2ed-36341713d16d",
+    "message": "나경문 예약이 기사에게 배정되었습니다.",
+    "id": "fb207872-9828-4f81-8673-ebfd192ef31e",
+    "createdAt": "2026-04-25T12:48:08.702Z"
+  },
+  {
+    "action": "status_updated",
+    "reservationId": "95343044-d572-400b-b2ed-36341713d16d",
+    "message": "나경문 예약 입금 상태가 입금완료로 변경되었습니다.",
+    "id": "a6be2725-fafd-4f61-9b93-ad32bea36e91",
+    "createdAt": "2026-04-25T12:48:03.855Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "60502895-2f92-4ee5-b4b3-7aaf80ab0924",
+    "message": "????? 고객 예약이 입금대기 상태로 접수되었습니다.",
+    "id": "226b9750-1a02-4a5d-80b4-e15b9db7c001",
+    "createdAt": "2026-04-25T12:42:05.673Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "95343044-d572-400b-b2ed-36341713d16d",
+    "message": "나경문 고객 예약이 접수되었습니다.",
+    "id": "64e35ecb-395f-46b5-bac7-8afde0bb89e0",
+    "createdAt": "2026-04-25T11:46:43.943Z"
+  },
+  {
+    "action": "task_completed",
+    "reservationId": "2fe2b0a0-b90e-408c-9b2b-661e7434eb5c",
+    "message": "테스트고객-1777113717506 현장 작업이 완료 처리되었습니다.",
+    "id": "7e7c3d4a-486c-4a82-9e23-4ced7ddb9998",
+    "createdAt": "2026-04-25T10:42:12.563Z"
+  },
+  {
+    "action": "task_assigned",
+    "reservationId": "2fe2b0a0-b90e-408c-9b2b-661e7434eb5c",
+    "message": "테스트고객-1777113717506 예약이 기사에게 배정되었습니다.",
+    "id": "c90b8e3f-912d-4c1d-b0c2-e216b89638c0",
+    "createdAt": "2026-04-25T10:42:08.595Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "2fe2b0a0-b90e-408c-9b2b-661e7434eb5c",
+    "message": "테스트고객-1777113717506 고객 예약이 접수되었습니다.",
+    "id": "6c29f7f7-80b9-4908-9c20-ac849babd10e",
+    "createdAt": "2026-04-25T10:42:01.281Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "0157875a-240b-40ff-8eca-ca5c0e838f96",
+    "message": "[긴급출동] 라라라 입주민 긴급출동 요청 접수",
+    "id": "031cb4b3-ea21-46ef-9410-22d095d0b152",
+    "createdAt": "2026-04-24T13:33:21.172Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "67b1aa7c-329e-4ae2-9ef2-5b5a48548364",
+    "message": "[긴급출동] 라라라 입주민 긴급출동 요청 접수",
+    "id": "5b2bdb3f-849b-42ce-bda2-10459420a6d4",
+    "createdAt": "2026-04-24T13:25:30.914Z"
+  },
+  {
+    "action": "reservation_created",
+    "reservationId": "78d39ee1-84db-4354-8b7d-c219dc22109e",
+    "message": "라라라 고객 예약이 접수되었습니다.",
+    "id": "41d8408e-f5fa-4942-a75d-77b01e91431c",
+    "createdAt": "2026-04-24T13:24:45.231Z"
+  },
+  {
     "action": "reservation_created",
     "reservationId": "d09d7229-b16e-4751-a7e7-54ed9a570b3f",
     "message": "ㄲㄲㄲ 고객 예약이 접수되었습니다.",

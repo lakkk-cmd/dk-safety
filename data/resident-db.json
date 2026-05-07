@@ -73,6 +73,56 @@
   ],
   "users": [
     {
+      "id": "usr-b8e48423-cf2c-4672-a158-bbd4aadf0ddb",
+      "name": "라라라",
+      "phone": "010-2222-2222",
+      "apartmentId": "apt-10",
+      "apartmentName": "문흥라인아파트",
+      "unitNumber": "111동 111호",
+      "createdAt": "2026-04-24T13:16:41.077Z",
+      "lastLoginAt": "2026-04-24T13:16:41.077Z"
+    },
+    {
+      "id": "usr-79d4d41a-514c-415e-880a-c38f917bf363",
+      "name": "하하하",
+      "phone": "010-1111-1111",
+      "apartmentId": "apt-1",
+      "apartmentName": "유니버시아드힐스테이트3단지",
+      "unitNumber": "101동 202호",
+      "createdAt": "2026-04-24T13:03:00.373Z",
+      "lastLoginAt": "2026-04-24T13:03:00.373Z"
+    },
+    {
+      "id": "usr-f30acc46-7e37-47a1-82ac-c729eb6161ee",
+      "name": "ssssssss",
+      "phone": "010-1111-1111",
+      "apartmentId": "apt-4",
+      "apartmentName": "상무자이",
+      "unitNumber": "111동 1111호",
+      "createdAt": "2026-04-24T11:57:37.543Z",
+      "lastLoginAt": "2026-04-24T11:57:37.543Z"
+    },
+    {
+      "id": "usr-7b224fd6-e251-440a-9bc7-4d686c28382f",
+      "name": "김김김",
+      "phone": "010-8989-8989",
+      "apartmentId": "apt-4",
+      "apartmentName": "상무자이",
+      "unitNumber": "101동 101호",
+      "createdAt": "2026-04-24T11:41:40.137Z",
+      "lastLoginAt": "2026-04-24T11:41:40.137Z"
+    },
+    {
+      "id": "usr-5af3c78a-b96d-43c1-b542-c2ebecfebc4e",
+      "name": "김아무개",
+      "phone": "010-4567-4567",
+      "apartmentId": "apt-10",
+      "apartmentName": "문흥라인아파트",
+      "unitNumber": "204동 201호",
+      "createdAt": "2026-04-24T11:29:48.490Z",
+      "lastLoginAt": "2026-04-24T11:29:48.490Z"
+    },
+    {
       "id": "usr-25def5e3-2fac-4c81-9e88-79e4e61cbfd0",
       "name": "ㄲ",
       "phone": "010-5555-5555",
@@ -256,6 +306,267 @@
     }
   ],
   "diagnoses": [
+    {
+      "id": "diag-4650a30c-63b5-4768-bbe1-651e16fef3ef",
+      "userId": "usr-b8e48423-cf2c-4672-a158-bbd4aadf0ddb",
+      "createdAt": "2026-04-24T13:30:52.253Z",
+      "answers": [
+        {
+          "questionId": 1,
+          "answer": "high"
+        },
+        {
+          "questionId": 2,
+          "answer": "caution"
+        },
+        {
+          "questionId": 3,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 4,
+          "answer": "caution"
+        },
+        {
+          "questionId": 5,
+          "answer": "caution"
+        },
+        {
+          "questionId": 6,
+          "answer": "caution"
+        },
+        {
+          "questionId": 7,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 8,
+          "answer": "caution"
+        },
+        {
+          "questionId": 9,
+          "answer": "high"
+        },
+        {
+          "questionId": 10,
+          "answer": "caution"
+        },
+        {
+          "questionId": 11,
+          "answer": "caution"
+        },
+        {
+          "questionId": 12,
+          "answer": "high"
+        },
+        {
+          "questionId": 13,
+          "answer": "high"
+        },
+        {
+          "questionId": 14,
+          "answer": "caution"
+        },
+        {
+          "questionId": 15,
+          "answer": "unknown"
+        }
+      ],
+      "riskScore": 69,
+      "scoreVersion": 3,
+      "sectorScores": [
+        {
+          "id": "breaker",
+          "title": "차단기·분전반 상태",
+          "score": 67
+        },
+        {
+          "id": "outlet",
+          "title": "콘센트·배선 사용",
+          "score": 67
+        },
+        {
+          "id": "habit",
+          "title": "생활 습관·환경 점검",
+          "score": 73
+        }
+      ],
+      "summary": "주의: 전문가 점검을 권장합니다."
+    },
+    {
+      "id": "diag-941854dd-041a-42ed-ad70-97cfd1c2bbf2",
+      "userId": "usr-b8e48423-cf2c-4672-a158-bbd4aadf0ddb",
+      "createdAt": "2026-04-24T13:25:20.551Z",
+      "answers": [
+        {
+          "questionId": 1,
+          "answer": "high"
+        },
+        {
+          "questionId": 2,
+          "answer": "caution"
+        },
+        {
+          "questionId": 3,
+          "answer": "caution"
+        },
+        {
+          "questionId": 4,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 5,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 6,
+          "answer": "caution"
+        },
+        {
+          "questionId": 7,
+          "answer": "caution"
+        },
+        {
+          "questionId": 8,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 9,
+          "answer": "caution"
+        },
+        {
+          "questionId": 10,
+          "answer": "caution"
+        },
+        {
+          "questionId": 11,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 12,
+          "answer": "caution"
+        },
+        {
+          "questionId": 13,
+          "answer": "high"
+        },
+        {
+          "questionId": 14,
+          "answer": "caution"
+        },
+        {
+          "questionId": 15,
+          "answer": "high"
+        }
+      ],
+      "riskScore": 64,
+      "scoreVersion": 3,
+      "sectorScores": [
+        {
+          "id": "breaker",
+          "title": "차단기·분전반 상태",
+          "score": 60
+        },
+        {
+          "id": "outlet",
+          "title": "콘센트·배선 사용",
+          "score": 60
+        },
+        {
+          "id": "habit",
+          "title": "생활 습관·환경 점검",
+          "score": 73
+        }
+      ],
+      "summary": "주의: 전문가 점검을 권장합니다."
+    },
+    {
+      "id": "diag-e47139e4-e090-44cb-9db0-8582b0955f55",
+      "userId": "usr-f30acc46-7e37-47a1-82ac-c729eb6161ee",
+      "createdAt": "2026-04-24T11:58:34.829Z",
+      "answers": [
+        {
+          "questionId": 1,
+          "answer": "high"
+        },
+        {
+          "questionId": 2,
+          "answer": "caution"
+        },
+        {
+          "questionId": 3,
+          "answer": "caution"
+        },
+        {
+          "questionId": 4,
+          "answer": "caution"
+        },
+        {
+          "questionId": 5,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 6,
+          "answer": "caution"
+        },
+        {
+          "questionId": 7,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 8,
+          "answer": "caution"
+        },
+        {
+          "questionId": 9,
+          "answer": "caution"
+        },
+        {
+          "questionId": 10,
+          "answer": "unknown"
+        },
+        {
+          "questionId": 11,
+          "answer": "high"
+        },
+        {
+          "questionId": 12,
+          "answer": "caution"
+        },
+        {
+          "questionId": 13,
+          "answer": "high"
+        },
+        {
+          "questionId": 14,
+          "answer": "caution"
+        },
+        {
+          "questionId": 15,
+          "answer": "high"
+        }
+      ],
+      "riskScore": 69,
+      "scoreVersion": 3,
+      "sectorScores": [
+        {
+          "id": "breaker",
+          "title": "차단기·분전반 상태",
+          "score": 67
+        },
+        {
+          "id": "outlet",
+          "title": "콘센트·배선 사용",
+          "score": 53
+        },
+        {
+          "id": "habit",
+          "title": "생활 습관·환경 점검",
+          "score": 87
+        }
+      ],
+      "summary": "주의: 전문가 점검을 권장합니다."
+    },
     {
       "id": "diag-6542d9d5-3777-4d05-886b-f957e30e880e",
       "userId": "usr-06405a12-d669-4e11-b260-811a55443d81",
@@ -709,6 +1020,76 @@
     }
   ],
   "activities": [
+    {
+      "id": "act-883214ca-9b43-4313-8513-a5eaee419271",
+      "createdAt": "2026-04-24T13:33:21.174Z",
+      "userId": "usr-b8e48423-cf2c-4672-a158-bbd4aadf0ddb",
+      "action": "emergency_requested",
+      "message": "라라라 입주민 긴급출동 요청"
+    },
+    {
+      "id": "act-c80a60e3-212c-4cf3-adce-cfe85c88db8a",
+      "userId": "usr-b8e48423-cf2c-4672-a158-bbd4aadf0ddb",
+      "action": "diagnosis_submitted",
+      "message": "라라라 입주민 자가진단 제출 (위험지수 69/100점, 원점수 31/45)",
+      "createdAt": "2026-04-24T13:30:52.253Z"
+    },
+    {
+      "id": "act-e2f571ec-4ef0-4760-aa4f-cbdc3cb53c55",
+      "createdAt": "2026-04-24T13:25:30.918Z",
+      "userId": "usr-b8e48423-cf2c-4672-a158-bbd4aadf0ddb",
+      "action": "emergency_requested",
+      "message": "라라라 입주민 긴급출동 요청"
+    },
+    {
+      "id": "act-059a9830-2373-4de2-aa9d-2d7aa7eb7bf2",
+      "userId": "usr-b8e48423-cf2c-4672-a158-bbd4aadf0ddb",
+      "action": "diagnosis_submitted",
+      "message": "라라라 입주민 자가진단 제출 (위험지수 64/100점, 원점수 29/45)",
+      "createdAt": "2026-04-24T13:25:20.551Z"
+    },
+    {
+      "id": "act-076a4ba4-bc4b-46ad-b693-3b59441df97e",
+      "userId": "usr-b8e48423-cf2c-4672-a158-bbd4aadf0ddb",
+      "action": "login",
+      "message": "라라라 입주민 로그인",
+      "createdAt": "2026-04-24T13:16:41.077Z"
+    },
+    {
+      "id": "act-28026bc4-3562-478c-83b7-1b210d4e61aa",
+      "userId": "usr-79d4d41a-514c-415e-880a-c38f917bf363",
+      "action": "login",
+      "message": "하하하 입주민 로그인",
+      "createdAt": "2026-04-24T13:03:00.373Z"
+    },
+    {
+      "id": "act-9dda4da2-3b66-423e-8c0b-6e7b427b47b0",
+      "userId": "usr-f30acc46-7e37-47a1-82ac-c729eb6161ee",
+      "action": "diagnosis_submitted",
+      "message": "ssssssss 입주민 자가진단 제출 (위험지수 69/100점, 원점수 31/45)",
+      "createdAt": "2026-04-24T11:58:34.829Z"
+    },
+    {
+      "id": "act-e0691b73-bc0e-4ac0-85ca-8441d0edb8bf",
+      "userId": "usr-f30acc46-7e37-47a1-82ac-c729eb6161ee",
+      "action": "login",
+      "message": "ssssssss 입주민 로그인",
+      "createdAt": "2026-04-24T11:57:37.543Z"
+    },
+    {
+      "id": "act-97ef635b-57d8-40e1-865e-ea5c09387982",
+      "userId": "usr-7b224fd6-e251-440a-9bc7-4d686c28382f",
+      "action": "login",
+      "message": "김김김 입주민 로그인",
+      "createdAt": "2026-04-24T11:41:40.137Z"
+    },
+    {
+      "id": "act-34b57b9f-f640-4294-b685-96d6a4e332a8",
+      "userId": "usr-5af3c78a-b96d-43c1-b542-c2ebecfebc4e",
+      "action": "login",
+      "message": "김아무개 입주민 로그인",
+      "createdAt": "2026-04-24T11:29:48.490Z"
+    },
     {
       "id": "act-85108979-b4c3-43be-bd8a-fb6c6de70378",
       "userId": "usr-25def5e3-2fac-4c81-9e88-79e4e61cbfd0",

@@ -41,7 +41,7 @@ function taskStatusLabel(task: string | null, dispatch: string): { text: string;
   if (d === "DONE") {
     return { text: "처리 완료", className: "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100" };
   }
-  if (d === "READY" || d === "IDLE" || d === "ACTIVE") {
+  if (d === "READY" || d === "BLOCKED" || d === "IDLE" || d === "ACTIVE") {
     return { text: "배정 대기", className: "bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-100" };
   }
   return {

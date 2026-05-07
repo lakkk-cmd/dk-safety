@@ -59,12 +59,14 @@ export function orderDispatchStatusKo(v: string | null | undefined): string {
   const u = String(v ?? "").trim().toUpperCase();
   if (!u || u === "UNKNOWN") return "—";
   const map: Record<string, string> = {
+    BLOCKED: "배정 전",
+    READY: "배정 대기",
     IDLE: "배정 대기",
-    ACTIVE: "배정 진행",
+    ACTIVE: "배정 대기",
     ASSIGNED: "기사 배정됨",
     IN_PROGRESS: "현장 작업 중",
     DONE: "현장 완료",
-    BLOCKED: "배정 제한"
+    CANCELLED: "취소"
   };
   return map[u] ?? String(v ?? "—");
 }

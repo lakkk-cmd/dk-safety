@@ -1,6 +1,6 @@
 # 대경안심전기 (우리 집 전기 주치의)
 
-Next.js 기반 전기 점검 예약 홈페이지입니다.
+Next.js 기반 전기 점검/수리 예약 홈페이지입니다.
 
 ## 주요 기능
 
@@ -38,6 +38,8 @@ Next.js 기반 전기 점검 예약 홈페이지입니다.
 - `SUPABASE_DATA_BUCKET`: 예약/입주민 JSON 데이터 저장 버킷명
 - `SUPABASE_UPLOAD_BUCKET`: 현장사진 업로드 버킷명(공개 버킷 권장)
 - `SUPABASE_UPLOAD_PUBLIC_BASE_URL`: 업로드 파일 공개 URL 베이스(미설정 시 Supabase 기본 공개 경로 사용)
+- `KAKAO_ALIMTALK_WEBHOOK_URL`: (선택) 작업 완료 시 고객 알림톡 발송용 웹훅 URL
+- `SMS_WEBHOOK_URL`: (선택) 작업 완료 시 고객 문자 발송용 웹훅 URL
 
 ## 실행
 

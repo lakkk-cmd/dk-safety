@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Reservation } from "@/lib/reservations-store";
 import { readReservations, updateReservation } from "@/lib/reservations-store";
 import { appendActivityLog } from "@/lib/activity-log";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
@@ -7,6 +8,24 @@ import { pushReservationProgressNotifications } from "@/lib/live-notify";
 
 const allowedStatuses = new Set(["waiting_payment", "접수", "진행중", "완료"]);
 
+/** GET 본문: `tasks`·`orders` 조인 기반 진행 필드(스네이크 케이스) + 기존 Reservation 필드 */
+export type ReservationDetailPayload = Reservation & {
+  payment_status: string | null;
+  dispatch_status: string | null;
+  prepayment_confirmed: boolean;
+  task_status: string | null;
+};
+
+function toReservationDetailPayload(r: Reservation): ReservationDetailPayload {
+  return {
+    ...r,
+    payment_status: r.orderPaymentStatus ?? null,
+    dispatch_status: r.orderDispatchStatus ?? null,
+    prepayment_confirmed: Boolean(r.orderPrepaymentConfirmed),
+    task_status: r.taskStatus ?? null
+  };
+}
+
 export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const reservations = await readReservations();
@@ -14,7 +33,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
   if (!reservation) {
     return NextResponse.json({ message: "대상을 찾을 수 없습니다." }, { status: 404 });
   }
-  return NextResponse.json({ reservation });
+  return NextResponse.json({ reservation: toReservationDetailPayload(reservation) });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {

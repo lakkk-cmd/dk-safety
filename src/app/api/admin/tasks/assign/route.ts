@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "예약 ID와 기사 ID가 필요합니다." }, { status: 400 });
   }
   try {
-    // orders 테이블을 사용하는 경우에는 결제(PAID) 확인 후에만 dispatch_status를 ACTIVE로 전환.
+    // orders: 결제(PAID) 확인 후 dispatch_status를 READY(배정 대기)로 맞춥니다(015+ 제약).
     if (orderId) {
       await activateDispatch(orderId);
     }

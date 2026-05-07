@@ -35,7 +35,7 @@
 - 경로: `/resident/safety-check` (미로그인 시 `/` 로그인 후)
 - 확인 항목
   - 15문항 제출·결과 저장
-  - 「점검 예약 바로하기」→ `/reservation?source=diagnosis&riskScore=…` 초안 반영
+- 「점검/수리 예약 바로하기」→ `/reservation?source=diagnosis&riskScore=…` 초안 반영
   - 「긴급출동 요청」→ 접수 완료
 - `/admin`: 우선순위 열·`긴급출동` 필터, 예약 CSV 우선순위 컬럼
 

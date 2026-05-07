@@ -1,4 +1,6 @@
 .next
+.next-dev
+.next-build
 node_modules
 out
 dist
@@ -11,3 +13,7 @@ yarn-error.log*
 pnpm-debug.log*
 coverage
 .vercel
+
+.vercel
+data/backups/reservations-auto-*.json
+public/uploads/

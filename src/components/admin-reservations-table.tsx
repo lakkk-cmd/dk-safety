@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import type { Reservation } from "@/lib/reservations-store";
+import { normalizeReservationPhotoUrl } from "@/lib/reservation-photo-url";
 import { BoltIcon, ShieldIcon } from "@/components/ui/icons";
 
 type WorkerOption = {
@@ -684,18 +685,21 @@ export default function AdminReservationsTable({
                     <p className="mt-2 text-xs text-slate-400">첨부 없음</p>
                   ) : (
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {item.imageUrls.slice(0, 5).map((url, idx) => (
+                      {item.imageUrls.slice(0, 5).map((url, idx) => {
+                        const displayUrl = normalizeReservationPhotoUrl(url);
+                        return (
                         <a
                           key={`${item.id}-${idx}`}
-                          href={url}
+                          href={displayUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="block overflow-hidden rounded-md border border-slate-200"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={url} alt={`접수 첨부 ${idx + 1}`} className="h-16 w-16 object-cover" />
+                          <img src={displayUrl} alt={`접수 첨부 ${idx + 1}`} className="h-16 w-16 object-cover" />
                         </a>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

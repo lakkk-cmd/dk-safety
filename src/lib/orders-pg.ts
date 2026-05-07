@@ -54,7 +54,7 @@ export async function pgCreateOrder(input: {
       base_fee: prepayment,
       prepayment_amount: prepayment,
       payment_status: "PENDING",
-      dispatch_status: "IDLE"
+      dispatch_status: "BLOCKED"
     })
     .select("id, apt_id, reservation_id, payment_status, dispatch_status, base_fee")
     .single();
@@ -117,7 +117,7 @@ export async function pgMarkPaidAndActivate(input: {
     .from("orders")
     .update({
       payment_status: "PAID",
-      dispatch_status: "ACTIVE",
+      dispatch_status: "READY",
       pg_provider: input.provider ?? null,
       payment_key: input.paymentKey ?? null,
       imp_uid: input.impUid ?? null,
@@ -516,13 +516,13 @@ export async function activateDispatch(orderId: string) {
     throw new Error("기본 출장비 결제가 완료되지 않아 기사 배정을 시작할 수 없습니다.");
   }
 
-  if (order.dispatch_status === "ACTIVE") {
+  if (order.dispatch_status === "READY" || order.dispatch_status === "ACTIVE") {
     return order;
   }
 
   const { data: updated, error: updateError } = await supabase
     .from("orders")
-    .update({ dispatch_status: "ACTIVE" })
+    .update({ dispatch_status: "READY" })
     .eq("id", normalizedOrderId)
     .select("id, payment_status, dispatch_status")
     .single();
