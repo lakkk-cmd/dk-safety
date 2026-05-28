@@ -2,5 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "npm ci",
-  "regions": ["icn1"]
+  "regions": ["icn1"],
+  "crons": [
+    {
+      "path": "/api/cron/morning-report",
+      "schedule": "0 23 * * *"
+    }
+  ]
 }
