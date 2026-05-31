@@ -20,13 +20,23 @@ type ReportRow = {
   sections: unknown;
 };
 
+type MeetingConfigResponse = {
+  scheduleSummary?: string;
+  topics?: string[];
+  schedule?: { firstReportDate: string; firstReportCompleted: boolean };
+};
+
 export default function AdminCommandCenterPanel() {
   const [feedbackInput, setFeedbackInput] = useState("");
+  const [topicsText, setTopicsText] = useState("");
+  const [savedTopics, setSavedTopics] = useState<string[]>([]);
+  const [scheduleSummary, setScheduleSummary] = useState("");
   const [feedbackList, setFeedbackList] = useState<FeedbackRow[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [memory, setMemory] = useState<StructuredMemory | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [topicsSubmitting, setTopicsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
 
@@ -34,10 +44,11 @@ export default function AdminCommandCenterPanel() {
     setLoading(true);
     setMessage(null);
     try {
-      const [fbRes, repRes, memRes] = await Promise.all([
+      const [fbRes, repRes, memRes, cfgRes] = await Promise.all([
         fetch("/api/admin/agents/feedback", { cache: "no-store" }),
         fetch("/api/admin/agents/reports?limit=10", { cache: "no-store" }),
         fetch("/api/admin/agents/memory", { cache: "no-store" }),
+        fetch("/api/admin/agents/meeting-config", { cache: "no-store" }),
       ]);
       if (fbRes.ok) {
         const fb = (await fbRes.json()) as { feedback: FeedbackRow[] };
@@ -51,6 +62,13 @@ export default function AdminCommandCenterPanel() {
         const mem = (await memRes.json()) as { structured: StructuredMemory };
         setMemory(mem.structured ?? null);
       }
+      if (cfgRes.ok) {
+        const cfg = (await cfgRes.json()) as MeetingConfigResponse;
+        const topics = cfg.topics ?? [];
+        setSavedTopics(topics);
+        setScheduleSummary(cfg.scheduleSummary ?? "");
+        if (topics.length) setTopicsText(topics.join("\n"));
+      }
     } catch {
       setMessage("데이터를 불러오지 못했습니다.");
     } finally {
@@ -61,6 +79,38 @@ export default function AdminCommandCenterPanel() {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  const submitTopics = async () => {
+    const lines = topicsText
+      .split("\n")
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 2);
+    if (!lines.length) {
+      setMessage("회의 주제를 한 줄에 하나씩 입력해 주세요.");
+      return;
+    }
+    setTopicsSubmitting(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/agents/meeting-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topicsText }),
+      });
+      const json = (await res.json()) as { message?: string; topics?: string[] };
+      if (!res.ok) {
+        setMessage(json.message ?? "주제 저장 실패");
+        return;
+      }
+      setSavedTopics(json.topics ?? lines);
+      setMessage(json.message ?? "회의 주제가 저장되었습니다.");
+      await loadAll();
+    } catch {
+      setMessage("주제 저장 중 오류가 발생했습니다.");
+    } finally {
+      setTopicsSubmitting(false);
+    }
+  };
 
   const submitFeedback = async () => {
     const content = feedbackInput.trim();
@@ -82,7 +132,7 @@ export default function AdminCommandCenterPanel() {
         return;
       }
       setFeedbackInput("");
-      setMessage("피드백이 저장되었습니다. 다음 일요일 08:00 경영진 회의에 반영됩니다.");
+      setMessage("피드백이 저장되었습니다. 다음 예정 회의(첫 보고 또는 일요일 08:00)에 반영됩니다.");
       await loadAll();
     } catch {
       setMessage("저장 중 오류가 발생했습니다.");
@@ -105,10 +155,44 @@ export default function AdminCommandCenterPanel() {
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">{message}</p>
       ) : null}
 
+      <section className="rounded-2xl border-2 border-slate-900 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900">다음 회의 주제</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          첫 보고는 <strong>내일 08:00 KST</strong>, 이후 <strong>매주 일요일 08:00</strong>에 진행됩니다. 주제는 한 줄에
+          하나씩 입력 후 저장하세요.
+        </p>
+        {scheduleSummary ? (
+          <p className="mt-2 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">{scheduleSummary}</p>
+        ) : null}
+        {savedTopics.length > 0 ? (
+          <p className="mt-2 text-sm font-semibold text-emerald-800">
+            저장된 주제 {savedTopics.length}개 · {savedTopics.join(" · ")}
+          </p>
+        ) : (
+          <p className="mt-2 text-sm font-semibold text-amber-800">아직 저장된 주제가 없습니다. 오늘 중 저장해 주세요.</p>
+        )}
+        <textarea
+          className="mt-4 min-h-[140px] w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-400"
+          placeholder={"광주 아파트 런칭 90일 실행계획\n앱 MVP 우선순위 재정렬\n6월 손익분기점 달성 시나리오"}
+          value={topicsText}
+          onChange={(e) => setTopicsText(e.target.value)}
+        />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={topicsSubmitting}
+            onClick={() => void submitTopics()}
+            className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {topicsSubmitting ? "저장 중…" : "회의 주제 저장"}
+          </button>
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold text-slate-900">대장 피드백</h2>
         <p className="mt-1 text-sm text-slate-600">
-          지시·우선순위·제약을 입력하면 다음 회의(매주 일요일 08:00 KST)에 6인 경영진 + 총괄이 반영합니다.
+          지시·우선순위·제약을 입력하면 다음 예정 회의에 6인 경영진 + 총괄이 반영합니다.
           {pendingCount > 0 ? (
             <span className="ml-1 font-semibold text-amber-700">대기 중 {pendingCount}건</span>
           ) : null}
@@ -223,13 +307,13 @@ export default function AdminCommandCenterPanel() {
       <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
         <h2 className="font-bold text-slate-800">운영 루프</h2>
         <ol className="mt-2 list-decimal space-y-1 pl-5">
-          <li>대장이 사령부에 피드백 입력 → pending 저장</li>
-          <li>매주 일요일 08:00 — 6인 2라운드 회의 + 총괄 종합 + 기억 갱신</li>
-          <li>이메일 보고 + 본 화면 보고서 갱신</li>
-          <li>피드백 applied 처리 → 다음 회의에 누적 기억으로 반영</li>
+          <li>사령부에서 회의 주제 저장 (첫 회의 전 필수)</li>
+          <li>대장 피드백 입력 → pending 저장</li>
+          <li>첫 보고: 내일 08:00 KST · 이후 매주 일요일 08:00</li>
+          <li>이메일 보고 + 본 화면 보고서·조직 기억 갱신</li>
         </ol>
         <p className="mt-3 text-xs text-slate-500">
-          수동 Cron 테스트: 로컬에서 <code className="rounded bg-white px-1">npm run cron:test</code>
+          수동 전체 회의 실행: <code className="rounded bg-white px-1">npm run cron:test</code> (force=1)
         </p>
       </section>
     </div>

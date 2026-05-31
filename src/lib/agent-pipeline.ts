@@ -14,6 +14,7 @@ import {
   saveAgentMemory,
   type MeetingMemoryEntry,
 } from "@/lib/agent-memory";
+import { clearPendingTopics } from "@/lib/agent-schedule";
 
 export type ReportSectionPayload = {
   topic: string;
@@ -57,6 +58,7 @@ function extractTopActions(chiefMemoryJson: string, chiefSummary: string): strin
 export async function runDailyAgentPipeline(
   topics: string[],
   dateLabel: string,
+  options?: { clearTopicsAfterRun?: boolean },
 ): Promise<DailyAgentPipelineResult> {
   const pending = await loadPendingFeedback();
   const feedbackText = pending.map((f) => f.content).join("\n---\n");
@@ -114,6 +116,10 @@ export async function runDailyAgentPipeline(
 
   if (feedbackIds.length) {
     await markFeedbackApplied(feedbackIds);
+  }
+
+  if (options?.clearTopicsAfterRun) {
+    await clearPendingTopics();
   }
 
   const chiefDailySummary = meetings

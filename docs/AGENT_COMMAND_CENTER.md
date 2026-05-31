@@ -5,7 +5,8 @@
 ```
 대장 (사령부 피드백) → boss_feedback (pending)
         ↓
-매주 일요일 08:00 KST Cron → 3주제 × (6인 1·2라운드 병렬 토론 + 총괄 종합)
+첫 보고: 내일 08:00 KST · 이후 매주 일요일 08:00 KST Cron
+사령부에서 저장한 주제(없으면 기본 3주제) × (6인 1·2라운드 + 총괄 종합)
         ↓
 agent_reports 저장 + agent_memory(structured_v1) 갱신 + 이메일
         ↓

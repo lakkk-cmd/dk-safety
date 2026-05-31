@@ -28,7 +28,8 @@ function loadCronSecret() {
 }
 
 const secret = loadCronSecret();
-const url = `${base}/api/cron/morning-report`;
+const force = process.env.CRON_TEST_FORCE !== "0";
+const url = `${base}/api/cron/morning-report${force ? "?force=1" : ""}`;
 
 if (/\.vercel\.app$/i.test(new URL(url).hostname)) {
   console.warn(
@@ -37,7 +38,7 @@ if (/\.vercel\.app$/i.test(new URL(url).hostname)) {
   console.warn(`       프로덕션 테스트는 ${DEFAULT_BASE} 를 사용하세요 (CRON_TEST_BASE_URL 생략).`);
 }
 
-console.log(`GET ${url}`);
+console.log(`GET ${url}${force ? " (force=1, 일정 무시)" : ""}`);
 
 const res = await fetch(url, {
   headers: { Authorization: `Bearer ${secret}` },
