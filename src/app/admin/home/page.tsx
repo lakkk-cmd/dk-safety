@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default function AdminHomePage() {
   const quickLinks = [
+    { href: "/admin/command-center", label: "경영진 사령부", emphasis: false },
     { href: "/admin/payment-settings", label: "결제 계좌 설정", emphasis: false },
     { href: "/admin/base-dispatch-fee", label: "기본 출장비", emphasis: false },
     { href: "/admin/backups", label: "백업 관리", emphasis: false }

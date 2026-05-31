@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Brain,
   Building2,
   CalendarDays,
   ChartColumn,
@@ -60,6 +61,12 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "메인화면",
     description: "관리 업무 요약·바로가기",
     icon: LayoutDashboard
+  },
+  {
+    href: "/admin/command-center",
+    label: "경영진 사령부",
+    description: "AI 6인 회의·피드백·조직 기억",
+    icon: Brain
   },
   {
     href: ADMIN_WORKFLOW_HREF,

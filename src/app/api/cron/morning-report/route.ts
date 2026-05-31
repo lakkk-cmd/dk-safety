@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
-import { runMeeting, AGENTS } from "@/lib/agents";
+import { runDailyAgentPipeline } from "@/lib/agent-pipeline";
+import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { buildEmailHTML, buildEmailText } from "@/lib/email-template";
 
-const DAILY_TOPICS = [
-  "마케팅 전략",
-  "앱 다음 스펙",
-  "수익 구조 점검",
-];
+const DAILY_TOPICS = ["마케팅 전략", "앱 다음 스펙", "수익 구조 점검"];
 
 export const maxDuration = 300;
 
@@ -18,83 +14,59 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-  const resend = new Resend(process.env.RESEND_API_KEY!);
-
-  let memory = "";
-  try {
-    const { data } = await supabase
-      .from("agent_memory")
-      .select("content")
-      .eq("key", "shared_memory")
-      .single();
-    if (data?.content) memory = data.content;
-  } catch {
-    console.warn("[cron] Memory load failed");
+  if (!process.env.ANTHROPIC_API_KEY?.trim()) {
+    return NextResponse.json({ success: false, error: "ANTHROPIC_API_KEY 미설정" }, { status: 500 });
   }
-
-  const sections: { topic: string; responses: Awaited<ReturnType<typeof runMeeting>> }[] = [];
-
-  for (const topic of DAILY_TOPICS) {
-    console.log(`[cron] Running meeting: ${topic}`);
-    try {
-      const responses = await runMeeting(topic, memory);
-      sections.push({ topic, responses });
-    } catch (err) {
-      console.error(`[cron] Meeting failed for "${topic}":`, err);
-      sections.push({
-        topic,
-        responses: AGENTS.map((agent) => ({ agent, response: "⚠️ 분석 중 오류 발생" })),
-      });
-    }
+  if (!isAgentSupabaseReady()) {
+    return NextResponse.json(
+      { success: false, error: "Supabase URL 또는 SUPABASE_SERVICE_ROLE_KEY 미설정" },
+      { status: 500 },
+    );
+  }
+  if (!process.env.RESEND_API_KEY?.trim() || !process.env.REPORT_EMAIL?.trim()) {
+    return NextResponse.json(
+      { success: false, error: "RESEND_API_KEY 또는 REPORT_EMAIL 미설정" },
+      { status: 500 },
+    );
   }
 
   const dateStr = new Date().toLocaleString("ko-KR", {
     timeZone: "Asia/Seoul",
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 
+  let pipeline;
   try {
-    await supabase.from("agent_reports").insert({
-      created_at: new Date().toISOString(),
-      date_label: dateStr,
-      sections: sections.map((s) => ({
-        topic: s.topic,
-        responses: s.responses.map((r) => ({
-          agent_id: r.agent.id,
-          agent_name: r.agent.name,
-          role: r.agent.role,
-          response: r.response,
-        })),
-      })),
-    });
+    pipeline = await runDailyAgentPipeline(DAILY_TOPICS, dateStr);
   } catch (err) {
-    console.error("[cron] Supabase save failed:", err);
+    console.error("[cron] Pipeline failed:", err);
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : String(err) },
+      { status: 500 },
+    );
   }
 
-  const newLines = sections.map(
-    (s) => `[${dateStr}] ${s.topic}: ` +
-      s.responses.slice(0, 2).map((r) => `${r.agent.name}-${r.response.slice(0, 40)}`).join(" / ")
-  );
-  const updatedMemory = [memory, ...newLines].join("\n").split("\n").slice(-30).join("\n");
-
-  try {
-    await supabase.from("agent_memory").upsert({ key: "shared_memory", content: updatedMemory });
-  } catch (err) {
-    console.error("[cron] Memory update failed:", err);
-  }
+  const resend = new Resend(process.env.RESEND_API_KEY!);
+  const emailSections = pipeline.sections.map((s) => ({
+    topic: s.topic,
+    chiefSummary: s.chief_summary,
+    responses: s.round2.map((r) => ({
+      agent: { id: r.agent_id, name: r.agent_name, role: r.role },
+      response: r.response,
+    })),
+  }));
 
   try {
     const { error } = await resend.emails.send({
       from: "우리집 안심전기 <report@dkansim.com>",
       to: [process.env.REPORT_EMAIL!],
-      subject: `[우리집 안심전기] 에이전트 보고서 — ${dateStr}`,
-      html: buildEmailHTML(sections, dateStr),
-      text: buildEmailText(sections, dateStr),
+      subject: `[우리집 안심전기] 경영진 회의 보고 — ${dateStr}`,
+      html: buildEmailHTML(emailSections, dateStr, pipeline.chiefDailySummary, pipeline.feedbackApplied),
+      text: buildEmailText(emailSections, dateStr, pipeline.chiefDailySummary, pipeline.feedbackApplied),
     });
     if (error) throw error;
   } catch (err) {
@@ -107,5 +79,7 @@ export async function GET(request: Request) {
     date: dateStr,
     topics: DAILY_TOPICS,
     sent_to: process.env.REPORT_EMAIL,
+    feedback_applied: Boolean(pipeline.feedbackApplied),
+    feedback_count: pipeline.feedbackIds.length,
   });
 }

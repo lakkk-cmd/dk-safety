@@ -20,7 +20,8 @@
     "storage:ensure": "node --env-file=.env.local scripts/ensure-supabase-storage.mjs",
     "verify:supabase": "node --env-file=.env.local scripts/verify-supabase-connection.mjs",
     "env:production": "node -e \"require('fs').copyFileSync('.env.example','.env.production'); console.log('Wrote .env.production from .env.example');\"",
-    "setup:deploy": "node scripts/setup-github-vercel.mjs"
+    "setup:deploy": "node scripts/setup-github-vercel.mjs",
+    "cron:test": "node --env-file=.env.local scripts/test-morning-cron.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
