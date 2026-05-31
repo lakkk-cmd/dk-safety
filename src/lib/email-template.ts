@@ -63,7 +63,7 @@ export function buildEmailHTML(
 
   const dailyBlock = dailyChiefSummary
     ? `<div style="margin-bottom:28px;padding:18px 20px;background:#f0f0ec;border-radius:10px;border-left:4px solid #111">
-        <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#555">오늘 전체 경영 회의 요약</p>
+        <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#555">이번 주 전체 경영 회의 요약</p>
         <div style="font-size:13px;color:#333;line-height:1.8;white-space:pre-wrap">${dailyChiefSummary}</div>
       </div>`
     : "";
@@ -80,13 +80,13 @@ export function buildEmailHTML(
 <body style="margin:0;padding:0;background:#f5f5f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
   <div style="max-width:640px;margin:32px auto;background:#fff;border-radius:14px;overflow:hidden">
     <div style="background:#111;padding:28px 32px">
-      <p style="margin:0 0 4px;font-size:11px;letter-spacing:.1em;color:#888;text-transform:uppercase">Executive Council</p>
-      <h1 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#fff">경영진 회의 보고서</h1>
-      <p style="margin:0;font-size:13px;color:#aaa">${date} · 우리집 안심전기 · 2라운드 토론 + 총괄 종합</p>
+      <p style="margin:0 0 4px;font-size:11px;letter-spacing:.1em;color:#888;text-transform:uppercase">Weekly Executive Council</p>
+      <h1 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#fff">주간 경영진 회의 보고서</h1>
+      <p style="margin:0;font-size:13px;color:#aaa">${date} · 우리집 안심전기 · 매주 일요일 · 2라운드 토론 + 총괄 종합</p>
     </div>
     <div style="padding:32px">
       <p style="margin:0 0 28px;font-size:14px;color:#555;line-height:1.7;border-left:3px solid #111;padding-left:14px">
-        대장, 오늘의 6인 경영진 회의(2라운드 토론) 결과입니다.<br>총괄 코디네이터가 종합한 실행 우선순위를 확인하세요.
+        대장, 이번 주 6인 경영진 회의(2라운드 토론) 결과입니다.<br>총괄 코디네이터가 종합한 실행 우선순위를 확인하세요.
       </p>
       ${feedbackBlock}
       ${dailyBlock}
@@ -114,7 +114,7 @@ export function buildEmailText(
     lines.push(`[대장 지시 반영]\n${feedbackApplied}\n`);
   }
   if (dailyChiefSummary) {
-    lines.push("[오늘 전체 요약]", dailyChiefSummary, "");
+    lines.push("[이번 주 전체 요약]", dailyChiefSummary, "");
   }
   sections.forEach((s, i) => {
     lines.push(`${i + 1}. ${s.topic}`);

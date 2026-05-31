@@ -6,7 +6,7 @@
   "crons": [
     {
       "path": "/api/cron/morning-report",
-      "schedule": "0 23 * * *"
+      "schedule": "0 23 * * 6"
     }
   ]
 }

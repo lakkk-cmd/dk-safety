@@ -64,7 +64,7 @@ export async function GET(request: Request) {
     const { error } = await resend.emails.send({
       from: "우리집 안심전기 <report@dkansim.com>",
       to: [process.env.REPORT_EMAIL!],
-      subject: `[우리집 안심전기] 경영진 회의 보고 — ${dateStr}`,
+      subject: `[우리집 안심전기] 주간 경영진 회의 보고 — ${dateStr}`,
       html: buildEmailHTML(emailSections, dateStr, pipeline.chiefDailySummary, pipeline.feedbackApplied),
       text: buildEmailText(emailSections, dateStr, pipeline.chiefDailySummary, pipeline.feedbackApplied),
     });

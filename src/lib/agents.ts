@@ -146,7 +146,7 @@ export type FullMeetingResult = {
   chiefMemoryJson: string;
 };
 
-/** 2라운드 토론 + 총괄 종합 (일일 Cron용) */
+/** 2라운드 토론 + 총괄 종합 (주간 Cron용) */
 export async function runFullMeeting(
   topic: string,
   memory: string,

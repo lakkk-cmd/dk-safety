@@ -19,7 +19,7 @@ export default function AdminCommandCenterPage() {
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-700">
               CTO·CSO·CMO·COO·CFO·CLO 6인 경영진이 2라운드 회의 후, 총괄 코디네이터가 종합합니다.
-              대장 피드백은 다음 아침 회의에 반영되며, 조직 기억은 세션 간 유지됩니다.
+              대장 피드백은 매주 일요일 08:00 회의에 반영되며, 조직 기억은 세션 간 유지됩니다.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link

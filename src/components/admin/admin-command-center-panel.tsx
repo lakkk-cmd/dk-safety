@@ -82,7 +82,7 @@ export default function AdminCommandCenterPanel() {
         return;
       }
       setFeedbackInput("");
-      setMessage("피드백이 저장되었습니다. 다음 아침 경영진 회의(08:00)에 반영됩니다.");
+      setMessage("피드백이 저장되었습니다. 다음 일요일 08:00 경영진 회의에 반영됩니다.");
       await loadAll();
     } catch {
       setMessage("저장 중 오류가 발생했습니다.");
@@ -108,7 +108,7 @@ export default function AdminCommandCenterPanel() {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold text-slate-900">대장 피드백</h2>
         <p className="mt-1 text-sm text-slate-600">
-          지시·우선순위·제약을 입력하면 다음 Cron 회의(매일 08:00 KST)에 6인 경영진 + 총괄이 반영합니다.
+          지시·우선순위·제약을 입력하면 다음 회의(매주 일요일 08:00 KST)에 6인 경영진 + 총괄이 반영합니다.
           {pendingCount > 0 ? (
             <span className="ml-1 font-semibold text-amber-700">대기 중 {pendingCount}건</span>
           ) : null}
@@ -189,7 +189,7 @@ export default function AdminCommandCenterPanel() {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold text-slate-900">경영진 보고서</h2>
-        <p className="mt-1 text-sm text-slate-600">일일 Cron 결과(이메일과 동일 내용)입니다.</p>
+        <p className="mt-1 text-sm text-slate-600">주간 Cron 결과(이메일과 동일 내용)입니다.</p>
         <ul className="mt-4 space-y-3">
           {reports.length === 0 ? (
             <li className="text-sm text-slate-500">보고서 없음 — Cron 실행 후 표시됩니다.</li>
@@ -224,7 +224,7 @@ export default function AdminCommandCenterPanel() {
         <h2 className="font-bold text-slate-800">운영 루프</h2>
         <ol className="mt-2 list-decimal space-y-1 pl-5">
           <li>대장이 사령부에 피드백 입력 → pending 저장</li>
-          <li>매일 08:00 — 6인 2라운드 회의 + 총괄 종합 + 기억 갱신</li>
+          <li>매주 일요일 08:00 — 6인 2라운드 회의 + 총괄 종합 + 기억 갱신</li>
           <li>이메일 보고 + 본 화면 보고서 갱신</li>
           <li>피드백 applied 처리 → 다음 회의에 누적 기억으로 반영</li>
         </ol>
