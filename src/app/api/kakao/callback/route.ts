@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const REST_API_KEY = "42824a1982826f9896735b474f494e6c";
+const REST_API_KEY = process.env.KAKAO_REST_API_KEY ?? "";
 const REDIRECT_URI = "https://dkansim.com/api/kakao/callback";
 
 export async function GET(request: Request) {
