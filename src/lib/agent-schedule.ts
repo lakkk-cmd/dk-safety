@@ -9,8 +9,8 @@ export type MeetingScheduleConfig = {
   /** KST 기준 보고 실행일 (YYYY-MM-DD). 첫 보고 = 내일 */
   firstReportDate: string;
   firstReportCompleted: boolean;
-  /** 주간 보고 요일 (0=일요일) */
-  weeklyDay: 0;
+  /** 주간 보고 요일 (6=토요일 KST) */
+  weeklyDay: number;
 };
 
 export type KstDateTime = {
@@ -66,7 +66,7 @@ export function defaultMeetingSchedule(now = new Date()): MeetingScheduleConfig 
   return {
     firstReportDate: getTomorrowKstDateKey(now),
     firstReportCompleted: false,
-    weeklyDay: 0,
+    weeklyDay: 6,
   };
 }
 
@@ -78,7 +78,7 @@ export function parseMeetingSchedule(raw: string | null | undefined): MeetingSch
     return {
       firstReportDate: String(o.firstReportDate),
       firstReportCompleted: Boolean(o.firstReportCompleted),
-      weeklyDay: 0,
+      weeklyDay: 6,
     };
   } catch {
     return null;
@@ -173,7 +173,7 @@ export function evaluateReportSchedule(
   }
 
   if (kst.dayOfWeek === schedule.weeklyDay) {
-    return { run: true, reason: "weekly_sunday", kind: "weekly" };
+    return { run: true, reason: "weekly_saturday", kind: "weekly" };
   }
 
   return { run: false, reason: "not_scheduled", kind: null };
@@ -183,5 +183,5 @@ export function formatScheduleSummary(schedule: MeetingScheduleConfig, kst: KstD
   const first = schedule.firstReportCompleted
     ? "완료됨"
     : `${schedule.firstReportDate} 08:00 KST (첫 보고)`;
-  return `현재(KST): ${kst.dateKey} · 첫 보고: ${first} · 이후: 매주 일요일 08:00 KST`;
+  return `현재(KST): ${kst.dateKey} · 첫 보고: ${first} · 이후: 매주 토요일 08:00 KST`;
 }

@@ -304,18 +304,8 @@ ${feedback}
   }
 
   const discussion1 = formatDiscussion(round1);
-  const round2: AgentResponse[] = [];
-  for (const agent of AGENTS) {
-    round2.push(
-      await callAgentSafe(
-        agent,
-        buildAgentPrompt(agent, topic, memory, chiefGuidance, discussion1, "2라운드 — 동료 의견 반영·수정", weekStatus),
-      ),
-    );
-    await sleep(1_000);
-  };
+  const round2 = round1; // 단일 라운드 — 타임아웃 방지
 
-  const discussion2 = formatDiscussion(round2);
   const weekCtxChief = weekStatus
     ? `\n로드맵 현황: ${weekStatus.message}\n집중과제: ${weekStatus.yearFocus}\n`
     : "";
@@ -325,9 +315,9 @@ ${feedback ? `대장 지시사항:\n${feedback}\n` : ""}
 ${BUSINESS_CONTEXT}
 ${memory ? `\n누적 조직 기억:\n${memory}` : ""}
 
-아래는 6인 경영진 2라운드 회의 전체 기록입니다.
+아래는 6인 경영진 회의 기록입니다.
 
-${discussion2}
+${discussion1}
 
 ---
 
