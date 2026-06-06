@@ -3,7 +3,7 @@ import { requireAgentSupabase } from "@/lib/agent-db";
 export const MEMORY_KEY_SCHEDULE = "meeting_schedule";
 export const MEMORY_KEY_PENDING_TOPICS = "pending_meeting_topics";
 
-export const DEFAULT_MEETING_TOPICS = ["마케팅 전략", "앱 다음 스펙", "수익 구조 점검"];
+export const DEFAULT_MEETING_TOPICS = ["주간 전략 종합"];
 
 export type MeetingScheduleConfig = {
   /** KST 기준 보고 실행일 (YYYY-MM-DD). 첫 보고 = 내일 */

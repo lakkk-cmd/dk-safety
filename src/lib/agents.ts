@@ -156,7 +156,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function callClaude(
   agentId: string,
   userPrompt: string,
-  maxTokens = 800,
+  maxTokens = 600,
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey || apiKey.length < 20) {
