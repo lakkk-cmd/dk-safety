@@ -166,26 +166,34 @@ export async function callClaude(
   const system = SYSTEM_PROMPTS[agentId];
   if (!system) throw new Error(`Unknown agent: ${agentId}`);
 
-  const MAX_RETRIES = 4;
+  const MAX_RETRIES = 1;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: maxTokens,
-        system,
-        messages: [{ role: "user", content: userPrompt }],
-      }),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 28_000); // 28s per-call hard timeout
+    let res: Response;
+    try {
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: CLAUDE_MODEL,
+          max_tokens: maxTokens,
+          system,
+          messages: [{ role: "user", content: userPrompt }],
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (res.status === 429 && attempt < MAX_RETRIES) {
       const retryAfter = res.headers.get("retry-after");
-      const wait = retryAfter ? parseInt(retryAfter, 10) * 1000 : Math.pow(2, attempt) * 10_000;
+      const wait = retryAfter ? parseInt(retryAfter, 10) * 1000 : 5_000;
       console.warn(`[agents] 429 rate limit (attempt ${attempt + 1}), waiting ${wait / 1000}s…`);
       await sleep(wait);
       continue;
