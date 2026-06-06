@@ -159,17 +159,19 @@ export async function clearPendingTopics(): Promise<void> {
   await supabase.from("agent_memory").delete().eq("key", MEMORY_KEY_PENDING_TOPICS);
 }
 
-/** Cron 실행 시점(≈08:00 KST)에 보고를 돌릴지 판단 */
+/** Cron 실행 시점에 보고를 돌릴지 판단 */
 export function evaluateReportSchedule(
   kst: KstDateTime,
   schedule: MeetingScheduleConfig,
 ): { run: boolean; reason: string; kind: "first" | "weekly" | null } {
-  if (kst.hour < 7 || kst.hour > 9) {
-    return { run: false, reason: "outside_kst_08_window", kind: null };
-  }
-
+  // 첫 보고: 지정일이면 시간 무관하게 실행
   if (!schedule.firstReportCompleted && kst.dateKey === schedule.firstReportDate) {
     return { run: true, reason: "first_report", kind: "first" };
+  }
+
+  // 정기 보고: KST 07~09시 창 + 매주 토요일
+  if (kst.hour < 7 || kst.hour > 9) {
+    return { run: false, reason: "outside_kst_08_window", kind: null };
   }
 
   if (kst.dayOfWeek === schedule.weeklyDay) {
