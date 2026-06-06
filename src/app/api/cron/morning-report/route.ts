@@ -1,6 +1,25 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { runDailyAgentPipeline } from "@/lib/agent-pipeline";
+
+async function sendKakaoMe(text: string): Promise<void> {
+  const token = process.env.KAKAO_ACCESS_TOKEN?.trim();
+  if (!token) return;
+  try {
+    const template = JSON.stringify({ object_type: "text", text, link: { web_url: "https://dkansim.com/admin", mobile_web_url: "https://dkansim.com/admin" } });
+    const res = await fetch("https://kapi.kakao.com/v2/api/talk/memo/default/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ template_object: template }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("[cron] Kakao me send failed:", res.status, err.slice(0, 200));
+    }
+  } catch (err) {
+    console.error("[cron] Kakao me send error:", err);
+  }
+}
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import {
   DEFAULT_MEETING_TOPICS,
@@ -116,6 +135,16 @@ export async function GET(request: Request) {
     console.error("[cron] Email send failed:", err);
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
+
+  const chiefOneLiner = pipeline.chiefDailySummary
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .find((l) => !l.startsWith("[")) ?? pipeline.chiefDailySummary.slice(0, 80);
+
+  await sendKakaoMe(
+    `[대경이엔피] 주간 보고 도착 📊\n${dateStr} ${reportLabel} 완료\n핵심결론: ${chiefOneLiner.slice(0, 100)}\n▶ 전체보고: https://dkansim.com/admin`,
+  );
 
   return NextResponse.json({
     success: true,
