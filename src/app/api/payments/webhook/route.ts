@@ -101,9 +101,9 @@ export async function POST(request: Request) {
       }
       const expected = expectedPrepaymentAmount(existing.base_fee);
       if (paidAmount > 0 && paidAmount !== expected) {
+        // 금액 불일치 시 4xx 반환 금지 — PG사가 무한 재시도함
         return NextResponse.json(
-          { message: `입금 금액 불일치: expected=${expected}, received=${paidAmount}` },
-          { status: 400 }
+          { ok: false, message: `입금 금액 불일치: expected=${expected}, received=${paidAmount}` }
         );
       }
       const order = await pgMarkPaidAndActivate({
@@ -127,9 +127,9 @@ export async function POST(request: Request) {
       }
       const expected = expectedPrepaymentAmount(existing.base_fee);
       if (paidAmount > 0 && paidAmount !== expected) {
+        // 금액 불일치 시 4xx 반환 금지 — PG사가 무한 재시도함
         return NextResponse.json(
-          { message: `입금 금액 불일치: expected=${expected}, received=${paidAmount}` },
-          { status: 400 }
+          { ok: false, message: `입금 금액 불일치: expected=${expected}, received=${paidAmount}` }
         );
       }
       const order = await pgMarkPaidAndActivate({

@@ -296,6 +296,59 @@ export async function pgReadReservations(): Promise<Reservation[]> {
   return (data as ReservationRow[] | null)?.map(mapReservation) ?? [];
 }
 
+async function pgFindReservationById(id: string): Promise<Reservation | null> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("reservations")
+    .select(
+      `
+      id,
+      apartment_id,
+      name,
+      phone,
+      address,
+      service_type,
+      preferred_date,
+      preferred_time,
+      detail,
+      image_urls,
+      priority,
+      status,
+      note,
+      note_updated_at,
+      base_fee,
+      extra_fee,
+      total_amount,
+      is_paid,
+      paid_at,
+      created_at,
+      apartments (
+        name,
+        code
+      ),
+      tasks (
+        id,
+        status,
+        worker_id,
+        workers ( name )
+      ),
+      orders (
+        payment_status,
+        dispatch_status,
+        prepayment_confirmed,
+        final_payment_status,
+        total_final_fee,
+        warranty_issued_at
+      )
+    `
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapReservation(data as ReservationRow);
+}
+
 export async function pgHasReservationTimeConflict(preferredDate: string, preferredTime: string): Promise<boolean> {
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase
@@ -373,8 +426,7 @@ export async function pgCreateReservation(
   if (error || !data) {
     throw new Error(`예약 생성 실패: ${error?.message ?? "unknown"}`);
   }
-  const list = await pgReadReservations();
-  const found = list.find((r) => r.id === data.id);
+  const found = await pgFindReservationById(data.id);
   if (!found) {
     throw new Error("예약 생성 후 조회에 실패했습니다.");
   }
@@ -442,8 +494,7 @@ export async function pgAdminCreateOfflineReservation(
   if (error || !data) {
     throw new Error(`오프라인 예약 생성 실패: ${error?.message ?? "unknown"}`);
   }
-  const list = await pgReadReservations();
-  const found = list.find((r) => r.id === data.id);
+  const found = await pgFindReservationById(data.id);
   if (!found) {
     throw new Error("예약 생성 후 조회에 실패했습니다.");
   }
@@ -516,8 +567,7 @@ export async function pgUpdateReservation(
   if (error) {
     throw new Error(`예약 수정 실패: ${error.message}`);
   }
-  const list = await pgReadReservations();
-  return list.find((r) => r.id === id) ?? null;
+  return pgFindReservationById(id);
 }
 
 export type WorkerPublic = {
@@ -662,8 +712,7 @@ export async function pgAssignTask(reservationId: string, workerId: string): Pro
     }
   }
 
-  const list = await pgReadReservations();
-  const found = list.find((r) => r.id === reservationId);
+  const found = await pgFindReservationById(reservationId);
   if (!found) {
     throw new Error("배정 후 예약을 찾을 수 없습니다.");
   }
@@ -712,6 +761,14 @@ export async function pgGetTaskForWorker(
         apartments (
           name,
           code
+        ),
+        orders (
+          payment_status,
+          dispatch_status,
+          prepayment_confirmed,
+          final_payment_status,
+          total_final_fee,
+          warranty_issued_at
         )
       )
     `
@@ -1058,8 +1115,7 @@ export async function pgSetReservationPayment(
   if (error) {
     throw new Error(`입금 상태 수정 실패: ${error.message}`);
   }
-  const list = await pgReadReservations();
-  return list.find((r) => r.id === id) ?? null;
+  return pgFindReservationById(id);
 }
 
 export async function pgUnassignTask(reservationId: string): Promise<Reservation | null> {
@@ -1075,6 +1131,5 @@ export async function pgUnassignTask(reservationId: string): Promise<Reservation
   if (rErr) {
     throw new Error(`예약 상태 복구 실패: ${rErr.message}`);
   }
-  const list = await pgReadReservations();
-  return list.find((r) => r.id === reservationId) ?? null;
+  return pgFindReservationById(reservationId);
 }

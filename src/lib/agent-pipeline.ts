@@ -1,7 +1,9 @@
 import {
+  getCurrentWeekStatus,
   runDailyConsolidation,
   runFullMeeting,
   type FullMeetingResult,
+  type WeekStatus,
 } from "@/lib/agents";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import {
@@ -29,6 +31,7 @@ export type DailyAgentPipelineResult = {
   feedbackIds: string[];
   chiefDailySummary: string;
   sections: ReportSectionPayload[];
+  weekStatus: WeekStatus;
 };
 
 function mapResponses(responses: FullMeetingResult["round1"]) {
@@ -60,6 +63,8 @@ export async function runDailyAgentPipeline(
   dateLabel: string,
   options?: { clearTopicsAfterRun?: boolean },
 ): Promise<DailyAgentPipelineResult> {
+  const weekStatus = getCurrentWeekStatus();
+
   const pending = await loadPendingFeedback();
   const feedbackText = pending.map((f) => f.content).join("\n---\n");
   const feedbackIds = pending.map((f) => f.id);
@@ -69,8 +74,8 @@ export async function runDailyAgentPipeline(
 
   const meetings: FullMeetingResult[] = [];
   for (const topic of topics) {
-    console.log(`[agent-pipeline] Meeting: ${topic}`);
-    meetings.push(await runFullMeeting(topic, memoryPrompt, feedbackText));
+    console.log(`[agent-pipeline] Meeting: ${weekStatus.message} | ${topic}`);
+    meetings.push(await runFullMeeting(topic, memoryPrompt, feedbackText, weekStatus));
   }
 
   const sections: ReportSectionPayload[] = meetings.map((m) => ({
@@ -96,8 +101,13 @@ export async function runDailyAgentPipeline(
   }
 
   if (feedbackText.trim()) {
+    const existingLines = workingMemory.feedbackNotes
+      ? workingMemory.feedbackNotes.split("\n").filter(Boolean)
+      : [];
+    const newLines = pending.map((f) => `[${dateLabel}] ${f.content.slice(0, 200)}`);
+    const merged = [...existingLines, ...newLines].slice(-5);
     workingMemory = mergeStructuredMemory(workingMemory, {
-      feedbackNotes: `[${dateLabel} 반영] ${feedbackText.slice(0, 800)}`,
+      feedbackNotes: merged.join("\n"),
     });
   }
 
@@ -105,13 +115,14 @@ export async function runDailyAgentPipeline(
     memoryPrompt,
     feedbackText,
     meetings.map((m) => ({ topic: m.topic, chiefSummary: m.chiefSummary })),
+    weekStatus,
   );
   const dailyPatch = parseChiefMemoryJson(consolidationRaw);
   if (dailyPatch) {
     workingMemory = mergeStructuredMemory(workingMemory, dailyPatch);
   }
 
-  const legacyLine = `[${dateLabel}] ${meetings.map((m) => m.topic).join(", ")} — 총괄 회의 완료`;
+  const legacyLine = `[${dateLabel}] ${weekStatus.message} | ${meetings.map((m) => m.topic).join(", ")} — 총괄 회의 완료`;
   await saveAgentMemory(workingMemory, legacyLine);
 
   if (feedbackIds.length) {
@@ -122,9 +133,9 @@ export async function runDailyAgentPipeline(
     await clearPendingTopics();
   }
 
-  const chiefDailySummary = meetings
-    .map((m, i) => `${i + 1}. ${m.topic}\n${m.chiefSummary}`)
-    .join("\n\n---\n\n");
+  const chiefDailySummary =
+    `${weekStatus.message}\n\n` +
+    meetings.map((m, i) => `${i + 1}. ${m.topic}\n${m.chiefSummary}`).join("\n\n---\n\n");
 
   const supabase = requireAgentSupabase();
   await supabase.from("agent_reports").insert({
@@ -141,5 +152,6 @@ export async function runDailyAgentPipeline(
     feedbackIds,
     chiefDailySummary,
     sections,
+    weekStatus,
   };
 }

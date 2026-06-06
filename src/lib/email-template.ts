@@ -16,63 +16,71 @@ export interface ReportSection {
   responses: AgentResponse[];
 }
 
+function firstLines(text: string, n: number): string {
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, n)
+    .join("\n");
+}
+
+function agentSummaryBlocksHTML(responses: AgentResponse[]): string {
+  return responses
+    .map((r) => {
+      const c = AGENT_COLORS[r.agent.id] ?? { bg: "#F1EFE8", border: "#5F5E5A", text: "#2C2C2A" };
+      const summary = firstLines(r.response, 3)
+        .split("\n")
+        .map((line) => `<p style="margin:3px 0;line-height:1.65">${line}</p>`)
+        .join("");
+      return `
+        <div style="padding:10px 13px;background:${c.bg};border-left:3px solid ${c.border};border-radius:6px;margin-bottom:8px">
+          <p style="margin:0 0 5px;font-size:11px;font-weight:700;color:${c.text}">${r.agent.name} · ${r.agent.role}</p>
+          <div style="font-size:12px;color:#333">${summary}</div>
+        </div>`;
+    })
+    .join("");
+}
+
 export function buildEmailHTML(
   sections: ReportSection[],
   date: string,
   dailyChiefSummary?: string,
   feedbackApplied?: string | null,
 ): string {
-  const agentBlocks = (responses: AgentResponse[]) =>
-    responses
-      .map((r) => {
-        const c = AGENT_COLORS[r.agent.id] ?? { bg: "#F1EFE8", border: "#5F5E5A", text: "#2C2C2A" };
-        const formatted = r.response
-          .split("\n")
-          .map((line) => `<p style="margin:4px 0;line-height:1.7">${line}</p>`)
-          .join("");
-        return `
-      <div style="margin-bottom:16px;border-radius:10px;overflow:hidden;border:1px solid ${c.border}20">
-        <div style="background:${c.bg};padding:8px 16px;border-bottom:1px solid ${c.border}30">
-          <span style="font-weight:600;color:${c.text};font-size:13px">${r.agent.name} <span style="font-weight:400;opacity:.7">${r.agent.role}</span></span>
-        </div>
-        <div style="padding:12px 16px;background:#ffffff;font-size:13px;color:#333;line-height:1.75">${formatted}</div>
-      </div>`;
-      })
-      .join("");
+  const feedbackBlock = feedbackApplied
+    ? `<p style="margin:0 0 22px;padding:10px 14px;background:#fff8e6;border-radius:8px;font-size:12px;color:#633806;line-height:1.65">
+        ✓ 대장 지시 반영: ${feedbackApplied.slice(0, 200)}${feedbackApplied.length > 200 ? "…" : ""}
+      </p>`
+    : "";
+
+  const dailyBlock = dailyChiefSummary
+    ? `<div style="margin-bottom:28px;padding:20px 22px;background:#111;border-radius:10px;color:#f5f5f3">
+        <p style="margin:0 0 12px;font-size:11px;font-weight:700;color:#888;letter-spacing:.08em;text-transform:uppercase">총괄 종합 보고</p>
+        <div style="font-size:13px;line-height:1.9;white-space:pre-wrap">${dailyChiefSummary}</div>
+      </div>`
+    : "";
 
   const sectionBlocks = sections
     .map((s, i) => {
       const chiefBlock = s.chiefSummary
-        ? `<div style="margin-bottom:20px;padding:16px 18px;background:#111;border-radius:10px;color:#f5f5f3;font-size:13px;line-height:1.8">
-          <p style="margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#888">총괄 코디네이터 종합</p>
-          ${s.chiefSummary.split("\n").map((l) => `<p style="margin:4px 0">${l}</p>`).join("")}
-        </div>`
+        ? `<div style="margin-bottom:14px;padding:14px 16px;background:#f5f5f3;border-radius:8px;border-left:4px solid #111">
+            <p style="margin:0 0 7px;font-size:11px;color:#555;font-weight:700;text-transform:uppercase;letter-spacing:.06em">총괄 코디네이터</p>
+            <div style="font-size:13px;color:#222;line-height:1.85;white-space:pre-wrap">${s.chiefSummary}</div>
+          </div>`
         : "";
       return `
-    <div style="margin-bottom:36px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-        <div style="width:26px;height:26px;border-radius:50%;background:#111;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">${i + 1}</div>
-        <h2 style="margin:0;font-size:16px;font-weight:600;color:#111">${s.topic}</h2>
-      </div>
-      ${chiefBlock}
-      <p style="margin:0 0 12px;font-size:12px;color:#888">2라운드 최종 의견 (6인 경영진)</p>
-      ${agentBlocks(s.responses)}
-    </div>`;
+      <div style="margin-bottom:32px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div style="width:22px;height:22px;border-radius:50%;background:#111;color:#fff;font-size:11px;font-weight:700;text-align:center;line-height:22px;flex-shrink:0">${i + 1}</div>
+          <h2 style="margin:0;font-size:15px;font-weight:600;color:#111">${s.topic}</h2>
+        </div>
+        ${chiefBlock}
+        <p style="margin:0 0 9px;font-size:11px;color:#999;font-weight:600;text-transform:uppercase;letter-spacing:.06em">경영진 핵심 요약</p>
+        ${agentSummaryBlocksHTML(s.responses)}
+      </div>`;
     })
-    .join('<hr style="border:none;border-top:1px solid #eee;margin:8px 0 32px">');
-
-  const dailyBlock = dailyChiefSummary
-    ? `<div style="margin-bottom:28px;padding:18px 20px;background:#f0f0ec;border-radius:10px;border-left:4px solid #111">
-        <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#555">이번 주 전체 경영 회의 요약</p>
-        <div style="font-size:13px;color:#333;line-height:1.8;white-space:pre-wrap">${dailyChiefSummary}</div>
-      </div>`
-    : "";
-
-  const feedbackBlock = feedbackApplied
-    ? `<p style="margin:0 0 20px;padding:12px 14px;background:#fff8e6;border-radius:8px;font-size:13px;color:#633806;line-height:1.6">
-        ✓ 이번 회의에 반영된 대장 지시: ${feedbackApplied.slice(0, 300)}${feedbackApplied.length > 300 ? "…" : ""}
-      </p>`
-    : "";
+    .join('<hr style="border:none;border-top:1px solid #eee;margin:4px 0 28px">');
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -82,12 +90,9 @@ export function buildEmailHTML(
     <div style="background:#111;padding:28px 32px">
       <p style="margin:0 0 4px;font-size:11px;letter-spacing:.1em;color:#888;text-transform:uppercase">Weekly Executive Council</p>
       <h1 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#fff">주간 경영진 회의 보고서</h1>
-      <p style="margin:0;font-size:13px;color:#aaa">${date} · 우리집 안심전기 · 매주 일요일 · 2라운드 토론 + 총괄 종합</p>
+      <p style="margin:0;font-size:13px;color:#aaa">${date} · 우리집 안심전기 · 매주 토요일</p>
     </div>
     <div style="padding:32px">
-      <p style="margin:0 0 28px;font-size:14px;color:#555;line-height:1.7;border-left:3px solid #111;padding-left:14px">
-        대장, 이번 주 6인 경영진 회의(2라운드 토론) 결과입니다.<br>총괄 코디네이터가 종합한 실행 우선순위를 확인하세요.
-      </p>
       ${feedbackBlock}
       ${dailyBlock}
       ${sectionBlocks}
@@ -111,22 +116,21 @@ export function buildEmailText(
 ): string {
   const lines: string[] = [`[대경안심전기] 경영진 회의 보고 — ${date}`, "=".repeat(50), ""];
   if (feedbackApplied) {
-    lines.push(`[대장 지시 반영]\n${feedbackApplied}\n`);
+    lines.push(`[대장 지시 반영]\n${feedbackApplied.slice(0, 200)}\n`);
   }
   if (dailyChiefSummary) {
-    lines.push("[이번 주 전체 요약]", dailyChiefSummary, "");
+    lines.push("[총괄 종합 보고]", dailyChiefSummary, "");
   }
   sections.forEach((s, i) => {
-    lines.push(`${i + 1}. ${s.topic}`);
+    lines.push(`\n${i + 1}. ${s.topic}`);
     lines.push("-".repeat(40));
     if (s.chiefSummary) {
-      lines.push("\n[총괄 종합]");
-      lines.push(s.chiefSummary);
+      lines.push(`[총괄 코디네이터]\n${s.chiefSummary}\n`);
     }
-    lines.push("\n[2라운드 최종 의견]");
+    lines.push("[경영진 핵심 요약]");
     s.responses.forEach((r) => {
       lines.push(`\n▸ ${r.agent.name} (${r.agent.role})`);
-      lines.push(r.response);
+      lines.push(firstLines(r.response, 3));
     });
     lines.push("");
   });
