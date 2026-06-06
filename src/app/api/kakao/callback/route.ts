@@ -1,5 +1,3 @@
-import { NextResponse } from "next/server";
-
 const REST_API_KEY = process.env.KAKAO_REST_API_KEY ?? "";
 const REDIRECT_URI = "https://dkansim.com/api/kakao/callback";
 
