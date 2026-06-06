@@ -27,6 +27,17 @@ export async function GET(request: Request) {
     );
   }
 
+  if (!REST_API_KEY) {
+    return new Response(
+      `<html><body style="font-family:monospace;padding:40px">
+        <h2>❌ KAKAO_REST_API_KEY 환경변수 미설정</h2>
+        <p>Vercel Dashboard → Settings → Environment Variables 에서<br>
+        <b>KAKAO_REST_API_KEY</b> 를 추가하고 재배포하세요.</p>
+      </body></html>`,
+      { headers: { "Content-Type": "text/html; charset=utf-8" } },
+    );
+  }
+
   const tokenRes = await fetch("https://kauth.kakao.com/oauth/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" },
