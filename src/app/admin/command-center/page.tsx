@@ -19,7 +19,7 @@ export default function AdminCommandCenterPage() {
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-700">
               CTO·CSO·CMO·COO·CFO·CLO 6인 경영진이 2라운드 회의 후, 총괄 코디네이터가 종합합니다.
-              첫 보고는 내일 08:00, 이후 매주 일요일 08:00 회의입니다. 오늘 회의 주제를 저장해 주세요.
+              첫 보고는 내일 08:00, 이후 매주 토요일 08:00 회의입니다. 오늘 회의 주제를 저장해 주세요.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link

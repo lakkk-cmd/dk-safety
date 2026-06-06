@@ -11,13 +11,27 @@ type FeedbackRow = {
   applied_at: string | null;
 };
 
+type AgentResponseItem = {
+  agent_id: string;
+  agent_name: string;
+  role: string;
+  response: string;
+};
+
+type ReportSection = {
+  topic: string;
+  chief_summary: string;
+  round1: AgentResponseItem[];
+  round2: AgentResponseItem[];
+};
+
 type ReportRow = {
   id: string;
   created_at: string;
   date_label: string;
   chief_summary: string | null;
   feedback_applied: string | null;
-  sections: unknown;
+  sections: ReportSection[] | null;
 };
 
 type MeetingConfigResponse = {
@@ -141,6 +155,61 @@ export default function AdminCommandCenterPanel() {
     }
   };
 
+  const deleteReport = async (id: string) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+    const res = await fetch(`/api/admin/agents/reports?id=${id}`, { method: "DELETE" });
+    const json = (await res.json()) as { message?: string };
+    setMessage(json.message ?? (res.ok ? "삭제 완료" : "삭제 실패"));
+    if (res.ok) await loadAll();
+  };
+
+  const deleteAllReports = async () => {
+    if (!confirm("전체 보고서를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
+    const res = await fetch("/api/admin/agents/reports?all=true", { method: "DELETE" });
+    const json = (await res.json()) as { message?: string };
+    setMessage(json.message ?? (res.ok ? "전체 삭제 완료" : "삭제 실패"));
+    if (res.ok) await loadAll();
+  };
+
+  const printReport = (r: ReportRow) => {
+    const agents = (r.sections ?? []).flatMap((s) => s.round2?.length ? s.round2 : s.round1);
+    const agentRows = agents.map((a) =>
+      `<div style="margin-bottom:14px;padding:10px 14px;border-left:3px solid #333;background:#f9f9f9;border-radius:6px">
+        <div style="font-size:11px;font-weight:700;color:#555;margin-bottom:5px">${a.agent_name} · ${a.role}</div>
+        <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${a.response.slice(0, 600)}</div>
+      </div>`
+    ).join("");
+    const sectionRows = (r.sections ?? []).map((s) =>
+      `<h3 style="font-size:13px;font-weight:700;margin:18px 0 6px">${s.topic}</h3>
+       <div style="font-size:12px;color:#444;white-space:pre-wrap;margin-bottom:10px">${s.chief_summary ?? ""}</div>`
+    ).join("");
+    const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<title>대경이엔피 경영진 보고서 — ${r.date_label}</title>
+<style>body{font-family:-apple-system,sans-serif;margin:0;padding:32px;color:#111;max-width:780px;margin:auto}
+@media print{body{padding:16px}button{display:none}}
+h1{font-size:20px;font-weight:900;margin:0}h2{font-size:15px;margin:20px 0 8px}
+.header{border-bottom:3px solid #111;padding-bottom:16px;margin-bottom:24px}
+.badge{font-size:10px;font-weight:700;letter-spacing:.1em;color:#888;text-transform:uppercase;margin-bottom:6px}
+.chief-box{background:#111;color:#f5f5f3;padding:20px 22px;border-radius:10px;white-space:pre-wrap;font-size:13px;line-height:1.9;margin-bottom:24px}
+.footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999;text-align:center}</style>
+</head><body>
+<div class="header">
+  <div class="badge">Weekly Executive Report</div>
+  <h1>대경이엔피 경영진 보고서</h1>
+  <p style="margin:6px 0 0;font-size:13px;color:#666">${r.date_label} · 우리집 안심전기</p>
+</div>
+<button onclick="window.print()" style="margin-bottom:20px;padding:8px 18px;background:#111;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🖨️ 인쇄</button>
+<h2>총괄 코디네이터 종합 보고</h2>
+<div class="chief-box">${r.chief_summary ?? "(없음)"}</div>
+${sectionRows ? `<h2>주제별 요약</h2>${sectionRows}` : ""}
+<h2>경영진 핵심 의견</h2>
+${agentRows || "<p style='color:#999;font-size:13px'>에이전트 응답 없음</p>"}
+<div class="footer">대경이엔피 · 우리집 안심전기 · dkansim.com</div>
+</body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); }
+  };
+
   const pendingCount = feedbackList.filter((f) => f.status === "pending").length;
 
   if (loading) {
@@ -158,7 +227,7 @@ export default function AdminCommandCenterPanel() {
       <section className="rounded-2xl border-2 border-slate-900 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold text-slate-900">다음 회의 주제</h2>
         <p className="mt-1 text-sm text-slate-600">
-          첫 보고는 <strong>내일 08:00 KST</strong>, 이후 <strong>매주 일요일 08:00</strong>에 진행됩니다. 주제는 한 줄에
+          첫 보고는 <strong>내일 08:00 KST</strong>, 이후 <strong>매주 토요일 08:00</strong>에 진행됩니다. 주제는 한 줄에
           하나씩 입력 후 저장하세요.
         </p>
         {scheduleSummary ? (
@@ -272,22 +341,53 @@ export default function AdminCommandCenterPanel() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">경영진 보고서</h2>
-        <p className="mt-1 text-sm text-slate-600">주간 Cron 결과(이메일과 동일 내용)입니다.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">경영진 보고서</h2>
+            <p className="mt-1 text-sm text-slate-600">주간 Cron 결과(이메일과 동일 내용)입니다.</p>
+          </div>
+          {reports.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void deleteAllReports()}
+              className="rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700"
+            >
+              🗑️ 전체 삭제
+            </button>
+          )}
+        </div>
         <ul className="mt-4 space-y-3">
           {reports.length === 0 ? (
             <li className="text-sm text-slate-500">보고서 없음 — Cron 실행 후 표시됩니다.</li>
           ) : (
             reports.map((r) => (
               <li key={r.id} className="rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-slate-900 hover:bg-slate-50"
-                  onClick={() => setExpandedReport(expandedReport === r.id ? null : r.id)}
-                >
-                  <span>{r.date_label}</span>
-                  <span className="text-xs font-normal text-slate-500">{expandedReport === r.id ? "접기" : "펼치기"}</span>
-                </button>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <button
+                    type="button"
+                    className="flex-1 text-left text-sm font-semibold text-slate-900 hover:text-slate-600"
+                    onClick={() => setExpandedReport(expandedReport === r.id ? null : r.id)}
+                  >
+                    {r.date_label}
+                    <span className="ml-2 text-xs font-normal text-slate-500">{expandedReport === r.id ? "접기" : "펼치기"}</span>
+                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => printReport(r)}
+                      className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                    >
+                      🖨️ 인쇄
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteReport(r.id)}
+                      className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100"
+                    >
+                      🗑️ 삭제
+                    </button>
+                  </div>
+                </div>
                 {expandedReport === r.id ? (
                   <div className="border-t border-slate-100 px-4 py-3 text-sm text-slate-700 whitespace-pre-wrap">
                     {r.feedback_applied ? (
@@ -309,7 +409,7 @@ export default function AdminCommandCenterPanel() {
         <ol className="mt-2 list-decimal space-y-1 pl-5">
           <li>사령부에서 회의 주제 저장 (첫 회의 전 필수)</li>
           <li>대장 피드백 입력 → pending 저장</li>
-          <li>첫 보고: 내일 08:00 KST · 이후 매주 일요일 08:00</li>
+          <li>첫 보고: 내일 08:00 KST · 이후 매주 토요일 08:00</li>
           <li>이메일 보고 + 본 화면 보고서·조직 기억 갱신</li>
         </ol>
         <p className="mt-3 text-xs text-slate-500">
