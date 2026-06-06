@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"ls \\\"C:\\\\Users\\\\user\\\\Desktop\\\\dk-safety\\\\src\\\\app\\\\api\\\\\\\" 2>/dev/null\",\"description\":\"Check api directory structure\"}",
-  "error": "Exit code 2\n/usr/bin/bash: eval: line 1: unexpected EOF while looking for matching `\"'",
-  "timestamp": "2026-06-06T16:20:16.878Z",
-  "retry_count": 1
-}
