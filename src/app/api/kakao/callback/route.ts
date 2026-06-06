@@ -1,4 +1,4 @@
-const REST_API_KEY = process.env.KAKAO_REST_API_KEY ?? "";
+const REST_API_KEY = "6bc36f5dec336bdf38dc277a85296f60"; // TODO: 테스트 후 process.env.KAKAO_REST_API_KEY 로 복원
 const REDIRECT_URI = "https://dkansim.com/api/kakao/callback";
 
 export async function GET(request: Request) {
