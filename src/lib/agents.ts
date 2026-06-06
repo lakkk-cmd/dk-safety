@@ -185,7 +185,7 @@ export async function callClaude(
 
     if (res.status === 429 && attempt < MAX_RETRIES) {
       const retryAfter = res.headers.get("retry-after");
-      const wait = retryAfter ? parseInt(retryAfter, 10) * 1000 : Math.pow(2, attempt) * 20_000;
+      const wait = retryAfter ? parseInt(retryAfter, 10) * 1000 : Math.pow(2, attempt) * 10_000;
       console.warn(`[agents] 429 rate limit (attempt ${attempt + 1}), waiting ${wait / 1000}s…`);
       await sleep(wait);
       continue;
@@ -300,7 +300,7 @@ ${feedback}
         buildAgentPrompt(agent, topic, memory, chiefGuidance, undefined, "1라운드 — 초기 의견", weekStatus),
       ),
     );
-    await sleep(3_000);
+    await sleep(1_000);
   }
 
   const discussion1 = formatDiscussion(round1);
@@ -312,7 +312,7 @@ ${feedback}
         buildAgentPrompt(agent, topic, memory, chiefGuidance, discussion1, "2라운드 — 동료 의견 반영·수정", weekStatus),
       ),
     );
-    await sleep(3_000);
+    await sleep(1_000);
   };
 
   const discussion2 = formatDiscussion(round2);
