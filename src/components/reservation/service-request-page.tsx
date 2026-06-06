@@ -772,8 +772,8 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
       if (!tossFactory) throw new Error("Toss SDK를 불러오지 못했습니다.");
       const toss = tossFactory(tossClientKey);
       const origin = window.location.origin;
-      const successUrl = `${origin}/payment/success?flow=final&reservationId=${encodeURIComponent(reservationId)}`;
-      const failUrl = `${origin}/payment/fail?flow=final&reservationId=${encodeURIComponent(reservationId)}`;
+      const successUrl = `${origin}/payment/success?flow=final&reservationId=${encodeURIComponent(reservationId)}&aptCode=${encodeURIComponent(apartment.code)}`;
+      const failUrl = `${origin}/payment/fail?flow=final&reservationId=${encodeURIComponent(reservationId)}&aptCode=${encodeURIComponent(apartment.code)}`;
       await toss.requestPayment("카드", {
         amount: additionalDueAmount,
         orderId,

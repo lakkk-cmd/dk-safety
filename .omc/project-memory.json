@@ -1,0 +1,298 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1780751630560,
+  "projectRoot": "C:\\Users\\user\\Desktop\\dk-safety",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=20.9.0",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "next",
+        "version": "15.0.0",
+        "category": "fullstack"
+      },
+      {
+        "name": "react",
+        "version": "18.3.1",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "18.3.1",
+        "category": "frontend"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": "Node.js 20.9.0"
+  },
+  "build": {
+    "buildCommand": "cd \"C:\\Users\\user\\Desktop\\dk-safety\" && npm run build 2>&1 | tail -6",
+    "testCommand": null,
+    "lintCommand": "npm run lint",
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "node scripts/dev-safe.mjs",
+      "dev:raw": "next dev",
+      "dev:turbopack": "next dev --turbopack",
+      "dev:webpack": "next dev",
+      "clean": "node scripts/clean-next.mjs",
+      "build": "npm run clean && next build",
+      "start": "next start",
+      "lint": "next lint",
+      "sync:supabase": "node scripts/sync-local-to-supabase.mjs",
+      "db:apply": "node --env-file=.env.local scripts/apply-supabase-schema.mjs",
+      "db:sync-env": "node scripts/sync-db-env.mjs",
+      "storage:ensure": "node --env-file=.env.local scripts/ensure-supabase-storage.mjs",
+      "verify:supabase": "node --env-file=.env.local scripts/verify-supabase-connection.mjs",
+      "env:production": "node -e \"require('fs').copyFileSync('.env.example','.env.production'); console.log('Wrote .env.production from .env.example');\"",
+      "setup:deploy": "node scripts/setup-github-vercel.mjs",
+      "cron:test": "node --env-file=.env.local scripts/test-morning-cron.mjs"
+    }
+  },
+  "conventions": {
+    "namingStyle": "camelCase",
+    "importStyle": "ES modules",
+    "testPattern": null,
+    "fileOrganization": "type-based"
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "public",
+      "scripts",
+      "src"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 3,
+      "lastAccessed": 1780751630515,
+      "keyFiles": [
+        "activity-log.json",
+        "reservations.json",
+        "resident-db.json"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 1,
+      "lastAccessed": 1780751630516,
+      "keyFiles": [
+        "AGENT_COMMAND_CENTER.md"
+      ]
+    },
+    "flutterflow": {
+      "path": "flutterflow",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1780751630526,
+      "keyFiles": []
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 3,
+      "lastAccessed": 1780751630526,
+      "keyFiles": [
+        "logo-daekyung.png",
+        "logo-placeholder.svg",
+        "sw.js"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 12,
+      "lastAccessed": 1780751630527,
+      "keyFiles": [
+        "apply-single-migration.mjs",
+        "apply-supabase-schema.mjs",
+        "check-seed-warranty.mjs",
+        "clean-next.mjs",
+        "dev-safe.mjs"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 1,
+      "lastAccessed": 1780751630528,
+      "keyFiles": [
+        "middleware.ts"
+      ]
+    },
+    "supabase": {
+      "path": "supabase",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1780751630528,
+      "keyFiles": []
+    },
+    "src\\app": {
+      "path": "src\\app",
+      "purpose": "Application code",
+      "fileCount": 5,
+      "lastAccessed": 1780751630529,
+      "keyFiles": [
+        "globals.css",
+        "icon.svg",
+        "layout.tsx"
+      ]
+    },
+    "src\\components": {
+      "path": "src\\components",
+      "purpose": "UI components",
+      "fileCount": 11,
+      "lastAccessed": 1780751630530,
+      "keyFiles": [
+        "admin-activity-panel.tsx",
+        "admin-apartments-manager.tsx",
+        "admin-backup-status.tsx"
+      ]
+    },
+    "src\\lib": {
+      "path": "src\\lib",
+      "purpose": "Library code",
+      "fileCount": 42,
+      "lastAccessed": 1780751630530,
+      "keyFiles": [
+        "activity-log.ts",
+        "admin-auth.ts",
+        "admin-customer-care-display.ts"
+      ]
+    },
+    "supabase\\migrations": {
+      "path": "supabase\\migrations",
+      "purpose": "Database migrations",
+      "fileCount": 25,
+      "lastAccessed": 1780751630531,
+      "keyFiles": [
+        "001_reservations_workers_tasks.sql",
+        "002_payment_settlement.sql",
+        "003_national_apartment_catalog.sql"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src\\lib\\reservations-pg.ts",
+      "accessCount": 24,
+      "lastAccessed": 1780751828862,
+      "type": "directory"
+    },
+    {
+      "path": "src\\lib\\agents.ts",
+      "accessCount": 15,
+      "lastAccessed": 1780760971267,
+      "type": "file"
+    },
+    {
+      "path": "src\\lib\\agent-pipeline.ts",
+      "accessCount": 4,
+      "lastAccessed": 1780757242479,
+      "type": "file"
+    },
+    {
+      "path": "src\\app\\api\\cron\\morning-report\\route.ts",
+      "accessCount": 4,
+      "lastAccessed": 1780759160353,
+      "type": "file"
+    },
+    {
+      "path": "src\\lib\\agent-schedule.ts",
+      "accessCount": 4,
+      "lastAccessed": 1780760970039,
+      "type": "directory"
+    },
+    {
+      "path": "src\\app\\api\\payments\\webhook\\route.ts",
+      "accessCount": 3,
+      "lastAccessed": 1780751662198,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 3,
+      "lastAccessed": 1780762820631,
+      "type": "directory"
+    },
+    {
+      "path": ".env.local",
+      "accessCount": 3,
+      "lastAccessed": 1780763727913,
+      "type": "file"
+    },
+    {
+      "path": "vercel.json",
+      "accessCount": 2,
+      "lastAccessed": 1780754793722,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 2,
+      "lastAccessed": 1780755711223,
+      "type": "directory"
+    },
+    {
+      "path": "src\\lib\\email-template.ts",
+      "accessCount": 2,
+      "lastAccessed": 1780755846558,
+      "type": "file"
+    },
+    {
+      "path": "src\\app\\api\\kakao\\callback\\route.ts",
+      "accessCount": 2,
+      "lastAccessed": 1780763430106,
+      "type": "file"
+    },
+    {
+      "path": "src\\lib\\agent-memory.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780755246324,
+      "type": "file"
+    },
+    {
+      "path": "supabase\\migrations\\023_agent_command_center.sql",
+      "accessCount": 1,
+      "lastAccessed": 1780755251329,
+      "type": "file"
+    },
+    {
+      "path": "supabase\\migrations\\024_agent_command_center_upgrade.sql",
+      "accessCount": 1,
+      "lastAccessed": 1780755251553,
+      "type": "file"
+    },
+    {
+      "path": "scripts\\make-excel.mjs",
+      "accessCount": 1,
+      "lastAccessed": 1780758434799,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}
