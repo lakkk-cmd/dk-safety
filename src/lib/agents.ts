@@ -151,7 +151,13 @@ const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-4-6";
 
 // ─── Claude API ─────────────────────────────────────────────────────────────────
 
-export async function callClaude(agentId: string, userPrompt: string): Promise<string> {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export async function callClaude(
+  agentId: string,
+  userPrompt: string,
+  maxTokens = 800,
+): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey || apiKey.length < 20) {
     throw new Error("ANTHROPIC_API_KEY가 설정되지 않았거나 유효하지 않습니다.");
@@ -160,40 +166,52 @@ export async function callClaude(agentId: string, userPrompt: string): Promise<s
   const system = SYSTEM_PROMPTS[agentId];
   if (!system) throw new Error(`Unknown agent: ${agentId}`);
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: 1536,
-      system,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
+  const MAX_RETRIES = 4;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: "user", content: userPrompt }],
+      }),
+    });
 
-  const raw = await res.text();
-  if (!res.ok) {
-    let detail = raw.slice(0, 300);
-    try {
-      const err = JSON.parse(raw) as { error?: { message?: string } };
-      detail = err.error?.message ?? detail;
-    } catch {
-      /* keep raw */
+    if (res.status === 429 && attempt < MAX_RETRIES) {
+      const retryAfter = res.headers.get("retry-after");
+      const wait = retryAfter ? parseInt(retryAfter, 10) * 1000 : Math.pow(2, attempt) * 20_000;
+      console.warn(`[agents] 429 rate limit (attempt ${attempt + 1}), waiting ${wait / 1000}s…`);
+      await sleep(wait);
+      continue;
     }
-    throw new Error(`Claude API ${res.status} (${CLAUDE_MODEL}): ${detail}`);
-  }
 
-  const data = JSON.parse(raw) as { content?: { type: string; text?: string }[] };
-  return (
-    data.content
-      ?.filter((b) => b.type === "text")
-      .map((b) => b.text ?? "")
-      .join("") || "응답 없음"
-  );
+    const raw = await res.text();
+    if (!res.ok) {
+      let detail = raw.slice(0, 300);
+      try {
+        const err = JSON.parse(raw) as { error?: { message?: string } };
+        detail = err.error?.message ?? detail;
+      } catch {
+        /* keep raw */
+      }
+      throw new Error(`Claude API ${res.status} (${CLAUDE_MODEL}): ${detail}`);
+    }
+
+    const data = JSON.parse(raw) as { content?: { type: string; text?: string }[] };
+    return (
+      data.content
+        ?.filter((b) => b.type === "text")
+        .map((b) => b.text ?? "")
+        .join("") || "응답 없음"
+    );
+  }
+  throw new Error(`Claude API 429: 최대 재시도(${MAX_RETRIES}회) 초과`);
 }
 
 // ─── 프롬프트 빌더 ──────────────────────────────────────────────────────────────
@@ -274,24 +292,28 @@ ${feedback}
     }
   }
 
-  const round1 = await Promise.all(
-    AGENTS.map((agent) =>
-      callAgentSafe(
+  const round1: AgentResponse[] = [];
+  for (const agent of AGENTS) {
+    round1.push(
+      await callAgentSafe(
         agent,
         buildAgentPrompt(agent, topic, memory, chiefGuidance, undefined, "1라운드 — 초기 의견", weekStatus),
       ),
-    ),
-  );
+    );
+    await sleep(3_000);
+  }
 
   const discussion1 = formatDiscussion(round1);
-  const round2 = await Promise.all(
-    AGENTS.map((agent) =>
-      callAgentSafe(
+  const round2: AgentResponse[] = [];
+  for (const agent of AGENTS) {
+    round2.push(
+      await callAgentSafe(
         agent,
         buildAgentPrompt(agent, topic, memory, chiefGuidance, discussion1, "2라운드 — 동료 의견 반영·수정", weekStatus),
       ),
-    ),
-  );
+    );
+    await sleep(3_000);
+  };
 
   const discussion2 = formatDiscussion(round2);
   const weekCtxChief = weekStatus
@@ -330,7 +352,7 @@ ${discussion2}
   let chiefSummary = "";
   let chiefMemoryJson = "";
   try {
-    const chiefRaw = await callClaude("chief", chiefPrompt);
+    const chiefRaw = await callClaude("chief", chiefPrompt, 1200);
     const jsonMatch = chiefRaw.match(/```json\s*([\s\S]*?)```/);
     chiefMemoryJson = jsonMatch?.[1]?.trim() ?? "";
     chiefSummary = chiefRaw.replace(/```json[\s\S]*?```/g, "").trim() || chiefRaw;
