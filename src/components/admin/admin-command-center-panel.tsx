@@ -155,6 +155,30 @@ export default function AdminCommandCenterPanel() {
     }
   };
 
+  const deleteTopic = async (topic: string) => {
+    const res = await fetch(`/api/admin/agents/meeting-config?topic=${encodeURIComponent(topic)}`, {
+      method: "DELETE",
+    });
+    const json = (await res.json()) as { message?: string; topics?: string[] };
+    setMessage(json.message ?? (res.ok ? "삭제 완료" : "삭제 실패"));
+    if (res.ok) {
+      const updated = json.topics ?? savedTopics.filter((t) => t !== topic);
+      setSavedTopics(updated);
+      setTopicsText(updated.join("\n"));
+    }
+  };
+
+  const deleteAllTopics = async () => {
+    if (!confirm("회의 주제를 모두 삭제하시겠습니까?")) return;
+    const res = await fetch("/api/admin/agents/meeting-config?all=true", { method: "DELETE" });
+    const json = (await res.json()) as { message?: string };
+    setMessage(json.message ?? (res.ok ? "전체 삭제 완료" : "삭제 실패"));
+    if (res.ok) {
+      setSavedTopics([]);
+      setTopicsText("");
+    }
+  };
+
   const deleteReport = async (id: string) => {
     if (!confirm("정말 삭제하시겠습니까?")) return;
     const res = await fetch(`/api/admin/agents/reports?id=${id}`, { method: "DELETE" });
@@ -225,23 +249,52 @@ ${agentRows || "<p style='color:#999;font-size:13px'>에이전트 응답 없음<
       ) : null}
 
       <section className="rounded-2xl border-2 border-slate-900 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">다음 회의 주제</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900">다음 회의 주제</h2>
+          {savedTopics.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void deleteAllTopics()}
+              className="rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700"
+            >
+              🗑️ 전체 삭제
+            </button>
+          )}
+        </div>
         <p className="mt-1 text-sm text-slate-600">
-          첫 보고는 <strong>내일 08:00 KST</strong>, 이후 <strong>매주 토요일 08:00</strong>에 진행됩니다. 주제는 한 줄에
-          하나씩 입력 후 저장하세요.
+          첫 보고는 <strong>내일 08:00 KST</strong>, 이후 <strong>매주 토요일 08:00</strong>에 진행됩니다.
         </p>
         {scheduleSummary ? (
           <p className="mt-2 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">{scheduleSummary}</p>
         ) : null}
+
         {savedTopics.length > 0 ? (
-          <p className="mt-2 text-sm font-semibold text-emerald-800">
-            저장된 주제 {savedTopics.length}개 · {savedTopics.join(" · ")}
-          </p>
+          <ul className="mt-3 space-y-1.5">
+            {savedTopics.map((topic) => (
+              <li
+                key={topic}
+                className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+              >
+                <span className="text-sm font-medium text-slate-800">{topic}</span>
+                <button
+                  type="button"
+                  onClick={() => void deleteTopic(topic)}
+                  className="ml-3 rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
+                >
+                  🗑️
+                </button>
+              </li>
+            ))}
+          </ul>
         ) : (
-          <p className="mt-2 text-sm font-semibold text-amber-800">아직 저장된 주제가 없습니다. 오늘 중 저장해 주세요.</p>
+          <p className="mt-3 text-sm font-semibold text-amber-800">
+            아직 저장된 주제가 없습니다. 아래에 입력 후 저장하세요.
+          </p>
         )}
+
+        <p className="mt-4 text-xs font-semibold text-slate-500">주제 추가 (한 줄에 하나씩, 저장 시 전체 교체)</p>
         <textarea
-          className="mt-4 min-h-[140px] w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-400"
+          className="mt-1.5 min-h-[120px] w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-400"
           placeholder={"광주 아파트 런칭 90일 실행계획\n앱 MVP 우선순위 재정렬\n6월 손익분기점 달성 시나리오"}
           value={topicsText}
           onChange={(e) => setTopicsText(e.target.value)}

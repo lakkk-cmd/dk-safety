@@ -3,6 +3,7 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import {
   DEFAULT_MEETING_TOPICS,
+  clearPendingTopics,
   formatScheduleSummary,
   getKstDateTime,
   loadMeetingSchedule,
@@ -83,6 +84,41 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "저장 실패" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ message: "권한이 없습니다." }, { status: 401 });
+  }
+  if (!isAgentSupabaseReady()) {
+    return NextResponse.json({ message: "Supabase가 설정되지 않았습니다." }, { status: 503 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const all = searchParams.get("all") === "true";
+  const topic = searchParams.get("topic");
+
+  try {
+    if (all) {
+      await clearPendingTopics();
+      return NextResponse.json({ ok: true, topics: [], message: "모든 회의 주제가 삭제되었습니다." });
+    }
+    if (!topic) {
+      return NextResponse.json({ message: "topic 또는 all 파라미터가 필요합니다." }, { status: 400 });
+    }
+    const current = await loadPendingTopics();
+    const updated = current.filter((t) => t !== topic);
+    if (updated.length === current.length) {
+      return NextResponse.json({ message: "해당 주제를 찾을 수 없습니다." }, { status: 404 });
+    }
+    await savePendingTopics(updated);
+    return NextResponse.json({ ok: true, topics: updated, message: "주제가 삭제되었습니다." });
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "삭제 실패" },
       { status: 500 },
     );
   }
