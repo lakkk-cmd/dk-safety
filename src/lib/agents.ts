@@ -368,14 +368,17 @@ ${weekCtxLine}${feedbackBlock}${BUSINESS_CONTEXT}${memoryBlock}
 2. 즉시 실행 가능한 액션 아이템 2가지 (구체적 수치·기한 포함)
 3. 다른 부서와의 협업·충돌 포인트 1문장`.trim();
 
-  const round1Raw = await callClaudeDirect(BATCH_SYSTEM_PROMPT, round1Prompt, 2400);
+  const round1Raw = await callClaudeDirect(BATCH_SYSTEM_PROMPT, round1Prompt, 1400);
   const round1 = parseAgentSections(round1Raw);
 
-  // ── 2라운드: 1라운드 포함 심화 ────────────────────────────
+  // ── 2라운드: 1라운드 요약 포함 심화 (토큰 절약을 위해 round1 요약 사용) ──
+  const round1Digest = round1
+    .map((r) => `[${r.agent.name}] ${r.response.slice(0, 200)}`)
+    .join("\n");
   const round2Prompt = `${weekLine}회의 주제: ${topic} — 2라운드 심화
 ${weekCtxLine}${feedbackBlock}${BUSINESS_CONTEXT}
-[1라운드 회의 기록]
-${round1Raw}
+[1라운드 핵심 요약]
+${round1Digest}
 
 위 논의를 바탕으로 각 전문가가 입장을 심화하거나 타 부서 의견에 반응하라.
 각 섹션은 정확히 아래 헤더로 구분해야 함:
@@ -386,7 +389,7 @@ ${round1Raw}
 [CFO 계산기]
 [CLO 규정집]`.trim();
 
-  const round2Raw = await callClaudeDirect(BATCH_SYSTEM_PROMPT, round2Prompt, 2400);
+  const round2Raw = await callClaudeDirect(BATCH_SYSTEM_PROMPT, round2Prompt, 1400);
   const round2 = parseAgentSections(round2Raw);
 
   // ── Chief 최종 종합 ───────────────────────────────────────
