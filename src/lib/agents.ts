@@ -153,23 +153,21 @@ const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-4-6";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function callClaude(
-  agentId: string,
+async function fetchClaude(
+  system: string,
   userPrompt: string,
-  maxTokens = 600,
+  maxTokens: number,
+  timeoutMs: number,
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey || apiKey.length < 20) {
     throw new Error("ANTHROPIC_API_KEY가 설정되지 않았거나 유효하지 않습니다.");
   }
 
-  const system = SYSTEM_PROMPTS[agentId];
-  if (!system) throw new Error(`Unknown agent: ${agentId}`);
-
   const MAX_RETRIES = 1;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 28_000); // 28s per-call hard timeout
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     let res: Response;
     try {
       res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -222,6 +220,24 @@ export async function callClaude(
   throw new Error(`Claude API 429: 최대 재시도(${MAX_RETRIES}회) 초과`);
 }
 
+export async function callClaude(
+  agentId: string,
+  userPrompt: string,
+  maxTokens = 600,
+): Promise<string> {
+  const system = SYSTEM_PROMPTS[agentId];
+  if (!system) throw new Error(`Unknown agent: ${agentId}`);
+  return fetchClaude(system, userPrompt, maxTokens, 28_000);
+}
+
+async function callClaudeDirect(
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens = 600,
+): Promise<string> {
+  return fetchClaude(systemPrompt, userPrompt, maxTokens, 60_000);
+}
+
 // ─── 프롬프트 빌더 ──────────────────────────────────────────────────────────────
 
 function buildAgentPrompt(
@@ -265,6 +281,42 @@ function formatDiscussion(responses: AgentResponse[]): string {
   return responses.map((r) => `[${r.agent.name} (${r.agent.role})]\n${r.response}`).join("\n\n");
 }
 
+// 배치 응답에서 [에이전트명] 섹션을 분리
+function parseAgentSections(text: string): AgentResponse[] {
+  const agentByName: Record<string, Agent> = Object.fromEntries(AGENTS.map((a) => [a.name, a]));
+  const agentNames = AGENTS.map((a) => a.name);
+  const headerPattern = new RegExp(`\\[(${agentNames.join("|")})\\]`, "g");
+
+  const sections: { name: string; headerStart: number; contentStart: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = headerPattern.exec(text)) !== null) {
+    const name = m[1];
+    // 같은 에이전트가 중복 등장하면 첫 번째만 사용
+    if (!sections.find((s) => s.name === name)) {
+      sections.push({ name, headerStart: m.index, contentStart: m.index + m[0].length });
+    }
+  }
+
+  const results: AgentResponse[] = [];
+  for (let i = 0; i < sections.length; i++) {
+    const { name, contentStart } = sections[i];
+    const contentEnd = i + 1 < sections.length ? sections[i + 1].headerStart : text.length;
+    const response = text.slice(contentStart, contentEnd).trim();
+    const agent = agentByName[name];
+    if (agent) results.push({ agent, response });
+  }
+
+  // 파싱에서 빠진 에이전트는 빈 응답으로 채움
+  const foundNames = new Set(results.map((r) => r.agent.name));
+  for (const agent of AGENTS) {
+    if (!foundNames.has(agent.name)) {
+      results.push({ agent, response: "(응답 없음)" });
+    }
+  }
+
+  return results;
+}
+
 // ─── 회의 실행 ──────────────────────────────────────────────────────────────────
 
 export type FullMeetingResult = {
@@ -275,45 +327,69 @@ export type FullMeetingResult = {
   chiefMemoryJson: string;
 };
 
-/** 2라운드 토론 + 총괄 종합 (주간 Cron용) */
+const BATCH_SYSTEM_PROMPT = `당신은 대경안심전기의 6인 경영진입니다:
+- CTO 스파크(기술총괄): 앱·웹·KIPO 특허 관리, 1인 사업자에 실현 가능한 기술 솔루션
+- CSO 브릿지(전략총괄): 본업 병행·주말/저녁 운영 제약, 예약제 서비스 기반 현실적 성장 전략
+- CMO 확성기(마케팅총괄): 우리집 안심전기 브랜드, 광주 아파트 대상 저비용 고효율 채널
+- COO 필드(운영총괄): 예약→방문→완료→AS 워크플로우 최적화, 1인 운영 한계 극복
+- CFO 계산기(재무총괄): 수익 구조 최적화·단가 전략·세금 관리, 구체적 숫자 필수
+- CLO 규정집(법무총괄): 겸업 금지 리스크·전기공사업 요건, 리스크 먼저 명확히 짚기
+각자의 전문성으로 간결하고 실행 가능한 의견을 한국어로 작성. 대장 지시사항 최우선 반영.`;
+
+/** 배치 3회 호출: 1라운드 → 2라운드 → chief 종합 */
 export async function runFullMeeting(
   topic: string,
   memory: string,
   feedback: string,
   weekStatus?: WeekStatus,
 ): Promise<FullMeetingResult> {
-  // Step 0: chief가 대장 피드백을 오늘 회의 지침으로 가공
-  let chiefGuidance = "";
-  if (feedback.trim()) {
-    const weekCtx = weekStatus ? `\n로드맵 현황: ${weekStatus.message}` : "";
-    const guidancePrompt = `오늘 회의 주제: ${topic}${weekCtx}
+  const weekLine = weekStatus ? `${weekStatus.message}\n` : "";
+  const weekCtxLine = weekStatus
+    ? `현재 로드맵: ${weekStatus.year}년차 ${weekStatus.week}주차 | 이번 분기 목표 ${Math.round(weekStatus.quarterTarget / 10_000).toLocaleString("ko-KR")}만원 | 집중과제: ${weekStatus.yearFocus}\n`
+    : "";
+  const feedbackBlock = feedback.trim()
+    ? `\n[대장 지시사항 — 모든 분석과 액션 아이템에 반드시 반영]\n${feedback}\n`
+    : "";
+  const memoryBlock = memory ? `\n[누적 조직 기억]\n${memory}\n` : "";
 
-대장 피드백:
-${feedback}
+  // ── 1라운드: 6명 배치 응답 ─────────────────────────────────
+  const round1Prompt = `${weekLine}회의 주제: ${topic}
+${weekCtxLine}${feedbackBlock}${BUSINESS_CONTEXT}${memoryBlock}
+다음 6명 전문가가 각자 관점으로 답해줘. 각 섹션은 정확히 아래 헤더로 구분해야 함:
+[CTO 스파크]
+[CSO 브릿지]
+[CMO 확성기]
+[COO 필드]
+[CFO 계산기]
+[CLO 규정집]
 
-위 피드백을 바탕으로, 오늘 [${topic}] 회의에서 6인 경영진이 반드시 반영해야 할 핵심 회의 지침을 3가지 이내로 간결하게 작성하라. 지침만 출력하고 JSON·부연설명은 불필요.`.trim();
-    try {
-      chiefGuidance = await callClaude("chief", guidancePrompt);
-    } catch (err) {
-      console.error("[agents] chief guidance failed:", err);
-      chiefGuidance = feedback;
-    }
-  }
+각 전문가는 자신의 역할 관점에서:
+1. 핵심 인사이트 1가지
+2. 즉시 실행 가능한 액션 아이템 2가지 (구체적 수치·기한 포함)
+3. 다른 부서와의 협업·충돌 포인트 1문장`.trim();
 
-  const round1: AgentResponse[] = [];
-  for (const agent of AGENTS) {
-    round1.push(
-      await callAgentSafe(
-        agent,
-        buildAgentPrompt(agent, topic, memory, chiefGuidance, undefined, "1라운드 — 초기 의견", weekStatus),
-      ),
-    );
-    await sleep(1_000);
-  }
+  const round1Raw = await callClaudeDirect(BATCH_SYSTEM_PROMPT, round1Prompt, 2400);
+  const round1 = parseAgentSections(round1Raw);
 
-  const discussion1 = formatDiscussion(round1);
-  const round2 = round1; // 단일 라운드 — 타임아웃 방지
+  // ── 2라운드: 1라운드 포함 심화 ────────────────────────────
+  const round2Prompt = `${weekLine}회의 주제: ${topic} — 2라운드 심화
+${weekCtxLine}${feedbackBlock}${BUSINESS_CONTEXT}
+[1라운드 회의 기록]
+${round1Raw}
 
+위 논의를 바탕으로 각 전문가가 입장을 심화하거나 타 부서 의견에 반응하라.
+각 섹션은 정확히 아래 헤더로 구분해야 함:
+[CTO 스파크]
+[CSO 브릿지]
+[CMO 확성기]
+[COO 필드]
+[CFO 계산기]
+[CLO 규정집]`.trim();
+
+  const round2Raw = await callClaudeDirect(BATCH_SYSTEM_PROMPT, round2Prompt, 2400);
+  const round2 = parseAgentSections(round2Raw);
+
+  // ── Chief 최종 종합 ───────────────────────────────────────
   const weekCtxChief = weekStatus
     ? `\n로드맵 현황: ${weekStatus.message}\n집중과제: ${weekStatus.yearFocus}\n`
     : "";
@@ -323,9 +399,13 @@ ${feedback ? `대장 지시사항:\n${feedback}\n` : ""}
 ${BUSINESS_CONTEXT}
 ${memory ? `\n누적 조직 기억:\n${memory}` : ""}
 
-아래는 6인 경영진 회의 기록입니다.
+아래는 6인 경영진 2라운드 회의 기록입니다.
 
-${discussion1}
+[1라운드]
+${formatDiscussion(round1)}
+
+[2라운드]
+${formatDiscussion(round2)}
 
 ---
 
