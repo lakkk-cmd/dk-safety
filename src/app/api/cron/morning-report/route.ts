@@ -31,7 +31,7 @@ import {
 } from "@/lib/agent-schedule";
 import { buildEmailHTML, buildEmailText } from "@/lib/email-template";
 
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
