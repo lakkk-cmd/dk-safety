@@ -45,7 +45,7 @@
 
 ## 4. 신규 Supabase 테이블 (마이그레이션 025)
 
-`supabase/migrations/025_youtube_pipeline_and_hq.sql` — 향후 유튜브/Gemini 인사이트 파이프라인(Task 4·5, 코드 미구현)을 위한 사전 스키마 + hq 콘텐츠 승인 컬럼:
+`supabase/migrations/025_youtube_pipeline_and_hq.sql` — 유튜브/Gemini 인사이트 파이프라인(§7) 스키마 + hq 콘텐츠 승인 컬럼:
 
 | 테이블/컬럼 | 용도 |
 |---|---|
@@ -58,19 +58,38 @@
 
 > **알려진 이슈**: `npm run db:apply`는 마이그레이션 021(`electrical_tips`)의 `CREATE POLICY`가 비-idempotent(`IF NOT EXISTS` 미지원)라 이미 정책이 존재하면 거기서 실패한다. 001부터 전부 재실행하는 구조라 022~025는 표준 스크립트로 재적용 불가 — 025는 1회성 스크립트로 직접 적용·검증했다. 021 자체는 이번 작업 범위 밖이라 수정하지 않았다.
 
-## 5. 신규/예정 환경변수
+## 5. 신규 환경변수 (유튜브/Gemini 파이프라인)
 
-`.env.example` 참고. 새로 추가된 항목:
+`.env.example` 참고:
 
-| 변수 | 상태 | 용도 |
-|---|---|---|
-| `GEMINI_API_KEY` | placeholder만 추가, 코드 미구현 | Task 4-5 (유튜브 인사이트 파이프라인용 Gemini API) |
-| `YOUTUBE_API_KEY` | placeholder만 추가, 코드 미구현 | Task 4-5 (유튜브 데이터 수집) |
+| 변수 | 용도 |
+|---|---|
+| `YOUTUBE_API_KEY` | YouTube Data API v3 — 채널별 최신 영상 수집 (`/api/cron/youtube-collect`) |
+| `GEMINI_API_KEY` | Gemini API — 영상 자막 분석 (`/api/cron/youtube-analyze`) |
+| `GEMINI_MODEL` | 선택. 미설정 시 `gemini-2.0-flash` |
 
-이 두 키는 값이 비어 있어도 현재 빌드/배포에 영향 없음. Task 4-5 구현 시 채워 넣을 것.
+값이 비어 있으면 두 cron 라우트 모두 500(설정 안내 메시지)을 반환할 뿐 다른 기능에는 영향 없음.
 
 ## 6. 쿠키 도메인 공유 전제
 
 - `src/app/api/admin/login/route.ts`, `src/app/api/admin/logout/route.ts`, `src/middleware.ts`(첫 방문 시 쿠키 삭제) 모두 운영(`NODE_ENV=production`)에서 `dk_admin_auth`/`dk_first_visit_checked` 쿠키에 `domain: ".dkansim.com"`을 설정한다.
 - 이를 통해 `dkansim.com`에서 로그인하면 `hq.dkansim.com`, `report.dkansim.com`에서도 같은 세션으로 인증된다.
 - 도메인 속성이 빠지면(예: 코드 회귀) host-only 쿠키가 되어 서브도메인에서 인증이 풀린다 — 회귀 시 우선 의심할 지점.
+
+## 7. 유튜브/Gemini 인사이트 파이프라인 (Task 4-5)
+
+`agent.dkansim.com`(`/agent`)에서 현황을 모니터링한다. 3단계로 구성되며 GitHub Actions(`.github/workflows/youtube-transcripts.yml`)가 매일 06:00 KST(UTC 21:00)에 순서대로 실행한다 (`workflow_dispatch`로 수동 실행도 가능):
+
+1. **수집** — `GET /api/cron/youtube-collect` (CRON_SECRET 인증, `maxDuration=60`)
+   - `youtube_channels`에서 `active=true`인 채널마다 YouTube Data API `search.list`로 최신 영상 5개 조회
+   - `youtube_videos`에 신규 행 삽입(UNIQUE `video_id` 충돌은 skip 처리)
+2. **자막 수집** — `scripts/fetch-youtube-transcripts.mjs` (GitHub Actions 러너에서 yt-dlp 사용)
+   - `transcript IS NULL`인 영상 최대 20건에 대해 yt-dlp로 자막(ko/en, srt 변환) 다운로드 → 텍스트로 정제 후 `youtube_videos.transcript` 업데이트
+   - Vercel 서버리스 함수에는 yt-dlp 바이너리를 둘 수 없어 별도 단계로 분리
+3. **분석** — `GET /api/cron/youtube-analyze` (CRON_SECRET 인증, `maxDuration=120`)
+   - `transcript IS NOT NULL`이고 아직 `youtube_insights`에 없는 영상 최대 5건을 Gemini로 분석
+   - 결과(`summary`, `insights.{key_points,content_ideas,relevance}`, `model`)를 `youtube_insights`에 삽입
+
+각 단계는 `src/lib/pipeline-logs.ts`(`logAgentEvent`, `startPipelineRun`, `finishPipelineRun`)로 `agent_logs`/`pipeline_logs`에 기록되며, `/agent`에서 채널별 수집 현황·최근 분석 결과·로그·실행 이력을 확인할 수 있다.
+
+GitHub Actions 시크릿 필요: `CRON_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. (대장이 GitHub repo → Settings → Secrets and variables → Actions에서 등록)

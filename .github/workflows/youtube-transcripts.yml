@@ -1,0 +1,41 @@
+name: YouTube Insight Pipeline
+
+on:
+  schedule:
+    - cron: "0 21 * * *" # 매일 06:00 KST
+  workflow_dispatch:
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -U yt-dlp
+
+      - name: 1. 신규 영상 수집 (youtube-collect)
+        run: |
+          curl -sf -X GET "https://dkansim.com/api/cron/youtube-collect" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+      - name: 2. 자막 수집 (yt-dlp)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/fetch-youtube-transcripts.mjs
+
+      - name: 3. Gemini 분석 (youtube-analyze)
+        run: |
+          curl -sf -X GET "https://dkansim.com/api/cron/youtube-analyze" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

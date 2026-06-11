@@ -52,6 +52,10 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 | `src/lib/agents.ts` | AI executive agents (CTO/CSO/CMO/COO/CFO/CLO + Chief); calls Claude API |
 | `src/lib/agent-schedule.ts` | Weekly meeting schedule logic (KST time, first report + recurring Sunday 08:00) |
 | `src/lib/activity-log.ts` | Admin activity log persistence |
+| `src/lib/agent-db.ts` | Supabase client for agent/pipeline tables (`getAgentSupabase`, `requireAgentSupabase`, `isAgentSupabaseReady`) |
+| `src/lib/youtube-pipeline.ts` | YouTube Data API v3 — fetch latest videos per channel (`fetchLatestVideos`) |
+| `src/lib/gemini-pipeline.ts` | Gemini API — analyze video transcripts into summary/insights (`analyzeVideoTranscript`) |
+| `src/lib/pipeline-logs.ts` | `agent_logs`/`pipeline_logs` recording helpers (`logAgentEvent`, `startPipelineRun`, `finishPipelineRun`) |
 
 ### Route structure
 
@@ -66,6 +70,8 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 - `/report` — weekly report archive + roadmap visualization (cookie-protected, shares admin auth); served at `report.dkansim.com` via host-based middleware rewrite
 - `/agent` — AI pipeline monitor: YouTube collection status, Gemini analysis status, cron logs (`agent_logs`), pipeline run history (`pipeline_logs`) (cookie-protected, shares admin auth); served at `agent.dkansim.com` via host-based middleware rewrite
 - `/api/admin/*`, `/api/worker/*`, `/api/resident/*` — REST API routes
+- `/api/cron/youtube-collect` — collects latest videos for active `youtube_channels` via YouTube Data API (CRON_SECRET-protected)
+- `/api/cron/youtube-analyze` — analyzes videos with transcripts via Gemini, writes `youtube_insights` (CRON_SECRET-protected)
 - `/api/webhook/payment` — Toss Payments webhook
 - `/verify/[warranty_number]` — public warranty verification
 
@@ -92,6 +98,10 @@ Located in `supabase/migrations/` (numbered 001–025). Apply with `npm run db:a
 
 `hq.dkansim.com` (internally `/hq`) runs a virtual 6-executive meeting (CTO, CSO, CMO, COO, CFO, CLO) powered by `ANTHROPIC_API_KEY`. Agent system prompts are in `src/lib/agents.ts`. Meeting schedule and topics persist in Supabase (`agent_memories` table). The model used is controlled by `ANTHROPIC_MODEL` env var (defaults to `claude-sonnet-4-6`). Reports approved for content use appear in the `report.dkansim.com` (`/report`) archive. See `CONTEXT.md` for subdomain routing and deployment setup.
 
+### YouTube/Gemini insight pipeline
+
+`agent.dkansim.com` (internally `/agent`) monitors a 3-stage pipeline run daily by GitHub Actions (`.github/workflows/youtube-transcripts.yml`): (1) `/api/cron/youtube-collect` fetches new videos for active channels, (2) `scripts/fetch-youtube-transcripts.mjs` uses yt-dlp (not runnable on Vercel) to fetch transcripts, (3) `/api/cron/youtube-analyze` runs Gemini analysis on videos with transcripts. See `CONTEXT.md` §7 for details.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env.local`. Key vars:
@@ -108,5 +118,8 @@ Copy `.env.example` to `.env.local`. Key vars:
 | `RESIDENT_SESSION_SECRET` | HMAC secret for resident session tokens |
 | `ANTHROPIC_API_KEY` | Claude API key for AI command center |
 | `ANTHROPIC_MODEL` | Claude model ID (default: `claude-sonnet-4-6`) |
+| `YOUTUBE_API_KEY` | YouTube Data API v3 key for `/api/cron/youtube-collect` |
+| `GEMINI_API_KEY` | Gemini API key for `/api/cron/youtube-analyze` |
+| `GEMINI_MODEL` | Gemini model ID (default: `gemini-2.0-flash`) |
 | `KAKAO_ALIMTALK_WEBHOOK_URL` | (Optional) KakaoTalk notification webhook |
 | `SMS_WEBHOOK_URL` | (Optional) SMS notification webhook |
