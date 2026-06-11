@@ -4,7 +4,7 @@
 
 ## 1. 한 줄 요약
 
-**대경안심전기**(dkansim.com)는 단일 Next.js 15 앱으로, 메인 사이트(`dkansim.com`)·경영 사령부(`hq.dkansim.com`)·주간 보고 아카이브(`report.dkansim.com`, 별칭 `agent.dkansim.com`)를 **하나의 Vercel 배포**에서 미들웨어 host 라우팅으로 서빙한다.
+**대경안심전기**(dkansim.com)는 단일 Next.js 15 앱으로, 메인 사이트(`dkansim.com`)·경영 사령부(`hq.dkansim.com`)·주간 보고 아카이브(`report.dkansim.com`)·AI 파이프라인 모니터(`agent.dkansim.com`)를 **하나의 Vercel 배포**에서 미들웨어 host 라우팅으로 서빙한다.
 
 ## 2. 서브도메인 라우팅 구조
 
@@ -16,10 +16,10 @@
 | `hq.dkansim.com` | `/` | `/hq` | AI 경영 사령부 |
 | `hq.dkansim.com` | `/login` | `/hq/login` | 사령부 로그인 |
 | `report.dkansim.com` | `/` | `/report` | 주간 보고 아카이브 |
-| `agent.dkansim.com` | `/` | `/report` | `report.dkansim.com`의 별칭 |
+| `agent.dkansim.com` | `/` | `/agent` | AI 파이프라인 모니터 (YouTube 수집·Gemini 분석·Cron/파이프라인 로그) |
 
 - 정적 파일 요청(`/\.[^/]+$/`에 매칭, 예: `/favicon.ico`, `/uploads/...`)은 host 재작성 이전에 그대로 통과시켜 `/public` 자산이 깨지지 않도록 한다.
-- `hq`/`report`(및 별칭 `agent`)는 admin 인증 게이트(`dk_admin_auth=ok`)를 공유한다. `/report`(및 `agent.`)는 자체 로그인 페이지가 없으므로 미인증 시 `hq.dkansim.com/login`으로 리다이렉트(`?next=` 포함)한다.
+- `hq`/`report`/`agent`는 admin 인증 게이트(`dk_admin_auth=ok`)를 공유한다. `/report`, `/agent`는 자체 로그인 페이지가 없으므로 미인증 시 `hq.dkansim.com/login`으로 리다이렉트(`?next=` 포함)한다.
 - 로컬 개발에서는 DNS 없이 Host 헤더를 바꿔 테스트 가능:
   ```bash
   curl -H "Host: hq.dkansim.com" http://localhost:3000/
@@ -27,7 +27,7 @@
   curl -H "Host: report.dkansim.com" http://localhost:3000/
   curl -H "Host: agent.dkansim.com" http://localhost:3000/
   ```
-  또는 dev 서버에서 직접 `/hq`, `/hq/login`, `/report` 경로로도 접근 가능(둘 다 동작하도록 레이아웃이 양쪽 경로를 처리).
+  또는 dev 서버에서 직접 `/hq`, `/hq/login`, `/report`, `/agent` 경로로도 접근 가능(둘 다 동작하도록 레이아웃이 양쪽 경로를 처리).
 
 ## 3. 배포 체크리스트 (대장이 직접 진행)
 
@@ -36,12 +36,12 @@
 1. **Vercel 대시보드** → 해당 프로젝트 → **Settings → Domains**
 2. `hq.dkansim.com` 추가 → Vercel이 안내하는 DNS 레코드(보통 `CNAME hq → cname.vercel-dns.com`)를 도메인 등록업체(예: 가비아, Cloudflare)에 등록
 3. `report.dkansim.com`도 동일하게 추가 + CNAME 등록
-4. (선택) `agent.dkansim.com`도 동일하게 추가 + CNAME 등록 — `report.dkansim.com`과 동일하게 동작하는 별칭
+4. `agent.dkansim.com`도 동일하게 추가 + CNAME 등록 — AI 파이프라인 모니터(`/agent`)
 5. 모든 서브도메인은 **같은 Vercel 프로젝트**를 가리켜야 한다 (별도 프로젝트 생성 X) — 코드가 단일 배포 안에서 미들웨어로 라우팅을 분기하기 때문
-6. DNS 전파 후 `https://hq.dkansim.com`, `https://report.dkansim.com`(, `https://agent.dkansim.com`) 접속 → `/admin/login`(메인 도메인)에서 로그인한 쿠키(`dk_admin_auth`, `domain=.dkansim.com`)가 서브도메인에서도 인증되는지 확인
+6. DNS 전파 후 `https://hq.dkansim.com`, `https://report.dkansim.com`, `https://agent.dkansim.com` 접속 → `/admin/login`(메인 도메인)에서 로그인한 쿠키(`dk_admin_auth`, `domain=.dkansim.com`)가 서브도메인에서도 인증되는지 확인
 7. (선택) `https://hq.dkansim.com/login`에서 직접 로그인도 가능 — `/api/admin/login`을 그대로 사용
 
-> 쿠키 도메인 공유는 `NODE_ENV=production`에서만 `domain: ".dkansim.com"`이 적용된다. 로컬 개발(`localhost`)에서는 host-only 쿠키로 동작하며 `/hq`, `/report` 경로 직접 접근 시에도 정상 인증된다.
+> 쿠키 도메인 공유는 `NODE_ENV=production`에서만 `domain: ".dkansim.com"`이 적용된다. 로컬 개발(`localhost`)에서는 host-only 쿠키로 동작하며 `/hq`, `/report`, `/agent` 경로 직접 접근 시에도 정상 인증된다.
 
 ## 4. 신규 Supabase 테이블 (마이그레이션 025)
 

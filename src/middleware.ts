@@ -24,7 +24,7 @@ export async function middleware(request: NextRequest) {
 
   const host = request.headers.get("host") ?? "";
 
-  // hq.dkansim.com / report.dkansim.com / agent.dkansim.com → 같은 배포 안에서 /hq, /report 경로로 재작성
+  // hq.dkansim.com / report.dkansim.com / agent.dkansim.com → 같은 배포 안에서 /hq, /report, /agent 경로로 재작성
   let pathname = originalPathname;
   let rewriteUrl: URL | null = null;
 
@@ -32,10 +32,13 @@ export async function middleware(request: NextRequest) {
     rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = `/hq${pathname === "/" ? "" : pathname}`;
     pathname = rewriteUrl.pathname;
-  } else if (host.startsWith(REPORT_HOST_PREFIX) || host.startsWith(AGENT_HOST_PREFIX)) {
-    // agent.dkansim.com은 report.dkansim.com과 동일하게 라우팅 (보고서 아카이브 별칭)
+  } else if (host.startsWith(REPORT_HOST_PREFIX)) {
     rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = `/report${pathname === "/" ? "" : pathname}`;
+    pathname = rewriteUrl.pathname;
+  } else if (host.startsWith(AGENT_HOST_PREFIX)) {
+    rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = `/agent${pathname === "/" ? "" : pathname}`;
     pathname = rewriteUrl.pathname;
   }
 
@@ -63,12 +66,15 @@ export async function middleware(request: NextRequest) {
   }
 
   const isAdminRoute =
-    pathname.startsWith("/admin") || pathname.startsWith("/hq") || pathname.startsWith("/report");
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/hq") ||
+    pathname.startsWith("/report") ||
+    pathname.startsWith("/agent");
   const isAdminLogin = pathname === "/admin/login" || pathname === "/hq/login";
 
   if (isAdminRoute && !isAdminLogin && adminAuth !== "ok") {
-    if (pathname.startsWith("/report")) {
-      // report(및 별칭 agent)에는 자체 로그인 페이지가 없음 → hq 로그인으로 보내고 완료 후 되돌아오게 함
+    if (pathname.startsWith("/report") || pathname.startsWith("/agent")) {
+      // report/agent에는 자체 로그인 페이지가 없음 → hq 로그인으로 보내고 완료 후 되돌아오게 함
       const hqHost = host.startsWith(REPORT_HOST_PREFIX)
         ? `${HQ_HOST_PREFIX}${host.slice(REPORT_HOST_PREFIX.length)}`
         : host.startsWith(AGENT_HOST_PREFIX)

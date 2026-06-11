@@ -11,6 +11,8 @@ const requiredFiles = [
   "src/app/hq/login/page.tsx",
   "src/app/report/layout.tsx",
   "src/app/report/page.tsx",
+  "src/app/agent/layout.tsx",
+  "src/app/agent/page.tsx",
 ];
 
 for (const file of requiredFiles) {
