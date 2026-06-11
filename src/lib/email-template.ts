@@ -97,7 +97,7 @@ export function buildEmailHTML(
       ${dailyBlock}
       ${sectionBlocks}
       <div style="background:#f9f9f7;border-radius:8px;padding:14px 16px;font-size:12px;color:#888;line-height:1.7">
-        피드백·보고 이력: <a href="https://dkansim.com/admin/command-center" style="color:#111;font-weight:600">관리자 사령부</a>
+        피드백·보고 이력: <a href="https://hq.dkansim.com" style="color:#111;font-weight:600">관리자 사령부</a>
       </div>
     </div>
     <div style="background:#f5f5f3;padding:16px 32px;text-align:center">
@@ -135,6 +135,6 @@ export function buildEmailText(
     lines.push("");
   });
   lines.push("=".repeat(50));
-  lines.push("사령부: https://dkansim.com/admin/command-center");
+  lines.push("사령부: https://hq.dkansim.com");
   return lines.join("\n");
 }

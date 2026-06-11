@@ -15,23 +15,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "비밀번호가 올바르지 않습니다." }, { status: 401 });
   }
 
+  const isProd = process.env.NODE_ENV === "production";
+  const cookieDomain = isProd ? { domain: ".dkansim.com" } : {};
+
   const response = NextResponse.json({ message: "로그인되었습니다." });
   response.cookies.set({
     name: ADMIN_AUTH_COOKIE,
     value: "ok",
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isProd,
     path: "/",
-    maxAge: 60 * 60 * 8
+    maxAge: 60 * 60 * 8,
+    ...cookieDomain
   });
   response.cookies.set({
     name: FIRST_VISIT_COOKIE,
     value: "1",
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isProd,
     path: "/",
-    maxAge: 60 * 60 * 24 * 365
+    maxAge: 60 * 60 * 24 * 365,
+    ...cookieDomain
   });
   return response;
 }

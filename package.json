@@ -21,7 +21,11 @@
     "verify:supabase": "node --env-file=.env.local scripts/verify-supabase-connection.mjs",
     "env:production": "node -e \"require('fs').copyFileSync('.env.example','.env.production'); console.log('Wrote .env.production from .env.example');\"",
     "setup:deploy": "node scripts/setup-github-vercel.mjs",
-    "cron:test": "node --env-file=.env.local scripts/test-morning-cron.mjs"
+    "cron:test": "node --env-file=.env.local scripts/test-morning-cron.mjs",
+    "harness:api": "tsx tests/harness/api.test.ts",
+    "harness:db": "tsx tests/harness/db.test.ts",
+    "harness:domains": "tsx tests/harness/domains.test.ts",
+    "harness:all": "npm run harness:api && npm run harness:db && npm run harness:domains"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
@@ -43,6 +47,7 @@
     "eslint-config-next": "^15.0.0",
     "postgres": "^3.4.9",
     "tailwindcss": "^3.4.14",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
 }

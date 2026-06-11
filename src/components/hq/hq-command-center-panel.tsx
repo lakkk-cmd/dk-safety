@@ -32,6 +32,8 @@ type ReportRow = {
   chief_summary: string | null;
   feedback_applied: string | null;
   sections: ReportSection[] | null;
+  approved: boolean;
+  approved_at: string | null;
 };
 
 type MeetingConfigResponse = {
@@ -40,7 +42,7 @@ type MeetingConfigResponse = {
   schedule?: { firstReportDate: string; firstReportCompleted: boolean };
 };
 
-export default function AdminCommandCenterPanel() {
+export default function HqCommandCenterPanel() {
   const [feedbackInput, setFeedbackInput] = useState("");
   const [topicsText, setTopicsText] = useState("");
   const [savedTopics, setSavedTopics] = useState<string[]>([]);
@@ -53,6 +55,7 @@ export default function AdminCommandCenterPanel() {
   const [topicsSubmitting, setTopicsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -193,6 +196,25 @@ export default function AdminCommandCenterPanel() {
     const json = (await res.json()) as { message?: string };
     setMessage(json.message ?? (res.ok ? "전체 삭제 완료" : "삭제 실패"));
     if (res.ok) await loadAll();
+  };
+
+  const toggleApproval = async (r: ReportRow) => {
+    setApprovingId(r.id);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/agents/reports", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: r.id, approved: !r.approved }),
+      });
+      const json = (await res.json()) as { message?: string };
+      setMessage(json.message ?? (res.ok ? "처리 완료" : "처리 실패"));
+      if (res.ok) await loadAll();
+    } catch {
+      setMessage("승인 처리 중 오류가 발생했습니다.");
+    } finally {
+      setApprovingId(null);
+    }
   };
 
   const printReport = (r: ReportRow) => {
@@ -397,7 +419,7 @@ ${agentRows || "<p style='color:#999;font-size:13px'>에이전트 응답 없음<
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900">경영진 보고서</h2>
-            <p className="mt-1 text-sm text-slate-600">주간 Cron 결과(이메일과 동일 내용)입니다.</p>
+            <p className="mt-1 text-sm text-slate-600">주간 Cron 결과(이메일과 동일 내용)입니다. 콘텐츠 제작용으로 승인하면 report.dkansim.com 아카이브에 표시됩니다.</p>
           </div>
           {reports.length > 0 && (
             <button
@@ -422,9 +444,26 @@ ${agentRows || "<p style='color:#999;font-size:13px'>에이전트 응답 없음<
                     onClick={() => setExpandedReport(expandedReport === r.id ? null : r.id)}
                   >
                     {r.date_label}
+                    {r.approved ? (
+                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-bold text-emerald-800">
+                        승인됨
+                      </span>
+                    ) : null}
                     <span className="ml-2 text-xs font-normal text-slate-500">{expandedReport === r.id ? "접기" : "펼치기"}</span>
                   </button>
                   <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={approvingId === r.id}
+                      onClick={() => void toggleApproval(r)}
+                      className={
+                        r.approved
+                          ? "rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                          : "rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      }
+                    >
+                      {r.approved ? "✅ 승인 취소" : "콘텐츠 승인"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => printReport(r)}
@@ -464,6 +503,7 @@ ${agentRows || "<p style='color:#999;font-size:13px'>에이전트 응답 없음<
           <li>대장 피드백 입력 → pending 저장</li>
           <li>첫 보고: 내일 08:00 KST · 이후 매주 토요일 08:00</li>
           <li>이메일 보고 + 본 화면 보고서·조직 기억 갱신</li>
+          <li>콘텐츠로 쓸 보고서는 &ldquo;콘텐츠 승인&rdquo; → report.dkansim.com 아카이브에 노출</li>
         </ol>
         <p className="mt-3 text-xs text-slate-500">
           수동 전체 회의 실행: <code className="rounded bg-white px-1">npm run cron:test</code> (force=1)

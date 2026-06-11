@@ -61,7 +61,9 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 - `/[apt_id]` — legacy apt route
 - `/resident/login`, `/resident/safety-check`, `/resident/history` — resident self-service
 - `/worker/login`, `/worker/(dashboard)` — field technician portal
-- `/admin/*` — admin portal (cookie-protected): reservations, backups, billing, dispatch, workers, AI command center
+- `/admin/*` — admin portal (cookie-protected): reservations, backups, billing, dispatch, workers
+- `/hq`, `/hq/login` — AI executive command center (cookie-protected, shares admin auth); served at `hq.dkansim.com` via host-based middleware rewrite
+- `/report` — weekly report archive + roadmap visualization (cookie-protected, shares admin auth); served at `report.dkansim.com` via host-based middleware rewrite
 - `/api/admin/*`, `/api/worker/*`, `/api/resident/*` — REST API routes
 - `/api/webhook/payment` — Toss Payments webhook
 - `/verify/[warranty_number]` — public warranty verification
@@ -76,17 +78,18 @@ Three separate cookie-based auth systems, all server-side only:
 
 ### Supabase Postgres migrations
 
-Located in `supabase/migrations/` (numbered 001–024). Apply with `npm run db:apply`. Key schemas:
+Located in `supabase/migrations/` (numbered 001–025). Apply with `npm run db:apply`. Key schemas:
 
 - `001` — reservations, workers, tasks
 - `004` — multi-tenant apartments
 - `009` — orders/payment gateway
 - `013` — warranties (immutable archive)
 - `023–024` — AI agent command center tables
+- `025` — YouTube/Gemini insight pipeline tables (youtube_channels, youtube_videos, youtube_insights, agent_logs, pipeline_logs) + `agent_reports.approved`/`approved_at` columns
 
 ### AI Command Center
 
-`/admin/command-center` runs a virtual 6-executive meeting (CTO, CSO, CMO, COO, CFO, CLO) powered by `ANTHROPIC_API_KEY`. Agent system prompts are in `src/lib/agents.ts`. Meeting schedule and topics persist in Supabase (`agent_memories` table). The model used is controlled by `ANTHROPIC_MODEL` env var (defaults to `claude-sonnet-4-6`).
+`hq.dkansim.com` (internally `/hq`) runs a virtual 6-executive meeting (CTO, CSO, CMO, COO, CFO, CLO) powered by `ANTHROPIC_API_KEY`. Agent system prompts are in `src/lib/agents.ts`. Meeting schedule and topics persist in Supabase (`agent_memories` table). The model used is controlled by `ANTHROPIC_MODEL` env var (defaults to `claude-sonnet-4-6`). Reports approved for content use appear in the `report.dkansim.com` (`/report`) archive. See `CONTEXT.md` for subdomain routing and deployment setup.
 
 ## Environment Variables
 

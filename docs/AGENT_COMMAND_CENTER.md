@@ -74,7 +74,7 @@ npm run cron:test
 
 ## 일상 운영 (대장)
 
-1. https://dkansim.com/admin/command-center 접속 (관리자 로그인)
+1. https://hq.dkansim.com 접속 (관리자 로그인)
 2. **대장 피드백** 입력 → 다음 일요일 08:00 회의에 반영
 3. 일요일 아침 **이메일 보고서** 확인
 4. 사령부에서 **조직 기억**·**보고서 이력** 확인

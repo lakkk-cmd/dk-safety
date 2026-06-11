@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const supabase = requireAgentSupabase();
     const { data, error } = await supabase
       .from("agent_reports")
-      .select("id, created_at, date_label, chief_summary, feedback_applied, sections")
+      .select("id, created_at, date_label, chief_summary, feedback_applied, sections, approved, approved_at")
       .order("created_at", { ascending: false })
       .limit(limit);
     if (error) return NextResponse.json({ message: error.message }, { status: 500 });
@@ -24,6 +24,35 @@ export async function GET(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "조회 실패" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ message: "권한이 없습니다." }, { status: 401 });
+  }
+  if (!isAgentSupabaseReady()) {
+    return NextResponse.json({ message: "Supabase가 설정되지 않았습니다." }, { status: 503 });
+  }
+
+  const body = (await request.json()) as { id?: string; approved?: boolean };
+  if (!body.id || typeof body.approved !== "boolean") {
+    return NextResponse.json({ message: "id, approved 파라미터 필요" }, { status: 400 });
+  }
+
+  try {
+    const supabase = requireAgentSupabase();
+    const { error } = await supabase
+      .from("agent_reports")
+      .update({ approved: body.approved, approved_at: body.approved ? new Date().toISOString() : null })
+      .eq("id", body.id);
+    if (error) return NextResponse.json({ message: error.message }, { status: 500 });
+    return NextResponse.json({ message: body.approved ? "승인되었습니다." : "승인이 취소되었습니다." });
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "처리 실패" },
       { status: 500 },
     );
   }
