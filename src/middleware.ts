@@ -7,6 +7,7 @@ import { verifyWorkerSessionTokenEdge } from "@/lib/worker-session-verify-edge";
 const FIRST_VISIT_COOKIE = "dk_first_visit_checked";
 const HQ_HOST_PREFIX = "hq.";
 const REPORT_HOST_PREFIX = "report.";
+const AGENT_HOST_PREFIX = "agent.";
 
 function withFirstVisitCookie(res: NextResponse, isFirstVisit: boolean) {
   if (isFirstVisit) {
@@ -23,7 +24,7 @@ export async function middleware(request: NextRequest) {
 
   const host = request.headers.get("host") ?? "";
 
-  // hq.dkansim.com / report.dkansim.com → 같은 배포 안에서 /hq, /report 경로로 재작성
+  // hq.dkansim.com / report.dkansim.com / agent.dkansim.com → 같은 배포 안에서 /hq, /report 경로로 재작성
   let pathname = originalPathname;
   let rewriteUrl: URL | null = null;
 
@@ -31,7 +32,8 @@ export async function middleware(request: NextRequest) {
     rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = `/hq${pathname === "/" ? "" : pathname}`;
     pathname = rewriteUrl.pathname;
-  } else if (host.startsWith(REPORT_HOST_PREFIX)) {
+  } else if (host.startsWith(REPORT_HOST_PREFIX) || host.startsWith(AGENT_HOST_PREFIX)) {
+    // agent.dkansim.com은 report.dkansim.com과 동일하게 라우팅 (보고서 아카이브 별칭)
     rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = `/report${pathname === "/" ? "" : pathname}`;
     pathname = rewriteUrl.pathname;
@@ -66,10 +68,12 @@ export async function middleware(request: NextRequest) {
 
   if (isAdminRoute && !isAdminLogin && adminAuth !== "ok") {
     if (pathname.startsWith("/report")) {
-      // report에는 자체 로그인 페이지가 없음 → hq 로그인으로 보내고 완료 후 되돌아오게 함
+      // report(및 별칭 agent)에는 자체 로그인 페이지가 없음 → hq 로그인으로 보내고 완료 후 되돌아오게 함
       const hqHost = host.startsWith(REPORT_HOST_PREFIX)
         ? `${HQ_HOST_PREFIX}${host.slice(REPORT_HOST_PREFIX.length)}`
-        : host;
+        : host.startsWith(AGENT_HOST_PREFIX)
+          ? `${HQ_HOST_PREFIX}${host.slice(AGENT_HOST_PREFIX.length)}`
+          : host;
       const nextValue = rewriteUrl
         ? `${request.nextUrl.protocol}//${host}${request.nextUrl.pathname}${request.nextUrl.search}`
         : `${request.nextUrl.pathname}${request.nextUrl.search}`;

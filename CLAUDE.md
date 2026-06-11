@@ -63,7 +63,7 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 - `/worker/login`, `/worker/(dashboard)` — field technician portal
 - `/admin/*` — admin portal (cookie-protected): reservations, backups, billing, dispatch, workers
 - `/hq`, `/hq/login` — AI executive command center (cookie-protected, shares admin auth); served at `hq.dkansim.com` via host-based middleware rewrite
-- `/report` — weekly report archive + roadmap visualization (cookie-protected, shares admin auth); served at `report.dkansim.com` via host-based middleware rewrite
+- `/report` — weekly report archive + roadmap visualization (cookie-protected, shares admin auth); served at `report.dkansim.com` via host-based middleware rewrite (alias: `agent.dkansim.com`)
 - `/api/admin/*`, `/api/worker/*`, `/api/resident/*` — REST API routes
 - `/api/webhook/payment` — Toss Payments webhook
 - `/verify/[warranty_number]` — public warranty verification
