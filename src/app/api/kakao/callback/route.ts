@@ -1,96 +1,46 @@
-const REST_API_KEY = "6bc36f5dec336bdf38dc277a85296f60"; // TODO: 테스트 후 process.env.KAKAO_REST_API_KEY 로 복원
-const REDIRECT_URI = "https://dkansim.com/api/kakao/callback";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { exchangeKakaoCode, KAKAO_OAUTH_ENABLED } from "@/lib/kakao-oauth";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const code = searchParams.get("code");
-  const error = searchParams.get("error");
+export const maxDuration = 60;
 
-  if (error) {
-    return new Response(
-      `<html><body style="font-family:monospace;padding:40px">
-        <h2>❌ 카카오 인증 실패</h2>
-        <p>error: ${error}</p>
-        <p>description: ${searchParams.get("error_description")}</p>
-      </body></html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } },
-    );
-  }
-
-  if (!code) {
-    return new Response(
-      `<html><body style="font-family:monospace;padding:40px">
-        <h2>⚠️ code 파라미터 없음</h2>
-        <p>카카오 인증 URL을 통해 접속하세요.</p>
-      </body></html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } },
-    );
-  }
-
-  if (!REST_API_KEY) {
-    return new Response(
-      `<html><body style="font-family:monospace;padding:40px">
-        <h2>❌ KAKAO_REST_API_KEY 환경변수 미설정</h2>
-        <p>Vercel Dashboard → Settings → Environment Variables 에서<br>
-        <b>KAKAO_REST_API_KEY</b> 를 추가하고 재배포하세요.</p>
-      </body></html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } },
-    );
-  }
-
-  const tokenRes = await fetch("https://kauth.kakao.com/oauth/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: REST_API_KEY,
-      redirect_uri: REDIRECT_URI,
-      code,
-    }),
-  });
-
-  const tokenData = await tokenRes.json() as {
-    access_token?: string;
-    refresh_token?: string;
-    token_type?: string;
-    expires_in?: number;
-    error?: string;
-    error_description?: string;
-  };
-
-  if (!tokenRes.ok || tokenData.error) {
-    return new Response(
-      `<html><body style="font-family:monospace;padding:40px">
-        <h2>❌ 토큰 발급 실패</h2>
-        <pre>${JSON.stringify(tokenData, null, 2)}</pre>
-      </body></html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } },
-    );
-  }
-
-  const { access_token, refresh_token } = tokenData;
-
+function htmlResponse(body: string): Response {
   return new Response(
-    `<html>
-<head><meta charset="UTF-8"><title>카카오 토큰 발급 완료</title></head>
-<body style="font-family:monospace;padding:40px;background:#f9f9f9">
-  <h2>✅ 카카오 토큰 발급 완료</h2>
-  <p>아래 값을 <b>.env.local</b>과 <b>Vercel 환경변수</b>에 추가하세요.</p>
-
-  <h3>KAKAO_ACCESS_TOKEN</h3>
-  <textarea rows="3" style="width:100%;padding:10px;font-size:13px" onclick="this.select()">${access_token}</textarea>
-
-  <h3>KAKAO_REFRESH_TOKEN</h3>
-  <textarea rows="3" style="width:100%;padding:10px;font-size:13px" onclick="this.select()">${refresh_token}</textarea>
-
-  <hr style="margin:30px 0">
-  <h3>.env.local에 추가할 내용</h3>
-  <textarea rows="4" style="width:100%;padding:10px;font-size:13px" onclick="this.select()">KAKAO_ACCESS_TOKEN=${access_token}
-KAKAO_REFRESH_TOKEN=${refresh_token}</textarea>
-
-  <p style="color:#888;margin-top:20px">⚠️ access_token 만료: ${tokenData.expires_in}초 (약 ${Math.round((tokenData.expires_in ?? 0) / 3600)}시간)<br>
-  refresh_token으로 갱신 필요 시 <code>/api/kakao/refresh</code> 호출</p>
+    `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>카카오 연동</title></head>
+<body style="font-family:system-ui,sans-serif;padding:40px;max-width:520px;margin:0 auto">
+${body}
+<p style="margin-top:24px"><a href="https://contents.dkansim.com" style="color:#2563eb">콘텐츠 사령부로 이동</a></p>
 </body></html>`,
     { headers: { "Content-Type": "text/html; charset=utf-8" } },
   );
+}
+
+export async function GET(request: Request) {
+  if (!(await isAdminAuthenticated())) {
+    return new Response("권한이 없습니다.", { status: 401 });
+  }
+  if (!KAKAO_OAUTH_ENABLED) {
+    return htmlResponse("<h2>❌ KAKAO_REST_API_KEY가 설정되지 않았습니다.</h2>");
+  }
+
+  const { searchParams } = new URL(request.url);
+  const error = searchParams.get("error");
+  const code = searchParams.get("code");
+
+  if (error) {
+    return htmlResponse(
+      `<h2>❌ 카카오 연동 실패</h2><p>error: ${error}</p><p>${searchParams.get("error_description") ?? ""}</p>`,
+    );
+  }
+  if (!code) {
+    return htmlResponse("<h2>⚠️ code 파라미터가 없습니다.</h2><p>카카오 연동 URL을 통해 접속하세요.</p>");
+  }
+
+  try {
+    await exchangeKakaoCode(code);
+    return htmlResponse("<h2>✅ 카카오 계정이 연동되었습니다.</h2><p>이제 콘텐츠 사령부에서 카카오 포스트를 실제로 발행할 수 있습니다.</p>");
+  } catch (err) {
+    return htmlResponse(
+      `<h2>❌ 토큰 교환 실패</h2><pre style="white-space:pre-wrap">${err instanceof Error ? err.message : String(err)}</pre>`,
+    );
+  }
 }

@@ -132,7 +132,10 @@ GitHub Actions 시크릿 필요: `CRON_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `SUP
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 검색/데이터랩 API — 트렌드 키워드, 경쟁 블로그 분석 (`naver_trends`) |
 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | 유튜브 업로드용 Google OAuth 2.0 |
 | `YOUTUBE_REDIRECT_URI` | (선택) OAuth 콜백 URI |
-| `KAKAO_ACCESS_TOKEN` | 카카오 "나에게 보내기" 메모 — 콘텐츠 승인 알림 + 카카오 포스트 발행 (`/api/kakao/callback`에서 발급) |
+| `KAKAO_REST_API_KEY` | 카카오 OAuth 앱 REST API 키 — `/contents`의 "카카오 연동하기"(`/api/auth/kakao/connect` → `/api/kakao/callback`)로 OAuth 토큰을 발급받아 `kakao_oauth_tokens`(Supabase)에 저장하고 자동 갱신 |
+| `KAKAO_CLIENT_SECRET` | (선택) Kakao Developers에서 Client Secret을 활성화한 경우만 설정 |
+| `KAKAO_REDIRECT_URI` | (선택) 기본값 `https://dkansim.com/api/kakao/callback` — Kakao Developers에 등록된 Redirect URI와 일치해야 함 |
+| `KAKAO_ACCESS_TOKEN` | (선택, 레거시 폴백) OAuth 미연동 시 사용할 정적 토큰 |
 
 값이 비어 있으면 해당 기능은 "설정 필요" 메시지를 반환하거나(Naver/YouTube), 알림을 건너뛴다(Kakao) — 다른 기능에는 영향 없음.
 

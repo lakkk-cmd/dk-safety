@@ -52,6 +52,8 @@ type OverviewResponse = {
   trendKeywords: string[];
   youtubeConnected: boolean;
   youtubeOAuthEnabled: boolean;
+  kakaoConnected: boolean;
+  kakaoOAuthEnabled: boolean;
   memoryLog: string;
 };
 
@@ -292,6 +294,31 @@ export default function ContentApprovalPanel() {
         <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
           유튜브 업로드 연동이 비활성화되어 있습니다. <code className="rounded bg-white px-1">YOUTUBE_CLIENT_ID</code>/
           <code className="rounded bg-white px-1">YOUTUBE_CLIENT_SECRET</code> 설정 시 사용할 수 있습니다.
+        </section>
+      )}
+
+      {data.kakaoOAuthEnabled ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-900">카카오 연동</h2>
+          {data.kakaoConnected ? (
+            <p className="mt-2 text-sm font-semibold text-emerald-700">✅ 카카오 계정이 연동되어 있습니다.</p>
+          ) : (
+            <>
+              <p className="mt-2 text-sm text-slate-600">
+                카카오 계정을 연동하면 승인 시 &quot;나에게 보내기&quot; 메모로 포스트 발행 알림을 실제로 받을 수 있습니다.
+              </p>
+              <Link
+                href="/api/auth/kakao/connect"
+                className="mt-3 inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+              >
+                카카오 연동하기
+              </Link>
+            </>
+          )}
+        </section>
+      ) : (
+        <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
+          카카오 연동이 비활성화되어 있습니다. <code className="rounded bg-white px-1">KAKAO_REST_API_KEY</code> 설정 시 사용할 수 있습니다.
         </section>
       )}
 

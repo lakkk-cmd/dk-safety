@@ -1,6 +1,8 @@
+import { getKakaoAccessToken, KAKAO_OAUTH_ENABLED } from "@/lib/kakao-oauth";
+
 const KAKAO_MEMO_URL = "https://kapi.kakao.com/v2/api/talk/memo/default/send";
 
-export const KAKAO_MEMO_ENABLED = Boolean(process.env.KAKAO_ACCESS_TOKEN?.trim());
+export const KAKAO_MEMO_ENABLED = Boolean(process.env.KAKAO_ACCESS_TOKEN?.trim()) || KAKAO_OAUTH_ENABLED;
 
 /**
  * 카카오톡 "나에게 보내기" API로 메모를 전송한다.
@@ -8,10 +10,7 @@ export const KAKAO_MEMO_ENABLED = Boolean(process.env.KAKAO_ACCESS_TOKEN?.trim()
  * 대장이 알림을 받아 직접 채널에 발행/확인하는 흐름을 보조한다.
  */
 async function sendKakaoMemo(text: string, linkUrl = "https://contents.dkansim.com"): Promise<void> {
-  const token = process.env.KAKAO_ACCESS_TOKEN?.trim();
-  if (!token) {
-    throw new Error("KAKAO_ACCESS_TOKEN이 설정되지 않았습니다. /api/kakao/callback에서 토큰을 발급해주세요.");
-  }
+  const token = await getKakaoAccessToken();
 
   const template = JSON.stringify({
     object_type: "text",

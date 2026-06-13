@@ -3,6 +3,7 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { isAgentSupabaseReady, requireAgentSupabase } from "@/lib/agent-db";
 import { listAllBlogPosts } from "@/lib/blog-store";
 import { getPendingApprovalCounts } from "@/lib/content-pipeline";
+import { isKakaoConnected, KAKAO_OAUTH_ENABLED } from "@/lib/kakao-oauth";
 import { getRecentTrendKeywords } from "@/lib/naver-pipeline";
 import { isYoutubeConnected, YOUTUBE_OAUTH_ENABLED } from "@/lib/youtube-upload";
 
@@ -19,7 +20,7 @@ export async function GET() {
   try {
     const supabase = requireAgentSupabase();
 
-    const [youtubeRes, kakaoRes, blogPosts, pending, trendKeywords, youtubeConnected, memoryRes] = await Promise.all([
+    const [youtubeRes, kakaoRes, blogPosts, pending, trendKeywords, youtubeConnected, kakaoConnected, memoryRes] = await Promise.all([
       supabase
         .from("content_youtube_queue")
         .select(
@@ -36,6 +37,7 @@ export async function GET() {
       getPendingApprovalCounts(),
       getRecentTrendKeywords(10),
       isYoutubeConnected(),
+      isKakaoConnected(),
       supabase.from("agent_memory").select("content").eq("key", CONTENT_MEMORY_KEY).maybeSingle(),
     ]);
 
@@ -52,6 +54,8 @@ export async function GET() {
       trendKeywords,
       youtubeConnected,
       youtubeOAuthEnabled: YOUTUBE_OAUTH_ENABLED,
+      kakaoConnected,
+      kakaoOAuthEnabled: KAKAO_OAUTH_ENABLED,
       memoryLog: String(memoryRes.data?.content ?? ""),
     });
   } catch (error) {
