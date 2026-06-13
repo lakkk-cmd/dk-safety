@@ -139,3 +139,27 @@ GitHub Actions 시크릿 필요: `CRON_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `SUP
 ### 8.5 주간 보고 연동
 
 매주 토요일 08:00 KST(`/api/cron/morning-report`, cron `0 23 * * 5`) 보고서·이메일에 `getContentPerformanceSummary`/`getPendingApprovalCounts` 결과(콘텐츠 성과 요약 + 승인 대기 건수)가 포함되고, 카카오 알림에도 승인 대기 건수가 추가된다.
+
+## 9. 개선 요청 시스템 (hq.dkansim.com, 027 마이그레이션)
+
+`hq.dkansim.com`(모든 `/hq/*` 페이지) 우측 하단 "⚙️ 개선 요청" 버튼 → 모달에서 유형(기능 추가/버그 수정/UI 변경/기타) + 내용 + 스크린샷(선택)을 제출하면, Claude가 분석해 GitHub Issue를 자동 생성하고 GitHub Actions가 코드를 구현·PR·배포까지 자동으로 진행하는 self-improvement 파이프라인. `supabase/migrations/027_improvement_requests.sql`이 `improvement_requests` 테이블을 생성한다.
+
+### 9.1 흐름
+
+1. **요청 제출** — `src/components/hq/improvement-request-widget.tsx` → `POST /api/admin/improvement-requests` (multipart, 스크린샷은 `saveImageFiles(files, "improvements")`로 업로드)
+2. **AI 분석 + 이슈 생성** — `analyzeAndFileImprovementRequest`(`src/lib/improvement-requests.ts`)가 Claude(`callClaudeCustom`)로 제목/분석(영향 범위·접근법·작업 항목)을 생성 → `createGithubIssue`(`src/lib/github-issues.ts`)로 라벨 `ai-improvement` + 유형 라벨을 붙여 GitHub Issue 생성 → `improvement_requests.status='issue_created'`, 카카오 "접수" 알림(`notifyImprovementRequestReceived`)
+3. **자동 구현 + PR** — `.github/workflows/ai-improvement-implement.yml`이 `ai-improvement` 라벨이 붙은 새 이슈에서 트리거되어 `anthropics/claude-code-action`으로 이슈를 구현하고, 브랜치 `ai-improvement/issue-<N>`을 push, `gh pr create` + `gh pr merge --auto --squash`로 PR 생성·자동 머지 활성화
+4. **배포 + 완료 알림** — `.github/workflows/ai-improvement-deploy.yml`이 `ai-improvement/issue-*` 브랜치 PR이 머지되면 `npx vercel deploy --prod`로 배포 후 `POST /api/admin/improvement-requests/complete`(CRON_SECRET 인증) 호출 → `completeImprovementRequest`가 `status='completed'` + 카카오 "완료" 알림(`notifyImprovementRequestCompleted`); 배포 실패 시 `error`와 함께 호출되어 `status='failed'`
+5. `/hq`의 위젯은 60초마다 폴링하며 미확인 건수(`acknowledged=false`)를 배지로 표시, 모달을 열면 전체를 확인 처리한다.
+
+### 9.2 필요한 GitHub Actions 시크릿
+
+| 시크릿 | 용도 |
+|---|---|
+| `ANTHROPIC_API_KEY` | Claude Code Action — 이슈 구현 |
+| `VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID` | `npx vercel deploy --prod` (이 프로젝트는 GitHub 자동 배포 연동이 없음) |
+| `CRON_SECRET` | `/api/admin/improvement-requests/complete` 콜백 인증 (`.env.example`과 동일 값) |
+
+`GITHUB_TOKEN`은 워크플로우에서 GitHub Actions가 자동 제공하는 토큰을 사용한다(별도 등록 불필요). 단, Vercel 환경의 앱이 GitHub Issue를 생성하려면 `.env.example`의 `GITHUB_TOKEN`(repo 권한 PAT)을 Vercel 프로젝트 환경변수에 별도로 설정해야 한다.
+
+> **알려진 제약**: GitHub Actions의 기본 `GITHUB_TOKEN`으로 생성·자동머지된 PR이 `pull_request: closed` 이벤트(워크플로우 B 트리거)를 정상적으로 발생시키는지는 실제 운영에서 확인이 필요하다. 트리거가 안 되면 워크플로우 A의 push/PR 생성/머지 단계를 `repo` 권한이 있는 PAT(예: `secrets.GH_PAT`)로 교체해야 한다.

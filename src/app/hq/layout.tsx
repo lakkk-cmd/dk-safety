@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import AdminLogoutButton from "@/components/admin-logout-button";
+import ImprovementRequestWidget from "@/components/hq/improvement-request-widget";
 
 export default function HqLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -24,6 +25,7 @@ export default function HqLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
       <div className="mx-auto max-w-4xl px-4 py-6 md:px-6">{children}</div>
+      <ImprovementRequestWidget />
     </div>
   );
 }

@@ -1,0 +1,62 @@
+name: AI Improvement - Implement & PR
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  implement:
+    if: contains(github.event.issue.labels.*.name, 'ai-improvement')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Configure git identity
+        run: |
+          git config user.name "claude-improvement-bot"
+          git config user.email "actions@users.noreply.github.com"
+
+      - name: Implement issue with Claude Code
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: |
+            --max-turns 60
+            --allowedTools "Bash,Edit,Read,Write,Glob,Grep"
+          prompt: |
+            너는 dkansim.com (대경안심전기) 저장소의 자동 개선 봇이다.
+            아래 GitHub Issue #${{ github.event.issue.number }}을 분석하고, 이 저장소의 코드를 직접 수정해 구현하라.
+
+            ## 이슈 제목
+            ${{ github.event.issue.title }}
+
+            ## 이슈 본문
+            ${{ github.event.issue.body }}
+
+            작업 절차:
+            1. 저장소 루트의 CLAUDE.md에 기술된 컨벤션을 따른다.
+            2. 이슈에 명시된 범위 내에서만 코드를 수정한다. 불필요한 리팩토링은 하지 않는다.
+            3. 변경 후 `npm run lint`와 `npm run build`를 실행해 통과를 확인한다. 실패하면 수정한다.
+            4. 새 브랜치 `ai-improvement/issue-${{ github.event.issue.number }}`를 만들고, 변경 사항을 커밋한 뒤 origin에 push한다.
+            5. 다음 명령으로 PR을 생성한다:
+               gh pr create --base main --head ai-improvement/issue-${{ github.event.issue.number }} --title "[AI 개선] ${{ github.event.issue.title }}" --body "Closes #${{ github.event.issue.number }}"
+            6. PR 생성 후 자동 머지를 활성화한다: gh pr merge --auto --squash <PR번호>
+            7. 이슈 내용이 모호하거나 구현이 불가능하면 코드를 변경하지 말고 `gh issue comment ${{ github.event.issue.number }} --body "<이유 설명>"` 으로 사유를 남기고 종료한다. 이 경우 브랜치/PR을 만들지 않는다.

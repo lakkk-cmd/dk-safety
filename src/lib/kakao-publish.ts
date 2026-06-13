@@ -43,3 +43,13 @@ export async function publishKakaoPost(title: string, content: string): Promise<
 export async function sendContentApprovalNotification(summary: string): Promise<void> {
   await sendKakaoMemo(`[콘텐츠 승인 요청]\n${summary}`);
 }
+
+/** 개선 요청 접수 완료 알림 — GitHub Issue 생성 시 */
+export async function notifyImprovementRequestReceived(title: string, issueUrl: string): Promise<void> {
+  await sendKakaoMemo(`[개선요청 접수]\n${title}\n\nGitHub Issue가 생성되어 자동 구현이 시작됩니다.`, issueUrl);
+}
+
+/** 개선 요청 구현 완료 알림 — PR 머지·배포 완료 시 */
+export async function notifyImprovementRequestCompleted(title: string, prUrl: string): Promise<void> {
+  await sendKakaoMemo(`[개선요청 완료]\n${title}\n\n자동 구현 및 배포가 완료되었습니다.`, prUrl);
+}

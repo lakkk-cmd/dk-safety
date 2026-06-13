@@ -45,6 +45,20 @@ if (migration026Files.length > 0) {
   }
 }
 
+const migration027Files = fs.readdirSync(migrationsDir).filter((f) => f.startsWith("027_") && f.endsWith(".sql"));
+
+check("supabase/migrations/027_*.sql exists", () => {
+  assert.equal(migration027Files.length, 1, `expected exactly one 027_*.sql file, found ${migration027Files.length}`);
+});
+
+if (migration027Files.length > 0) {
+  const sql = fs.readFileSync(path.join(migrationsDir, migration027Files[0]), "utf-8");
+
+  check("027 migration creates table improvement_requests", () => {
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.improvement_requests\b/);
+  });
+}
+
 const envExample = fs.readFileSync(path.join(root, ".env.example"), "utf-8");
 for (const key of [
   "GEMINI_API_KEY",
@@ -54,6 +68,7 @@ for (const key of [
   "YOUTUBE_CLIENT_ID",
   "YOUTUBE_CLIENT_SECRET",
   "KAKAO_ACCESS_TOKEN",
+  "GITHUB_TOKEN",
 ]) {
   check(`.env.example declares ${key}`, () => {
     assert.match(envExample, new RegExp(`^${key}=`, "m"));
