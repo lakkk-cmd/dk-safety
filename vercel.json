@@ -11,6 +11,18 @@
     {
       "path": "/api/cron/morning-report",
       "schedule": "0 23 * * 5"
+    },
+    {
+      "path": "/api/cron/content-plan",
+      "schedule": "0 0 * * 1"
+    },
+    {
+      "path": "/api/cron/content-draft",
+      "schedule": "0 0 * * 2"
+    },
+    {
+      "path": "/api/cron/content-approval-notify",
+      "schedule": "0 23 * * 2"
     }
   ]
 }

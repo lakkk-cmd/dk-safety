@@ -8,6 +8,7 @@ const FIRST_VISIT_COOKIE = "dk_first_visit_checked";
 const HQ_HOST_PREFIX = "hq.";
 const REPORT_HOST_PREFIX = "report.";
 const AGENT_HOST_PREFIX = "agent.";
+const CONTENTS_HOST_PREFIX = "contents.";
 
 function withFirstVisitCookie(res: NextResponse, isFirstVisit: boolean) {
   if (isFirstVisit) {
@@ -40,6 +41,10 @@ export async function middleware(request: NextRequest) {
     rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = `/agent${pathname === "/" ? "" : pathname}`;
     pathname = rewriteUrl.pathname;
+  } else if (host.startsWith(CONTENTS_HOST_PREFIX)) {
+    rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = `/contents${pathname === "/" ? "" : pathname}`;
+    pathname = rewriteUrl.pathname;
   }
 
   const baseResponse = () => (rewriteUrl ? NextResponse.rewrite(rewriteUrl as URL) : NextResponse.next());
@@ -69,17 +74,20 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/admin") ||
     pathname.startsWith("/hq") ||
     pathname.startsWith("/report") ||
-    pathname.startsWith("/agent");
+    pathname.startsWith("/agent") ||
+    pathname.startsWith("/contents");
   const isAdminLogin = pathname === "/admin/login" || pathname === "/hq/login";
 
   if (isAdminRoute && !isAdminLogin && adminAuth !== "ok") {
-    if (pathname.startsWith("/report") || pathname.startsWith("/agent")) {
-      // report/agent에는 자체 로그인 페이지가 없음 → hq 로그인으로 보내고 완료 후 되돌아오게 함
+    if (pathname.startsWith("/report") || pathname.startsWith("/agent") || pathname.startsWith("/contents")) {
+      // report/agent/contents에는 자체 로그인 페이지가 없음 → hq 로그인으로 보내고 완료 후 되돌아오게 함
       const hqHost = host.startsWith(REPORT_HOST_PREFIX)
         ? `${HQ_HOST_PREFIX}${host.slice(REPORT_HOST_PREFIX.length)}`
         : host.startsWith(AGENT_HOST_PREFIX)
           ? `${HQ_HOST_PREFIX}${host.slice(AGENT_HOST_PREFIX.length)}`
-          : host;
+          : host.startsWith(CONTENTS_HOST_PREFIX)
+            ? `${HQ_HOST_PREFIX}${host.slice(CONTENTS_HOST_PREFIX.length)}`
+            : host;
       const nextValue = rewriteUrl
         ? `${request.nextUrl.protocol}//${host}${request.nextUrl.pathname}${request.nextUrl.search}`
         : `${request.nextUrl.pathname}${request.nextUrl.search}`;

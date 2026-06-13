@@ -29,7 +29,8 @@ import {
   loadPendingTopics,
   markFirstReportCompleted,
 } from "@/lib/agent-schedule";
-import { buildEmailHTML, buildEmailText } from "@/lib/email-template";
+import { getContentPerformanceSummary, getPendingApprovalCounts } from "@/lib/content-pipeline";
+import { buildEmailHTML, buildEmailText, type ContentPerformanceSummary } from "@/lib/email-template";
 
 export const maxDuration = 300;
 
@@ -112,6 +113,17 @@ export async function GET(request: Request) {
     await markFirstReportCompleted();
   }
 
+  let contentSummary: ContentPerformanceSummary | null = null;
+  try {
+    const [performanceText, pending] = await Promise.all([
+      getContentPerformanceSummary(pipeline.weekStatus),
+      getPendingApprovalCounts(),
+    ]);
+    contentSummary = { text: performanceText, pending };
+  } catch (err) {
+    console.error("[cron] Content performance summary failed:", err);
+  }
+
   const resend = new Resend(process.env.RESEND_API_KEY!);
   const emailSectionsFixed = pipeline.sections.map((s) => ({
     topic: s.topic,
@@ -127,8 +139,8 @@ export async function GET(request: Request) {
       from: "우리집 안심전기 <report@dkansim.com>",
       to: [process.env.REPORT_EMAIL!],
       subject: `[우리집 안심전기] ${reportLabel} 보고 — ${dateStr}`,
-      html: buildEmailHTML(emailSectionsFixed, dateStr, pipeline.chiefDailySummary, pipeline.feedbackApplied),
-      text: buildEmailText(emailSectionsFixed, dateStr, pipeline.chiefDailySummary, pipeline.feedbackApplied),
+      html: buildEmailHTML(emailSectionsFixed, dateStr, pipeline.chiefDailySummary, pipeline.feedbackApplied, contentSummary),
+      text: buildEmailText(emailSectionsFixed, dateStr, pipeline.chiefDailySummary, pipeline.feedbackApplied, contentSummary),
     });
     if (error) throw error;
   } catch (err) {
@@ -142,8 +154,15 @@ export async function GET(request: Request) {
     .filter(Boolean)
     .find((l) => !l.startsWith("[")) ?? pipeline.chiefDailySummary.slice(0, 80);
 
+  const pendingTotal = contentSummary
+    ? contentSummary.pending.youtube + contentSummary.pending.kakao + contentSummary.pending.blog
+    : 0;
+  const pendingLine = pendingTotal > 0
+    ? `\n콘텐츠 승인 대기: 유튜브 ${contentSummary!.pending.youtube} · 카카오 ${contentSummary!.pending.kakao} · 블로그 ${contentSummary!.pending.blog} → https://contents.dkansim.com`
+    : "";
+
   await sendKakaoMe(
-    `[대경이엔피] 주간 보고 도착 📊\n${dateStr} ${reportLabel} 완료\n핵심결론: ${chiefOneLiner.slice(0, 100)}\n▶ 전체보고: https://dkansim.com/admin`,
+    `[대경이엔피] 주간 보고 도착 📊\n${dateStr} ${reportLabel} 완료\n핵심결론: ${chiefOneLiner.slice(0, 100)}${pendingLine}\n▶ 전체보고: https://dkansim.com/admin`,
   );
 
   return NextResponse.json({

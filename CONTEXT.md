@@ -4,7 +4,7 @@
 
 ## 1. 한 줄 요약
 
-**대경안심전기**(dkansim.com)는 단일 Next.js 15 앱으로, 메인 사이트(`dkansim.com`)·경영 사령부(`hq.dkansim.com`)·주간 보고 아카이브(`report.dkansim.com`)·AI 파이프라인 모니터(`agent.dkansim.com`)를 **하나의 Vercel 배포**에서 미들웨어 host 라우팅으로 서빙한다.
+**대경안심전기**(dkansim.com)는 단일 Next.js 15 앱으로, 메인 사이트(`dkansim.com`)·경영 사령부(`hq.dkansim.com`)·주간 보고 아카이브(`report.dkansim.com`)·AI 파이프라인 모니터(`agent.dkansim.com`)·콘텐츠 마케팅 사령부(`contents.dkansim.com`)를 **하나의 Vercel 배포**에서 미들웨어 host 라우팅으로 서빙한다.
 
 ## 2. 서브도메인 라우팅 구조
 
@@ -17,17 +17,21 @@
 | `hq.dkansim.com` | `/login` | `/hq/login` | 사령부 로그인 |
 | `report.dkansim.com` | `/` | `/report` | 주간 보고 아카이브 |
 | `agent.dkansim.com` | `/` | `/agent` | AI 파이프라인 모니터 (YouTube 수집·Gemini 분석·Cron/파이프라인 로그) |
+| `contents.dkansim.com` | `/` | `/contents` | 콘텐츠 마케팅 사령부 (유튜브/카카오/블로그 승인 큐, 네이버 트렌드) |
+| `dkansim.com` | `/blog`, `/blog/[slug]` | `/blog`, `/blog/[slug]` | 공개 블로그 (게시된 글만 노출, SEO + 예약 CTA) |
 
 - 정적 파일 요청(`/\.[^/]+$/`에 매칭, 예: `/favicon.ico`, `/uploads/...`)은 host 재작성 이전에 그대로 통과시켜 `/public` 자산이 깨지지 않도록 한다.
-- `hq`/`report`/`agent`는 admin 인증 게이트(`dk_admin_auth=ok`)를 공유한다. `/report`, `/agent`는 자체 로그인 페이지가 없으므로 미인증 시 `hq.dkansim.com/login`으로 리다이렉트(`?next=` 포함)한다.
+- `hq`/`report`/`agent`/`contents`는 admin 인증 게이트(`dk_admin_auth=ok`)를 공유한다. `/report`, `/agent`, `/contents`는 자체 로그인 페이지가 없으므로 미인증 시 `hq.dkansim.com/login`으로 리다이렉트(`?next=` 포함)한다.
+- `/blog`, `/blog/[slug]`는 입주민 인증(`dk_resident_auth`) 없이 누구나 접근 가능하도록 `src/lib/service-journey.ts`의 `residentSessionNotRequired`에 등록되어 있다.
 - 로컬 개발에서는 DNS 없이 Host 헤더를 바꿔 테스트 가능:
   ```bash
   curl -H "Host: hq.dkansim.com" http://localhost:3000/
   curl -H "Host: hq.dkansim.com" http://localhost:3000/login
   curl -H "Host: report.dkansim.com" http://localhost:3000/
   curl -H "Host: agent.dkansim.com" http://localhost:3000/
+  curl -H "Host: contents.dkansim.com" http://localhost:3000/
   ```
-  또는 dev 서버에서 직접 `/hq`, `/hq/login`, `/report`, `/agent` 경로로도 접근 가능(둘 다 동작하도록 레이아웃이 양쪽 경로를 처리).
+  또는 dev 서버에서 직접 `/hq`, `/hq/login`, `/report`, `/agent`, `/contents` 경로로도 접근 가능(둘 다 동작하도록 레이아웃이 양쪽 경로를 처리).
 
 ## 3. 배포 체크리스트 (대장이 직접 진행)
 
@@ -37,9 +41,10 @@
 2. `hq.dkansim.com` 추가 → Vercel이 안내하는 DNS 레코드(보통 `CNAME hq → cname.vercel-dns.com`)를 도메인 등록업체(예: 가비아, Cloudflare)에 등록
 3. `report.dkansim.com`도 동일하게 추가 + CNAME 등록
 4. `agent.dkansim.com`도 동일하게 추가 + CNAME 등록 — AI 파이프라인 모니터(`/agent`)
-5. 모든 서브도메인은 **같은 Vercel 프로젝트**를 가리켜야 한다 (별도 프로젝트 생성 X) — 코드가 단일 배포 안에서 미들웨어로 라우팅을 분기하기 때문
-6. DNS 전파 후 `https://hq.dkansim.com`, `https://report.dkansim.com`, `https://agent.dkansim.com` 접속 → `/admin/login`(메인 도메인)에서 로그인한 쿠키(`dk_admin_auth`, `domain=.dkansim.com`)가 서브도메인에서도 인증되는지 확인
-7. (선택) `https://hq.dkansim.com/login`에서 직접 로그인도 가능 — `/api/admin/login`을 그대로 사용
+5. `contents.dkansim.com`도 동일하게 추가 + CNAME 등록 — 콘텐츠 마케팅 사령부(`/contents`)
+6. 모든 서브도메인은 **같은 Vercel 프로젝트**를 가리켜야 한다 (별도 프로젝트 생성 X) — 코드가 단일 배포 안에서 미들웨어로 라우팅을 분기하기 때문
+7. DNS 전파 후 `https://hq.dkansim.com`, `https://report.dkansim.com`, `https://agent.dkansim.com`, `https://contents.dkansim.com` 접속 → `/admin/login`(메인 도메인)에서 로그인한 쿠키(`dk_admin_auth`, `domain=.dkansim.com`)가 서브도메인에서도 인증되는지 확인
+8. (선택) `https://hq.dkansim.com/login`에서 직접 로그인도 가능 — `/api/admin/login`을 그대로 사용
 
 > 쿠키 도메인 공유는 `NODE_ENV=production`에서만 `domain: ".dkansim.com"`이 적용된다. 로컬 개발(`localhost`)에서는 host-only 쿠키로 동작하며 `/hq`, `/report`, `/agent` 경로 직접 접근 시에도 정상 인증된다.
 
@@ -93,3 +98,44 @@
 각 단계는 `src/lib/pipeline-logs.ts`(`logAgentEvent`, `startPipelineRun`, `finishPipelineRun`)로 `agent_logs`/`pipeline_logs`에 기록되며, `/agent`에서 채널별 수집 현황·최근 분석 결과·로그·실행 이력을 확인할 수 있다.
 
 GitHub Actions 시크릿 필요: `CRON_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. (대장이 GitHub repo → Settings → Secrets and variables → Actions에서 등록)
+
+## 8. 콘텐츠 마케팅 사령부 (Task — 026 마이그레이션)
+
+`contents.dkansim.com`(`/contents`)에서 유튜브 PD·카카오 매니저·블로그 에디터 3개 콘텐츠 에이전트(`src/lib/content-agents.ts`)의 산출물을 검토·승인한다. `supabase/migrations/026_content_command_center.sql`이 `blog_posts`, `naver_trends`, `content_youtube_queue`, `content_kakao_queue`, `youtube_oauth_tokens` 테이블을 생성한다.
+
+### 8.1 주간 사이클 (Vercel Cron, `vercel.json`)
+
+| 일시 (KST) | cron 표현식(UTC) | 경로 | 내용 |
+|---|---|---|---|
+| 월 09:00 | `0 0 * * 1` | `/api/cron/content-plan` | 네이버 트렌드 수집(설정 시) + `planContentWeek`로 이번 주 유튜브/카카오/블로그 기획, 큐·`blog_posts`(draft)에 삽입 |
+| 화 09:00 | `0 0 * * 2` | `/api/cron/content-draft` | 유튜브 스크립트+썸네일 기획, 카카오 포스트 본문, 블로그 본문(최대 2건) 생성 → `pending_approval` |
+| 수 08:00 | `0 23 * * 2` | `/api/cron/content-approval-notify` | 승인 대기 건수 집계, 1건 이상이면 카카오 메모로 알림 |
+
+### 8.2 승인 → 실 배포
+
+`/contents`(`src/components/contents/content-approval-panel.tsx`)에서 승인/반려:
+
+- **블로그** — 승인 시 `blog_posts.status='published'` + `published_at` 설정 → 즉시 `dkansim.com/blog/[slug]`에 노출
+- **카카오** — 승인 시 `KAKAO_ACCESS_TOKEN`으로 실제 "나에게 보내기" 메모 전송(`publishKakaoPost`) 후 `status='published'` — 대장이 메모를 보고 채널에 직접 옮겨 발행
+- **유튜브** — 승인 시 영상 파일을 함께 업로드하면 YouTube Data API로 실제 업로드(`uploadYoutubeVideo`) 후 `status='uploaded'` + `youtube_video_id` 저장; 파일 없이 승인하면 `status='approved'`(추후 수동 업로드 대기)
+
+### 8.3 유튜브 OAuth 연동
+
+`/contents`의 "유튜브 연동하기" → `/api/auth/youtube/connect`(Google OAuth 동의 화면) → `/api/auth/youtube/callback`(코드 교환, `youtube_oauth_tokens`에 토큰 저장). `YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET` 미설정 시 연동 버튼이 503을 반환한다. 리디렉션 URI는 `YOUTUBE_REDIRECT_URI` 또는 `${NEXT_PUBLIC_APP_URL}/api/auth/youtube/callback`.
+
+### 8.4 신규 환경변수
+
+`.env.example` 참고:
+
+| 변수 | 용도 |
+|---|---|
+| `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 검색/데이터랩 API — 트렌드 키워드, 경쟁 블로그 분석 (`naver_trends`) |
+| `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | 유튜브 업로드용 Google OAuth 2.0 |
+| `YOUTUBE_REDIRECT_URI` | (선택) OAuth 콜백 URI |
+| `KAKAO_ACCESS_TOKEN` | 카카오 "나에게 보내기" 메모 — 콘텐츠 승인 알림 + 카카오 포스트 발행 (`/api/kakao/callback`에서 발급) |
+
+값이 비어 있으면 해당 기능은 "설정 필요" 메시지를 반환하거나(Naver/YouTube), 알림을 건너뛴다(Kakao) — 다른 기능에는 영향 없음.
+
+### 8.5 주간 보고 연동
+
+매주 토요일 08:00 KST(`/api/cron/morning-report`, cron `0 23 * * 5`) 보고서·이메일에 `getContentPerformanceSummary`/`getPendingApprovalCounts` 결과(콘텐츠 성과 요약 + 승인 대기 건수)가 포함되고, 카카오 알림에도 승인 대기 건수가 추가된다.

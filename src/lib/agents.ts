@@ -238,6 +238,24 @@ async function callClaudeDirect(
   return fetchClaude(systemPrompt, userPrompt, maxTokens, 120_000);
 }
 
+/** 6인 경영진 외 보조 에이전트(콘텐츠 마케팅 등)가 커스텀 시스템 프롬프트로 호출할 때 사용 */
+export async function callClaudeCustom(
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens = 1024,
+  timeoutMs = 120_000,
+): Promise<string> {
+  return fetchClaude(systemPrompt, userPrompt, maxTokens, timeoutMs);
+}
+
+/** chief가 반환한 ```json``` 블록을 파싱하는 범용 헬퍼 */
+export function extractJsonBlock(text: string): string {
+  const match = text.match(/```json\s*([\s\S]*?)```/);
+  if (match?.[1]) return match[1].trim();
+  const braceMatch = text.match(/\{[\s\S]*\}/);
+  return braceMatch?.[0]?.trim() ?? "";
+}
+
 // ─── 프롬프트 빌더 ──────────────────────────────────────────────────────────────
 
 function buildAgentPrompt(

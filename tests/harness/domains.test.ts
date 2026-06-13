@@ -13,6 +13,10 @@ const requiredFiles = [
   "src/app/report/page.tsx",
   "src/app/agent/layout.tsx",
   "src/app/agent/page.tsx",
+  "src/app/contents/layout.tsx",
+  "src/app/contents/page.tsx",
+  "src/app/blog/page.tsx",
+  "src/app/blog/[slug]/page.tsx",
 ];
 
 for (const file of requiredFiles) {
@@ -22,7 +26,7 @@ for (const file of requiredFiles) {
 }
 
 const middleware = fs.readFileSync(path.join(root, "src/middleware.ts"), "utf-8");
-for (const prefix of ['"hq."', '"report."', '"agent."']) {
+for (const prefix of ['"hq."', '"report."', '"agent."', '"contents."']) {
   check(`src/middleware.ts references ${prefix}`, () => {
     assert.ok(middleware.includes(prefix), `${prefix} not found in src/middleware.ts`);
   });

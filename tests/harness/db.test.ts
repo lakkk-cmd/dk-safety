@@ -28,8 +28,33 @@ if (migration025Files.length > 0) {
   });
 }
 
+const migration026Files = fs.readdirSync(migrationsDir).filter((f) => f.startsWith("026_") && f.endsWith(".sql"));
+
+check("supabase/migrations/026_*.sql exists", () => {
+  assert.equal(migration026Files.length, 1, `expected exactly one 026_*.sql file, found ${migration026Files.length}`);
+});
+
+if (migration026Files.length > 0) {
+  const sql = fs.readFileSync(path.join(migrationsDir, migration026Files[0]), "utf-8");
+
+  const tables = ["blog_posts", "naver_trends", "content_youtube_queue", "content_kakao_queue", "youtube_oauth_tokens"];
+  for (const table of tables) {
+    check(`026 migration creates table ${table}`, () => {
+      assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS public\\.${table}\\b`));
+    });
+  }
+}
+
 const envExample = fs.readFileSync(path.join(root, ".env.example"), "utf-8");
-for (const key of ["GEMINI_API_KEY", "YOUTUBE_API_KEY"]) {
+for (const key of [
+  "GEMINI_API_KEY",
+  "YOUTUBE_API_KEY",
+  "NAVER_CLIENT_ID",
+  "NAVER_CLIENT_SECRET",
+  "YOUTUBE_CLIENT_ID",
+  "YOUTUBE_CLIENT_SECRET",
+  "KAKAO_ACCESS_TOKEN",
+]) {
   check(`.env.example declares ${key}`, () => {
     assert.match(envExample, new RegExp(`^${key}=`, "m"));
   });

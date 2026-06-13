@@ -16,6 +16,11 @@ export interface ReportSection {
   responses: AgentResponse[];
 }
 
+export interface ContentPerformanceSummary {
+  text: string;
+  pending: { youtube: number; kakao: number; blog: number };
+}
+
 function firstLines(text: string, n: number): string {
   return text
     .split("\n")
@@ -47,6 +52,7 @@ export function buildEmailHTML(
   date: string,
   dailyChiefSummary?: string,
   feedbackApplied?: string | null,
+  contentSummary?: ContentPerformanceSummary | null,
 ): string {
   const feedbackBlock = feedbackApplied
     ? `<p style="margin:0 0 22px;padding:10px 14px;background:#fff8e6;border-radius:8px;font-size:12px;color:#633806;line-height:1.65">
@@ -58,6 +64,17 @@ export function buildEmailHTML(
     ? `<div style="margin-bottom:28px;padding:20px 22px;background:#111;border-radius:10px;color:#f5f5f3">
         <p style="margin:0 0 12px;font-size:11px;font-weight:700;color:#888;letter-spacing:.08em;text-transform:uppercase">총괄 종합 보고</p>
         <div style="font-size:13px;line-height:1.9;white-space:pre-wrap">${dailyChiefSummary}</div>
+      </div>`
+    : "";
+
+  const contentBlock = contentSummary
+    ? `<div style="margin-bottom:28px;padding:18px 20px;background:#eef6ff;border-radius:10px;border-left:4px solid #185FA5">
+        <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:#0C447C;letter-spacing:.06em;text-transform:uppercase">콘텐츠 마케팅 성과</p>
+        <div style="font-size:13px;color:#222;line-height:1.85;white-space:pre-wrap">${contentSummary.text}</div>
+        <p style="margin:10px 0 0;font-size:12px;color:#555">
+          승인 대기 — 유튜브 ${contentSummary.pending.youtube}건 · 카카오 ${contentSummary.pending.kakao}건 · 블로그 ${contentSummary.pending.blog}건
+          · <a href="https://contents.dkansim.com" style="color:#185FA5;font-weight:600">콘텐츠 사령부에서 승인하기</a>
+        </p>
       </div>`
     : "";
 
@@ -95,6 +112,7 @@ export function buildEmailHTML(
     <div style="padding:32px">
       ${feedbackBlock}
       ${dailyBlock}
+      ${contentBlock}
       ${sectionBlocks}
       <div style="background:#f9f9f7;border-radius:8px;padding:14px 16px;font-size:12px;color:#888;line-height:1.7">
         피드백·보고 이력: <a href="https://hq.dkansim.com" style="color:#111;font-weight:600">관리자 사령부</a>
@@ -113,6 +131,7 @@ export function buildEmailText(
   date: string,
   dailyChiefSummary?: string,
   feedbackApplied?: string | null,
+  contentSummary?: ContentPerformanceSummary | null,
 ): string {
   const lines: string[] = [`[대경안심전기] 경영진 회의 보고 — ${date}`, "=".repeat(50), ""];
   if (feedbackApplied) {
@@ -120,6 +139,14 @@ export function buildEmailText(
   }
   if (dailyChiefSummary) {
     lines.push("[총괄 종합 보고]", dailyChiefSummary, "");
+  }
+  if (contentSummary) {
+    lines.push("[콘텐츠 마케팅 성과]", contentSummary.text, "");
+    lines.push(
+      `승인 대기 — 유튜브 ${contentSummary.pending.youtube}건 · 카카오 ${contentSummary.pending.kakao}건 · 블로그 ${contentSummary.pending.blog}건`,
+      "콘텐츠 사령부: https://contents.dkansim.com",
+      "",
+    );
   }
   sections.forEach((s, i) => {
     lines.push(`\n${i + 1}. ${s.topic}`);

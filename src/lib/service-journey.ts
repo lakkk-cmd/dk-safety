@@ -85,6 +85,8 @@ export function residentSessionNotRequired(pathname: string): boolean {
     return true;
   }
 
+  if (pathname === "/blog" || pathname.startsWith("/blog/")) return true;
+
   if (/^\/verify\/[^/]+$/.test(pathname)) return true;
 
   if (pathname === "/payment/success" || pathname === "/payment/fail") return true;
