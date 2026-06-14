@@ -165,4 +165,6 @@ GitHub Actions 시크릿 필요: `CRON_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `SUP
 
 `GITHUB_TOKEN`은 워크플로우에서 GitHub Actions가 자동 제공하는 토큰을 사용한다(별도 등록 불필요). 단, Vercel 환경의 앱이 GitHub Issue를 생성하려면 `.env.example`의 `GITHUB_TOKEN`(repo 권한 PAT)을 Vercel 프로젝트 환경변수에 별도로 설정해야 한다.
 
+> **저장소 설정 필수**: `gh pr merge --auto --squash`가 동작하려면 GitHub 저장소 Settings → General → Pull Requests에서 "Allow auto-merge"가 켜져 있어야 한다. 꺼져 있으면 3단계의 auto-merge 활성화 명령이 조용히 실패한다.
+
 > **알려진 제약**: GitHub Actions의 기본 `GITHUB_TOKEN`으로 생성·자동머지된 PR이 `pull_request: closed` 이벤트(워크플로우 B 트리거)를 정상적으로 발생시키는지는 실제 운영에서 확인이 필요하다. 트리거가 안 되면 워크플로우 A의 push/PR 생성/머지 단계를 `repo` 권한이 있는 PAT(예: `secrets.GH_PAT`)로 교체해야 한다.
