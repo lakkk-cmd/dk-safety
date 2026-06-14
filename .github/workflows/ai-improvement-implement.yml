@@ -55,20 +55,26 @@ jobs:
             1. 저장소 루트의 CLAUDE.md에 기술된 컨벤션을 따른다.
             2. 이슈에 명시된 범위 내에서만 코드를 수정한다. 불필요한 리팩토링은 하지 않는다.
             3. 변경 후 `npm run lint`와 `npm run build`를 실행해 통과를 확인한다. 실패하면 수정한다.
-            4. 새 브랜치 `ai-improvement/issue-${{ github.event.issue.number }}`를 만들고, 변경 사항을 커밋한 뒤 origin에 push한다.
-            5. 다음 명령으로 PR을 생성한다:
-               gh pr create --base main --head ai-improvement/issue-${{ github.event.issue.number }} --title "[AI 개선] ${{ github.event.issue.title }}" --body "Closes #${{ github.event.issue.number }}"
-            6. PR 생성 후 자동 머지를 활성화한다: gh pr merge --auto --squash <PR번호>
-            7. 이슈 내용이 모호하거나 구현이 불가능하면 코드를 변경하지 말고 `gh issue comment ${{ github.event.issue.number }} --body "<이유 설명>"` 으로 사유를 남기고 종료한다. 이 경우 브랜치/PR을 만들지 않는다.
+            4. 새 브랜치 `ai-improvement/issue-${{ github.event.issue.number }}`를 만들고, 변경 사항을 커밋한 뒤 origin에 push한다. PR 생성과 auto-merge 활성화는 이후 워크플로우 단계에서 자동으로 처리되므로 직접 만들 필요 없다.
+            5. 이슈 내용이 모호하거나 구현이 불가능하면 코드를 변경하지 말고 `gh issue comment ${{ github.event.issue.number }} --body "<이유 설명>"` 으로 사유를 남기고 종료한다. 이 경우 브랜치/PR을 만들지 않는다.
 
-      - name: Ensure auto-merge is enabled on the PR
+      - name: Ensure PR exists and auto-merge is enabled
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
         run: |
-          BRANCH="ai-improvement/issue-${{ github.event.issue.number }}"
-          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
-            gh pr merge "$BRANCH" --auto --squash || echo "auto-merge 설정 실패 (이미 설정되었거나 머지 불가 상태)"
-          else
-            echo "PR이 생성되지 않음 - auto-merge 설정 스킵"
+          BRANCH="ai-improvement/issue-${ISSUE_NUMBER}"
+          if ! git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "브랜치가 푸시되지 않음 - 구현 없음으로 판단, 종료"
+            exit 0
           fi
+          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            echo "PR이 이미 존재함"
+          else
+            gh pr create --base main --head "$BRANCH" \
+              --title "[AI 개선] ${ISSUE_TITLE}" \
+              --body "Closes #${ISSUE_NUMBER}"
+          fi
+          gh pr merge "$BRANCH" --auto --squash || echo "auto-merge 설정 실패 (이미 설정되었거나 머지 불가 상태)"
