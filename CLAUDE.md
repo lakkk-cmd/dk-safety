@@ -109,7 +109,7 @@ Located in `supabase/migrations/` (numbered 001–026). Apply with `npm run db:a
 
 ### AI Command Center
 
-`hq.dkansim.com` (internally `/hq`) runs a virtual 6-executive meeting (CTO, CSO, CMO, COO, CFO, CLO) powered by `ANTHROPIC_API_KEY`. Agent system prompts are in `src/lib/agents.ts`. Meeting schedule and topics persist in Supabase (`agent_memories` table). The model used is controlled by `ANTHROPIC_MODEL` env var (defaults to `claude-sonnet-4-6`). Reports approved for content use appear in the `report.dkansim.com` (`/report`) archive. See `CONTEXT.md` for subdomain routing and deployment setup.
+`hq.dkansim.com` (internally `/hq`) runs a virtual 6-executive meeting (CTO, CSO, CMO, COO, CFO, CLO) powered by `ANTHROPIC_API_KEY`. Agent system prompts are in `src/lib/agents.ts`. Meeting schedule and topics persist in Supabase (`agent_memories` table). The model used is controlled by `ANTHROPIC_MODEL` env var (defaults to `claude-sonnet-4-6`). Reports approved for content use appear in the `report.dkansim.com` (`/report`) archive. The `/hq` pages also host a self-improvement pipeline: the "⚙️ 개선 요청" widget files a GitHub Issue, and `.github/workflows/ai-improvement-*.yml` then implements, merges, and deploys the change automatically. See `CONTEXT.md` for subdomain routing and deployment setup (§9 for the self-improvement pipeline).
 
 ### YouTube/Gemini insight pipeline
 
