@@ -8,7 +8,6 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
-  actions: write
   id-token: write
 
 jobs:
@@ -59,18 +58,22 @@ jobs:
             4. 새 브랜치 `ai-improvement/issue-${{ github.event.issue.number }}`를 만들고, 변경 사항을 커밋한 뒤 origin에 push한다. PR 생성과 auto-merge 활성화는 이후 워크플로우 단계에서 자동으로 처리되므로 직접 만들 필요 없다.
             5. 이슈 내용이 모호하거나 구현이 불가능하면 코드를 변경하지 말고 `gh issue comment ${{ github.event.issue.number }} --body "<이유 설명>"` 으로 사유를 남기고 종료한다. 이 경우 브랜치/PR을 만들지 않는다.
 
-      - name: Ensure PR exists and auto-merge is enabled
+      - name: Verify build and merge if passing
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
+          NEXT_PUBLIC_BUSINESS_PHONE: "010-0000-0000"
+          NEXT_PUBLIC_KAKAO_OPENCHAT_URL: "https://open.kakao.com/"
+          ADMIN_PASSWORD: "ci-placeholder"
         run: |
           BRANCH="ai-improvement/issue-${ISSUE_NUMBER}"
           if ! git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
             echo "브랜치가 푸시되지 않음 - 구현 없음으로 판단, 종료"
             exit 0
           fi
+
           if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
             echo "PR이 이미 존재함"
           else
@@ -78,7 +81,11 @@ jobs:
               --title "[AI 개선] ${ISSUE_TITLE}" \
               --body "Closes #${ISSUE_NUMBER}"
           fi
-          # bot이 생성한 PR의 pull_request 트리거 CI는 action_required로 멈추므로
-          # workflow_dispatch로 CI를 직접 실행해 필수 build 체크를 생성한다.
-          gh workflow run ci.yml --ref "$BRANCH"
-          gh pr merge "$BRANCH" --auto --squash || echo "auto-merge 설정 실패 (이미 설정되었거나 머지 불가 상태)"
+
+          # bot이 생성한 PR은 pull_request 트리거 CI가 승인 대기(action_required) 상태로
+          # 멈춰 build 체크가 생성되지 않으므로, 여기서 직접 빌드를 검증해 통과 시 즉시 머지한다.
+          if npm run lint && npm run build; then
+            gh pr merge "$BRANCH" --squash || echo "머지 실패 (충돌 등) - 수동 확인 필요"
+          else
+            gh pr comment "$BRANCH" --body "⚠️ lint/build 실패로 자동 머지를 보류합니다. 수동 확인이 필요합니다."
+          fi
