@@ -26,11 +26,11 @@ export default async function HqPage() {
   const { reservations, content, improvements, feedback, pipeline, report } = summary;
 
   const notifications: { label: string; count: number; href: string }[] = [
-    { label: "유튜브 승인 대기", count: content.pending.youtube, href: "/hq/content" },
-    { label: "카카오 승인 대기", count: content.pending.kakao, href: "/hq/content" },
-    { label: "블로그 승인 대기", count: content.pending.blog, href: "/hq/content" },
-    { label: "개선 요청 미확인", count: improvements.unacknowledged, href: "/hq/improve" },
-    { label: "대장 피드백 대기", count: feedback.pending, href: "/hq/report" },
+    { label: "유튜브 승인 대기", count: content.pending.youtube, href: "/content" },
+    { label: "카카오 승인 대기", count: content.pending.kakao, href: "/content" },
+    { label: "블로그 승인 대기", count: content.pending.blog, href: "/content" },
+    { label: "개선 요청 미확인", count: improvements.unacknowledged, href: "/improve" },
+    { label: "대장 피드백 대기", count: feedback.pending, href: "/report" },
   ].filter((n) => n.count > 0);
 
   return (
@@ -74,7 +74,7 @@ export default async function HqPage() {
         <div className="cc-card p-5">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-black text-cc-text">오늘 예약 ({reservations.todayCount}건)</h2>
-            <Link href="/hq/reservation" className="text-xs font-bold text-cc-navy hover:underline">
+            <Link href="/reservation" className="text-xs font-bold text-cc-navy hover:underline">
               전체보기 →
             </Link>
           </div>
@@ -155,7 +155,7 @@ export default async function HqPage() {
                 {pipeline.latest ? (
                   <p className="mt-1 text-xs text-slate-500">{formatDateTime(pipeline.latest.started_at)}</p>
                 ) : null}
-                <Link href="/hq/pipeline" className="mt-2 inline-block text-xs font-bold text-cc-navy hover:underline">
+                <Link href="/pipeline" className="mt-2 inline-block text-xs font-bold text-cc-navy hover:underline">
                   파이프라인 로그 →
                 </Link>
               </div>
@@ -175,7 +175,7 @@ export default async function HqPage() {
                 ) : (
                   <p className="mt-1 text-sm text-slate-500">보고서가 없습니다.</p>
                 )}
-                <Link href="/hq/report" className="mt-2 inline-block text-xs font-bold text-cc-navy hover:underline">
+                <Link href="/report" className="mt-2 inline-block text-xs font-bold text-cc-navy hover:underline">
                   경영 보고서 →
                 </Link>
               </div>

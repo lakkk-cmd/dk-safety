@@ -6,12 +6,12 @@ import { usePathname } from "next/navigation";
 import AdminLogoutButton from "@/components/admin-logout-button";
 
 const TABS = [
-  { href: "/hq", label: "대시보드" },
-  { href: "/hq/content", label: "콘텐츠" },
-  { href: "/hq/reservation", label: "예약" },
-  { href: "/hq/pipeline", label: "파이프라인" },
-  { href: "/hq/report", label: "보고서" },
-  { href: "/hq/improve", label: "개선요청" },
+  { href: "/", label: "대시보드" },
+  { href: "/content", label: "콘텐츠" },
+  { href: "/reservation", label: "예약" },
+  { href: "/pipeline", label: "파이프라인" },
+  { href: "/report", label: "보고서" },
+  { href: "/improve", label: "개선요청" },
 ] as const;
 
 export default function HqShell({ children }: { children: React.ReactNode }) {
@@ -58,7 +58,7 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
         <nav className="mx-auto max-w-5xl overflow-x-auto px-2 md:px-4">
           <ul className="flex min-w-max gap-1">
             {TABS.map((tab) => {
-              const active = tab.href === "/hq" ? pathname === "/hq" : pathname.startsWith(tab.href);
+              const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
               return (
                 <li key={tab.href}>
                   <Link
