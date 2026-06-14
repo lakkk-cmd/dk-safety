@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
-export default function AdminLogoutButton() {
+export default function AdminLogoutButton({ variant = "light" }: { variant?: "light" | "dark" }) {
   const router = useRouter();
 
   const onLogout = async () => {
@@ -11,8 +11,13 @@ export default function AdminLogoutButton() {
     router.refresh();
   };
 
+  const className =
+    variant === "dark"
+      ? "rounded-lg border border-white/30 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/10"
+      : "rounded-lg border border-slate-300 px-4 py-2 text-sm";
+
   return (
-    <button onClick={onLogout} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+    <button onClick={onLogout} className={className}>
       로그아웃
     </button>
   );
