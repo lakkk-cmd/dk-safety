@@ -1,5 +1,6 @@
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import ContentApprovalPanel from "@/components/contents/content-approval-panel";
+import PendingApprovalBadge from "@/components/contents/pending-approval-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export default function ContentsPage() {
           유튜브 PD 클립 · 카카오 매니저 톡톡 · 블로그 에디터 펜이 매주 콘텐츠를 기획·작성합니다. 승인하면 실제
           채널로 발행됩니다.
         </p>
+        {ready ? <PendingApprovalBadge /> : null}
       </header>
 
       {!ready ? (

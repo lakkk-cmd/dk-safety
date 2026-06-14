@@ -239,7 +239,7 @@ export default function ContentApprovalPanel() {
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">{message}</p>
       ) : null}
 
-      <section className="rounded-2xl border-2 border-slate-900 bg-white p-6 shadow-sm">
+      <section id="pending-queue" className="scroll-mt-6 rounded-2xl border-2 border-slate-900 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-900">승인 대기 현황</h2>
           <button
