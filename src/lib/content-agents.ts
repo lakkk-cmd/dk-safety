@@ -155,7 +155,7 @@ export async function draftYoutubeScript(
 위 기획을 바탕으로 영상 스크립트와 썸네일 기획을 작성하라.
 ${SCRIPT_JSON_HINT}`.trim();
 
-  const raw = await callContentAgent("youtube_pd", prompt, 2000);
+  const raw = await callContentAgent("youtube_pd", prompt, 4000);
   const jsonText = extractJsonBlock(raw);
   if (!jsonText) {
     // JSON 파싱 실패 시 전체 텍스트를 스크립트로 사용

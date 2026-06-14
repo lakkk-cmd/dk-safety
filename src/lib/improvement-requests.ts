@@ -127,7 +127,7 @@ export async function analyzeAndFileImprovementRequest(id: string): Promise<Impr
 ${request.content}
 ${request.screenshot_url ? `\n[스크린샷] ${request.screenshot_url}` : ""}`;
 
-    const raw = await callClaudeCustom(ANALYSIS_SYSTEM_PROMPT, userPrompt, 1500, 120_000);
+    const raw = await callClaudeCustom(ANALYSIS_SYSTEM_PROMPT, userPrompt, 3000, 120_000);
     const parsed = JSON.parse(extractJsonBlock(raw) || raw) as { title?: string; analysis?: string };
     const title = parsed.title?.trim() || `[개선요청] ${TYPE_LABELS[request.type]}`;
     const analysis = parsed.analysis?.trim() || request.content;

@@ -248,12 +248,44 @@ export async function callClaudeCustom(
   return fetchClaude(systemPrompt, userPrompt, maxTokens, timeoutMs);
 }
 
-/** chief가 반환한 ```json``` 블록을 파싱하는 범용 헬퍼 */
+/**
+ * chief가 반환한 ```json``` 블록을 파싱하는 범용 헬퍼.
+ * 중괄호 깊이를 직접 추적해 첫 `{`에 대응하는 `}`까지 추출한다 — 정규식 기반 추출은
+ * JSON 문자열 값 내부에 ``` 코드펜스나 중첩 `{}`가 포함된 경우(예: 코드 제안이 담긴
+ * analysis 필드) 잘못된 위치에서 끊겨 JSON.parse가 실패하는 문제가 있었다.
+ */
 export function extractJsonBlock(text: string): string {
-  const match = text.match(/```json\s*([\s\S]*?)```/);
-  if (match?.[1]) return match[1].trim();
-  const braceMatch = text.match(/\{[\s\S]*\}/);
-  return braceMatch?.[0]?.trim() ?? "";
+  const fenceMatch = text.match(/```json\s*\n?/);
+  const start = fenceMatch
+    ? text.indexOf("{", fenceMatch.index! + fenceMatch[0].length)
+    : text.indexOf("{");
+  if (start === -1) return "";
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\" && inString) {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1).trim();
+    }
+  }
+  return "";
 }
 
 // ─── 프롬프트 빌더 ──────────────────────────────────────────────────────────────
