@@ -19,14 +19,11 @@ export default function HomeClient({ apartments }: Props) {
       <header style={{ background: "#0b1c3a" }} className="sticky top-0 z-50">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-base font-black"
-              style={{ background: "linear-gradient(135deg,#c9922a,#f0c96a)" }}
-            >
-              ⚡
-            </div>
-            <div className="text-sm font-black text-white tracking-tight">
-              대경<span style={{ color: "#f0c96a" }}>안심전기</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="우리집 전기주치의" className="h-9 w-auto shrink-0" />
+            <div className="leading-tight">
+              <p className="text-sm font-black text-white tracking-tight">우리집 전기주치의</p>
+              <p className="text-[10px] font-bold" style={{ color: "#f0c96a" }}>(대경이엔피)</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -267,7 +264,7 @@ export default function HomeClient({ apartments }: Props) {
           <div className="flex items-center gap-2 mb-4">
             <div className="w-1 h-5 rounded-full" style={{ background: "#c9922a" }} />
             <h2 className="text-base font-black" style={{ color: "#0b1c3a" }}>
-              왜 대경안심전기인가
+              왜 우리집 전기주치의(대경이엔피)인가
             </h2>
           </div>
           <div className="grid grid-cols-2 gap-3 mb-4">
@@ -363,14 +360,14 @@ export default function HomeClient({ apartments }: Props) {
 
         <div className="pt-4 pb-2 text-center" style={{ color: "#94a3b8" }}>
           <div className="text-xs font-bold mb-1" style={{ color: "#c9922a" }}>
-            ⚡ 대경안심전기
+            ⚡ 우리집 전기주치의(대경이엔피)
           </div>
           <div className="text-xs leading-relaxed mb-2">
             광주광역시 · 브랜드: 우리집 안심전기
             <br />
             대표: 나경문 · 010-9469-8578
           </div>
-          <div className="text-xs">© 2026 대경안심전기. 특허 출원 완료</div>
+          <div className="text-xs">© 2026 우리집 전기주치의(대경이엔피). 특허 출원 완료</div>
         </div>
       </div>
     </div>

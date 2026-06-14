@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import AdminLogoutButton from "@/components/admin-logout-button";
+import BrandLockup from "@/components/brand-lockup";
 
 const TABS = [
   { href: "/", label: "대시보드" },
@@ -42,10 +43,7 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-cc-bg text-cc-text">
       <header className="bg-cc-navy text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 md:px-6">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/60">HQ COMMAND CENTER</p>
-            <h1 className="mt-1 text-lg font-black">대장 본부</h1>
-          </div>
+          <BrandLockup />
           <div className="flex items-center gap-3">
             {notificationCount > 0 ? (
               <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-cc-gold px-2 text-xs font-black text-cc-navy">

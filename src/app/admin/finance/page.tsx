@@ -51,7 +51,7 @@ export default function FinanceAdminPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">기업 2,450,000원</div>
-            <p className="text-xs text-muted-foreground">대경안심전기 주계좌</p>
+            <p className="text-xs text-muted-foreground">우리집 전기주치의(대경이엔피) 주계좌</p>
           </CardContent>
         </Card>
       </div>

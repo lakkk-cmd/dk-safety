@@ -101,7 +101,7 @@ export function buildEmailHTML(
 
   return `<!DOCTYPE html>
 <html lang="ko">
-<head><meta charset="UTF-8"><title>대경안심전기 경영진 보고서</title></head>
+<head><meta charset="UTF-8"><title>우리집 전기주치의(대경이엔피) 경영진 보고서</title></head>
 <body style="margin:0;padding:0;background:#f5f5f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
   <div style="max-width:640px;margin:32px auto;background:#fff;border-radius:14px;overflow:hidden">
     <div style="background:#111;padding:28px 32px">
@@ -119,7 +119,7 @@ export function buildEmailHTML(
       </div>
     </div>
     <div style="background:#f5f5f3;padding:16px 32px;text-align:center">
-      <p style="margin:0;font-size:11px;color:#bbb">대경안심전기 · 광주광역시 · dkansim.com</p>
+      <p style="margin:0;font-size:11px;color:#bbb">우리집 전기주치의(대경이엔피) · 광주광역시 · dkansim.com</p>
     </div>
   </div>
 </body>
@@ -133,7 +133,7 @@ export function buildEmailText(
   feedbackApplied?: string | null,
   contentSummary?: ContentPerformanceSummary | null,
 ): string {
-  const lines: string[] = [`[대경안심전기] 경영진 회의 보고 — ${date}`, "=".repeat(50), ""];
+  const lines: string[] = [`[우리집 전기주치의(대경이엔피)] 경영진 회의 보고 — ${date}`, "=".repeat(50), ""];
   if (feedbackApplied) {
     lines.push(`[대장 지시 반영]\n${feedbackApplied.slice(0, 200)}\n`);
   }

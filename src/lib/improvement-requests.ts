@@ -102,7 +102,7 @@ async function patchImprovementRequest(id: string, patch: Record<string, unknown
   if (error) throw error;
 }
 
-const ANALYSIS_SYSTEM_PROMPT = `당신은 대경안심전기 dkansim.com 플랫폼의 시니어 개발자입니다.
+const ANALYSIS_SYSTEM_PROMPT = `당신은 우리집 전기주치의(대경이엔피) dkansim.com 플랫폼의 시니어 개발자입니다.
 ${BUSINESS_CONTEXT}
 [기술 스택]
 - Next.js 15 (App Router) + TypeScript + Tailwind CSS

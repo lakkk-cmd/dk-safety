@@ -51,7 +51,7 @@ function HqLoginForm() {
         </p>
       </div>
       <form onSubmit={onSubmit} className="surface-card-strong w-full rounded-2xl p-6">
-        <p className="text-sm font-semibold text-primary">대경안심전기 HQ</p>
+        <p className="text-sm font-semibold text-primary">우리집 전기주치의(대경이엔피) HQ</p>
         <h2 className="mt-1 text-2xl font-bold">관리자 로그인</h2>
         <p className="mt-2 text-sm text-slate-600">설정된 관리자 비밀번호를 입력해주세요.</p>
         <input

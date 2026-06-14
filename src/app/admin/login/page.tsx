@@ -44,7 +44,7 @@ export default function AdminLoginPage() {
           <p className="mt-2 text-sm text-slate-600">예약/자가진단/백업 관리 기능은 관리자 인증 후 접근할 수 있습니다.</p>
         </div>
         <form onSubmit={onSubmit} className="surface-card-strong w-full rounded-2xl p-6">
-          <p className="text-sm font-semibold text-primary">대경안심전기 관리자</p>
+          <p className="text-sm font-semibold text-primary">우리집 전기주치의(대경이엔피) 관리자</p>
           <h2 className="mt-1 text-2xl font-bold">관리자 로그인</h2>
           <p className="mt-2 text-sm text-slate-600">설정된 관리자 비밀번호를 입력해주세요.</p>
         <input

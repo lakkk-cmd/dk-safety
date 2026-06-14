@@ -8,7 +8,7 @@ const config: Config = {
         // 기존 유지
         primary: "#0a5eb0",
         accent: "#f97316",
-        // 대경안심전기 브랜드 토큰 추가
+        // 우리집 전기주치의(대경이엔피) 브랜드 토큰 추가
         "dk-navy": "#0b1c3a",
         "dk-blue": "#1a4b8c",
         "dk-sky": "#2e7dd1",

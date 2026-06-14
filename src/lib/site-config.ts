@@ -4,7 +4,7 @@ export const siteConfig = {
   adminPassword: process.env.ADMIN_PASSWORD ?? "change-this-password",
   defaultBankName: process.env.NEXT_PUBLIC_DEFAULT_BANK_NAME ?? "국민은행",
   defaultBankAccountNumber: process.env.NEXT_PUBLIC_DEFAULT_BANK_ACCOUNT_NUMBER ?? "123-456-789",
-  defaultBankAccountHolder: process.env.NEXT_PUBLIC_DEFAULT_BANK_ACCOUNT_HOLDER ?? "대경안심전기",
+  defaultBankAccountHolder: process.env.NEXT_PUBLIC_DEFAULT_BANK_ACCOUNT_HOLDER ?? "우리집 전기주치의(대경이엔피)",
   defaultDispatchFee: Number(process.env.NEXT_PUBLIC_DEFAULT_DISPATCH_FEE ?? "50000")
 };
 

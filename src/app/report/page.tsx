@@ -3,11 +3,26 @@ import { ROADMAP, getCurrentWeekStatus } from "@/lib/agents";
 
 export const dynamic = "force-dynamic";
 
+type AgentResponseItem = {
+  agent_id: string;
+  agent_name: string;
+  role: string;
+  response: string;
+};
+
+type ReportSection = {
+  topic: string;
+  chief_summary: string;
+  round1: AgentResponseItem[];
+  round2: AgentResponseItem[];
+};
+
 type ReportRow = {
   id: string;
   created_at: string;
   date_label: string;
   chief_summary: string | null;
+  sections: ReportSection[] | null;
   approved: boolean;
   approved_at: string | null;
 };
@@ -20,7 +35,7 @@ async function loadReports(): Promise<{ reports: ReportRow[]; error: string | nu
     const supabase = requireAgentSupabase();
     const { data, error } = await supabase
       .from("agent_reports")
-      .select("id, created_at, date_label, chief_summary, approved, approved_at")
+      .select("id, created_at, date_label, chief_summary, sections, approved, approved_at")
       .order("created_at", { ascending: false })
       .limit(20);
     if (error) return { reports: [], error: error.message };
@@ -43,17 +58,19 @@ export default async function ReportPage() {
 
   return (
     <main className="space-y-6">
-      <header className="warranty-band rounded-[2rem] p-6 md:p-8">
-        <p className="warranty-badge">3년 로드맵 진행 현황</p>
-        <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">
+      <header className="cc-card p-6 md:p-8">
+        <p className="inline-flex rounded-full bg-cc-navy px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white">
+          3년 로드맵 진행 현황
+        </p>
+        <h1 className="mt-3 text-2xl font-black tracking-[-0.02em] text-cc-text md:text-3xl">
           {yearData.label} · {status.quarterLabel}
         </h1>
-        <p className="mt-2 max-w-2xl text-sm text-slate-700">{status.message}</p>
+        <p className="mt-2 max-w-2xl text-sm text-slate-600">{status.message}</p>
         <p className="mt-1 text-xs text-slate-500">연간 목표 {fmtWon(yearData.revenueTarget)} · 핵심 과제: {yearData.focus}</p>
       </header>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">{yearData.label} 분기별 목표</h2>
+      <section className="cc-card p-6">
+        <h2 className="text-base font-black text-cc-text">{yearData.label} 분기별 목표</h2>
         <p className="mt-1 text-sm text-slate-600">실제 매출 실적은 별도 집계 전이며, 막대는 분기별 목표 비중을 나타냅니다.</p>
         <div className="mt-4 space-y-3">
           {yearData.quarters.map((q) => {
@@ -62,15 +79,15 @@ export default async function ReportPage() {
             return (
               <div key={q.q}>
                 <div className="flex items-center justify-between text-sm">
-                  <span className={isCurrent ? "font-bold text-slate-900" : "text-slate-700"}>
+                  <span className={isCurrent ? "font-bold text-cc-text" : "text-slate-700"}>
                     {q.label}
-                    {isCurrent ? <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-bold text-emerald-800">현재 분기</span> : null}
+                    {isCurrent ? <span className="ml-2 rounded bg-cc-green/10 px-1.5 py-0.5 text-xs font-bold text-cc-green">현재 분기</span> : null}
                   </span>
                   <span className="text-slate-600">{fmtWon(q.target)}</span>
                 </div>
                 <div className="mt-1 h-3 w-full overflow-hidden rounded-full bg-slate-100">
                   <div
-                    className={isCurrent ? "h-full rounded-full bg-emerald-500" : "h-full rounded-full bg-slate-300"}
+                    className={isCurrent ? "h-full rounded-full bg-cc-green" : "h-full rounded-full bg-slate-300"}
                     style={{ width: `${widthPct}%` }}
                   />
                 </div>
@@ -78,13 +95,13 @@ export default async function ReportPage() {
             );
           })}
         </div>
-        <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <p className="mt-4 rounded-lg bg-cc-bg px-3 py-2 text-xs text-slate-600">
           이번 주({status.week}주차) 목표: <strong>{fmtWon(status.weeklyTarget)}</strong>
         </p>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">경영진 보고서 아카이브</h2>
+      <section className="cc-card p-6">
+        <h2 className="text-base font-black text-cc-text">경영진 보고서 아카이브</h2>
         <p className="mt-1 text-sm text-slate-600">매주 토요일 08:00 회의 결과 중 콘텐츠 승인된 보고서입니다.</p>
 
         {!ready ? (
@@ -101,21 +118,57 @@ export default async function ReportPage() {
             ) : (
               reports
                 .filter((r) => r.approved)
-                .map((r) => (
-                  <li key={r.id} className="rounded-xl border border-slate-200 px-4 py-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-slate-900">{r.date_label}</span>
-                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-bold text-emerald-800">승인됨</span>
-                    </div>
-                    <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-slate-700">
-                      {r.chief_summary ?? "(총괄 요약 없음)"}
-                    </p>
-                    <p className="mt-2 text-xs text-slate-500">
-                      회의일 {new Date(r.created_at).toLocaleString("ko-KR")}
-                      {r.approved_at ? ` · 승인일 ${new Date(r.approved_at).toLocaleString("ko-KR")}` : ""}
-                    </p>
-                  </li>
-                ))
+                .map((r) => {
+                  const sections = r.sections ?? [];
+                  return (
+                    <li key={r.id} className="rounded-xl border border-slate-100 px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-cc-text">{r.date_label}</span>
+                        <span className="rounded bg-cc-green/10 px-1.5 py-0.5 text-xs font-bold text-cc-green">승인됨</span>
+                      </div>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                        {r.chief_summary ?? "(총괄 요약 없음)"}
+                      </p>
+                      <p className="mt-2 text-xs text-slate-500">
+                        회의일 {new Date(r.created_at).toLocaleString("ko-KR")}
+                        {r.approved_at ? ` · 승인일 ${new Date(r.approved_at).toLocaleString("ko-KR")}` : ""}
+                      </p>
+
+                      {sections.length > 0 ? (
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-xs font-bold text-cc-navy">경영진 의견 보기</summary>
+                          <div className="mt-3 space-y-4">
+                            {sections.map((s, idx) => {
+                              const agents = s.round2?.length ? s.round2 : s.round1;
+                              return (
+                                <div key={`${r.id}-${idx}`}>
+                                  <h3 className="text-sm font-black text-cc-text">{s.topic}</h3>
+                                  {s.chief_summary ? (
+                                    <p className="mt-1 whitespace-pre-wrap text-xs text-slate-600">{s.chief_summary}</p>
+                                  ) : null}
+                                  {agents.length > 0 ? (
+                                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                      {agents.map((a) => (
+                                        <div key={a.agent_id} className="rounded-xl bg-cc-bg p-3">
+                                          <p className="text-xs font-bold text-cc-navy">
+                                            {a.agent_name} · {a.role}
+                                          </p>
+                                          <p className="mt-1 line-clamp-6 whitespace-pre-wrap text-xs text-slate-700">
+                                            {a.response}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      ) : null}
+                    </li>
+                  );
+                })
             )}
           </ul>
         )}

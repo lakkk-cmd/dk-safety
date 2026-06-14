@@ -34,7 +34,7 @@ function WorkerLoginForm() {
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg">
-      <p className="text-xs font-semibold text-blue-700">대경안심전기</p>
+      <p className="text-xs font-semibold text-blue-700">우리집 전기주치의(대경이엔피)</p>
       <h1 className="mt-2 text-2xl font-black text-slate-950">기사 로그인</h1>
       <p className="mt-2 text-sm text-slate-600">관리자가 등록한 연락처와 PIN으로 로그인합니다.</p>
       <Suspense fallback={null}>

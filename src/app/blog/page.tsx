@@ -6,7 +6,7 @@ import { listPublishedBlogPosts } from "@/lib/blog-store";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "전기 안전 정보 블로그 | 대경안심전기",
+  title: "전기 안전 정보 블로그 | 우리집 전기주치의(대경이엔피)",
   description: "광주 아파트 누전차단기, 콘센트, 분전반 점검과 수리에 관한 전기 안전 정보를 확인하세요.",
 };
 
@@ -18,7 +18,7 @@ export default async function BlogIndexPage() {
       <header className="warranty-band rounded-[2rem] p-6 md:p-8">
         <p className="warranty-badge">전기 안전 정보</p>
         <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">
-          대경안심전기 블로그
+          우리집 전기주치의(대경이엔피) 블로그
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-700">
           광주 아파트 전기 점검·수리에 관한 실용적인 정보를 전해드립니다.

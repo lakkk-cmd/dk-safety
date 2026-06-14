@@ -116,14 +116,14 @@ async function loadDashboardData(): Promise<DashboardData> {
 const LEVEL_BADGE: Record<AgentLog["level"], string> = {
   debug: "bg-slate-100 text-slate-600",
   info: "bg-sky-100 text-sky-800",
-  warn: "bg-amber-100 text-amber-900",
-  error: "bg-rose-100 text-rose-800",
+  warn: "bg-cc-gold/10 text-cc-navy",
+  error: "bg-cc-red/10 text-cc-red",
 };
 
 const PIPELINE_STATUS_BADGE: Record<PipelineLog["status"], string> = {
   started: "bg-sky-100 text-sky-800",
-  success: "bg-emerald-100 text-emerald-800",
-  failed: "bg-rose-100 text-rose-800",
+  success: "bg-cc-green/10 text-cc-green",
+  failed: "bg-cc-red/10 text-cc-red",
 };
 
 export default async function AgentPage() {
@@ -132,27 +132,29 @@ export default async function AgentPage() {
 
   return (
     <main className="space-y-6">
-      <header className="warranty-band rounded-[2rem] p-6 md:p-8">
-        <p className="warranty-badge">AI 파이프라인 모니터</p>
-        <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">
+      <header className="cc-card p-6 md:p-8">
+        <p className="inline-flex rounded-full bg-cc-navy px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white">
+          AI 파이프라인 모니터
+        </p>
+        <h1 className="mt-3 text-2xl font-black tracking-[-0.02em] text-cc-text md:text-3xl">
           YouTube · Gemini 인사이트 파이프라인
         </h1>
-        <p className="mt-2 max-w-2xl text-sm text-slate-700">
+        <p className="mt-2 max-w-2xl text-sm text-slate-600">
           유튜브 채널 수집, Gemini 분석, 자동화 파이프라인 실행 현황을 확인합니다.
         </p>
       </header>
 
       {!ready ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+        <p className="cc-card border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           Supabase가 설정되지 않았습니다. <code className="rounded bg-white px-1">NEXT_PUBLIC_SUPABASE_URL</code>,{" "}
           <code className="rounded bg-white px-1">SUPABASE_SERVICE_ROLE_KEY</code>를 확인하세요.
         </p>
       ) : error ? (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{error}</p>
+        <p className="cc-card border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">{error}</p>
       ) : null}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">YouTube 수집 현황</h2>
+      <section className="cc-card p-6">
+        <h2 className="text-base font-black text-cc-text">YouTube 수집 현황</h2>
         <p className="mt-1 text-sm text-slate-600">등록된 채널과 채널별 수집 영상 수입니다.</p>
         {channels.length === 0 ? (
           <p className="mt-4 text-sm text-slate-500">등록된 채널이 없습니다.</p>
@@ -162,12 +164,12 @@ export default async function AgentPage() {
               const channelVideos = videos.filter((v) => v.channel_id === c.id);
               const latest = channelVideos[0]?.fetched_at;
               return (
-                <li key={c.id} className="rounded-xl border border-slate-200 px-4 py-3">
+                <li key={c.id} className="rounded-xl border border-slate-100 px-4 py-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-900">{c.channel_name}</span>
+                    <span className="text-sm font-semibold text-cc-text">{c.channel_name}</span>
                     <span
                       className={`rounded px-1.5 py-0.5 text-xs font-bold ${
-                        c.active ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
+                        c.active ? "bg-cc-green/10 text-cc-green" : "bg-slate-100 text-slate-600"
                       }`}
                     >
                       {c.active ? "활성" : "비활성"}
@@ -184,17 +186,17 @@ export default async function AgentPage() {
         )}
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">Gemini 분석 현황</h2>
+      <section className="cc-card p-6">
+        <h2 className="text-base font-black text-cc-text">Gemini 분석 현황</h2>
         <p className="mt-1 text-sm text-slate-600">최근 영상별 Gemini 분석 결과입니다.</p>
         {insights.length === 0 ? (
           <p className="mt-4 text-sm text-slate-500">아직 분석 결과가 없습니다.</p>
         ) : (
           <ul className="mt-4 space-y-3">
             {insights.map((i) => (
-              <li key={i.id} className="rounded-xl border border-slate-200 px-4 py-3">
+              <li key={i.id} className="rounded-xl border border-slate-100 px-4 py-3">
                 <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span className="font-semibold text-slate-700">{i.model ?? "model 미상"}</span>
+                  <span className="font-semibold text-cc-text">{i.model ?? "model 미상"}</span>
                   <span>{new Date(i.created_at).toLocaleString("ko-KR")}</span>
                 </div>
                 <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm text-slate-700">
@@ -206,29 +208,29 @@ export default async function AgentPage() {
         )}
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">Cron 실행 로그</h2>
+      <section className="cc-card p-6">
+        <h2 className="text-base font-black text-cc-text">Cron 실행 로그</h2>
         <p className="mt-1 text-sm text-slate-600">AI 에이전트 실행 로그(agent_logs) 최근 {agentLogs.length}건입니다.</p>
         {agentLogs.length === 0 ? (
           <p className="mt-4 text-sm text-slate-500">기록된 로그가 없습니다.</p>
         ) : (
           <ul className="mt-4 space-y-2">
             {agentLogs.map((l) => (
-              <li key={l.id} className="rounded-xl border border-slate-200 px-4 py-3">
+              <li key={l.id} className="rounded-xl border border-slate-100 px-4 py-3">
                 <div className="flex items-center gap-2 text-xs text-slate-500">
                   <span className={`rounded px-1.5 py-0.5 font-bold uppercase ${LEVEL_BADGE[l.level]}`}>{l.level}</span>
-                  <span className="font-semibold text-slate-700">{l.source}</span>
+                  <span className="font-semibold text-cc-text">{l.source}</span>
                   <span className="ml-auto">{new Date(l.created_at).toLocaleString("ko-KR")}</span>
                 </div>
-                <p className="mt-2 text-sm text-slate-700">{l.message}</p>
+                <p className="mt-2 text-sm text-cc-text">{l.message}</p>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">파이프라인 실행 이력</h2>
+      <section className="cc-card p-6">
+        <h2 className="text-base font-black text-cc-text">파이프라인 실행 이력</h2>
         <p className="mt-1 text-sm text-slate-600">자동화 파이프라인 실행 기록(pipeline_logs)입니다.</p>
         {pipelineLogs.length === 0 ? (
           <p className="mt-4 text-sm text-slate-500">실행 이력이 없습니다.</p>
@@ -246,7 +248,7 @@ export default async function AgentPage() {
               <tbody>
                 {pipelineLogs.map((p) => (
                   <tr key={p.id} className="border-b border-slate-100">
-                    <td className="py-2 pr-4 font-semibold text-slate-900">{p.pipeline}</td>
+                    <td className="py-2 pr-4 font-semibold text-cc-text">{p.pipeline}</td>
                     <td className="py-2 pr-4">
                       <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${PIPELINE_STATUS_BADGE[p.status]}`}>
                         {p.status}

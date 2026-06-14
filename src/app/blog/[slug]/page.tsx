@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const description = post.meta_description ?? post.excerpt ?? undefined;
   return {
-    title: `${post.title} | 대경안심전기 블로그`,
+    title: `${post.title} | 우리집 전기주치의(대경이엔피) 블로그`,
     description,
     keywords: post.keywords?.length ? post.keywords : undefined,
     openGraph: {
@@ -52,7 +52,7 @@ export default async function BlogPostPage({ params }: Props) {
       <div className="warranty-band mt-10 rounded-2xl p-6 text-center">
         <p className="text-base font-bold text-slate-900">전기 점검이 필요하신가요?</p>
         <p className="mt-1 text-sm text-slate-600">
-          대경안심전기가 광주 아파트 전기 점검·수리를 도와드립니다.
+          우리집 전기주치의(대경이엔피)가 광주 아파트 전기 점검·수리를 도와드립니다.
         </p>
         <Link
           href="/reservation"

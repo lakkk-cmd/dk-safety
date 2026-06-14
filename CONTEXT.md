@@ -4,7 +4,7 @@
 
 ## 1. 한 줄 요약
 
-**대경안심전기**(dkansim.com)는 단일 Next.js 15 앱으로, 메인 사이트(`dkansim.com`)·경영 사령부(`hq.dkansim.com`)·주간 보고 아카이브(`report.dkansim.com`)·AI 파이프라인 모니터(`agent.dkansim.com`)·콘텐츠 마케팅 사령부(`contents.dkansim.com`)를 **하나의 Vercel 배포**에서 미들웨어 host 라우팅으로 서빙한다.
+**우리집 전기주치의(대경이엔피)**(dkansim.com)는 단일 Next.js 15 앱으로, 메인 사이트(`dkansim.com`)·경영 사령부(`hq.dkansim.com`)·주간 보고 아카이브(`report.dkansim.com`)·AI 파이프라인 모니터(`agent.dkansim.com`)·콘텐츠 마케팅 사령부(`contents.dkansim.com`)를 **하나의 Vercel 배포**에서 미들웨어 host 라우팅으로 서빙한다.
 
 ## 2. 서브도메인 라우팅 구조
 

@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "대경안심전기",
-    short_name: "대경안심전기",
+    name: "우리집 전기주치의(대경이엔피)",
+    short_name: "전기주치의",
     description: "우리집 전기 주치의 - 자가진단, 예약, 긴급출동",
     start_url: "/",
     display: "standalone",

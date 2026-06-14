@@ -72,7 +72,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <Sidebar className="bg-gradient-to-b from-slate-100 to-slate-200 dark:from-slate-950 dark:to-slate-900">
         <SidebarHeader>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">관제 센터</p>
-          <h1 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">대경안심전기</h1>
+          <h1 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">우리집 전기주치의(대경이엔피)</h1>
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">운영 관리 시스템</p>
         </SidebarHeader>
         <SidebarContent>

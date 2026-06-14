@@ -195,7 +195,7 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
       <section className="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-dk-navy to-[#1a3460] p-5 text-white shadow-[0_18px_46px_rgba(11,28,58,0.4)]">
         <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" aria-hidden />
         <div className="relative">
-          <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-bold">⚡ 대경안심전기</span>
+          <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-bold">⚡ 우리집 전기주치의(대경이엔피)</span>
           <div className="mt-3 flex items-center gap-3">
             {apartment.logoUrl ? (
               <Image
@@ -257,7 +257,7 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="rounded-xl bg-slate-50 px-4 py-3">
             <p className="text-base font-extrabold tracking-tight text-slate-900">💡 생활전기정보</p>
-            <p className="mt-1 text-sm font-medium leading-snug text-slate-600">대경안심전기가 알려드리는 전기 안전</p>
+            <p className="mt-1 text-sm font-medium leading-snug text-slate-600">우리집 전기주치의(대경이엔피)가 알려드리는 전기 안전</p>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
             {electricalTips.slice(0, 4).map((tip) => (

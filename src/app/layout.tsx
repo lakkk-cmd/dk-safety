@@ -11,7 +11,7 @@ const notoSansKr = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "대경안심전기 | 우리 집 전기 주치의",
+  title: "우리집 전기주치의(대경이엔피)",
   description: "가정 전기 점검, 누전/차단기/배선 점검을 쉽고 빠르게 예약하세요.",
   manifest: "/manifest.webmanifest"
 };
