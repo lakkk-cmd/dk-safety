@@ -60,3 +60,15 @@ jobs:
                gh pr create --base main --head ai-improvement/issue-${{ github.event.issue.number }} --title "[AI 개선] ${{ github.event.issue.title }}" --body "Closes #${{ github.event.issue.number }}"
             6. PR 생성 후 자동 머지를 활성화한다: gh pr merge --auto --squash <PR번호>
             7. 이슈 내용이 모호하거나 구현이 불가능하면 코드를 변경하지 말고 `gh issue comment ${{ github.event.issue.number }} --body "<이유 설명>"` 으로 사유를 남기고 종료한다. 이 경우 브랜치/PR을 만들지 않는다.
+
+      - name: Ensure auto-merge is enabled on the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="ai-improvement/issue-${{ github.event.issue.number }}"
+          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            gh pr merge "$BRANCH" --auto --squash || echo "auto-merge 설정 실패 (이미 설정되었거나 머지 불가 상태)"
+          else
+            echo "PR이 생성되지 않음 - auto-merge 설정 스킵"
+          fi
