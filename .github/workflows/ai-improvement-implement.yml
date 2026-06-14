@@ -8,6 +8,7 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  actions: write
   id-token: write
 
 jobs:
@@ -77,4 +78,7 @@ jobs:
               --title "[AI 개선] ${ISSUE_TITLE}" \
               --body "Closes #${ISSUE_NUMBER}"
           fi
+          # bot이 생성한 PR의 pull_request 트리거 CI는 action_required로 멈추므로
+          # workflow_dispatch로 CI를 직접 실행해 필수 build 체크를 생성한다.
+          gh workflow run ci.yml --ref "$BRANCH"
           gh pr merge "$BRANCH" --auto --squash || echo "auto-merge 설정 실패 (이미 설정되었거나 머지 불가 상태)"
