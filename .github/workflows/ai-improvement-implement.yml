@@ -61,7 +61,7 @@ jobs:
       - name: Verify build and merge if passing
         if: always()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           NEXT_PUBLIC_BUSINESS_PHONE: "010-0000-0000"

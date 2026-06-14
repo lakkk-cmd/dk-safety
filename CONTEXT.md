@@ -162,9 +162,10 @@ GitHub Actions 시크릿 필요: `CRON_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `SUP
 | `ANTHROPIC_API_KEY` | Claude Code Action — 이슈 구현 |
 | `VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID` | `npx vercel deploy --prod` (이 프로젝트는 GitHub 자동 배포 연동이 없음) |
 | `CRON_SECRET` | `/api/admin/improvement-requests/complete` 콜백 인증 (`.env.example`과 동일 값) |
+| `GH_PAT` | (선택, 설정됨) `lakkk-cmd/dk-safety` 저장소로만 스코프를 제한한 fine-grained PAT — 권한은 Contents: Read and write, Pull requests: Read and write. "Verify build and merge if passing" 단계가 `${{ secrets.GH_PAT \|\| secrets.GITHUB_TOKEN }}`로 `gh pr merge`를 수행해, 머지가 사람 계정 명의로 인식되어 워크플로우 B(`ai-improvement-deploy.yml`)가 트리거되도록 함. 미설정 시 `GITHUB_TOKEN`으로 자동 fallback(머지는 되지만 배포 미트리거). |
 
 `GITHUB_TOKEN`은 워크플로우에서 GitHub Actions가 자동 제공하는 토큰을 사용한다(별도 등록 불필요). 단, Vercel 환경의 앱이 GitHub Issue를 생성하려면 `.env.example`의 `GITHUB_TOKEN`(repo 권한 PAT)을 Vercel 프로젝트 환경변수에 별도로 설정해야 한다.
 
 > **알려진 제약 (확인됨)**: `github-actions[bot]`(`GITHUB_TOKEN`) 명의로 생성된 PR은 `pull_request` 트리거 CI(`ci.yml`)가 GitHub의 승인 대기(`action_required`) 상태로 멈춰 `build` job이 실행되지 않으며, branch protection의 필수 상태 체크나 `workflow_dispatch`로 우회 생성한 체크런도 PR의 머지 가능 여부 계산에 반영되지 않는다. 따라서 3단계에서 `ci.yml`/branch protection에 의존하지 않고 워크플로우 자체가 `npm run lint && npm run build`를 실행해 빌드 통과를 검증한 뒤 즉시 `gh pr merge --squash`로 머지한다.
 >
-> 단, 이 머지를 `GITHUB_TOKEN`으로 수행하면 그 결과로 발생하는 `pull_request: closed` 이벤트가 워크플로우 B(`ai-improvement-deploy.yml`)를 **트리거하지 않음**이 실제 운영 테스트로 확인되었다(GitHub의 GITHUB_TOKEN 재귀 트리거 제한 — 같은 토큰이 일으킨 이벤트는 새 워크플로우 실행을 만들지 않음). 사람이 수행한 머지(`pull_request: closed`, 예: 관리자의 `gh pr merge`)는 정상적으로 워크플로우 B를 트리거한다. 4단계의 자동 배포가 실제로 동작하려면 3단계의 `gh pr merge` 호출을 `repo` 권한이 있는 PAT(예: `secrets.GH_PAT`)로 교체해야 한다.
+> 단, 이 머지를 `GITHUB_TOKEN`으로 수행하면 그 결과로 발생하는 `pull_request: closed` 이벤트가 워크플로우 B(`ai-improvement-deploy.yml`)를 **트리거하지 않음**이 실제 운영 테스트로 확인되었다(GitHub의 GITHUB_TOKEN 재귀 트리거 제한 — 같은 토큰이 일으킨 이벤트는 새 워크플로우 실행을 만들지 않음). 사람이 수행한 머지(`pull_request: closed`, 예: 관리자의 `gh pr merge`)는 정상적으로 워크플로우 B를 트리거한다. 이를 해결하기 위해 3단계의 `gh pr merge` 호출은 `${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}`을 사용한다 — `GH_PAT`(저장소 한정 fine-grained PAT, 2026-06-14 등록)이 있으면 머지가 사람 명의로 인식되어 워크플로우 B가 정상 트리거된다.
