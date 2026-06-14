@@ -167,4 +167,6 @@ GitHub Actions 시크릿 필요: `CRON_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `SUP
 
 > **저장소 설정 필수**: `gh pr merge --auto --squash`가 동작하려면 GitHub 저장소 Settings → General → Pull Requests에서 "Allow auto-merge"가 켜져 있어야 한다. 꺼져 있으면 3단계의 auto-merge 활성화 명령이 조용히 실패한다.
 
-> **알려진 제약**: GitHub Actions의 기본 `GITHUB_TOKEN`으로 생성·자동머지된 PR이 `pull_request: closed` 이벤트(워크플로우 B 트리거)를 정상적으로 발생시키는지는 실제 운영에서 확인이 필요하다. 트리거가 안 되면 워크플로우 A의 push/PR 생성/머지 단계를 `repo` 권한이 있는 PAT(예: `secrets.GH_PAT`)로 교체해야 한다.
+> **알려진 제약 (CI 체크 우회)**: GitHub Actions의 기본 `GITHUB_TOKEN`(`github-actions[bot]`)으로 생성된 PR은 `pull_request` 트리거 CI(`ci.yml`)가 GitHub의 승인 대기(`action_required`) 상태로 멈춰 `build` job이 실행되지 않는다. 그러면 branch protection이 요구하는 `build` 체크가 영원히 생성되지 않아 auto-merge가 `BLOCKED`로 멈춘다. 이를 우회하기 위해 워크플로우 A(`ai-improvement-implement.yml`)의 "Ensure PR exists and auto-merge is enabled" 스텝이 PR 생성 직후 `gh workflow run ci.yml --ref "$BRANCH"`(workflow_dispatch)를 직접 실행해 필수 `build` 체크를 생성한다. 이를 위해 `ci.yml`에도 `workflow_dispatch:` 트리거가 추가되어 있다.
+>
+> 한편 배포 트리거(워크플로우 B, `ai-improvement-deploy.yml`의 `pull_request: closed`)는 기본 `GITHUB_TOKEN`으로 생성·머지된 PR에서도 정상적으로 트리거되어 배포까지 완료됨이 실제 운영 테스트로 확인되었다 — 이 단계는 PAT가 필요하지 않다.
