@@ -22,7 +22,7 @@ async function sendKakaoMemo(text: string, linkUrl = "https://contents.dkansim.c
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
     },
     body: new URLSearchParams({ template_object: template }),
   });
