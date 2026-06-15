@@ -66,6 +66,7 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 | `src/lib/youtube-upload.ts` | YouTube OAuth 2.0 flow + real video upload (`getYoutubeAuthUrl`, `exchangeYoutubeCode`, `uploadYoutubeVideo`) |
 | `src/lib/kakao-publish.ts` | Kakao "나에게 보내기" memo API — `publishKakaoPost`, `sendContentApprovalNotification` |
 | `src/lib/video-pipeline.ts` | Video production pipeline — decomposes an approved YouTube script into 5–8 scenes via Claude (`planVideoScenes`), generates each scene's image via OpenRouter Flux (`generateSceneImage`), uploads to Supabase Storage and marks the queue item `assets_ready` (`produceVideoAssets`) |
+| `src/lib/agent-chat.ts` | 9-agent 1:1 chat — `CHAT_AGENTS` (6 executives + 3 content agents), `CHAT_AGENT_GROUPS`, 9 persona-specific `CHAT_SYSTEM_PROMPTS`, `buildBusinessSnapshot()` (aggregates `getHqSummary()` + `market_intelligence_insights` + performance lessons into a context block), `chatWithAgent(agentId, userMessage)` — loads history, calls Claude, persists user+assistant messages to `agent_chat_messages` |
 
 ### Route structure
 
@@ -76,7 +77,9 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 - `/resident/login`, `/resident/safety-check`, `/resident/history` — resident self-service
 - `/worker/login`, `/worker/(dashboard)` — field technician portal
 - `/admin/*` — admin portal (cookie-protected): reservations, backups, billing, dispatch, workers
-- `/hq`, `/hq/login` — AI executive command center (cookie-protected, shares admin auth); served at `hq.dkansim.com` via host-based middleware rewrite
+- `/hq`, `/hq/login` — AI executive command center (cookie-protected, shares admin auth); served at `hq.dkansim.com` via host-based middleware rewrite; tabs: 대시보드/콘텐츠/예약/파이프라인/보고서/인텔리전스/개선요청/AI채팅
+- `/hq/intelligence` — 마켓 인텔리전스 대시보드: 카테고리별 트렌드 키워드 CSS 바 차트, 최근 인사이트, 추천 콘텐츠 기획안, 경쟁 채널 분석 결과 (server component, reads `market_intelligence_insights` + `youtube_channel_analyses` + `content_youtube_queue`)
+- `/hq/chat` — 9-에이전트 1:1 채팅 UI (client component): 경영진 6 + 콘텐츠팀 3 선택 버튼, 채팅 히스토리(Supabase `agent_chat_messages`), 실데이터 스냅샷 기반 Claude 응답, 최대 60초 대기
 - `/report` — weekly report archive + roadmap visualization (cookie-protected, shares admin auth); served at `report.dkansim.com` via host-based middleware rewrite
 - `/agent` — AI pipeline monitor: YouTube collection status, Gemini analysis status, cron logs (`agent_logs`), pipeline run history (`pipeline_logs`) (cookie-protected, shares admin auth); served at `agent.dkansim.com` via host-based middleware rewrite
 - `/contents` — content marketing command center: YouTube/Kakao/blog approval queues, Naver trend keywords, YouTube OAuth connection status (cookie-protected, shares admin auth); served at `contents.dkansim.com` via host-based middleware rewrite
@@ -84,6 +87,7 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 - `/api/admin/*`, `/api/worker/*`, `/api/resident/*` — REST API routes
 - `/api/admin/content/*` — content queue CRUD/approve (`youtube`, `kakao`, `blog`, `overview`, `naver-trends`, `youtube-channel-analysis`)
 - `/api/admin/content/video-production` — decomposes an `approved` `content_youtube_queue` script into scenes and generates Flux scene images via OpenRouter, moving the item to `assets_ready` (admin-only)
+- `/api/admin/chat` — 9-에이전트 채팅 REST API: `GET ?agentId=cto` → agents/groups/history 반환; `POST {agentId, message}` → `chatWithAgent` 호출 → `{reply}` 반환 (admin-only, `maxDuration: 60`)
 - `/api/auth/youtube/connect`, `/api/auth/youtube/callback` — YouTube OAuth 2.0 connect flow (admin-only)
 - `/api/cron/youtube-collect` — collects latest videos for active `youtube_channels` via YouTube Data API (CRON_SECRET-protected)
 - `/api/cron/youtube-analyze` — analyzes videos with transcripts via Gemini, writes `youtube_insights` (CRON_SECRET-protected)
@@ -104,7 +108,7 @@ Three separate cookie-based auth systems, all server-side only:
 
 ### Supabase Postgres migrations
 
-Located in `supabase/migrations/` (numbered 001–032). Apply with `npm run db:apply`. Key schemas:
+Located in `supabase/migrations/` (numbered 001–033). Apply with `npm run db:apply`. Key schemas:
 
 - `001` — reservations, workers, tasks
 - `004` — multi-tenant apartments
@@ -117,10 +121,17 @@ Located in `supabase/migrations/` (numbered 001–032). Apply with `npm run db:a
 - `030` — `content_youtube_queue.category` column (전기안전/자격시험/실무) + `youtube_channel_analyses` (channel analysis agent results)
 - `031` — `content_youtube_queue.scenes` (JSONB, per-scene `{narration, imagePrompt, imageUrl}`) + `video_asset_url` columns, plus `producing`/`assets_ready` status values
 - `032` — content performance self-learning columns: `content_youtube_queue.view_count`/`like_count`/`comment_count`/`stats_updated_at`, `blog_posts.view_count`, plus `increment_blog_view(p_slug)` SQL function
+- `033` — `agent_chat_messages` table (9-에이전트 채팅 히스토리: `agent_id`, `role` CHECK IN ('user','assistant'), `content`, `created_at`; index on `(agent_id, created_at)`; RLS enabled)
 
 ### AI Command Center
 
-`hq.dkansim.com` (internally `/hq`) runs a virtual 6-executive meeting (CTO, CSO, CMO, COO, CFO, CLO) powered by `ANTHROPIC_API_KEY`. Agent system prompts are in `src/lib/agents.ts`. Meeting schedule and topics persist in Supabase (`agent_memories` table). The model used is controlled by `ANTHROPIC_MODEL` env var (defaults to `claude-sonnet-4-6`). Reports approved for content use appear in the `report.dkansim.com` (`/report`) archive. The `/hq` pages also host a self-improvement pipeline: the "⚙️ 개선 요청" widget files a GitHub Issue, and `.github/workflows/ai-improvement-*.yml` then implements, merges, and deploys the change automatically. See `CONTEXT.md` for subdomain routing and deployment setup (§9 for the self-improvement pipeline).
+`hq.dkansim.com` (internally `/hq`) runs a virtual 6-executive meeting (CTO, CSO, CMO, COO, CFO, CLO) powered by `ANTHROPIC_API_KEY`. Agent system prompts are in `src/lib/agents.ts`. Meeting schedule and topics persist in Supabase (`agent_memories` table). The model used is controlled by `ANTHROPIC_MODEL` env var (defaults to `claude-sonnet-4-6`). Reports approved for content use appear in the `report.dkansim.com` (`/report`) archive.
+
+`/hq/intelligence` (마켓 인텔리전스 대시보드) — server-side read-only dashboard showing category-wise trend keyword bar charts, latest insights, recommended content ideas, and competitor channel analysis from `market_intelligence_insights` and `youtube_channel_analyses`.
+
+`/hq/chat` (9-에이전트 채팅) — 1:1 chat with any of 9 agents (6 executives + 3 content agents, defined in `src/lib/agent-chat.ts`). Each agent has a unique persona prompt. Chat context includes a real-time business snapshot (`buildBusinessSnapshot()`: reservations, pending approvals, market intel, performance lessons). History persists in `agent_chat_messages` (migration 033). API: `GET/POST /api/admin/chat`.
+
+The `/hq` pages also host a self-improvement pipeline: the "⚙️ 개선 요청" widget files a GitHub Issue, and `.github/workflows/ai-improvement-implement.yml` then implements and merges the change automatically. Since migration 033, the merge gate requires **both** `npm run lint && npm run build` passing **and** a `cursor-review: success` commit status (set by `.github/workflows/cursor-review.yml`). Without `CURSOR_API_KEY` in repo secrets, cursor-review auto-succeeds. See `CONTEXT.md` for subdomain routing and deployment setup (§9 for the self-improvement pipeline).
 
 ### YouTube/Gemini insight pipeline
 
@@ -183,3 +194,4 @@ Copy `.env.example` to `.env.local`. Key vars:
 | `OPENROUTER_API_KEY` | OpenRouter API key for Flux scene image generation (video production pipeline) |
 | `OPENROUTER_IMAGE_MODEL` | (Optional) OpenRouter image model ID (default: `black-forest-labs/flux.2-pro`) |
 | `SUPABASE_VIDEO_BUCKET` | (Optional) Bucket for scene images + assembled videos (default: `dk-safety-video-assets`) |
+| `CURSOR_API_KEY` | (Optional) Cursor Background Agent API key — if set as a GitHub repo secret, `.github/workflows/cursor-review.yml` performs AI code review on each PR and sets `cursor-review` commit status; `ai-improvement-implement.yml` waits for `cursor-review: success` before auto-merging. Without this key, `cursor-review` auto-succeeds and merge proceeds normally. |
