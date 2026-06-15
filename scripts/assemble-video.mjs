@@ -3,7 +3,7 @@
  * 씬 이미지(Ken Burns 줌) + edge-tts 나레이션 + 자막 번인으로 9:16 영상을 합성하고,
  * Supabase Storage에 업로드(video_asset_url) 후 (연동되어 있으면) 유튜브에 비공개로 업로드한다.
  *
- * 요구: ffmpeg/ffprobe (ubuntu-latest 기본 설치), edge-tts (pip install edge-tts),
+ * 요구: ffmpeg/ffprobe (apt-get install ffmpeg), edge-tts (pip install edge-tts),
  *       fonts-noto-cjk (자막 한글 폰트)
  * Usage: node --env-file=.env.local scripts/assemble-video.mjs
  */
