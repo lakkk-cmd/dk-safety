@@ -24,7 +24,7 @@ export async function GET() {
       supabase
         .from("content_youtube_queue")
         .select(
-          "id, title, competitor_notes, script, thumbnail_concept, status, youtube_video_id, reject_reason, created_at, updated_at, approved_at",
+          "id, title, competitor_notes, script, thumbnail_concept, status, youtube_video_id, scenes, video_asset_url, reject_reason, created_at, updated_at, approved_at",
         )
         .order("created_at", { ascending: false })
         .limit(10),

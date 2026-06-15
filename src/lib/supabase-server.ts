@@ -85,7 +85,9 @@ export async function uploadBinaryObject(params: {
     throw new Error(`Supabase 파일 업로드 실패: ${response.status}`);
   }
   const fallbackBase = `${SUPABASE_URL}/storage/v1/object/public/${params.bucket}`;
-  const publicBaseUrl = (process.env.SUPABASE_UPLOAD_PUBLIC_BASE_URL?.trim() || fallbackBase).replace(/\/+$/, "");
+  const overrideBase =
+    params.bucket === SUPABASE_UPLOAD_BUCKET ? process.env.SUPABASE_UPLOAD_PUBLIC_BASE_URL?.trim() : undefined;
+  const publicBaseUrl = (overrideBase || fallbackBase).replace(/\/+$/, "");
   const objectRel = params.objectPath.replace(/^\/+/, "");
   return `${publicBaseUrl}/${objectRel}`;
 }

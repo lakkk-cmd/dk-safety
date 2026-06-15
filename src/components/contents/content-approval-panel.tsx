@@ -3,14 +3,22 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+type VideoScene = {
+  narration: string;
+  imagePrompt: string;
+  imageUrl?: string;
+};
+
 type YoutubeQueueItem = {
   id: string;
   title: string;
   competitor_notes: string | null;
   script: string | null;
   thumbnail_concept: string | null;
-  status: "planning" | "pending_approval" | "approved" | "rejected" | "uploaded";
+  status: "planning" | "pending_approval" | "approved" | "rejected" | "uploaded" | "producing" | "assets_ready";
   youtube_video_id: string | null;
+  scenes: VideoScene[];
+  video_asset_url: string | null;
   reject_reason: string | null;
   created_at: string;
   updated_at: string;
@@ -62,6 +70,8 @@ const STATUS_LABEL: Record<string, string> = {
   draft: "초안",
   pending_approval: "승인 대기",
   approved: "승인됨",
+  producing: "영상 제작 중",
+  assets_ready: "영상 자산 준비됨",
   rejected: "반려됨",
   uploaded: "업로드됨",
   published: "발행됨",
@@ -72,6 +82,8 @@ const STATUS_BADGE: Record<string, string> = {
   draft: "bg-slate-100 text-slate-600",
   pending_approval: "bg-amber-100 text-amber-800",
   approved: "bg-blue-100 text-blue-800",
+  producing: "bg-amber-100 text-amber-800",
+  assets_ready: "bg-violet-100 text-violet-800",
   rejected: "bg-red-100 text-red-700",
   uploaded: "bg-emerald-100 text-emerald-800",
   published: "bg-emerald-100 text-emerald-800",
@@ -195,6 +207,26 @@ export default function ContentApprovalPanel() {
       const file = fileInputRefs.current[id]?.files?.[0];
       if (file) form.set("video", file);
       const res = await fetch("/api/admin/content/youtube", { method: "PATCH", body: form });
+      const json = (await res.json()) as { message?: string };
+      setMessage(json.message ?? (res.ok ? "처리 완료" : "처리 실패"));
+      if (res.ok) await loadAll();
+    } catch {
+      setMessage("처리 중 오류가 발생했습니다.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleVideoProduction = async (id: string) => {
+    if (!confirm("이 기획의 영상 제작(씬 분해 + 이미지 생성)을 시작하시겠습니까? 시간이 다소 걸릴 수 있습니다.")) return;
+    setBusyId(id);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/content/video-production", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queueId: id }),
+      });
       const json = (await res.json()) as { message?: string };
       setMessage(json.message ?? (res.ok ? "처리 완료" : "처리 실패"));
       if (res.ok) await loadAll();
@@ -361,6 +393,49 @@ export default function ContentApprovalPanel() {
                     </a>
                   </p>
                 ) : null}
+                {item.video_asset_url ? (
+                  <p className="mt-2 text-xs text-emerald-700">
+                    합성된 영상:{" "}
+                    <a
+                      className="font-semibold underline"
+                      href={item.video_asset_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      final.mp4
+                    </a>
+                  </p>
+                ) : null}
+                {item.status === "producing" ? (
+                  <p className="mt-2 text-xs font-semibold text-amber-700">
+                    🎬 씬 분해 및 이미지 생성 중입니다… (페이지를 새로고침하면 진행 상태를 확인할 수 있습니다)
+                  </p>
+                ) : null}
+                {item.scenes && item.scenes.length > 0 ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs font-semibold text-slate-500">
+                      영상 씬 미리보기 ({item.scenes.length}개)
+                    </summary>
+                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {item.scenes.map((scene, i) => (
+                        <div key={i} className="rounded-lg border border-slate-200 p-1.5">
+                          {scene.imageUrl ? (
+                            <img
+                              src={scene.imageUrl}
+                              alt={`씬 ${i + 1}`}
+                              className="aspect-[9/16] w-full rounded object-cover"
+                            />
+                          ) : (
+                            <div className="flex aspect-[9/16] w-full items-center justify-center rounded bg-slate-100 text-xs text-slate-400">
+                              이미지 없음
+                            </div>
+                          )}
+                          <p className="mt-1 line-clamp-3 text-[11px] text-slate-600">{scene.narration}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
                 {item.reject_reason ? (
                   <p className="mt-2 text-xs text-red-700">반려 이유: {item.reject_reason}</p>
                 ) : null}
@@ -392,6 +467,34 @@ export default function ContentApprovalPanel() {
                     >
                       반려
                     </button>
+                  </div>
+                ) : null}
+
+                {item.status === "approved" ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={busyId === item.id}
+                      onClick={() => void handleVideoProduction(item.id)}
+                      className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-800 hover:bg-violet-100 disabled:opacity-50"
+                    >
+                      🎬 영상 제작 시작
+                    </button>
+                  </div>
+                ) : null}
+                {item.status === "assets_ready" ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={busyId === item.id}
+                      onClick={() => void handleVideoProduction(item.id)}
+                      className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-800 hover:bg-violet-100 disabled:opacity-50"
+                    >
+                      🎬 이미지 재생성
+                    </button>
+                    <span className="text-xs text-slate-500">
+                      영상 합성/업로드는 GitHub Actions가 자동으로 처리합니다.
+                    </span>
                   </div>
                 ) : null}
               </li>
