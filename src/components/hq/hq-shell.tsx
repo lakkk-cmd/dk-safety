@@ -12,7 +12,9 @@ const TABS = [
   { href: "/reservation", label: "예약" },
   { href: "/pipeline", label: "파이프라인" },
   { href: "/report", label: "보고서" },
+  { href: "/intelligence", label: "인텔리전스" },
   { href: "/improve", label: "개선요청" },
+  { href: "/chat", label: "AI 채팅" },
 ] as const;
 
 export default function HqShell({ children }: { children: React.ReactNode }) {
