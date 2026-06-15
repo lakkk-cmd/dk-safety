@@ -104,3 +104,4 @@ npm run sync:supabase
 - `data/reservations.json`
 - `data/resident-db.json`
 - `public/uploads/**`
+
