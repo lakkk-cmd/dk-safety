@@ -85,7 +85,18 @@ jobs:
           # bot이 생성한 PR은 pull_request 트리거 CI가 승인 대기(action_required) 상태로
           # 멈춰 build 체크가 생성되지 않으므로, 여기서 직접 빌드를 검증해 통과 시 즉시 머지한다.
           if npm run lint && npm run build; then
-            gh pr merge "$BRANCH" --squash || echo "머지 실패 (충돌 등) - 수동 확인 필요"
+            SHA=$(gh pr view "$BRANCH" --json headRefOid -q .headRefOid)
+            for i in $(seq 1 30); do
+              STATE=$(gh api "repos/${{ github.repository }}/commits/$SHA/status" -q \
+                '.statuses[] | select(.context=="cursor-review") | .state' 2>/dev/null || echo "")
+              if [ "$STATE" = "success" ] || [ "$STATE" = "failure" ]; then break; fi
+              sleep 20
+            done
+            if [ "$STATE" = "success" ]; then
+              gh pr merge "$BRANCH" --squash || echo "머지 실패 (충돌 등) - 수동 확인 필요"
+            else
+              gh pr comment "$BRANCH" --body "⚠️ Cursor 리뷰 게이트(${STATE:-대기시간 초과})로 자동 머지를 보류합니다. 수동 확인이 필요합니다."
+            fi
           else
             gh pr comment "$BRANCH" --body "⚠️ lint/build 실패로 자동 머지를 보류합니다. 수동 확인이 필요합니다."
           fi

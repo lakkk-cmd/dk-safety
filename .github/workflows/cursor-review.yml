@@ -1,0 +1,153 @@
+name: Cursor Background Agent PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
+jobs:
+  cursor-review:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # CURSOR_API_KEY가 없으면 게이트를 막지 않고 success로 처리
+      - name: Check CURSOR_API_KEY
+        id: check-key
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          if [ -z "$CURSOR_API_KEY" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set success status (CURSOR_API_KEY not configured)
+        if: steps.check-key.outputs.skip == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+            --method POST \
+            --field state=success \
+            --field context=cursor-review \
+            --field description="Cursor 리뷰 비활성화 — CURSOR_API_KEY 미설정"
+
+      - name: Get PR diff
+        if: steps.check-key.outputs.skip == 'false'
+        id: get-diff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_DIFF=$(gh api \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" \
+            -H "Accept: application/vnd.github.v3.diff" 2>/dev/null | head -c 8000)
+          {
+            echo "diff<<DIFF_EOF"
+            echo "$PR_DIFF"
+            echo "DIFF_EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Request Cursor Background Agent review
+        if: steps.check-key.outputs.skip == 'false'
+        id: cursor-request
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          RESPONSE=$(jq -n \
+            --arg title "${{ github.event.pull_request.title }}" \
+            --arg body "${{ github.event.pull_request.body }}" \
+            --arg diff "${{ steps.get-diff.outputs.diff }}" \
+            --arg repo "${{ github.repository }}" \
+            --arg ref "${{ github.event.pull_request.head.ref }}" \
+            '{
+              prompt: (
+                "PR 코드 리뷰를 수행하라.\n\n" +
+                "## PR 제목\n" + $title + "\n\n" +
+                "## PR 설명\n" + $body + "\n\n" +
+                "## 변경 코드(diff)\n" + $diff + "\n\n" +
+                "## 리뷰 지침\n" +
+                "- dkansim.com(대경안심전기) Next.js 15 + Supabase 프로젝트의 코드 품질, 보안, 성능을 검토하라.\n" +
+                "- 심각한 버그, 보안 취약점, TypeScript 타입 오류, 기존 패턴 위반이 있으면 FAIL로 판단하라.\n" +
+                "- 코드가 양호하면 PASS로 판단하라.\n" +
+                "- 마지막 줄에 반드시 정확히 다음 중 하나를 출력하라: REVIEW_RESULT: PASS 또는 REVIEW_RESULT: FAIL"
+              ),
+              source: {repository: $repo, ref: $ref}
+            }' | curl -s -X POST "https://api.cursor.com/v0/agents" \
+              -H "Authorization: Bearer $CURSOR_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d @-)
+
+          AGENT_ID=$(echo "$RESPONSE" | jq -r '.id // ""')
+          if [ -z "$AGENT_ID" ]; then
+            echo "Cursor API 호출 실패: $RESPONSE" >&2
+          fi
+          echo "agent_id=$AGENT_ID" >> $GITHUB_OUTPUT
+
+      - name: Poll for Cursor review result
+        if: steps.check-key.outputs.skip == 'false' && steps.cursor-request.outputs.agent_id != ''
+        id: cursor-result
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          AGENT_ID="${{ steps.cursor-request.outputs.agent_id }}"
+          RESULT_TEXT=""
+          FINAL_STATUS=""
+
+          for i in $(seq 1 30); do
+            sleep 20
+            RESPONSE=$(curl -s "https://api.cursor.com/v0/agents/$AGENT_ID" \
+              -H "Authorization: Bearer $CURSOR_API_KEY")
+            FINAL_STATUS=$(echo "$RESPONSE" | jq -r '.status // ""')
+            echo "폴링 ${i}/30: status=$FINAL_STATUS"
+            if [ "$FINAL_STATUS" = "FINISHED" ] || [ "$FINAL_STATUS" = "ERROR" ]; then
+              RESULT_TEXT=$(echo "$RESPONSE" | jq -r '.result // ""')
+              break
+            fi
+          done
+
+          {
+            echo "result_text<<RESULT_EOF"
+            echo "$RESULT_TEXT"
+            echo "RESULT_EOF"
+          } >> $GITHUB_OUTPUT
+          echo "final_status=$FINAL_STATUS" >> $GITHUB_OUTPUT
+
+      - name: Post review comment and set commit status
+        if: steps.check-key.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RESULT_TEXT="${{ steps.cursor-result.outputs.result_text }}"
+          FINAL_STATUS="${{ steps.cursor-result.outputs.final_status }}"
+          AGENT_ID="${{ steps.cursor-request.outputs.agent_id }}"
+
+          if [ -z "$AGENT_ID" ] || [ "$FINAL_STATUS" = "ERROR" ] || [ -z "$FINAL_STATUS" ]; then
+            COMMIT_STATE="failure"
+            DESCRIPTION="Cursor 리뷰 실패 또는 타임아웃 — 수동 확인 필요"
+            COMMENT="⚠️ **Cursor 리뷰 실패 또는 타임아웃** — 수동으로 PR을 확인하고 머지해주세요."
+          elif echo "$RESULT_TEXT" | grep -q "REVIEW_RESULT: PASS"; then
+            COMMIT_STATE="success"
+            DESCRIPTION="Cursor 리뷰 통과"
+            COMMENT=$(printf '✅ **Cursor 리뷰 통과**\n\n%s' "$RESULT_TEXT")
+          else
+            COMMIT_STATE="failure"
+            DESCRIPTION="Cursor 리뷰 실패 — 수동 확인 필요"
+            COMMENT=$(printf '❌ **Cursor 리뷰 실패**\n\n%s' "$RESULT_TEXT")
+          fi
+
+          gh pr comment "${{ github.event.pull_request.number }}" --body "$COMMENT"
+
+          gh api "repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+            --method POST \
+            --field state="$COMMIT_STATE" \
+            --field context=cursor-review \
+            --field description="$DESCRIPTION"
