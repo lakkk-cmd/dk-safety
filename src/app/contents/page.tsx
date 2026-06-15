@@ -1,6 +1,7 @@
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import ContentApprovalPanel from "@/components/contents/content-approval-panel";
 import PendingApprovalBadge from "@/components/contents/pending-approval-badge";
+import YoutubeChannelAnalysisPanel from "@/components/contents/youtube-channel-analysis-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,10 @@ export default function ContentsPage() {
           <code className="rounded bg-white px-1">SUPABASE_SERVICE_ROLE_KEY</code>를 확인하세요.
         </p>
       ) : (
-        <ContentApprovalPanel />
+        <>
+          <YoutubeChannelAnalysisPanel />
+          <ContentApprovalPanel />
+        </>
       )}
     </main>
   );
