@@ -26,7 +26,7 @@ jobs:
 
       - name: 1. 신규 영상 수집 (youtube-collect)
         run: |
-          curl -sf -X GET "https://dkansim.com/api/cron/youtube-collect" \
+          curl -s --fail-with-body -X GET "https://dkansim.com/api/cron/youtube-collect" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
       - name: 2. 자막 수집 (yt-dlp)
@@ -37,5 +37,5 @@ jobs:
 
       - name: 3. Gemini 분석 (youtube-analyze)
         run: |
-          curl -sf -X GET "https://dkansim.com/api/cron/youtube-analyze" \
+          curl -s --fail-with-body -X GET "https://dkansim.com/api/cron/youtube-analyze" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
