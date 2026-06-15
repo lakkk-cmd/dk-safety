@@ -1,4 +1,5 @@
 import { Agent, BUSINESS_CONTEXT, callClaudeCustom, extractJsonBlock, type WeekStatus } from "@/lib/agents";
+import type { PerformanceSnapshotItem } from "@/lib/content-performance";
 
 // ─── 콘텐츠 마케팅 에이전트 ──────────────────────────────────────────────────────
 
@@ -235,4 +236,69 @@ export async function summarizeContentPerformance(
 CFO 계산기 관점에서 콘텐츠 파이프라인 성과와 다음 주 우선순위를 2~3문장으로 요약하라. 텍스트만 출력하라.`.trim();
 
   return callClaudeCustom(CONTENT_CHIEF_PROMPT, prompt, 400, 60_000);
+}
+
+// ─── 콘텐츠 성과 자가학습 분석 (일요일 07:00, 성과 리뷰 크론) ──────────────────────
+
+export type ContentPerformanceAnalysis = {
+  insights: string[];
+  recommendations: string[];
+  summary: string;
+};
+
+const PERFORMANCE_ANALYSIS_PROMPT = `당신은 우리집 전기주치의(대경이엔피) 콘텐츠 마케팅 사령부입니다. CFO 계산기 관점에서 이번 주 발행된 콘텐츠의 실제 성과(유튜브 조회수·좋아요·댓글, 블로그 방문)를 분석하고, 다음 주 기획에 반영할 학습 내역을 도출합니다.
+
+반드시 한국어로, 아래 JSON 형식으로만 응답하라(설명 텍스트 없이 JSON만):
+\`\`\`json
+{
+  "insights": ["이번 주 성과에서 발견한 패턴 1~3개 (어떤 주제·형식이 반응이 좋았는지)"],
+  "recommendations": ["다음 주 기획에 반영할 구체적 추천사항 1~3개"],
+  "summary": "전체 요약 1~2문장"
+}
+\`\`\`
+발행된 콘텐츠가 없거나 게시 직후라 통계가 0이면 insights/recommendations에 "데이터 부족 — 다음 주 발행 후 재평가 필요"와 같이 명시하고 summary도 그에 맞게 작성하라.`;
+
+function formatPerformanceSnapshot(snapshot: {
+  youtube: PerformanceSnapshotItem[];
+  blog: PerformanceSnapshotItem[];
+}): string {
+  if (snapshot.youtube.length === 0 && snapshot.blog.length === 0) {
+    return "(발행된 콘텐츠 없음)";
+  }
+  const lines: string[] = [];
+  for (const item of snapshot.youtube) {
+    lines.push(
+      `- [유튜브] ${item.title} (게시 ${item.ageDays}일 경과) — 조회수 ${item.viewCount}, 좋아요 ${item.likeCount ?? 0}, 댓글 ${item.commentCount ?? 0}`,
+    );
+  }
+  for (const item of snapshot.blog) {
+    lines.push(`- [블로그] ${item.title} (게시 ${item.ageDays}일 경과) — 조회수 ${item.viewCount}`);
+  }
+  return lines.join("\n");
+}
+
+export async function analyzeContentPerformance(
+  snapshot: { youtube: PerformanceSnapshotItem[]; blog: PerformanceSnapshotItem[] },
+  priorLessons: string,
+  weekStatus?: WeekStatus,
+): Promise<ContentPerformanceAnalysis> {
+  const weekLine = weekStatus ? `${weekStatus.message}\n` : "";
+  const priorBlock = priorLessons.trim() ? `\n[이전 학습 내역]\n${priorLessons.trim()}\n` : "";
+  const prompt = `${weekLine}${BUSINESS_CONTEXT}
+[이번 주 콘텐츠 성과]
+${formatPerformanceSnapshot(snapshot)}
+${priorBlock}
+위 데이터를 분석해 학습 내역을 도출하라.`.trim();
+
+  const raw = await callClaudeCustom(PERFORMANCE_ANALYSIS_PROMPT, prompt, 1000, 60_000);
+  const jsonText = extractJsonBlock(raw);
+  if (!jsonText) {
+    return { insights: [], recommendations: [], summary: raw.trim().slice(0, 300) };
+  }
+  const parsed = JSON.parse(jsonText) as Partial<ContentPerformanceAnalysis>;
+  return {
+    insights: Array.isArray(parsed.insights) ? parsed.insights.map(String) : [],
+    recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations.map(String) : [],
+    summary: String(parsed.summary ?? raw.trim().slice(0, 300)),
+  };
 }

@@ -16,10 +16,11 @@ export type BlogPost = {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  view_count: number;
 };
 
 const BLOG_COLUMNS =
-  "id, slug, title, content, excerpt, meta_description, keywords, status, agent_source, reject_reason, created_at, updated_at, published_at";
+  "id, slug, title, content, excerpt, meta_description, keywords, status, agent_source, reject_reason, created_at, updated_at, published_at, view_count";
 
 /** 한글/영문 제목을 URL slug로 변환 (한글은 그대로 유지, 공백→하이픈) */
 export function slugify(title: string): string {
@@ -145,4 +146,11 @@ export async function countBlogPostsByStatus(status: BlogPostStatus): Promise<nu
     .eq("status", status);
   if (error) throw error;
   return count ?? 0;
+}
+
+/** 발행된 글의 조회수를 1 증가시킨다. 통계 목적이므로 실패해도 호출부 렌더링을 막지 않는다. */
+export async function incrementBlogPostViewCount(slug: string): Promise<void> {
+  const supabase = requireAgentSupabase();
+  const { error } = await supabase.rpc("increment_blog_view", { p_slug: slug });
+  if (error) throw error;
 }

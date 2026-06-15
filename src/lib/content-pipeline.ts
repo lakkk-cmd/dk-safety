@@ -13,6 +13,7 @@ import {
   summarizeContentPerformance,
   type ContentPlanResult,
 } from "@/lib/content-agents";
+import { loadPerformanceLessons } from "@/lib/content-performance";
 import { KAKAO_MEMO_ENABLED, publishKakaoPost, sendContentApprovalNotification } from "@/lib/kakao-publish";
 import { NAVER_ENABLED, collectNaverTrends, getRecentTrendKeywords } from "@/lib/naver-pipeline";
 import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
@@ -70,10 +71,14 @@ export async function runContentPlanning(): Promise<ContentPlanRunResult> {
 
     const trendKeywords = await getRecentTrendKeywords();
     const memory = await loadContentMemory();
+    const performanceLessons = await loadPerformanceLessons();
+    const combinedMemory = [memory, performanceLessons.trim() ? `[성과 학습]\n${performanceLessons.trim()}` : ""]
+      .filter(Boolean)
+      .join("\n\n");
     const pendingFeedback = await loadPendingFeedback();
     const feedbackText = pendingFeedback.map((f) => f.content).join("\n---\n");
 
-    const plan = await planContentWeek(memory, feedbackText, trendKeywords, weekStatus);
+    const plan = await planContentWeek(combinedMemory, feedbackText, trendKeywords, weekStatus);
 
     const supabase = requireAgentSupabase();
 

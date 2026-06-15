@@ -13,6 +13,10 @@
       "schedule": "0 23 * * 5"
     },
     {
+      "path": "/api/cron/content-performance-review",
+      "schedule": "0 22 * * 0"
+    },
+    {
       "path": "/api/cron/content-plan",
       "schedule": "0 0 * * 1"
     },

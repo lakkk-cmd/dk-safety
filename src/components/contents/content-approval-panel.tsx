@@ -23,6 +23,10 @@ type YoutubeQueueItem = {
   created_at: string;
   updated_at: string;
   approved_at: string | null;
+  view_count: number;
+  like_count: number;
+  comment_count: number;
+  stats_updated_at: string | null;
 };
 
 type KakaoQueueItem = {
@@ -50,6 +54,7 @@ type BlogPostItem = {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  view_count: number;
 };
 
 type OverviewResponse = {
@@ -63,6 +68,7 @@ type OverviewResponse = {
   kakaoConnected: boolean;
   kakaoOAuthEnabled: boolean;
   memoryLog: string;
+  performanceLessons: string;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -303,6 +309,19 @@ export default function ContentApprovalPanel() {
         ) : null}
       </section>
 
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900">📊 콘텐츠 성과 학습</h2>
+        {data.performanceLessons ? (
+          <p className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-700">
+            {data.performanceLessons}
+          </p>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">
+            아직 성과 분석 결과가 없습니다. 매주 일요일 07:00 콘텐츠 성과 리뷰가 실행되면 여기에 학습 내역이 표시됩니다.
+          </p>
+        )}
+      </section>
+
       {data.youtubeOAuthEnabled ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-bold text-slate-900">유튜브 연동</h2>
@@ -404,6 +423,13 @@ export default function ContentApprovalPanel() {
                     >
                       final.mp4
                     </a>
+                  </p>
+                ) : null}
+                {item.status === "uploaded" && item.stats_updated_at ? (
+                  <p className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                    <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold">조회수 {item.view_count}</span>
+                    <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold">좋아요 {item.like_count}</span>
+                    <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold">댓글 {item.comment_count}</span>
                   </p>
                 ) : null}
                 {item.status === "producing" ? (
@@ -576,11 +602,14 @@ export default function ContentApprovalPanel() {
                   </details>
                 ) : null}
                 {item.status === "published" ? (
-                  <p className="mt-2 text-xs text-emerald-700">
+                  <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-emerald-700">
                     게시됨:{" "}
                     <a className="font-semibold underline" href={`/blog/${item.slug}`} target="_blank" rel="noreferrer">
                       /blog/{item.slug}
                     </a>
+                    <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
+                      조회수 {item.view_count}
+                    </span>
                   </p>
                 ) : null}
                 {item.reject_reason ? (

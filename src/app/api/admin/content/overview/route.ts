@@ -8,6 +8,7 @@ import { getRecentTrendKeywords } from "@/lib/naver-pipeline";
 import { isYoutubeConnected, YOUTUBE_OAUTH_ENABLED } from "@/lib/youtube-upload";
 
 const CONTENT_MEMORY_KEY = "content_pipeline_log";
+const PERFORMANCE_MEMORY_KEY = "content_performance_lessons";
 
 export async function GET() {
   if (!(await isAdminAuthenticated())) {
@@ -20,11 +21,11 @@ export async function GET() {
   try {
     const supabase = requireAgentSupabase();
 
-    const [youtubeRes, kakaoRes, blogPosts, pending, trendKeywords, youtubeConnected, kakaoConnected, memoryRes] = await Promise.all([
+    const [youtubeRes, kakaoRes, blogPosts, pending, trendKeywords, youtubeConnected, kakaoConnected, memoryRes, performanceRes] = await Promise.all([
       supabase
         .from("content_youtube_queue")
         .select(
-          "id, title, competitor_notes, script, thumbnail_concept, status, youtube_video_id, scenes, video_asset_url, reject_reason, created_at, updated_at, approved_at",
+          "id, title, competitor_notes, script, thumbnail_concept, status, youtube_video_id, scenes, video_asset_url, reject_reason, created_at, updated_at, approved_at, view_count, like_count, comment_count, stats_updated_at",
         )
         .order("created_at", { ascending: false })
         .limit(10),
@@ -39,6 +40,7 @@ export async function GET() {
       isYoutubeConnected(),
       isKakaoConnected(),
       supabase.from("agent_memory").select("content").eq("key", CONTENT_MEMORY_KEY).maybeSingle(),
+      supabase.from("agent_memory").select("content").eq("key", PERFORMANCE_MEMORY_KEY).maybeSingle(),
     ]);
 
     const error = [youtubeRes.error, kakaoRes.error].map((e) => e?.message).find(Boolean) ?? null;
@@ -57,6 +59,7 @@ export async function GET() {
       kakaoConnected,
       kakaoOAuthEnabled: KAKAO_OAUTH_ENABLED,
       memoryLog: String(memoryRes.data?.content ?? ""),
+      performanceLessons: String(performanceRes.data?.content ?? ""),
     });
   } catch (error) {
     return NextResponse.json(
