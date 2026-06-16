@@ -18,3 +18,4 @@ coverage
 .vercel
 data/backups/reservations-auto-*.json
 public/uploads/
+test-output/

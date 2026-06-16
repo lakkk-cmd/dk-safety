@@ -31,6 +31,27 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 });
 
+/**
+ * tesseract-ocr(시스템 패키지) 로 이미지에서 한국어 텍스트 감지.
+ * tesseract 미설치 환경에서는 조용히 false 반환.
+ */
+function detectKoreanTextTesseract(imagePath) {
+  try {
+    const out = execFileSync(
+      "tesseract",
+      [imagePath, "stdout", "-l", "kor", "--psm", "11", "--oem", "1"],
+      { encoding: "utf-8", timeout: 15_000, stdio: ["pipe", "pipe", "pipe"] },
+    );
+    const text = out.trim();
+    if (!text) return false;
+    // 한글 유니코드 범위(AC00-D7A3) 문자가 2자 이상이면 텍스트로 판정
+    const koreanChars = text.match(/[가-힣]/g) ?? [];
+    return koreanChars.length >= 2;
+  } catch {
+    return false;
+  }
+}
+
 function wrapCaption(text, maxChars = 20) {
   const words = text.trim().split(/\s+/);
   const lines = [];
@@ -298,6 +319,18 @@ async function main() {
         console.log(`[씬 ${i + 1}/${scenes.length}] 다운로드 + TTS...`);
         const paths = buildSegment(dir, i, scenes[i]);
         await downloadScene(scenes[i], paths);
+        // tesseract OCR 체크 — ai_bg 씬만 검사 (verdict_card/phone_ui는 코드 생성이므로 무시)
+        const sceneType = scenes[i].sceneType ?? "ai_bg";
+        if (sceneType === "ai_bg") {
+          const hasKoreanText = detectKoreanTextTesseract(paths.imagePath);
+          if (hasKoreanText) {
+            console.warn(`  ⚠️  [OCR] 씬 ${i + 1}: 한국어 텍스트 감지됨 (ffmpeg 자막으로 덮어씀, 계속 진행)`);
+          } else {
+            console.log(`  ✅ [OCR] 씬 ${i + 1}: 텍스트 없음 — 통과`);
+          }
+        } else {
+          console.log(`  ✅ [OCR] 씬 ${i + 1}: ${sceneType} 코드 생성 이미지 — OCR 스킵`);
+        }
         console.log(`[씬 ${i + 1}/${scenes.length}] ffmpeg 합성...`);
         const duration = renderSegment(paths);
         console.log(`[씬 ${i + 1}/${scenes.length}] 완료 (${duration.toFixed(1)}s)`);

@@ -25,8 +25,8 @@ jobs:
 
       - run: pip install -U edge-tts
 
-      - name: ffmpeg + 한글 자막용 폰트 설치
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk
+      - name: ffmpeg + 한글 자막용 폰트 + tesseract-ocr(한국어) 설치
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk tesseract-ocr tesseract-ocr-kor
 
       - name: 영상 합성 + (연동 시) 유튜브 업로드
         env:
