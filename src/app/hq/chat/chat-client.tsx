@@ -103,7 +103,7 @@ export default function HqChatClient() {
         </p>
         <h1 className="mt-3 text-2xl font-black tracking-[-0.02em] text-cc-text md:text-3xl">9-에이전트와 1:1 대화</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-600">
-          경영진 6명 + 콘텐츠팀 3명에게 실시간 현황을 기반으로 질문하고 의견을 구할 수 있습니다.
+          경영진 6명 + 콘텐츠팀 3명에게 실시간 현황을 기반으로 질문하고 언제든지 의견을 구할 수 있습니다.
         </p>
       </header>
 
