@@ -117,7 +117,13 @@ jobs:
             echo "폴링 ${i}/30: status=$FINAL_STATUS"
             if [ "$FINAL_STATUS" = "FINISHED" ] || [ "$FINAL_STATUS" = "ERROR" ]; then
               echo "응답 키: $(echo "$RESPONSE" | jq -r 'keys | join(", ")' 2>/dev/null)"
-              RESULT_TEXT=$(echo "$RESPONSE" | jq -r '.result // .output // .text // .content // .message // ""')
+              echo "target 값: $(echo "$RESPONSE" | jq '.target' 2>/dev/null)"
+              echo "name 값: $(echo "$RESPONSE" | jq -r '.name // ""' 2>/dev/null)"
+              RESULT_TEXT=$(echo "$RESPONSE" | jq -r '
+                .result // .output // .text // .content // .message //
+                (if .target | type == "string" then .target
+                 elif .target | type == "object" then (.target.text // .target.content // .target.result // .target.output // (.target | tostring))
+                 else "" end) // ""' 2>/dev/null)
               break
             fi
           done
