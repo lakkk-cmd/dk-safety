@@ -1,4 +1,4 @@
-import { AGENTS, BUSINESS_CONTEXT, callClaudeCustom, type Agent } from "@/lib/agents";
+import { AGENTS, BUSINESS_CONTEXT, callClaudeCustom, callClaudeRich, type Agent, type RichContentBlock } from "@/lib/agents";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { CONTENT_AGENTS } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
@@ -34,7 +34,9 @@ const CHAT_SYSTEM_PROMPTS: Record<string, string> = Object.fromEntries(
   Object.entries(CHAT_PERSONAS).map(([id, persona]) => [id, `${persona}${CHAT_FRAMING}`]),
 );
 
-export type ChatMessage = { role: "user" | "assistant"; content: string; created_at: string };
+export type ChatMessage = { role: "user" | "assistant"; content: string; created_at: string; attachment_url?: string | null };
+
+export type ChatAttachment = { url: string; mediaType: string };
 
 /** 사령부 전체 현황(예약/콘텐츠 승인대기/로드맵/시장 인텔리전스/성과 학습)을 텍스트 블록으로 요약 — 9개 에이전트가 공유 */
 export async function buildBusinessSnapshot(): Promise<string> {
@@ -89,7 +91,7 @@ export async function loadChatHistory(agentId: string, limit = 20): Promise<Chat
   const supabase = requireAgentSupabase();
   const { data, error } = await supabase
     .from("agent_chat_messages")
-    .select("role, content, created_at")
+    .select("role, content, created_at, attachment_url")
     .eq("agent_id", agentId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -97,13 +99,28 @@ export async function loadChatHistory(agentId: string, limit = 20): Promise<Chat
   return ((data ?? []) as ChatMessage[]).reverse();
 }
 
-export async function appendChatMessage(agentId: string, role: "user" | "assistant", content: string): Promise<void> {
+export async function appendChatMessage(
+  agentId: string,
+  role: "user" | "assistant",
+  content: string,
+  attachmentUrl?: string,
+): Promise<void> {
   const supabase = requireAgentSupabase();
-  const { error } = await supabase.from("agent_chat_messages").insert({ agent_id: agentId, role, content });
+  const row: Record<string, unknown> = { agent_id: agentId, role, content };
+  if (attachmentUrl) row.attachment_url = attachmentUrl;
+  const { error } = await supabase.from("agent_chat_messages").insert(row);
   if (error) throw error;
 }
 
 export async function chatWithAgent(agentId: string, userMessage: string): Promise<string> {
+  return chatWithAgentPlus(agentId, userMessage);
+}
+
+export async function chatWithAgentPlus(
+  agentId: string,
+  userMessage: string,
+  options?: { attachment?: ChatAttachment; webSearch?: boolean },
+): Promise<string> {
   const agent = CHAT_AGENTS.find((a) => a.id === agentId);
   const systemPrompt = CHAT_SYSTEM_PROMPTS[agentId];
   if (!agent || !systemPrompt) throw new Error(`알 수 없는 에이전트: ${agentId}`);
@@ -112,13 +129,31 @@ export async function chatWithAgent(agentId: string, userMessage: string): Promi
   const snapshot = await buildBusinessSnapshot();
 
   const transcript = history.map((m) => `${m.role === "user" ? "대장" : agent.name}: ${m.content}`).join("\n");
-  const prompt = `${BUSINESS_CONTEXT}\n\n[실시간 현황]\n${snapshot}\n\n${
+  const contextText = `${BUSINESS_CONTEXT}\n\n[실시간 현황]\n${snapshot}\n\n${
     transcript ? `[이전 대화]\n${transcript}\n\n` : ""
-  }[새 메시지]\n대장: ${userMessage}`;
+  }[새 메시지]\n대장: ${userMessage || "(첨부파일 확인 요청)"}`;
 
-  const reply = await callClaudeCustom(systemPrompt, prompt, 1024, 60_000);
+  const { attachment, webSearch = false } = options ?? {};
 
-  await appendChatMessage(agentId, "user", userMessage);
+  let userContent: string | RichContentBlock[];
+  if (attachment) {
+    const blocks: RichContentBlock[] = [];
+    if (attachment.mediaType.startsWith("image/")) {
+      blocks.push({ type: "image", source: { type: "url", url: attachment.url } });
+    } else {
+      blocks.push({ type: "document", source: { type: "url", url: attachment.url } });
+    }
+    blocks.push({ type: "text", text: contextText });
+    userContent = blocks;
+  } else {
+    userContent = contextText;
+  }
+
+  const reply = webSearch || attachment
+    ? await callClaudeRich({ systemPrompt, userContent, maxTokens: 1024, timeoutMs: 60_000, webSearch })
+    : await callClaudeCustom(systemPrompt, contextText, 1024, 60_000);
+
+  await appendChatMessage(agentId, "user", userMessage || "(첨부파일)", attachment?.url);
   await appendChatMessage(agentId, "assistant", reply);
 
   return reply;

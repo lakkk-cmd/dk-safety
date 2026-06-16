@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
-import { CHAT_AGENT_GROUPS, CHAT_AGENTS, chatWithAgent, loadChatHistory } from "@/lib/agent-chat";
+import { CHAT_AGENT_GROUPS, CHAT_AGENTS, chatWithAgentPlus, loadChatHistory } from "@/lib/agent-chat";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 
 export const maxDuration = 60;
@@ -42,17 +42,27 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json()) as { agentId?: string; message?: string };
+    const body = (await request.json()) as {
+      agentId?: string;
+      message?: string;
+      attachmentUrl?: string;
+      attachmentType?: string;
+      webSearch?: boolean;
+    };
     const agentId = body.agentId?.trim();
-    const message = body.message?.trim();
+    const message = body.message?.trim() ?? "";
+    const attachmentUrl = body.attachmentUrl?.trim();
     if (!agentId || !CHAT_AGENTS.some((a) => a.id === agentId)) {
       return NextResponse.json({ message: `알 수 없는 에이전트: ${agentId}` }, { status: 400 });
     }
-    if (!message) {
-      return NextResponse.json({ message: "message 파라미터가 필요합니다." }, { status: 400 });
+    if (!message && !attachmentUrl) {
+      return NextResponse.json({ message: "message 또는 첨부파일이 필요합니다." }, { status: 400 });
     }
 
-    const reply = await chatWithAgent(agentId, message);
+    const reply = await chatWithAgentPlus(agentId, message, {
+      attachment: attachmentUrl ? { url: attachmentUrl, mediaType: body.attachmentType ?? "application/octet-stream" } : undefined,
+      webSearch: body.webSearch ?? false,
+    });
     return NextResponse.json({ reply });
   } catch (error) {
     return NextResponse.json(

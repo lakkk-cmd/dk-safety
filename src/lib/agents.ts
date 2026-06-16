@@ -248,6 +248,67 @@ export async function callClaudeCustom(
   return fetchClaude(systemPrompt, userPrompt, maxTokens, timeoutMs);
 }
 
+export type RichContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "url"; url: string } }
+  | { type: "document"; source: { type: "url"; url: string } };
+
+/** 이미지/문서 첨부 또는 웹 검색 도구가 필요한 채팅 호출 */
+export async function callClaudeRich(params: {
+  systemPrompt: string;
+  userContent: string | RichContentBlock[];
+  maxTokens?: number;
+  timeoutMs?: number;
+  webSearch?: boolean;
+}): Promise<string> {
+  const { systemPrompt, userContent, maxTokens = 1024, timeoutMs = 60_000, webSearch = false } = params;
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey || apiKey.length < 20) throw new Error("ANTHROPIC_API_KEY가 설정되지 않았거나 유효하지 않습니다.");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const body: Record<string, unknown> = {
+    model: CLAUDE_MODEL,
+    max_tokens: maxTokens,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userContent }],
+  };
+  if (webSearch) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-api-key": apiKey,
+    "anthropic-version": "2023-06-01",
+  };
+  if (webSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
+
+  let res: Response;
+  try {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const raw = await res.text();
+  if (!res.ok) {
+    let detail = raw.slice(0, 300);
+    try {
+      const err = JSON.parse(raw) as { error?: { message?: string } };
+      detail = err.error?.message ?? detail;
+    } catch { /* keep raw */ }
+    throw new Error(`Claude API ${res.status}: ${detail}`);
+  }
+
+  const data = JSON.parse(raw) as { content?: { type: string; text?: string }[] };
+  return data.content?.filter((b) => b.type === "text").map((b) => b.text ?? "").join("") || "응답 없음";
+}
+
 /**
  * chief가 반환한 ```json``` 블록을 파싱하는 범용 헬퍼.
  * 중괄호 깊이를 직접 추적해 첫 `{`에 대응하는 `}`까지 추출한다 — 정규식 기반 추출은
