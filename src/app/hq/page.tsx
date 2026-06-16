@@ -43,6 +43,9 @@ export default async function HqPage() {
           오늘({summary.today}) 현황
         </h1>
         <p className="mt-2 text-sm text-slate-600">
+          AI 경영진이 실시간 데이터를 기반으로 경영 현황을 분석합니다.
+        </p>
+        <p className="mt-1 text-sm text-slate-600">
           {summary.weekStatus.message} · {summary.scheduleSummary}
         </p>
       </header>
