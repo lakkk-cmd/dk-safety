@@ -3,6 +3,7 @@ import { requireAgentSupabase } from "@/lib/agent-db";
 import { CONTENT_AGENTS } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
 import { getHqSummary } from "@/lib/hq-summary";
+import { searchKnowledgeBase } from "@/lib/knowledge-base";
 
 // ─── 총괄 + 9-에이전트 채팅 ──────────────────────────────────────────────────────
 
@@ -139,11 +140,15 @@ export async function chatWithAgentPlus(
   const systemPrompt = CHAT_SYSTEM_PROMPTS[agentId];
   if (!agent || !systemPrompt) throw new Error(`알 수 없는 에이전트: ${agentId}`);
 
-  const history = await loadChatHistory(agentId, 20);
-  const snapshot = await buildBusinessSnapshot();
+  const [history, snapshot, ragContext] = await Promise.all([
+    loadChatHistory(agentId, 20),
+    buildBusinessSnapshot(),
+    searchKnowledgeBase(userMessage || "").catch(() => ""),
+  ]);
 
   const transcript = history.map((m) => `${m.role === "user" ? "대장" : agent.name}: ${m.content}`).join("\n");
-  const contextText = `${BUSINESS_CONTEXT}\n\n[실시간 현황]\n${snapshot}\n\n${
+  const ragSection = ragContext ? `\n\n${ragContext}` : "";
+  const contextText = `${BUSINESS_CONTEXT}\n\n[실시간 현황]\n${snapshot}${ragSection}\n\n${
     transcript ? `[이전 대화]\n${transcript}\n\n` : ""
   }[새 메시지]\n대장: ${userMessage || "(첨부파일 확인 요청)"}`;
 
