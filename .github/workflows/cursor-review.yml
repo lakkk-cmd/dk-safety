@@ -61,13 +61,18 @@ jobs:
         id: cursor-request
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_DIFF: ${{ steps.get-diff.outputs.diff }}
+          PR_REPO: ${{ github.repository }}
+          PR_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           RESPONSE=$(jq -n \
-            --arg title "${{ github.event.pull_request.title }}" \
-            --arg body "${{ github.event.pull_request.body }}" \
-            --arg diff "${{ steps.get-diff.outputs.diff }}" \
-            --arg repo "${{ github.repository }}" \
-            --arg ref "${{ github.event.pull_request.head.ref }}" \
+            --arg title "$PR_TITLE" \
+            --arg body "$PR_BODY" \
+            --arg diff "$PR_DIFF" \
+            --arg repo "$PR_REPO" \
+            --arg ref "$PR_REF" \
             '{
               prompt: (
                 "PR 코드 리뷰를 수행하라.\n\n" +
@@ -125,10 +130,13 @@ jobs:
         if: steps.check-key.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RESULT_TEXT: ${{ steps.cursor-result.outputs.result_text }}
+          FINAL_STATUS: ${{ steps.cursor-result.outputs.final_status }}
+          AGENT_ID: ${{ steps.cursor-request.outputs.agent_id }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          RESULT_TEXT="${{ steps.cursor-result.outputs.result_text }}"
-          FINAL_STATUS="${{ steps.cursor-result.outputs.final_status }}"
-          AGENT_ID="${{ steps.cursor-request.outputs.agent_id }}"
 
           if [ -z "$AGENT_ID" ] || [ "$FINAL_STATUS" = "ERROR" ] || [ -z "$FINAL_STATUS" ]; then
             COMMIT_STATE="failure"
@@ -144,9 +152,9 @@ jobs:
             COMMENT=$(printf '❌ **Cursor 리뷰 실패**\n\n%s' "$RESULT_TEXT")
           fi
 
-          gh pr comment "${{ github.event.pull_request.number }}" --body "$COMMENT"
+          gh pr comment "$PR_NUMBER" --body "$COMMENT"
 
-          gh api "repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+          gh api "repos/$GH_REPO/statuses/$PR_HEAD_SHA" \
             --method POST \
             --field state="$COMMIT_STATE" \
             --field context=cursor-review \
