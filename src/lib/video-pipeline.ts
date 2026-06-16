@@ -90,35 +90,52 @@ export async function generateSceneImage(prompt: string): Promise<{ data: Buffer
   const model = process.env.OPENROUTER_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL;
   const fullPrompt = `${prompt}${NEGATIVE_PROMPT_SUFFIX}`;
 
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: fullPrompt }],
-      modalities: ["image"],
-      image_config: { aspect_ratio: "9:16", image_size: "1K" },
-    }),
-    signal: AbortSignal.timeout(90_000),
-  });
+  const MAX_FLUX_RETRIES = 3;
+  let lastError: Error | null = null;
 
-  const raw = await res.text();
-  if (!res.ok) {
-    let detail = raw.slice(0, 300);
-    try { const err = JSON.parse(raw) as { error?: { message?: string } }; detail = err.error?.message ?? detail; } catch { /* keep raw */ }
-    throw new Error(`OpenRouter 이미지 생성 ${res.status}: ${detail}`);
+  for (let attempt = 0; attempt < MAX_FLUX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      // 레이트 리밋 회피: 지수 백오프 (3s, 6s)
+      await new Promise<void>((r) => setTimeout(r, 3000 * attempt));
+      console.log(`  Flux 재시도 ${attempt + 1}/${MAX_FLUX_RETRIES}...`);
+    }
+
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: fullPrompt }],
+        modalities: ["image"],
+        image_config: { aspect_ratio: "9:16", image_size: "1K" },
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+
+    const raw = await res.text();
+    if (!res.ok) {
+      let detail = raw.slice(0, 300);
+      try { const err = JSON.parse(raw) as { error?: { message?: string } }; detail = err.error?.message ?? detail; } catch { /* keep raw */ }
+      lastError = new Error(`OpenRouter 이미지 생성 ${res.status}: ${detail}`);
+      continue;
+    }
+
+    const json = JSON.parse(raw) as { choices?: { message?: { images?: { image_url?: { url?: string } }[] } }[] };
+    const dataUrl = json.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    if (!dataUrl) {
+      lastError = new Error("OpenRouter 응답에 이미지가 없습니다.");
+      continue;
+    }
+
+    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) throw new Error("OpenRouter 이미지 응답 형식을 인식할 수 없습니다.");
+    return { data: Buffer.from(match[2], "base64"), contentType: match[1] };
   }
 
-  const json = JSON.parse(raw) as { choices?: { message?: { images?: { image_url?: { url?: string } }[] } }[] };
-  const dataUrl = json.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-  if (!dataUrl) throw new Error("OpenRouter 응답에 이미지가 없습니다.");
-
-  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  if (!match) throw new Error("OpenRouter 이미지 응답 형식을 인식할 수 없습니다.");
-  return { data: Buffer.from(match[2], "base64"), contentType: match[1] };
+  throw lastError ?? new Error("Flux 이미지 생성 실패 (알 수 없는 오류)");
 }
 
 // ─── OCR 게이트 (Claude Vision) ───────────────────────────────────────────────
@@ -127,7 +144,7 @@ export async function generateSceneImage(prompt: string): Promise<{ data: Buffer
  * Claude Vision으로 이미지에 한국어/한자/읽을 수 있는 텍스트가 있는지 확인.
  * 텍스트 감지 시 true 반환 → 이미지 재생성 필요.
  */
-async function detectTextInImage(imageUrl: string): Promise<boolean> {
+export async function detectTextInImage(imageUrl: string): Promise<boolean> {
   try {
     const reply = await callClaudeRich({
       systemPrompt: "당신은 이미지 분석 전문가입니다. 간결하게 YES/NO만 답하세요.",
@@ -149,7 +166,7 @@ async function detectTextInImage(imageUrl: string): Promise<boolean> {
 
 // ─── 실패 알림 ────────────────────────────────────────────────────────────────
 
-async function notifyOcrFailure(queueId: string, sceneIndex: number, prompt: string): Promise<void> {
+export async function notifyOcrFailure(queueId: string, sceneIndex: number, prompt: string): Promise<void> {
   const supabase = requireAgentSupabase();
   const message = `[영상 이미지 OCR 실패] 씬 ${sceneIndex + 1}\n큐ID: ${queueId}\n프롬프트: ${prompt.slice(0, 100)}`;
 
