@@ -71,7 +71,7 @@ export default async function HqIntelligencePage() {
   }
 
   const supabase = requireAgentSupabase();
-  const [insightsRes, channelRes, queueRes] = await Promise.all([
+  const [insightsRes, channelRes, queueRes, examQueueRes] = await Promise.all([
     supabase
       .from("market_intelligence_insights")
       .select("date, category, trend_keywords, insight, content_ideas")
@@ -88,11 +88,17 @@ export default async function HqIntelligencePage() {
       .not("category", "is", null)
       .order("created_at", { ascending: false })
       .limit(10),
+    // 갭 분석용: 자격시험 카테고리 전체 큐
+    supabase
+      .from("content_youtube_queue")
+      .select("title")
+      .eq("category", "자격시험"),
   ]);
 
   const insights = (insightsRes.data ?? []) as InsightRow[];
   const channelAnalyses = (channelRes.data ?? []) as ChannelAnalysisRow[];
   const queueItems = (queueRes.data ?? []) as QueueRow[];
+  const examQueueTitles = ((examQueueRes.data ?? []) as { title: string }[]).map((r) => r.title.toLowerCase());
 
   const keywordFreq: Record<IntelCategory, Map<string, number>> = {
     전기안전: new Map(),
@@ -110,6 +116,18 @@ export default async function HqIntelligencePage() {
       latestByCategory[row.category] = row;
     }
   }
+
+  // 키워드 갭 분석: 자격시험 트렌드 키워드 vs 실제 콘텐츠 제목
+  const examKeywords = [...keywordFreq["자격시험"].entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20);
+  const examGap = examKeywords.map(([kw, count]) => ({
+    kw,
+    count,
+    covered: examQueueTitles.some((t) => t.includes(kw.toLowerCase())),
+  }));
+  const coveredCount = examGap.filter((g) => g.covered).length;
+  const gapCount = examGap.filter((g) => !g.covered).length;
 
   return (
     <main className="space-y-6">
@@ -245,6 +263,44 @@ export default async function HqIntelligencePage() {
             </ul>
           </div>
         ) : null}
+      </section>
+
+      <section className="cc-card p-6">
+        <h2 className="text-base font-black text-cc-text">자격시험 키워드 갭 분석</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          트렌드 키워드 상위 20개 중 아직 콘텐츠로 만들어지지 않은 갭 키워드를 확인합니다.
+        </p>
+        {examGap.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500">자격시험 트렌드 키워드 데이터가 없습니다.</p>
+        ) : (
+          <>
+            <div className="mt-3 flex gap-4 text-sm">
+              <span className="rounded-full bg-cc-green/10 px-3 py-1 font-bold text-cc-green">
+                커버됨 {coveredCount}개
+              </span>
+              <span className="rounded-full bg-red-50 px-3 py-1 font-bold text-red-600">
+                갭(미작성) {gapCount}개
+              </span>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {examGap.map(({ kw, count, covered }) => (
+                <span
+                  key={kw}
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                    covered
+                      ? "bg-cc-green/10 text-cc-green"
+                      : "bg-red-50 text-red-600"
+                  }`}
+                  title={`출현 ${count}회 | ${covered ? "콘텐츠 있음" : "미작성 — 콘텐츠 기회!"}`}
+                >
+                  {covered ? "✓ " : ""}
+                  {kw}
+                  <span className="ml-1 opacity-60">{count}</span>
+                </span>
+              ))}
+            </div>
+          </>
+        )}
       </section>
 
       <section className="cc-card p-6">

@@ -6,11 +6,13 @@ import {
   createBlogPost,
 } from "@/lib/blog-store";
 import {
+  CONTENT_CATEGORIES,
   draftBlogPost,
   draftKakaoPost,
   draftYoutubeScript,
   planContentWeek,
   summarizeContentPerformance,
+  type ContentCategory,
   type ContentPlanResult,
 } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
@@ -20,6 +22,20 @@ import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeli
 import { uploadYoutubeVideo } from "@/lib/youtube-upload";
 
 const CONTENT_MEMORY_KEY = "content_pipeline_log";
+
+/**
+ * CONTENT_YOUTUBE_CATEGORIES env var (쉼표 구분) 로 매주 기획할 유튜브 카테고리 목록을 읽음.
+ * 예: "전기안전,자격시험"  →  주 2개 영상 기획
+ * 미설정 시 기본값: ["전기안전"]
+ */
+function getYoutubeCategories(): ContentCategory[] {
+  const raw = process.env.CONTENT_YOUTUBE_CATEGORIES?.trim();
+  if (!raw) return ["전기안전"];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s): s is ContentCategory => (CONTENT_CATEGORIES as string[]).includes(s));
+}
 
 async function loadContentMemory(): Promise<string> {
   const supabase = requireAgentSupabase();
@@ -78,15 +94,19 @@ export async function runContentPlanning(): Promise<ContentPlanRunResult> {
     const pendingFeedback = await loadPendingFeedback();
     const feedbackText = pendingFeedback.map((f) => f.content).join("\n---\n");
 
-    const plan = await planContentWeek(combinedMemory, feedbackText, trendKeywords, weekStatus);
+    const youtubeCategories = getYoutubeCategories();
+    const plan = await planContentWeek(combinedMemory, feedbackText, trendKeywords, weekStatus, youtubeCategories);
 
     const supabase = requireAgentSupabase();
 
-    await supabase.from("content_youtube_queue").insert({
-      title: plan.youtube.title,
-      competitor_notes: plan.youtube.brief,
-      status: "planning",
-    });
+    for (const yt of plan.youtubeItems) {
+      await supabase.from("content_youtube_queue").insert({
+        title: yt.title,
+        competitor_notes: yt.brief,
+        category: yt.category,
+        status: "planning",
+      });
+    }
 
     await supabase.from("content_kakao_queue").insert({
       title: plan.kakao.title,
@@ -136,16 +156,20 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
     let kakaoUpdated = false;
     let blogUpdated = 0;
 
-    const { data: ytRow } = await supabase
+    // 모든 planning 상태 YouTube 항목 처리 (다카테고리 지원)
+    const { data: ytRows } = await supabase
       .from("content_youtube_queue")
-      .select("id, title, competitor_notes")
+      .select("id, title, competitor_notes, category")
       .eq("status", "planning")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order("created_at", { ascending: true });
 
-    if (ytRow) {
-      const draft = await draftYoutubeScript(ytRow.title, ytRow.competitor_notes ?? "", weekStatus);
+    for (const ytRow of ytRows ?? []) {
+      const draft = await draftYoutubeScript(
+        ytRow.title,
+        ytRow.competitor_notes ?? "",
+        weekStatus,
+        (ytRow.category as ContentCategory | null) ?? undefined,
+      );
       await supabase
         .from("content_youtube_queue")
         .update({

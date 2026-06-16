@@ -1,6 +1,19 @@
 import { Agent, BUSINESS_CONTEXT, callClaudeCustom, extractJsonBlock, type WeekStatus } from "@/lib/agents";
 import type { PerformanceSnapshotItem } from "@/lib/content-performance";
 
+// ─── 콘텐츠 카테고리 ───────────────────────────────────────────────────────────
+
+/** DB의 content_youtube_queue.category 값과 동일 */
+export type ContentCategory = "전기안전" | "자격시험" | "실무";
+
+export const CONTENT_CATEGORIES: ContentCategory[] = ["전기안전", "자격시험", "실무"];
+
+const CATEGORY_DESCRIPTIONS: Record<ContentCategory, string> = {
+  전기안전: "아파트 전기 안전 점검·화재 예방 관련 실용 정보 영상",
+  자격시험: "전기기사/전기공사기사 자격시험 대비 강의 및 실무 노하우 영상",
+  실무: "현장 전기 실무 팁·작업 노하우 영상",
+};
+
 // ─── 콘텐츠 마케팅 에이전트 ──────────────────────────────────────────────────────
 
 export const CONTENT_AGENTS: Agent[] = [
@@ -18,6 +31,27 @@ const CONTENT_SYSTEM_PROMPTS: Record<string, string> = {
 - 대장이 본업 병행 1인 사업자임을 고려해 스마트폰으로 직접 촬영 가능한 현실적인 영상만 기획한다.
 - 영상은 3~5분 분량 스크립트(인트로/본문/마무리/CTA)로 작성하고, 마지막에는 dkansim.com 예약 유도 문구를 포함한다.
 - 썸네일 기획은 텍스트 컨셉(문구·색상·구도 설명)으로 제시한다.
+CMO 확성기의 마케팅 방향, CLO 규정집의 법적 주의사항을 최우선 반영하라.`,
+
+  youtube_pd_exam: `당신은 우리집 전기주치의(대경이엔피)의 유튜브 PD 클립입니다.
+"우리집 안심전기" 채널에서 전기기사/전기공사기사 자격시험 대비 + 현장 실무 노하우 강의 영상을 제작합니다.
+
+[강의 스타일]
+- 전기이론·전기기기·전기설비·전기응용 과목별 기출문제 풀이 또는 실무 노하우를 알기 쉽게 설명한다.
+- 대장(채널 운영자)은 전기기사·전기공사기사 자격 보유, 아파트 전기팀장 경력을 가진 현직 전문가임을 반영하여
+  교재보다 현장 감각이 담긴 설명으로 스크립트를 작성한다.
+- 말투: 강의 + 동기부여 (수험생 관점에서 응원하는 선배 전기기사 말투, 친근하게)
+- 구성: 인트로(주제·학습목표) → 본문(개념·문제 풀이) → 핵심 정리 → 아웃트로(구독·다음 강의 예고)
+
+[법적 주의 — 반드시 준수]
+- 한국산업인력공단 기출문제는 공공 데이터이므로 문제 자체는 인용 가능.
+- 단, 사설 수험서·강의의 표현·풀이 방식을 그대로 베끼지 말 것.
+- 스크립트 내에 반드시 "본인의 이해와 현장 경험을 바탕으로 재구성한 풀이"임을 자연스럽게 한 번 언급하라.
+
+[썸네일 스타일]
+- 짙은 남색(#1a2744) 배경 + 금색(#C9A227) 강조 텍스트
+- 과목명 태그(예: [전기이론]) + 핵심 키워드(예: "단상교류 계산") + 합격 응원 문구
+- 예시: "[전기이론] 단상교류 완전정복 🏆"
 CMO 확성기의 마케팅 방향, CLO 규정집의 법적 주의사항을 최우선 반영하라.`,
 
   kakao_manager: `당신은 우리집 전기주치의(대경이엔피)의 카카오 매니저 톡톡입니다.
@@ -55,21 +89,39 @@ export type ContentPlanItem = {
   keywords?: string[];
 };
 
+export type YoutubeContentPlanItem = ContentPlanItem & { category: ContentCategory };
+
 export type ContentPlanResult = {
   cmoDirection: string;
   csoInsight: string;
   cloNotes: string;
+  /** 카테고리별 유튜브 기획 (다카테고리 지원). 단일 카테고리일 때도 배열로 반환 */
+  youtubeItems: YoutubeContentPlanItem[];
+  /** 하위 호환 — youtubeItems[0] */
   youtube: ContentPlanItem;
   kakao: ContentPlanItem;
   blog: ContentPlanItem[];
   summary: string;
 };
 
-const PLANNING_SYSTEM_PROMPT = `당신은 우리집 전기주치의(대경이엔피) 콘텐츠 마케팅 사령부입니다. 다음 4개 역할을 한 번에 응답합니다:
+function buildPlanningSystemPrompt(categories: ContentCategory[]): string {
+  const ytInstruction =
+    categories.length > 1
+      ? `유튜브 PD 클립: 아래 카테고리별로 각 1건씩 총 ${categories.length}건 기획\n${categories.map((c) => `  - ${c}: ${CATEGORY_DESCRIPTIONS[c]}`).join("\n")}`
+      : `유튜브 PD 클립: 카테고리 "${categories[0]}" — ${CATEGORY_DESCRIPTIONS[categories[0] ?? "전기안전"]} — 1건 기획`;
+
+  const ytJsonExample =
+    categories.length > 1
+      ? `"youtubeItems": [\n${categories.map((c) => `    { "title": "...", "brief": "경쟁분석 메모 + 영상 방향", "category": "${c}" }`).join(",\n")}\n  ]`
+      : `"youtubeItems": [ { "title": "...", "brief": "경쟁분석 메모 + 영상 방향", "category": "${categories[0]}" } ]`;
+
+  return `당신은 우리집 전기주치의(대경이엔피) 콘텐츠 마케팅 사령부입니다. 다음 역할을 한 번에 응답합니다:
 - CMO 확성기(마케팅총괄): 이번 주 콘텐츠 방향 1~2문장
 - CSO 브릿지(전략총괄): 고객 인사이트 1~2문장
 - CLO 규정집(법무총괄): 이번 주 콘텐츠 제작 시 법적 주의사항 1~2문장 (없으면 "특이사항 없음")
-- 유튜브 PD 클립 / 카카오 매니저 톡톡 / 블로그 에디터 펜: 각자 이번 주 제작할 콘텐츠 기획 1건씩 (블로그는 최대 2건)
+- ${ytInstruction}
+- 카카오 매니저 톡톡: 이번 주 포스트 기획 1건
+- 블로그 에디터 펜: 이번 주 글 기획 최대 2건
 
 반드시 한국어로, 아래 JSON 형식으로만 응답하라(설명 텍스트 없이 JSON만):
 \`\`\`json
@@ -77,19 +129,23 @@ const PLANNING_SYSTEM_PROMPT = `당신은 우리집 전기주치의(대경이엔
   "cmoDirection": "...",
   "csoInsight": "...",
   "cloNotes": "...",
-  "youtube": { "title": "...", "brief": "경쟁분석 메모 + 영상 방향" },
+  ${ytJsonExample},
   "kakao": { "title": "...", "brief": "포스트 핵심 내용 한 줄" },
   "blog": [ { "title": "...", "brief": "글의 핵심 메시지", "keywords": ["키워드1", "키워드2"] } ],
   "summary": "이번 주 콘텐츠 전략 한 줄 요약"
 }
 \`\`\``;
+}
 
 export async function planContentWeek(
   memory: string,
   feedback: string,
   trendKeywords: string[],
   weekStatus?: WeekStatus,
+  youtubeCategories?: ContentCategory[],
 ): Promise<ContentPlanResult> {
+  const categories: ContentCategory[] = youtubeCategories?.length ? youtubeCategories : ["전기안전"];
+
   const weekLine = weekStatus
     ? `현재 로드맵: ${weekStatus.message}\n집중과제: ${weekStatus.yearFocus}\n`
     : "";
@@ -104,21 +160,36 @@ export async function planContentWeek(
   const prompt = `${weekLine}${feedbackBlock}${BUSINESS_CONTEXT}${memoryBlock}${trendsBlock}
 이번 주 콘텐츠 기획을 진행하라.`.trim();
 
-  const raw = await callClaudeCustom(PLANNING_SYSTEM_PROMPT, prompt, 1500, 120_000);
+  const systemPrompt = buildPlanningSystemPrompt(categories);
+  const raw = await callClaudeCustom(systemPrompt, prompt, 2000, 120_000);
   const jsonText = extractJsonBlock(raw);
-  if (!jsonText) {
-    throw new Error("콘텐츠 기획 응답에서 JSON을 파싱할 수 없습니다.");
-  }
+  if (!jsonText) throw new Error("콘텐츠 기획 응답에서 JSON을 파싱할 수 없습니다.");
 
-  const parsed = JSON.parse(jsonText) as Partial<ContentPlanResult>;
+  const parsed = JSON.parse(jsonText) as Partial<ContentPlanResult & { youtubeItems?: Partial<YoutubeContentPlanItem>[] }>;
+
+  // youtubeItems 파싱 (신규 형식) — 구형 youtube 필드도 fallback
+  const rawItems = Array.isArray(parsed.youtubeItems) ? parsed.youtubeItems : [];
+  const youtubeItems: YoutubeContentPlanItem[] =
+    rawItems.length > 0
+      ? rawItems.map((item, idx) => ({
+          title: String(item.title ?? "제목 미정"),
+          brief: String(item.brief ?? ""),
+          category: (item.category ?? categories[idx] ?? categories[0]) as ContentCategory,
+        }))
+      : [
+          {
+            title: String((parsed as { youtube?: { title?: string } }).youtube?.title ?? "제목 미정"),
+            brief: String((parsed as { youtube?: { brief?: string } }).youtube?.brief ?? ""),
+            category: categories[0],
+          },
+        ];
+
   return {
     cmoDirection: String(parsed.cmoDirection ?? ""),
     csoInsight: String(parsed.csoInsight ?? ""),
     cloNotes: String(parsed.cloNotes ?? "특이사항 없음"),
-    youtube: {
-      title: String(parsed.youtube?.title ?? "제목 미정"),
-      brief: String(parsed.youtube?.brief ?? ""),
-    },
+    youtubeItems,
+    youtube: youtubeItems[0],
     kakao: {
       title: String(parsed.kakao?.title ?? "제목 미정"),
       brief: String(parsed.kakao?.brief ?? ""),
@@ -147,19 +218,32 @@ export async function draftYoutubeScript(
   title: string,
   brief: string,
   weekStatus?: WeekStatus,
+  category?: ContentCategory,
 ): Promise<YoutubeDraft> {
+  const isExamPrep = category === "자격시험";
   const weekLine = weekStatus ? `${weekStatus.message}\n` : "";
-  const prompt = `${weekLine}${BUSINESS_CONTEXT}
+
+  const legalNote = isExamPrep
+    ? `\n[법적 주의] 기출문제 인용 시 반드시 본인의 이해와 현장 경험을 바탕으로 재구성한 풀이임을 스크립트에 자연스럽게 한 번 언급하라. 사설 수험서·강의의 표현을 그대로 쓰지 마라.`
+    : "";
+
+  const thumbnailHint = isExamPrep
+    ? "썸네일: 짙은 남색 배경 + 금색 텍스트, 과목명 태그(예: [전기이론]) + 핵심 키워드 + 합격 응원 문구 스타일."
+    : "썸네일: 경고 색상 카드 스타일(주황/빨강 배경, 굵은 흰색 텍스트), 전기 위험·주의 키워드 강조.";
+
+  const prompt = `${weekLine}${BUSINESS_CONTEXT}${legalNote}
 영상 제목: ${title}
 기획 메모: ${brief}
+카테고리: ${category ?? "전기안전"}
+${thumbnailHint}
 
 위 기획을 바탕으로 영상 스크립트와 썸네일 기획을 작성하라.
 ${SCRIPT_JSON_HINT}`.trim();
 
-  const raw = await callContentAgent("youtube_pd", prompt, 4000);
+  const agentId = isExamPrep ? "youtube_pd_exam" : "youtube_pd";
+  const raw = await callContentAgent(agentId, prompt, 4000);
   const jsonText = extractJsonBlock(raw);
   if (!jsonText) {
-    // JSON 파싱 실패 시 전체 텍스트를 스크립트로 사용
     return { script: raw.trim(), thumbnailConcept: "" };
   }
   const parsed = JSON.parse(jsonText) as Partial<YoutubeDraft>;
