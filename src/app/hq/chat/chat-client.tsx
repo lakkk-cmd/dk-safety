@@ -19,6 +19,33 @@ function isImage(mediaType?: string | null) {
   return !!mediaType?.startsWith("image/");
 }
 
+function DelegationButtons({
+  content,
+  agents,
+  onDelegate,
+}: {
+  content: string;
+  agents: ChatAgent[];
+  onDelegate: (id: string) => void;
+}) {
+  const mentioned = agents.filter((a) => a.id !== "general" && content.includes(a.name));
+  if (!mentioned.length) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1">
+      {mentioned.map((a) => (
+        <button
+          key={a.id}
+          type="button"
+          onClick={() => onDelegate(a.id)}
+          className="rounded-full border border-cc-navy/40 bg-cc-navy/5 px-3 py-1 text-xs font-bold text-cc-navy transition hover:bg-cc-navy/15"
+        >
+          {a.name}로 이동 →
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function AttachmentPreview({ url, name, onRemove }: { url?: string; name: string; onRemove?: () => void }) {
   const img = url && (name.match(/\.(png|jpe?g|gif|webp)$/i) || url.match(/\.(png|jpe?g|gif|webp)($|\?)/i));
   return (
@@ -42,9 +69,10 @@ function AttachmentPreview({ url, name, onRemove }: { url?: string; name: string
 export default function HqChatClient() {
   const [agents, setAgents] = useState<ChatAgent[]>([]);
   const [groups, setGroups] = useState<Record<string, string[]>>({});
-  const [selectedAgent, setSelectedAgent] = useState("cto");
+  const [selectedAgent, setSelectedAgent] = useState("general");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [lastUserMessage, setLastUserMessage] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -95,7 +123,7 @@ export default function HqChatClient() {
     }
   }, []);
 
-  useEffect(() => { void load("cto"); }, [load]);
+  useEffect(() => { void load("general"); }, [load]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, sending]);
 
   const handleSelectAgent = useCallback(
@@ -171,6 +199,7 @@ export default function HqChatClient() {
     const text = input.trim();
     if ((!text && !attachment) || sending || uploading) return;
 
+    if (text) setLastUserMessage(text);
     const optimisticMsg: ChatMessage = {
       role: "user",
       content: text || `[첨부: ${attachment!.name}]`,
@@ -209,6 +238,14 @@ export default function HqChatClient() {
     }
   }, [input, attachment, sending, uploading, selectedAgent, webSearchOn, clearAttachment]);
 
+  const handleDelegate = useCallback(
+    (agentId: string) => {
+      setInput(lastUserMessage);
+      handleSelectAgent(agentId);
+    },
+    [lastUserMessage, handleSelectAgent],
+  );
+
   const currentAgent = agents.find((a) => a.id === selectedAgent);
 
   return (
@@ -217,9 +254,9 @@ export default function HqChatClient() {
         <p className="inline-flex rounded-full bg-cc-navy px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white">
           AI 채팅
         </p>
-        <h1 className="mt-3 text-2xl font-black tracking-[-0.02em] text-cc-text md:text-3xl">9-에이전트와 1:1 대화</h1>
+        <h1 className="mt-3 text-2xl font-black tracking-[-0.02em] text-cc-text md:text-3xl">AI 에이전트와 1:1 대화</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-600">
-          경영진 6명 + 콘텐츠팀 3명에게 실시간 현황을 기반으로 질문하고 언제든지 의견을 구할 수 있습니다.
+          총괄에게 전체 현황을 물어보거나, 경영진 6명 + 콘텐츠팀 3명에게 직접 질문하세요.
         </p>
       </header>
 
@@ -303,6 +340,9 @@ export default function HqChatClient() {
                   >
                     {m.content}
                   </div>
+                ) : null}
+                {m.role === "assistant" && selectedAgent === "general" ? (
+                  <DelegationButtons content={m.content} agents={agents} onDelegate={handleDelegate} />
                 ) : null}
                 <span className="mt-1 text-[10px] text-slate-400">{formatTime(m.created_at)}</span>
               </div>

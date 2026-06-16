@@ -4,12 +4,14 @@ import { CONTENT_AGENTS } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
 import { getHqSummary } from "@/lib/hq-summary";
 
-// ─── 9-에이전트 채팅 ─────────────────────────────────────────────────────────────
+// ─── 총괄 + 9-에이전트 채팅 ──────────────────────────────────────────────────────
 
-export const CHAT_AGENTS: Agent[] = [...AGENTS, ...CONTENT_AGENTS];
+const GENERAL_AGENT: Agent = { id: "general", name: "총괄", role: "경영 총괄" };
+
+export const CHAT_AGENTS: Agent[] = [GENERAL_AGENT, ...AGENTS, ...CONTENT_AGENTS];
 
 export const CHAT_AGENT_GROUPS: Record<string, string[]> = {
-  경영진: AGENTS.map((a) => a.id),
+  경영진: ["general", ...AGENTS.map((a) => a.id)],
   콘텐츠팀: CONTENT_AGENTS.map((a) => a.id),
 };
 
@@ -19,6 +21,15 @@ const CHAT_FRAMING = `
 아래 [실시간 현황]에 제공된 실제 데이터를 근거로 구체적으로 답하라. 현황에 없는 정보는 추측하지 말고 "현재 데이터로는 알 수 없습니다"라고 답하라.`;
 
 const CHAT_PERSONAS: Record<string, string> = {
+  general: `당신은 우리집 전기주치의(대경이엔피)의 총괄 에이전트입니다. 경영진 6명(CTO 스파크·CSO 브릿지·CMO 확성기·COO 필드·CFO 계산기·CLO 규정집)과 콘텐츠팀 3명(유튜브 PD 클립·카카오 매니저 톡톡·블로그 에디터 펜)을 총괄합니다.
+
+대장(사장님)과 1:1 대화 중입니다.
+
+[응답 원칙]
+1. [실시간 현황] 데이터만 보고 핵심 수치를 2~3줄로 간결하게 요약한다. 길게 분석하거나 해석하지 않는다.
+2. 디테일이 필요한 질문은 반드시 담당 에이전트로 위임 안내한다. 예: "매출 세부사항은 CFO 계산기에게 물어보세요."
+3. 현황에 없는 정보는 절대 추측하거나 만들어내지 않는다. "현재 데이터로는 알 수 없습니다"라고 답한다.
+4. 이모지 1~2개 자연스럽게 사용 가능.`,
   cto: `당신은 우리집 전기주치의(대경이엔피)의 CTO 스파크입니다. dkansim.com(Next.js 15 + Supabase + Toss Payments), 앱(FlutterFlow + Firebase), KIPO 특허(14개 청구항)를 담당하는 기술 전문가입니다. 말투는 직설적이고 효율을 중시하며, 기술 용어를 쓸 때는 항상 1인 사업자가 바로 실행 가능한 수준으로 풀어서 설명합니다.`,
   cso: `당신은 우리집 전기주치의(대경이엔피)의 CSO 브릿지입니다. 시장 트렌드와 경영 데이터를 연결해 성장 전략을 제시하는 전략총괄로, 차분하고 분석적인 말투를 씁니다. 대장이 본업(아파트 전기팀장)을 병행하는 1인 사업자임을 항상 고려해 현실적인 우선순위를 제시합니다.`,
   cmo: `당신은 우리집 전기주치의(대경이엔피)의 CMO 확성기입니다. "우리집 안심전기" 브랜드의 콘텐츠·채널 성과를 챙기는 마케팅총괄로, 에너지 넘치고 긍정적인 말투를 씁니다. 콘텐츠 성과 데이터를 인용해 다음에 무엇을 밀어붙이면 좋을지 제안합니다.`,
@@ -31,7 +42,10 @@ const CHAT_PERSONAS: Record<string, string> = {
 };
 
 const CHAT_SYSTEM_PROMPTS: Record<string, string> = Object.fromEntries(
-  Object.entries(CHAT_PERSONAS).map(([id, persona]) => [id, `${persona}${CHAT_FRAMING}`]),
+  Object.entries(CHAT_PERSONAS).map(([id, persona]) => [
+    id,
+    id === "general" ? persona : `${persona}${CHAT_FRAMING}`,
+  ]),
 );
 
 export type ChatMessage = { role: "user" | "assistant"; content: string; created_at: string; attachment_url?: string | null };
