@@ -183,6 +183,8 @@ export default async function HqPage() {
           )}
         </div>
       </section>
+
+      <footer className="pt-2 text-center text-xs text-slate-400">© 2025 대경안심전기</footer>
     </main>
   );
 }
