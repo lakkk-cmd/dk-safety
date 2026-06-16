@@ -74,17 +74,19 @@ jobs:
             --arg repo "$PR_REPO" \
             --arg ref "$PR_REF" \
             '{
-              prompt: (
-                "PR 코드 리뷰를 수행하라.\n\n" +
-                "## PR 제목\n" + $title + "\n\n" +
-                "## PR 설명\n" + $body + "\n\n" +
-                "## 변경 코드(diff)\n" + $diff + "\n\n" +
-                "## 리뷰 지침\n" +
-                "- dkansim.com(대경안심전기) Next.js 15 + Supabase 프로젝트의 코드 품질, 보안, 성능을 검토하라.\n" +
-                "- 심각한 버그, 보안 취약점, TypeScript 타입 오류, 기존 패턴 위반이 있으면 FAIL로 판단하라.\n" +
-                "- 코드가 양호하면 PASS로 판단하라.\n" +
-                "- 마지막 줄에 반드시 정확히 다음 중 하나를 출력하라: REVIEW_RESULT: PASS 또는 REVIEW_RESULT: FAIL"
-              ),
+              prompt: {
+                text: (
+                  "PR 코드 리뷰를 수행하라.\n\n" +
+                  "## PR 제목\n" + $title + "\n\n" +
+                  "## PR 설명\n" + $body + "\n\n" +
+                  "## 변경 코드(diff)\n" + $diff + "\n\n" +
+                  "## 리뷰 지침\n" +
+                  "- dkansim.com(대경안심전기) Next.js 15 + Supabase 프로젝트의 코드 품질, 보안, 성능을 검토하라.\n" +
+                  "- 심각한 버그, 보안 취약점, TypeScript 타입 오류, 기존 패턴 위반이 있으면 FAIL로 판단하라.\n" +
+                  "- 코드가 양호하면 PASS로 판단하라.\n" +
+                  "- 마지막 줄에 반드시 정확히 다음 중 하나를 출력하라: REVIEW_RESULT: PASS 또는 REVIEW_RESULT: FAIL"
+                )
+              },
               source: {repository: $repo, ref: $ref}
             }' | curl -s -X POST "https://api.cursor.com/v0/agents" \
               -H "Authorization: Bearer $CURSOR_API_KEY" \
