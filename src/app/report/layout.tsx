@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import AdminLogoutButton from "@/components/admin-logout-button";
 import BrandLockup from "@/components/brand-lockup";
+import SubdomainNav from "@/components/subdomain-nav";
 
 export default function ReportLayout({ children }: { children: ReactNode }) {
   return (
@@ -10,6 +11,7 @@ export default function ReportLayout({ children }: { children: ReactNode }) {
           <BrandLockup />
           <AdminLogoutButton variant="dark" />
         </div>
+        <SubdomainNav />
       </header>
       <div className="mx-auto max-w-5xl px-4 py-6 md:px-6">{children}</div>
     </div>

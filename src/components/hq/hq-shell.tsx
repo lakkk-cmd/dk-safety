@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import AdminLogoutButton from "@/components/admin-logout-button";
 import BrandLockup from "@/components/brand-lockup";
+import SubdomainNav from "@/components/subdomain-nav";
 
 const TABS = [
   { href: "/", label: "대시보드" },
@@ -55,6 +56,7 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
             <AdminLogoutButton variant="dark" />
           </div>
         </div>
+        <SubdomainNav />
         <nav className="mx-auto max-w-5xl overflow-x-auto px-2 md:px-4">
           <ul className="flex min-w-max gap-1">
             {TABS.map((tab) => {
