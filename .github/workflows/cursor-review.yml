@@ -116,7 +116,8 @@ jobs:
             FINAL_STATUS=$(echo "$RESPONSE" | jq -r '.status // ""')
             echo "폴링 ${i}/30: status=$FINAL_STATUS"
             if [ "$FINAL_STATUS" = "FINISHED" ] || [ "$FINAL_STATUS" = "ERROR" ]; then
-              RESULT_TEXT=$(echo "$RESPONSE" | jq -r '.result // ""')
+              echo "응답 키: $(echo "$RESPONSE" | jq -r 'keys | join(", ")' 2>/dev/null)"
+              RESULT_TEXT=$(echo "$RESPONSE" | jq -r '.result // .output // .text // .content // .message // ""')
               break
             fi
           done
