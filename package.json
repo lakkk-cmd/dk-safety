@@ -23,10 +23,11 @@
     "setup:deploy": "node scripts/setup-github-vercel.mjs",
     "cron:test": "node --env-file=.env.local scripts/test-morning-cron.mjs",
     "intel:test": "node --env-file=.env.local scripts/test-market-intelligence.mjs",
+    "harness:agent-access": "tsx tests/harness/agent-access.test.ts",
     "harness:api": "tsx tests/harness/api.test.ts",
     "harness:db": "tsx tests/harness/db.test.ts",
     "harness:domains": "tsx tests/harness/domains.test.ts",
-    "harness:all": "npm run harness:api && npm run harness:db && npm run harness:domains"
+    "harness:all": "npm run harness:agent-access && npm run harness:api && npm run harness:db && npm run harness:domains"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",

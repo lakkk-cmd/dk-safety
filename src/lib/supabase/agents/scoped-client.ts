@@ -38,6 +38,10 @@ const GUARDED_OPS: readonly TableOperation[] = [
   "delete",
 ];
 
+const BLOCKED_SERVICE_SURFACES = new Set(["auth", "storage", "functions", "realtime"]);
+const BLOCKED_SERVICE_METHODS = new Set(["channel", "getChannels", "removeChannel", "removeAllChannels"]);
+const ALLOWED_SCHEMA = "public";
+
 function isGuardedOp(prop: string): prop is TableOperation {
   return (GUARDED_OPS as readonly string[]).includes(prop);
 }
@@ -63,12 +67,67 @@ function guardQueryBuilder(role: AgentRole, table: string, builder: object): obj
   });
 }
 
+function guardRpc(role: AgentRole, fn: string, call: () => unknown): unknown {
+  if (!isRpcAllowed(role, fn)) {
+    throw new AgentAccessError(
+      `[${role}] RPC 함수 "${fn}" 호출이 허용되지 않습니다.`,
+      role,
+      null,
+      `rpc:${fn}`,
+    );
+  }
+  return call();
+}
+
+function assertSchemaAllowed(role: AgentRole, schema: string): void {
+  if (schema === ALLOWED_SCHEMA) return;
+
+  throw new AgentAccessError(
+    `[${role}] Supabase schema "${schema}" 접근은 역할 스코프드 DB 클라이언트에서 허용되지 않습니다.`,
+    role,
+    null,
+    `schema:${schema}`,
+  );
+}
+
+/**
+ * PostgREST 표면(`client`, `client.rest`, `client.schema(...)`)을 동일하게 가드한다.
+ * `rest`/`schema`를 그대로 노출하면 `.from()` 가드를 우회할 수 있으므로 반드시 재귀적으로 감싼다.
+ */
+function guardPostgrestSurface(role: AgentRole, surface: object): object {
+  return new Proxy(surface, {
+    get(target, prop, receiver) {
+      if (prop === "from") {
+        return (table: string) =>
+          guardQueryBuilder(role, table, (target as { from: (table: string) => object }).from(table));
+      }
+      if (prop === "rpc") {
+        return (fn: string, ...rest: unknown[]) =>
+          guardRpc(role, fn, () =>
+            (target as { rpc: (fn: string, ...args: unknown[]) => unknown }).rpc(fn, ...rest),
+          );
+      }
+      if (prop === "schema") {
+        return (schema: string) => {
+          assertSchemaAllowed(role, schema);
+          return guardPostgrestSurface(role, (target as { schema: (schema: string) => object }).schema(schema));
+        };
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
 /**
  * 역할 스코프가 적용된 Supabase 클라이언트를 만든다.
  * ADMIN 역할은 가드 없이 Service Role 클라이언트를 그대로 반환한다.
  */
 export function createScopedAgentClient(role: AgentRole): SupabaseClient {
-  const client = requireAgentSupabase();
+  return scopeAgentClient(requireAgentSupabase(), role);
+}
+
+export function scopeAgentClient(client: SupabaseClient, role: AgentRole): SupabaseClient {
   if (role === AGENT_ROLE.ADMIN) {
     return client;
   }
@@ -80,16 +139,35 @@ export function createScopedAgentClient(role: AgentRole): SupabaseClient {
       }
       if (prop === "rpc") {
         return (fn: string, ...rest: unknown[]) => {
-          if (!isRpcAllowed(role, fn)) {
-            throw new AgentAccessError(
-              `[${role}] RPC 함수 "${fn}" 호출이 허용되지 않습니다.`,
-              role,
-              null,
-              `rpc:${fn}`,
-            );
-          }
-          return (target.rpc as (fn: string, ...args: unknown[]) => unknown)(fn, ...rest);
+          return guardRpc(role, fn, () =>
+            (target.rpc as (fn: string, ...args: unknown[]) => unknown)(fn, ...rest),
+          );
         };
+      }
+      if (prop === "schema") {
+        return (schema: string) => {
+          assertSchemaAllowed(role, schema);
+          return guardPostgrestSurface(role, target.schema(schema));
+        };
+      }
+      if (prop === "rest") {
+        return guardPostgrestSurface(role, Reflect.get(target, "rest", receiver) as object);
+      }
+      if (typeof prop === "string" && BLOCKED_SERVICE_SURFACES.has(prop)) {
+        throw new AgentAccessError(
+          `[${role}] Supabase "${prop}" 서비스 접근은 역할 스코프드 DB 클라이언트에서 허용되지 않습니다.`,
+          role,
+          null,
+          prop,
+        );
+      }
+      if (typeof prop === "string" && BLOCKED_SERVICE_METHODS.has(prop)) {
+        throw new AgentAccessError(
+          `[${role}] Supabase "${prop}" 서비스 호출은 역할 스코프드 DB 클라이언트에서 허용되지 않습니다.`,
+          role,
+          null,
+          prop,
+        );
       }
       const value = Reflect.get(target, prop, receiver);
       return typeof value === "function" ? value.bind(target) : value;
