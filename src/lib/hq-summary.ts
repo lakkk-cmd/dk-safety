@@ -1,5 +1,6 @@
-import { isAgentSupabaseReady, requireAgentSupabase } from "@/lib/agent-db";
+import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { formatScheduleSummary, getKstDateTime, loadMeetingSchedule } from "@/lib/agent-schedule";
+import { readOnlyAgent } from "@/lib/supabase/agents";
 import { getCurrentWeekStatus, type WeekStatus } from "@/lib/agents";
 import { getPendingApprovalCounts } from "@/lib/content-pipeline";
 import { countUnacknowledgedImprovementRequests } from "@/lib/improvement-requests";
@@ -56,7 +57,8 @@ export async function getHqSummary(): Promise<HqSummary> {
 
   if (ready) {
     try {
-      const supabase = requireAgentSupabase();
+      // 리포트/현황 집계는 읽기 전용 — 역할 스코프드 클라이언트로 쓰기·삭제를 차단한다(Issue #23).
+      const supabase = readOnlyAgent();
       const [pending, unacknowledged, feedbackRes, pipelineRes, reportRes, schedule] = await Promise.all([
         getPendingApprovalCounts(),
         countUnacknowledgedImprovementRequests(),
