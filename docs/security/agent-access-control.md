@@ -28,7 +28,7 @@ RLS(`auth.uid()`) 기반 행 수준 보안을 제안한다. 그러나 이 저장
 `AgentAccessError`로 차단된다.
 
 - `src/lib/supabase/agents/roles.ts` — `AGENT_ROLE` enum, 역할→(테이블×연산) 권한 매트릭스, `isOperationAllowed`/`isRpcAllowed`
-- `src/lib/supabase/agents/scoped-client.ts` — `createScopedAgentClient(role)` 및 역할별 팩토리(`readOnlyAgent`/`reservationWriterAgent`/`paymentWriterAgent`/`contentWriterAgent`/`adminAgent`). Service Role 클라이언트를 Proxy로 감싸 `.from(table)`·`.rpc(fn)` 호출을 가드한다.
+- `src/lib/supabase/agents/scoped-client.ts` — `createScopedAgentClient(role)` 및 역할별 팩토리(`readOnlyAgent`/`reservationWriterAgent`/`paymentWriterAgent`/`contentWriterAgent`/`adminAgent`). Service Role 클라이언트를 Proxy로 감싸 `.from(table)`·`.rpc(fn)` 호출을 가드한다. 우회 경로인 `.rest`·`.schema("public")`도 같은 정책을 적용하고, 다른 스키마 및 역할 스코프드 DB 클라이언트 범위 밖인 `auth`/`storage`/`functions`/`realtime` 서비스 표면은 ADMIN 외 역할에서 차단한다.
 - `src/lib/supabase/agents/index.ts` — 배럴 익스포트
 
 이 방식은 "읽기 전용 리포트 에이전트가 실수로 예약을 삭제" 같은, RLS로는 막을 수 없는
@@ -75,6 +75,8 @@ await rw.from("orders").insert(row);             // ❌ AgentAccessError
    예약/결제 경로.
 3. `adminAgent()`/`requireAgentSupabase()`(Service Role 직접 사용)는 hq 대장 전용
    경로로만 한정한다.
+4. 스토리지·Auth·Edge Functions·Realtime 권한이 필요한 자동화는 이 DB 스코프드
+   클라이언트를 확장하지 말고, 별도 역할/정책을 설계한 뒤 명시적으로 도입한다.
 
 ## 6. RLS / Supabase Auth 로의 향후 확장(보류)
 
