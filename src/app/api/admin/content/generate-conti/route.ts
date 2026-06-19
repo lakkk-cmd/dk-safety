@@ -3,7 +3,7 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { isAgentSupabaseReady, requireAgentSupabase } from "@/lib/agent-db";
 import { planVideoScenes } from "@/lib/video-pipeline";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   if (!(await isAdminAuthenticated())) {
