@@ -8,7 +8,7 @@ import { BUSINESS_CONTEXT, callClaudeCustom, callClaudeRich, extractJsonBlock } 
 import { KAKAO_MEMO_ENABLED, publishKakaoPost } from "@/lib/kakao-publish";
 import { generatePhoneUiBuffer, generateVerdictCardBuffer } from "@/lib/scene-cards";
 import { uploadBinaryObject } from "@/lib/supabase-server";
-import { generateSceneVideoFromText, submitVeoLro, VEO_COST_PER_CLIP_USD } from "@/lib/veo-pipeline";
+import { submitVeoLro, VEO_COST_PER_CLIP_USD } from "@/lib/veo-pipeline";
 
 export type SceneType = "ai_bg" | "verdict_card" | "phone_ui";
 
@@ -17,7 +17,17 @@ export type VideoScene = {
   imagePrompt: string;
   imageUrl?: string;
   sceneType?: SceneType;
-  videoUrl?: string; // Veo 3.1 생성 영상 URL (USE_VEO_VIDEO=true인 ai_bg 씬)
+  videoUrl?: string;
+  // 시네마틱 메타데이터 (업그레이드된 SCENE_PLAN_SYSTEM_PROMPT 출력)
+  emotionTone?: string;     // 긴장|경고|설명|안심|CTA
+  connectionNote?: string;  // 직전 씬과의 연결 메모 (Flow용)
+  koreanSummary?: string;   // 대장 한 줄 요약
+};
+
+export type ScenePlanResult = {
+  scenes: VideoScene[];
+  contiSummary: string;   // 전체 콘티 요약 (감정곡선 + 영화적 장치)
+  visualMotif?: string;   // 반복 시각 모티프
 };
 
 const MIN_SCENES = 5;
@@ -33,60 +43,122 @@ const BUDGET_KRW = 50_000; // 30일 Veo 사용 한도 (50,000원)
 const KRW_PER_USD = 1350;
 const BUDGET_USD = BUDGET_KRW / KRW_PER_USD; // ~$37
 
-// ─── 씬 계획 시스템 프롬프트 ──────────────────────────────────────────────────
+// ─── 씬 계획 시스템 프롬프트 (전문 영상 감독 수준) ──────────────────────────
 
-const SCENE_PLAN_SYSTEM_PROMPT = `당신은 우리집 전기주치의(대경이엔피)의 영상 제작 PD이자 Veo 3.1 프롬프트 전문가입니다.
+const SCENE_PLAN_SYSTEM_PROMPT = `당신은 우리집 전기주치의(대경이엔피)의 수석 영상 감독(DOP)이자 Veo 3.1 프롬프트 아키텍트입니다.
 ${BUSINESS_CONTEXT}
-주어진 유튜브 쇼츠(9:16 세로 영상) 스크립트를 ${MIN_SCENES}~${MAX_SCENES}개의 씬으로 분해하라.
 
-각 씬은 다음 필드를 가진다:
-- narration: 한국어, 1~2문장. 모든 씬의 narration을 순서대로 이어 읽으면 스크립트 전체 내용을 커버해야 한다.
-- sceneType: 반드시 다음 중 하나:
-    • "ai_bg"       — Veo 3.1 AI가 생성할 한국 아파트 전기설비 현장 영상
-    • "verdict_card" — 점검 결과/판정을 카드 형태로 보여줄 씬 (예: "안전합니다", "누전 위험 감지")
-    • "phone_ui"    — 앱/웹 예약 화면을 폰 화면으로 보여줄 씬
-- imagePrompt: sceneType이 "ai_bg"인 경우만 **영어**로 작성. Veo 3.1 텍스트→영상 생성용이므로 아래 7가지 요소를 모두 포함한 2~4문장:
-    1. Scene description: 인물·사물·배경의 구체적 묘사 (한국 아파트 내 전기설비 현장)
-    2. Camera angle: (예: low-angle shot, close-up, wide establishing shot, over-the-shoulder)
-    3. Camera movement: (예: slow zoom-in, static shot, gentle pan left to right, slight dolly-in)
-    4. Lighting: (예: warm indoor fluorescent lighting, natural daylight through window, focused work-light)
-    5. Mood/atmosphere: (예: professional and reassuring, tense and urgent, calm and informative)
-    6. Action/motion: 씬 안에서 정확히 무슨 동작이 일어나는지 시간 흐름 순서대로 구체적으로
-    7. Visual style: "photorealistic documentary style, no readable text, no Korean characters, no signage with text, no subtitles"
-    프롬프트는 독립적으로 완결 (이전 씬 참조 없이 단독으로 이해 가능). 8초 분량 기준.
-  sceneType이 "verdict_card" 또는 "phone_ui"인 경우 빈 문자열("") 로 설정.
+## 임무
+주어진 유튜브 쇼츠(9:16 세로, ${MIN_SCENES}~${MAX_SCENES}씬) 스크립트를 "이어진 하나의 단편 영화"로 설계한다.
+시청자가 "정보 영상을 봤다"가 아니라 "짧은 이야기를 봤다"고 느끼도록.
 
-판정 카드나 앱 화면이 필요한 씬에는 절대 "ai_bg"를 사용하지 마라.
+---
 
-JSON 형식으로만 응답하라:
+## 작업 순서
+
+### 1단계: 스크립트 분석 + 콘티 설계 (먼저 머릿속에서 완성)
+- 감정 곡선 파악: 긴장↑ / 설명 / 경고 / 안심 / CTA 구간 특정
+- 오프닝 훅 설계: 첫 씬은 답을 주지 않고 질문/긴장 먼저 (결과 → 원인 순 "미스터리 구조")
+- 반복 시각 모티프 1개 선정 (예: 빨간 작업복, 깜빡이는 조명, 기술자의 손)
+- 클로징 콜백 설계: 마지막 씬은 오프닝과 같은 구도를 "해결된 버전"으로
+- 카메라 리듬: 긴장 구간=빠른 컷·빠른 움직임 / 설명 구간=안정적 고정샷
+
+### 2단계: 씬 분해
+sceneType 결정:
+- "ai_bg": Veo 3.1이 생성할 한국 아파트 전기설비 현장 영상
+- "verdict_card": 측정값·판정 결과를 카드로 보여주는 씬 (텍스트 오버레이로 별도 합성)
+- "phone_ui": dkansim.com 예약 화면을 폰 UI로 보여주는 씬 (별도 합성)
+
+### 3단계: ai_bg 씬마다 Veo 프롬프트 작성
+7가지 요소를 모두 포함한 영어 프롬프트 (2~4문장, 8초 분량):
+1. **Scene description**: 인물·사물·배경 구체 묘사 (한국 아파트 내부)
+   → 인물 등장 씬은 매번 동일 외모/복장을 명시 (Veo는 씬 간 기억 없음: "Korean male electrician in his 40s, wearing red safety vest and white hard hat")
+   → 같은 공간(분전함 앞 등)이 반복되면 배경 묘사 일관 유지
+2. **Camera angle**: 감정과 일치 (설명=eye-level, 위험=low angle, 디테일=extreme close-up)
+3. **Camera movement**: 감정 반영 (긴장=fast zoom-in, 안심=slow pan, 설명=static hold)
+4. **Lighting**: 색온도로 감정 표현 (안심=warm 3200K fluorescent, 경고=cold harsh light, 설명=neutral)
+5. **Mood/atmosphere**: 감정 톤 명시 (tense/urgent, reassuring/professional, calm/informative 등)
+6. **Action/motion**: 씬 내 동작을 시간 순서대로. 복잡한 손동작 금지 — Veo 취약점.
+   수치/텍스트 표시가 필요한 정보는 프롬프트에 넣지 말고 "text overlay will be composited separately" 로 메모.
+7. **Visual style**: 반드시 마지막에 → "Photorealistic documentary style, 9:16 vertical, no readable text, no Korean characters, no signage, no subtitles."
+마지막에 Continuity 메모 추가: "Continuity: [인물/공간 일관성 메모]"
+
+---
+
+## 5가지 영화적 장치 (반드시 적용)
+1. **오프닝 미스터리**: 씬1은 결과/긴장 상황 먼저 — 원인/해결은 이후
+2. **반복 시각 모티프**: 선정한 모티프가 여러 씬에 자연스럽게 등장
+3. **컷 리듬 다양성**: 긴장=빠른 컷(짧은 씬), 설명=안정적(긴 씬). 같은 앵글 3개 이상 연속 금지
+4. **클로징 시각 콜백**: 마지막 씬 = 오프닝 씬 구도의 "해결된 버전"
+5. **3단 정보 구성**: 정보 씬은 wide establishing → close-up on detail → medium reaction 순
+
+---
+
+## Veo 3.1 특성
+- 강점: 자연스러운 인물 움직임, 사실적 조명/질감, 카메라 모션
+- 약점: 텍스트·숫자 표시, 복잡한 다중 손동작, 정밀 계기판 조작
+  → 이런 정보는 verdict_card/phone_ui sceneType 또는 "text overlay composited separately" 메모로 처리
+
+---
+
+## 출력 형식 (JSON만, 설명 없이)
 \`\`\`json
 {
+  "contiSummary": "전체 콘티 요약 2~3문단: 감정 곡선(텍스트 그래프), 5가지 영화적 장치 적용 방법, 반복 모티프 설명",
+  "visualMotif": "선정한 반복 시각 모티프 한 줄 (예: '빨간 작업복 + 계량기 측정기')",
   "scenes": [
-    { "narration": "...", "sceneType": "ai_bg", "imagePrompt": "A licensed electrician in work uniform crouches in front of an open breaker panel inside a Korean apartment utility closet. Close-up shot with slight upward angle. Camera slowly zooms in toward the breaker switches. Warm fluorescent lighting illuminates the panel from above. Professional and methodical mood. The electrician carefully examines each breaker switch one by one, pointing with a non-contact voltage tester. Photorealistic documentary style, no readable text, no Korean characters, no signage with text, no subtitles." },
-    { "narration": "...", "sceneType": "verdict_card", "imagePrompt": "" }
+    {
+      "narration": "한국어 1~2문장 (모든 씬 이어 읽으면 스크립트 전체 커버)",
+      "sceneType": "ai_bg",
+      "emotionTone": "긴장|경고|설명|안심|CTA 중 하나",
+      "connectionNote": "직전 씬과 시공간·감정 연결 메모 (씬1은 '오프닝 — 미스터리 훅')",
+      "imagePrompt": "7요소 포함 영어 프롬프트. Continuity: [인물/공간 일관성 메모]",
+      "koreanSummary": "대장이 이 씬을 한 줄로 이해할 수 있는 설명"
+    },
+    {
+      "narration": "...",
+      "sceneType": "verdict_card",
+      "emotionTone": "안심",
+      "connectionNote": "측정 결과를 텍스트 카드로 전환 — 이전 ai_bg 씬에서 측정 완료 후",
+      "imagePrompt": "",
+      "koreanSummary": "판정 결과 카드 씬"
+    }
   ]
 }
 \`\`\``;
 
-/** 스크립트를 9:16 쇼츠용 씬 5~8개로 분해 (Veo 프롬프트 포함) */
-export async function planVideoScenes(title: string, script: string): Promise<VideoScene[]> {
-  const prompt = `영상 제목: ${title}\n\n[스크립트]\n${script}\n\n위 스크립트를 씬으로 분해하라.`.trim();
-  const raw = await callClaudeCustom(SCENE_PLAN_SYSTEM_PROMPT, prompt, 4000, 120_000);
+/** 스크립트를 9:16 쇼츠용 씬 5~8개로 분해 (시네마틱 콘티 + Veo 프롬프트 포함) */
+export async function planVideoScenes(title: string, script: string): Promise<ScenePlanResult> {
+  const prompt = `영상 제목: ${title}\n\n[스크립트]\n${script}\n\n위 스크립트를 단편 영화처럼 씬으로 분해하라.`.trim();
+  const raw = await callClaudeCustom(SCENE_PLAN_SYSTEM_PROMPT, prompt, 5000, 120_000);
   const jsonText = extractJsonBlock(raw);
   if (!jsonText) throw new Error("씬 분해 응답에서 JSON을 파싱할 수 없습니다.");
 
-  const parsed = JSON.parse(jsonText) as { scenes?: Partial<VideoScene>[] };
+  const parsed = JSON.parse(jsonText) as {
+    scenes?: Partial<VideoScene>[];
+    contiSummary?: string;
+    visualMotif?: string;
+  };
+
   const scenes = (parsed.scenes ?? [])
     .map((s) => ({
       narration: String(s.narration ?? "").trim(),
       imagePrompt: String(s.imagePrompt ?? "").trim(),
       sceneType: (s.sceneType ?? "ai_bg") as SceneType,
+      emotionTone: s.emotionTone ? String(s.emotionTone).trim() : undefined,
+      connectionNote: s.connectionNote ? String(s.connectionNote).trim() : undefined,
+      koreanSummary: s.koreanSummary ? String(s.koreanSummary).trim() : undefined,
     }))
     .filter((s) => s.narration)
     .slice(0, MAX_SCENES);
 
   if (scenes.length === 0) throw new Error("씬 분해 결과가 비어 있습니다.");
-  return scenes;
+
+  return {
+    scenes,
+    contiSummary: String(parsed.contiSummary ?? "").trim(),
+    visualMotif: parsed.visualMotif ? String(parsed.visualMotif).trim() : undefined,
+  };
 }
 
 // ─── Flux 이미지 생성 (Veo 폴백 전용) ──────────────────────────────────────────
@@ -308,8 +380,13 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
     .eq("id", queueId);
 
   try {
-    const planned = await planVideoScenes(row.title, row.script);
+    const { scenes: planned, contiSummary, visualMotif } = await planVideoScenes(row.title, row.script);
     const bucket = process.env.SUPABASE_VIDEO_BUCKET?.trim() || "dk-safety-video-assets";
+
+    if (contiSummary) {
+      console.log(`[콘티 요약] ${contiSummary.slice(0, 100)}...`);
+    }
+    if (visualMotif) console.log(`[시각 모티프] ${visualMotif}`);
 
     const aiBgCount = planned.filter((s) => (s.sceneType ?? "ai_bg") === "ai_bg").length;
     if (USE_VEO) {
@@ -385,6 +462,7 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
         .from("content_youtube_queue")
         .update({
           scenes,
+          conti_summary: contiSummary || null,
           veo_lro_names: veoLroNames,
           status: "veo_generating",
           updated_at: new Date().toISOString(),
@@ -397,7 +475,7 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
     // Flux 동기 완료
     await supabase
       .from("content_youtube_queue")
-      .update({ scenes, status: "assets_ready", updated_at: new Date().toISOString() })
+      .update({ scenes, conti_summary: contiSummary || null, status: "assets_ready", updated_at: new Date().toISOString() })
       .eq("id", queueId);
 
     return { scenes };
