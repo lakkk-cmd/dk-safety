@@ -8,7 +8,7 @@ import { BUSINESS_CONTEXT, callClaudeCustom, callClaudeRich, extractJsonBlock } 
 import { KAKAO_MEMO_ENABLED, publishKakaoPost } from "@/lib/kakao-publish";
 import { generatePhoneUiBuffer, generateVerdictCardBuffer } from "@/lib/scene-cards";
 import { uploadBinaryObject } from "@/lib/supabase-server";
-import { generateSceneVideoFromText, VEO_COST_PER_CLIP_USD } from "@/lib/veo-pipeline";
+import { generateSceneVideoFromText, submitVeoLro, VEO_COST_PER_CLIP_USD } from "@/lib/veo-pipeline";
 
 export type SceneType = "ai_bg" | "verdict_card" | "phone_ui";
 
@@ -282,9 +282,13 @@ async function produceAiBgSceneFlux(
 
 // ─── 전체 자산 생성 ───────────────────────────────────────────────────────────
 
-export type ProduceVideoAssetsResult = { scenes: VideoScene[] };
+export type VeoLroEntry = { sceneIndex: number; lroName: string; prompt: string };
+export type ProduceVideoAssetsResult = { scenes: VideoScene[]; veoAsync?: boolean };
 
-/** 승인된 유튜브 큐 항목의 스크립트를 씬으로 분해하고 Veo(또는 Flux) 자산을 생성 */
+/** 승인된 유튜브 큐 항목의 스크립트를 씬으로 분해하고 Veo(또는 Flux) 자산을 생성.
+ *  USE_VEO_VIDEO=true: ai_bg 씬에 Veo LRO만 제출 후 즉시 반환 (GitHub Actions가 폴링 완료).
+ *  USE_VEO_VIDEO=false: 기존 Flux 동기 경로 유지.
+ */
 export async function produceVideoAssets(queueId: string): Promise<ProduceVideoAssetsResult> {
   const supabase = requireAgentSupabase();
   const USE_VEO = process.env.USE_VEO_VIDEO === "true";
@@ -307,7 +311,6 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
     const planned = await planVideoScenes(row.title, row.script);
     const bucket = process.env.SUPABASE_VIDEO_BUCKET?.trim() || "dk-safety-video-assets";
 
-    // 예상 비용 출력
     const aiBgCount = planned.filter((s) => (s.sceneType ?? "ai_bg") === "ai_bg").length;
     if (USE_VEO) {
       const estUsd = aiBgCount * VEO_COST_PER_CLIP_USD;
@@ -320,28 +323,22 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
     }
 
     const scenes: VideoScene[] = [];
+    const veoLroNames: VeoLroEntry[] = [];
 
     for (let i = 0; i < planned.length; i++) {
       const scene = planned[i];
       const type = scene.sceneType ?? "ai_bg";
       console.log(`[씬 ${i + 1}/${planned.length}] type=${type}`);
 
-      // ── ai_bg + Veo 모드 ──────────────────────────────────────────────────
+      // ── ai_bg + Veo 비동기 모드: LRO 제출 후 즉시 다음 씬으로 ──────────────
       if (type === "ai_bg" && USE_VEO) {
         try {
-          console.log(`  [Veo] 프롬프트: ${scene.imagePrompt.slice(0, 150)}...`);
-          const veoResult = await generateSceneVideoFromText(scene.imagePrompt);
-          const videoUrl = await uploadBinaryObject({
-            bucket,
-            objectPath: `scenes/${queueId}/${i}.mp4`,
-            contentType: "video/mp4",
-            data: veoResult.data,
-          });
-          await logGeminiUsage(supabase, "veo_video", queueId, i, veoResult.costUsd, true);
-          console.log(`  [Veo] 씬 ${i + 1} 완료: ${videoUrl}`);
-          scenes.push({ ...scene, videoUrl });
+          console.log(`  [Veo] LRO 제출: ${scene.imagePrompt.slice(0, 100)}...`);
+          const lroName = await submitVeoLro(scene.imagePrompt);
+          veoLroNames.push({ sceneIndex: i, lroName, prompt: scene.imagePrompt });
+          scenes.push({ ...scene }); // videoUrl은 GitHub Actions에서 채움
         } catch (err) {
-          console.error(`  [Veo] 씬 ${i + 1} 실패 → Flux 폴백:`, err);
+          console.error(`  [Veo] LRO 제출 실패 → Flux 폴백:`, err);
           await logGeminiUsage(supabase, "veo_video_fallback", queueId, i, 0, false).catch(() => undefined);
           const { imageUrl } = await produceAiBgSceneFlux(scene, queueId, i, bucket);
           scenes.push({ ...scene, imageUrl });
@@ -382,6 +379,22 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
       scenes.push({ ...scene, imageUrl });
     }
 
+    // Veo 비동기: LRO 이름 저장 + veo_generating 상태 (GitHub Actions가 폴링 후 완료)
+    if (USE_VEO && veoLroNames.length > 0) {
+      await supabase
+        .from("content_youtube_queue")
+        .update({
+          scenes,
+          veo_lro_names: veoLroNames,
+          status: "veo_generating",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", queueId);
+      console.log(`[Veo 비동기] ${veoLroNames.length}개 LRO 저장됨. GitHub Actions가 완료 처리.`);
+      return { scenes, veoAsync: true };
+    }
+
+    // Flux 동기 완료
     await supabase
       .from("content_youtube_queue")
       .update({ scenes, status: "assets_ready", updated_at: new Date().toISOString() })

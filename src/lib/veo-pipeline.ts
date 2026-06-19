@@ -18,6 +18,37 @@ export type VeoResult = {
   model: string;
 };
 
+/** Veo LRO 제출만 하고 LRO name 반환 (폴링 없음, ~5초). 비동기 파이프라인용. */
+export async function submitVeoLro(promptText: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) throw new Error("GEMINI_API_KEY가 설정되지 않았습니다.");
+
+  const model = process.env.VEO_MODEL?.trim() || VEO_MODEL_DEFAULT;
+  const submitUrl = `${GEMINI_API_BASE}/models/${model}:predictLongRunning?key=${apiKey}`;
+
+  const submitRes = await fetch(submitUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      instances: [{ prompt: promptText }],
+      parameters: { aspectRatio: "9:16", durationSeconds: VEO_DURATION_SECONDS, sampleCount: 1 },
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  const raw = await submitRes.text();
+  if (!submitRes.ok) {
+    let detail = raw.slice(0, 400);
+    try { detail = (JSON.parse(raw) as { error?: { message?: string } }).error?.message ?? detail; } catch { /* keep */ }
+    throw new Error(`Veo LRO 제출 실패 ${submitRes.status}: ${detail}`);
+  }
+
+  const lro = JSON.parse(raw) as { name?: string };
+  if (!lro.name) throw new Error(`LRO name 없음: ${raw.slice(0, 200)}`);
+  console.log(`  [Veo] LRO 제출됨: ${lro.name}`);
+  return lro.name;
+}
+
 /**
  * Veo 3.1 텍스트→영상 직접 생성.
  * promptText는 7가지 요소(장면·카메라·조명·분위기·동작·스타일)가 포함된 영어 프롬프트.

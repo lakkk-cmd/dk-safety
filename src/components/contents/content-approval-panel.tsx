@@ -15,7 +15,7 @@ type YoutubeQueueItem = {
   competitor_notes: string | null;
   script: string | null;
   thumbnail_concept: string | null;
-  status: "planning" | "pending_approval" | "approved" | "rejected" | "uploaded" | "producing" | "assets_ready";
+  status: "planning" | "pending_approval" | "approved" | "rejected" | "uploaded" | "producing" | "veo_generating" | "assets_ready";
   youtube_video_id: string | null;
   scenes: VideoScene[];
   video_asset_url: string | null;
@@ -77,6 +77,7 @@ const STATUS_LABEL: Record<string, string> = {
   pending_approval: "승인 대기",
   approved: "승인됨",
   producing: "영상 제작 중",
+  veo_generating: "Veo 영상 생성 중",
   assets_ready: "영상 자산 준비됨",
   rejected: "반려됨",
   uploaded: "업로드됨",
@@ -89,6 +90,7 @@ const STATUS_BADGE: Record<string, string> = {
   pending_approval: "bg-amber-100 text-amber-800",
   approved: "bg-blue-100 text-blue-800",
   producing: "bg-amber-100 text-amber-800",
+  veo_generating: "bg-purple-100 text-purple-800",
   assets_ready: "bg-violet-100 text-violet-800",
   rejected: "bg-red-100 text-red-700",
   uploaded: "bg-emerald-100 text-emerald-800",
@@ -435,6 +437,11 @@ export default function ContentApprovalPanel() {
                 {item.status === "producing" ? (
                   <p className="mt-2 text-xs font-semibold text-amber-700">
                     🎬 씬 분해 및 이미지 생성 중입니다… (페이지를 새로고침하면 진행 상태를 확인할 수 있습니다)
+                  </p>
+                ) : null}
+                {item.status === "veo_generating" ? (
+                  <p className="mt-2 text-xs font-semibold text-purple-700">
+                    🎥 Veo 3.1 AI 영상 생성 중… GitHub Actions가 처리 중입니다 (씬당 최대 10분). 새로고침으로 확인하세요.
                   </p>
                 ) : null}
                 {item.scenes && item.scenes.length > 0 ? (

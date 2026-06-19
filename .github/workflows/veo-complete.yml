@@ -1,0 +1,36 @@
+name: Veo Scene Completion
+
+on:
+  workflow_dispatch:
+    inputs:
+      queue_id:
+        description: "content_youtube_queue.id (빈 값이면 전체 veo_generating 처리)"
+        required: false
+        type: string
+  schedule:
+    - cron: "*/30 * * * *" # 30분마다 폴백 체크
+
+jobs:
+  complete-veo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90 # Veo 씬당 최대 10분 × 최대 8씬
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Veo LRO 폴링 + Storage 업로드
+        run: node scripts/complete-veo-scenes.mjs "${{ inputs.queue_id || '' }}"
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VEO_MODEL: ${{ secrets.VEO_MODEL }}
+          SUPABASE_VIDEO_BUCKET: ${{ secrets.SUPABASE_VIDEO_BUCKET }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
