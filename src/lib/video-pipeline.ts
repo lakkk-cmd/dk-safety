@@ -130,7 +130,7 @@ sceneType 결정:
 /** 스크립트를 9:16 쇼츠용 씬 5~8개로 분해 (시네마틱 콘티 + Veo 프롬프트 포함) */
 export async function planVideoScenes(title: string, script: string): Promise<ScenePlanResult> {
   const prompt = `영상 제목: ${title}\n\n[스크립트]\n${script}\n\n위 스크립트를 단편 영화처럼 씬으로 분해하라.`.trim();
-  const raw = await callClaudeCustom(SCENE_PLAN_SYSTEM_PROMPT, prompt, 5000, 120_000);
+  const raw = await callClaudeCustom(SCENE_PLAN_SYSTEM_PROMPT, prompt, 8000, 120_000);
   const jsonText = extractJsonBlock(raw);
   if (!jsonText) throw new Error("씬 분해 응답에서 JSON을 파싱할 수 없습니다.");
 

@@ -170,11 +170,14 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
         weekStatus,
         (ytRow.category as ContentCategory | null) ?? undefined,
       );
+      const titleCandidatesBlock = draft.titleCandidates.length
+        ? `[제목 후보]\n${draft.titleCandidates.map((t, i) => `${i + 1}. ${t}`).join("\n")}\n\n`
+        : "";
       await supabase
         .from("content_youtube_queue")
         .update({
           script: draft.script,
-          thumbnail_concept: draft.thumbnailConcept,
+          thumbnail_concept: `${titleCandidatesBlock}${draft.thumbnailConcept}`,
           status: "pending_approval",
           updated_at: new Date().toISOString(),
         })

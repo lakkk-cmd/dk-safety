@@ -28,6 +28,23 @@ const CONTENT_SYSTEM_PROMPTS: Record<string, string> = {
   youtube_pd: `당신은 우리집 전기주치의(대경이엔피)의 수석 유튜브 PD이자 영상 스토리텔러입니다.
 "우리집 안심전기" 채널의 경쟁분석 → 콘티 설계 → 스크립트 작성 → 썸네일 기획을 담당합니다.
 
+## 제목/썸네일 문구 생성 공식 (4요소, 후보 5개 생성)
+모든 제목 후보는 다음 4요소를 순서대로 결합해 만든다:
+1. **대상**: 영상의 핵심 소재 (예: 분전반, 콘센트, 누전차단기, 멀티탭)
+2. **극단적 수식어**: 긴장·위기감을 주는 수식어 (예: "이 소리 무시하면", "당장 멈추세요", "10년차도 모르는")
+3. **행위**: 시청자 또는 사례 속 인물이 한/할 행동 (예: 계속 쓰면, 만지면, 방치하면)
+4. **결과에 대한 의문**: 결과를 직접 말하지 않고 의문형으로 궁금증을 유발 (예: "어떻게 될까요?", "이게 무엇을 뜻할까요?")
+→ 위 4요소를 조합해 제목 후보 5개를 생성한다 (표현·어순은 다양하게, 4요소는 모두 유지).
+
+## 스크립트 작성 원칙 (구어체·반전 구조)
+- **구어체 필수**: "~했는데요", "~거든요", "~잖아요" 등 말하듯 자연스러운 종결어미 사용 (문어체 금지)
+- **짧은 문장**: 한 문장 평균 15~20자 내외로 끊어 쓴다. 긴 문장은 두 문장으로 나눈다.
+- **반전 구조**: 먼저 일반적인 상식/오해를 제시 → "그런데 사실은" 같은 전환구 → 진짜 정보를 공개하는 흐름을 스크립트 본문에 반드시 포함한다.
+- **템플릿 분기** (주제에 맞는 1개를 선택해 적용):
+  a) **미스터리 후킹형** — 위험 사례의 숨겨진 원인/비밀을 다룰 때. 결과 먼저 보여주고 원인을 뒤에서 푼다.
+  b) **의외의 사실 나열형** — 일상 꿀팁/생활 정보·문화 주제를 다룰 때. "사실은 ~다" 형태의 의외 사실을 순서대로 나열한다.
+  c) **다큐멘터리형** — 법규·제도·구조를 설명할 때. 차분한 설명체로 정보를 단계적으로 전개한다.
+
 ## 스크립트 작성 철학: "단편 영화"처럼
 시청자가 "정보 영상을 봤다"가 아니라 "짧은 이야기를 봤다"고 느끼도록 설계한다.
 이를 위해 스크립트 작성 전에 반드시 머릿속으로 "콘티(스토리보드)"를 먼저 설계한다:
@@ -182,7 +199,7 @@ export async function planContentWeek(
 이번 주 콘텐츠 기획을 진행하라.`.trim();
 
   const systemPrompt = buildPlanningSystemPrompt(categories);
-  const raw = await callClaudeCustom(systemPrompt, prompt, 2000, 120_000);
+  const raw = await callClaudeCustom(systemPrompt, prompt, 4000, 120_000);
   const jsonText = extractJsonBlock(raw);
   if (!jsonText) throw new Error("콘텐츠 기획 응답에서 JSON을 파싱할 수 없습니다.");
 
@@ -228,12 +245,43 @@ export async function planContentWeek(
 
 // ─── 콘텐츠 초안 생성 (화요일 09:00) ──────────────────────────────────────────────
 
-export type YoutubeDraft = { script: string; thumbnailConcept: string };
+export type YoutubeDraft = { script: string; thumbnailConcept: string; titleCandidates: string[] };
 
-const SCRIPT_JSON_HINT = `JSON 형식으로만 응답하라(설명 없이 JSON만):
-\`\`\`json
-{ "script": "인트로/본문/마무리/CTA가 포함된 스크립트 전문", "thumbnailConcept": "썸네일 문구/색상/구도 설명" }
-\`\`\``;
+// 스크립트 본문은 대화체 인용구(")가 많아 JSON으로 감싸면 이스케이프 오류가 자주 발생한다.
+// 그래서 JSON 대신 구분자 섹션 형식으로 응답을 받는다.
+const SCRIPT_SECTION_HINT = `아래 구분자 형식으로만 응답하라(JSON이 아닌 일반 텍스트, 다른 설명 없이 이 형식만):
+===TITLES===
+1. (4요소 공식: 대상+극단적 수식어+행위+결과에 대한 의문 — 제목 후보 1)
+2. (제목 후보 2)
+3. (제목 후보 3)
+4. (제목 후보 4)
+5. (제목 후보 5)
+===SCRIPT===
+(인트로/본문/마무리/CTA가 포함된 스크립트 전문)
+===THUMBNAIL===
+(썸네일 문구/색상/구도 설명)`;
+
+function parseYoutubeDraft(raw: string): YoutubeDraft {
+  const titlesMatch = raw.match(/===TITLES===([\s\S]*?)(?:===SCRIPT===|$)/);
+  const scriptMatch = raw.match(/===SCRIPT===([\s\S]*?)(?:===THUMBNAIL===|$)/);
+  const thumbnailMatch = raw.match(/===THUMBNAIL===([\s\S]*)$/);
+
+  if (!titlesMatch && !scriptMatch && !thumbnailMatch) {
+    return { script: raw.trim(), thumbnailConcept: "", titleCandidates: [] };
+  }
+
+  const titleCandidates = (titlesMatch?.[1] ?? "")
+    .split("\n")
+    .map((line) => line.replace(/^\s*\d+[.)]\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, 5);
+
+  return {
+    titleCandidates,
+    script: (scriptMatch?.[1] ?? raw).trim(),
+    thumbnailConcept: (thumbnailMatch?.[1] ?? "").trim(),
+  };
+}
 
 export async function draftYoutubeScript(
   title: string,
@@ -259,19 +307,11 @@ export async function draftYoutubeScript(
 ${thumbnailHint}
 
 위 기획을 바탕으로 영상 스크립트와 썸네일 기획을 작성하라.
-${SCRIPT_JSON_HINT}`.trim();
+${SCRIPT_SECTION_HINT}`.trim();
 
   const agentId = isExamPrep ? "youtube_pd_exam" : "youtube_pd";
-  const raw = await callContentAgent(agentId, prompt, 4000);
-  const jsonText = extractJsonBlock(raw);
-  if (!jsonText) {
-    return { script: raw.trim(), thumbnailConcept: "" };
-  }
-  const parsed = JSON.parse(jsonText) as Partial<YoutubeDraft>;
-  return {
-    script: String(parsed.script ?? raw.trim()),
-    thumbnailConcept: String(parsed.thumbnailConcept ?? ""),
-  };
+  const raw = await callContentAgent(agentId, prompt, 6000);
+  return parseYoutubeDraft(raw);
 }
 
 export async function draftKakaoPost(title: string, brief: string, weekStatus?: WeekStatus): Promise<string> {

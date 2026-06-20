@@ -59,9 +59,14 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleString("ko-KR");
 }
 
+const MASTER_CHARACTER_SHEET_NOTE = "[마스터 캐릭터 시트를 함께 입력하세요]";
+
 function buildFlowPromptText(scenes: VideoScene[]): string {
   return scenes
-    .map((s, i) => `[씬 ${i + 1}${s.sceneType ? ` / ${s.sceneType}` : ""}]\n${s.imagePrompt ?? "(프롬프트 없음)"}`)
+    .map((s, i) => {
+      const prompt = s.imagePrompt ? `${MASTER_CHARACTER_SHEET_NOTE}\n${s.imagePrompt}` : "(프롬프트 없음)";
+      return `[씬 ${i + 1}${s.sceneType ? ` / ${s.sceneType}` : ""}]\n${prompt}`;
+    })
     .join("\n\n");
 }
 
@@ -320,6 +325,9 @@ export default function HqContentQueue() {
                           {ytData.scenes.map((s, i) => (
                             <div key={i} className="rounded-lg border border-purple-200 bg-white p-3">
                               <p className="mb-1 text-xs font-bold text-purple-600">씬 {i + 1}{s.sceneType ? ` / ${s.sceneType}` : ""}</p>
+                              {s.imagePrompt && (
+                                <p className="mb-1 text-xs font-bold text-amber-600">{MASTER_CHARACTER_SHEET_NOTE}</p>
+                              )}
                               <p className="whitespace-pre-wrap text-xs text-slate-700">{s.imagePrompt ?? "(이미지 프롬프트 없음)"}</p>
                             </div>
                           ))}
