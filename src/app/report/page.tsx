@@ -143,9 +143,7 @@ export default async function ReportPage() {
                               return (
                                 <div key={`${r.id}-${idx}`}>
                                   <h3 className="text-sm font-black text-cc-text">{s.topic}</h3>
-                                  {s.chief_summary ? (
-                                    <p className="mt-1 whitespace-pre-wrap text-xs text-slate-600">{s.chief_summary}</p>
-                                  ) : null}
+                                  {/* s.chief_summary는 위쪽 r.chief_summary에 이미 포함되어 있어 생략 (중복 렌더링 방지) */}
                                   {agents.length > 0 ? (
                                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
                                       {agents.map((a) => (

@@ -235,7 +235,7 @@ async function callClaudeDirect(
   userPrompt: string,
   maxTokens = 600,
 ): Promise<string> {
-  return fetchClaude(systemPrompt, userPrompt, maxTokens, 120_000);
+  return fetchClaude(systemPrompt, userPrompt, maxTokens, 180_000);
 }
 
 /** 6인 경영진 외 보조 에이전트(콘텐츠 마케팅 등)가 커스텀 시스템 프롬프트로 호출할 때 사용 */
@@ -479,7 +479,7 @@ ${weekCtxLine}${feedbackBlock}${BUSINESS_CONTEXT}${memoryBlock}
 2. 즉시 실행 가능한 액션 아이템 2가지 (구체적 수치·기한 포함)
 3. 다른 부서와의 협업·충돌 포인트 1문장`.trim();
 
-  const round1Raw = await callClaudeDirect(BATCH_SYSTEM_PROMPT, round1Prompt, 1024);
+  const round1Raw = await callClaudeDirect(BATCH_SYSTEM_PROMPT, round1Prompt, 4096);
   const round1 = parseAgentSections(round1Raw);
 
   // ── 2라운드: 1라운드 요약 포함 심화 (토큰 절약을 위해 round1 요약 사용) ──
@@ -500,7 +500,7 @@ ${round1Digest}
 [CFO 계산기]
 [CLO 규정집]`.trim();
 
-  const round2Raw = await callClaudeDirect(BATCH_SYSTEM_PROMPT, round2Prompt, 1024);
+  const round2Raw = await callClaudeDirect(BATCH_SYSTEM_PROMPT, round2Prompt, 8192);
   const round2 = parseAgentSections(round2Raw);
 
   // ── Chief 최종 종합 ───────────────────────────────────────
