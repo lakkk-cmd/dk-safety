@@ -31,6 +31,9 @@ import { ALLOWED_QUERY_TABLES } from "@/lib/safe-query";
 
 const MAX_TOOL_ROUNDS = 6;
 
+/** "어떤 서브에이전트를 호출할지" 라우팅 판단만 담당 — 답변 생성(Sonnet)보다 가벼운 모델 사용 */
+const ROUTING_MODEL = process.env.ANTHROPIC_ROUTING_MODEL?.trim() || "claude-haiku-4-5";
+
 const TOOLS: ToolDefinition[] = [
   {
     name: "call_sub_agent",
@@ -143,12 +146,51 @@ ${SUB_AGENT_NAMES_LINE}
 3. 고객 대량 발송, 할인/쿠폰 발행처럼 비용·리스크가 크고 되돌리기 어려운 작업은 그런 도구 자체가 없다 — 절대 임의로 진행하지 말고 반드시 대장에게 확인부터 요청하라.
 
 ## 도구 사용 원칙
+- [실시간 현황]에 "[라우팅된 에이전트 의견 — 미리 호출됨]" 섹션이 있으면 이미 관련 에이전트에게 질문을 보내 받은 답변이다 — 그 의견을 우선 활용해 종합하고, 추가로 더 필요한 에이전트가 있을 때만 call_sub_agent를 추가로 호출하라.
 - 종합 현황 질문은 관련된 여러 에이전트를 call_sub_agent로 호출해 답변을 모은 뒤 직접 종합하라 (단순 요약 나열이 아니라 통합된 의견으로).
 - 최신 정보가 필요하다고 판단되면 묻지 않고 웹검색을 사용하라. 검색 결과 중 사업적으로 중요한 것은 knowledge_base_write로 저장하라.
 - 운영 데이터가 필요하면 supabase_query를 사용하되, 허용되지 않은 테이블이나 고객 개인정보를 요구하는 질문은 COO 필드에게 위임하라.
 - 대장과의 모든 대화 기록을 알고 있다고 가정하고 자연스럽게 이어서 답하라.
 
 한국어로, 친근하지만 실행 가능한 수준으로 구체적으로 답하라.`;
+
+const ROUTING_SYSTEM_PROMPT = `당신은 우리집 전기주치의(대경이엔피) Full 에이전트의 라우팅 분류기입니다.
+대장의 메시지를 보고, 답변에 필요한 전문 에이전트의 id만 골라낸다 — 실제 답변 작성은 하지 않는다.
+
+${SUB_AGENT_NAMES_LINE}
+
+규칙:
+- 종합 현황이나 여러 부서 의견이 필요하면 관련된 에이전트를 전부 고른다.
+- 코드 조회/운영 데이터 조회/콘텐츠 기획 등록/GitHub 이슈 등록처럼 총괄이 도구로 직접 처리하는 디지털 작업이면 빈 배열을 반환한다.
+- 확신이 없으면 관련 가능성이 있는 에이전트를 포함한다 (누락보다 과포함이 안전하다).
+
+설명 없이 JSON 배열만 출력하라. 예: ["cfo","coo"] 또는 []`;
+
+/**
+ * "어떤 서브에이전트를 호출할지"만 판단하는 가벼운 라우팅 단계 — 답변 생성(Sonnet)보다 저렴한
+ * ROUTING_MODEL(기본 Haiku)을 쓴다. 분류 실패 시 빈 배열로 폴백해 메인 루프(Sonnet)가 그대로
+ * call_sub_agent 도구로 직접 판단하게 둔다 — 라우팅 단계가 실패해도 기능이 막히지 않는다.
+ */
+async function classifyRoutingAgents(userMessage: string): Promise<string[]> {
+  try {
+    const resp = await callClaudeWithTools({
+      systemPrompt: ROUTING_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userMessage }],
+      model: ROUTING_MODEL,
+      maxTokens: 150,
+      timeoutMs: 20_000,
+    });
+    const text = extractText(resp.content);
+    const match = text.match(/\[[\s\S]*?\]/);
+    if (!match) return [];
+    const parsed = JSON.parse(match[0]) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === "string" && SUB_AGENT_IDS.includes(id));
+  } catch (err) {
+    console.warn("[full-agent-routing] 분류 실패, 빈 배열로 폴백:", err instanceof Error ? err.message : err);
+    return [];
+  }
+}
 
 function findToolUseBlocks(content: ClaudeContentBlock[]): ToolUseBlock[] {
   return content.filter((b): b is ToolUseBlock => b.type === "tool_use");
@@ -185,7 +227,27 @@ export type FullAgentResult = { reply: string; usedWebSearch: boolean; toolCalls
 const FULL_AGENT_CACHED_SYSTEM = `${FULL_AGENT_SYSTEM_PROMPT}\n\n${BUSINESS_CONTEXT}`;
 
 export async function chatWithFullAgent(userMessage: string): Promise<FullAgentResult> {
-  const [history, snapshot] = await Promise.all([loadFullChatHistory("general"), buildBusinessSnapshot()]);
+  const [history, snapshot, routedAgentIds] = await Promise.all([
+    loadFullChatHistory("general"),
+    buildBusinessSnapshot(),
+    classifyRoutingAgents(userMessage),
+  ]);
+
+  const toolCalls: { name: string; input: unknown }[] = [];
+
+  // 라우팅(Haiku)이 골라낸 에이전트를 먼저 호출해 의견을 모아둔다 — 답변 생성은 여전히 그 에이전트
+  // 자신의 모델(Sonnet)이 한다. 메인 루프(Sonnet)는 이 의견을 컨텍스트로 받아 종합만 담당한다.
+  let routedOpinionsText = "";
+  if (routedAgentIds.length > 0) {
+    const opinions = await Promise.all(
+      routedAgentIds.map(async (agentId) => {
+        toolCalls.push({ name: "call_sub_agent", input: { agent_name: agentId, query: userMessage } });
+        const reply = await toolCallSubAgent({ agent_name: agentId, query: userMessage });
+        return `[${agentId}]\n${reply}`;
+      }),
+    );
+    routedOpinionsText = `\n\n[라우팅된 에이전트 의견 — 미리 호출됨]\n${opinions.join("\n\n")}`;
+  }
 
   // 히스토리를 요약 없이 실제 messages 배열(role 교대)로 구성하고 마지막 히스토리 메시지에
   // 캐시 breakpoint를 찍는다 — 대화가 길어질수록(전체 기록을 매번 다시 보내는 구조) 캐시 효과가 커진다.
@@ -194,9 +256,11 @@ export async function chatWithFullAgent(userMessage: string): Promise<FullAgentR
     const lastIdx = messages.length - 1;
     messages[lastIdx] = { ...messages[lastIdx], content: withCacheBreakpoint(messages[lastIdx].content) };
   }
-  messages.push({ role: "user", content: `[실시간 현황]\n${snapshot}\n\n[새 메시지]\n대장: ${userMessage}` });
+  messages.push({
+    role: "user",
+    content: `[실시간 현황]\n${snapshot}${routedOpinionsText}\n\n[새 메시지]\n대장: ${userMessage}`,
+  });
 
-  const toolCalls: { name: string; input: unknown }[] = [];
   let usedWebSearch = false;
   let finalText = "";
 

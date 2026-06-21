@@ -163,10 +163,10 @@ type ClaudeUsage = {
  * Sonnet 기준 캐시 대상 블록이 1024 토큰 미만이면 Anthropic이 에러 없이 캐싱만 건너뛰므로
  * cache_creation/cache_read가 둘 다 0이어도 정상 동작이다.
  */
-function logCacheUsage(context: string, usage?: ClaudeUsage) {
+function logCacheUsage(context: string, usage?: ClaudeUsage, model?: string) {
   if (!usage) return;
   console.log(
-    `[claude-cache] ${context} | input=${usage.input_tokens ?? 0} output=${usage.output_tokens ?? 0} ` +
+    `[claude-cache] ${context} | model=${model ?? "?"} input=${usage.input_tokens ?? 0} output=${usage.output_tokens ?? 0} ` +
       `cache_creation=${usage.cache_creation_input_tokens ?? 0} cache_read=${usage.cache_read_input_tokens ?? 0}`,
   );
 }
@@ -390,8 +390,10 @@ export async function callClaudeWithTools(params: {
   webSearch?: boolean;
   maxTokens?: number;
   timeoutMs?: number;
+  /** 기본값(CLAUDE_MODEL=Sonnet)을 덮어쓸 모델 ID. 라우팅처럼 가벼운 판단에 더 저렴한 모델을 쓸 때 사용. */
+  model?: string;
 }): Promise<ToolCallResponse> {
-  const { systemPrompt, messages, tools = [], webSearch = false, maxTokens = 2048, timeoutMs = 90_000 } = params;
+  const { systemPrompt, messages, tools = [], webSearch = false, maxTokens = 2048, timeoutMs = 90_000, model } = params;
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey || apiKey.length < 20) throw new Error("ANTHROPIC_API_KEY가 설정되지 않았거나 유효하지 않습니다.");
 
@@ -419,7 +421,7 @@ export async function callClaudeWithTools(params: {
       method: "POST",
       headers,
       body: JSON.stringify({
-        model: CLAUDE_MODEL,
+        model: model ?? CLAUDE_MODEL,
         max_tokens: maxTokens,
         system: cachedSystemBlock(systemPrompt),
         messages,
@@ -441,8 +443,13 @@ export async function callClaudeWithTools(params: {
     throw new Error(`Claude API ${res.status}: ${detail}`);
   }
 
-  const data = JSON.parse(raw) as { stop_reason?: string; content?: ClaudeContentBlock[]; usage?: ClaudeUsage };
-  logCacheUsage(`callClaudeWithTools:${systemPrompt.slice(0, 24).replace(/\s+/g, " ")}`, data.usage);
+  const data = JSON.parse(raw) as {
+    stop_reason?: string;
+    content?: ClaudeContentBlock[];
+    usage?: ClaudeUsage;
+    model?: string;
+  };
+  logCacheUsage(`callClaudeWithTools:${systemPrompt.slice(0, 24).replace(/\s+/g, " ")}`, data.usage, data.model);
   return { stopReason: data.stop_reason ?? null, content: data.content ?? [] };
 }
 
