@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // pdf-parse(pdfjs-dist)는 webpack 번들링 시 Object.defineProperty 오류가 나므로 실제 Node 모듈로 둔다.
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
   images: {
     remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com", pathname: "/**" }]
   },

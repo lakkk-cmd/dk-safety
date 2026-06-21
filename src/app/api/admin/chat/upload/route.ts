@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { ingestPdfToKnowledgeBase } from "@/lib/pdf-knowledge";
 import { uploadBinaryObject } from "@/lib/supabase-server";
 
 const CHAT_BUCKET = process.env.SUPABASE_CHAT_UPLOAD_BUCKET ?? "chat-uploads";
+
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
@@ -30,7 +33,12 @@ export async function POST(request: Request) {
       data,
     });
 
-    return NextResponse.json({ url, mediaType: file.type });
+    let pdfLearning: { chunksSaved: number; error?: string } | undefined;
+    if (file.type === "application/pdf") {
+      pdfLearning = await ingestPdfToKnowledgeBase(file.name, Buffer.from(data));
+    }
+
+    return NextResponse.json({ url, mediaType: file.type, pdfLearning });
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "업로드 실패" },

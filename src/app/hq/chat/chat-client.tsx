@@ -9,7 +9,8 @@ type ChatMessage = {
   created_at: string;
   attachment_url?: string | null;
 };
-type Attachment = { url: string; name: string; mediaType: string; previewUrl?: string };
+type PdfLearning = { chunksSaved: number; error?: string };
+type Attachment = { url: string; name: string; mediaType: string; previewUrl?: string; pdfLearning?: PdfLearning };
 
 const AGENT_ICONS: Record<string, string> = {
   general: "🧭",
@@ -63,22 +64,42 @@ function DelegationButtons({
   );
 }
 
-function AttachmentPreview({ url, name, onRemove }: { url?: string; name: string; onRemove?: () => void }) {
+function AttachmentPreview({
+  url,
+  name,
+  pdfLearning,
+  onRemove,
+}: {
+  url?: string;
+  name: string;
+  pdfLearning?: PdfLearning;
+  onRemove?: () => void;
+}) {
   const img = url && (name.match(/\.(png|jpe?g|gif|webp)$/i) || url.match(/\.(png|jpe?g|gif|webp)($|\?)/i));
+  const isPdf = name.match(/\.pdf$/i);
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-      {img ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={name} className="h-10 w-10 rounded object-cover" />
-      ) : (
-        <span className="text-lg">📄</span>
-      )}
-      <span className="max-w-[180px] truncate text-slate-700">{name}</span>
-      {onRemove && (
-        <button type="button" onClick={onRemove} className="ml-auto text-slate-400 hover:text-cc-red">
-          ✕
-        </button>
-      )}
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+      <div className="flex items-center gap-2">
+        {img ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={name} className="h-10 w-10 rounded object-cover" />
+        ) : (
+          <span className="text-lg">📄</span>
+        )}
+        <span className="max-w-[180px] truncate text-slate-700">{name}</span>
+        {onRemove && (
+          <button type="button" onClick={onRemove} className="ml-auto text-slate-400 hover:text-cc-red">
+            ✕
+          </button>
+        )}
+      </div>
+      {isPdf && pdfLearning ? (
+        <p className={`mt-1 font-bold ${pdfLearning.error ? "text-cc-red" : "text-cc-green"}`}>
+          {pdfLearning.error
+            ? `⚠️ 학습 실패: ${pdfLearning.error}`
+            : `📚 학습자료로 저장됨 (${pdfLearning.chunksSaved}개 항목)`}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -165,10 +186,16 @@ export default function HqChatClient() {
       const form = new FormData();
       form.append("file", file);
       const res = await fetch("/api/admin/chat/upload", { method: "POST", body: form });
-      const data = (await res.json()) as { url?: string; mediaType?: string; message?: string };
+      const data = (await res.json()) as { url?: string; mediaType?: string; message?: string; pdfLearning?: PdfLearning };
       if (!res.ok) { setError(data.message ?? "업로드 실패"); return; }
       const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
-      setAttachment({ url: data.url!, name: file.name, mediaType: data.mediaType ?? file.type, previewUrl });
+      setAttachment({
+        url: data.url!,
+        name: file.name,
+        mediaType: data.mediaType ?? file.type,
+        previewUrl,
+        pdfLearning: data.pdfLearning,
+      });
     } catch {
       setError("파일 업로드에 실패했습니다.");
     } finally {
@@ -428,7 +455,12 @@ export default function HqChatClient() {
             <div className="mt-2 flex-shrink-0 text-xs text-slate-500">업로드 중…</div>
           ) : attachment ? (
             <div className="mt-2 flex-shrink-0">
-              <AttachmentPreview url={attachment.previewUrl ?? attachment.url} name={attachment.name} onRemove={clearAttachment} />
+              <AttachmentPreview
+                url={attachment.previewUrl ?? attachment.url}
+                name={attachment.name}
+                pdfLearning={attachment.pdfLearning}
+                onRemove={clearAttachment}
+              />
             </div>
           ) : null}
 
@@ -450,9 +482,12 @@ export default function HqChatClient() {
                   <button
                     type="button"
                     onClick={() => { setShowMenu(false); fileInputRef.current?.click(); }}
-                    className="flex items-center gap-2 px-4 py-3 text-sm text-slate-700 hover:bg-cc-bg"
+                    className="flex w-full flex-col items-start gap-0.5 px-4 py-3 text-left text-sm text-slate-700 hover:bg-cc-bg"
                   >
-                    <span>📎</span> 파일/사진 첨부
+                    <span className="flex items-center gap-2">
+                      <span>📎</span> 파일/사진 첨부
+                    </span>
+                    <span className="pl-6 text-[10px] text-slate-400">PDF는 자동으로 학습자료에 저장돼요</span>
                   </button>
                   <button
                     type="button"
