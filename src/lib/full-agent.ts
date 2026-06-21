@@ -10,7 +10,9 @@ import {
   SUB_AGENT_NAMES_LINE,
 } from "@/lib/agent-chat";
 import {
+  BUSINESS_CONTEXT,
   callClaudeWithTools,
+  withCacheBreakpoint,
   type ClaudeContentBlock,
   type ClaudeMessage,
   type ToolDefinition,
@@ -180,21 +182,36 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
 
 export type FullAgentResult = { reply: string; usedWebSearch: boolean; toolCalls: { name: string; input: unknown }[] };
 
+const FULL_AGENT_CACHED_SYSTEM = `${FULL_AGENT_SYSTEM_PROMPT}\n\n${BUSINESS_CONTEXT}`;
+
 export async function chatWithFullAgent(userMessage: string): Promise<FullAgentResult> {
   const [history, snapshot] = await Promise.all([loadFullChatHistory("general"), buildBusinessSnapshot()]);
 
-  const transcript = history.map((m) => `${m.role === "user" ? "대장" : "총괄"}: ${m.content}`).join("\n");
-  const contextText = `[실시간 현황]\n${snapshot}\n\n${transcript ? `[이전 대화 전체]\n${transcript}\n\n` : ""}[새 메시지]\n대장: ${userMessage}`;
+  // 히스토리를 요약 없이 실제 messages 배열(role 교대)로 구성하고 마지막 히스토리 메시지에
+  // 캐시 breakpoint를 찍는다 — 대화가 길어질수록(전체 기록을 매번 다시 보내는 구조) 캐시 효과가 커진다.
+  const messages: ClaudeMessage[] = history.map((m) => ({ role: m.role, content: m.content }));
+  if (messages.length > 0) {
+    const lastIdx = messages.length - 1;
+    messages[lastIdx] = { ...messages[lastIdx], content: withCacheBreakpoint(messages[lastIdx].content) };
+  }
+  messages.push({ role: "user", content: `[실시간 현황]\n${snapshot}\n\n[새 메시지]\n대장: ${userMessage}` });
 
-  const messages: ClaudeMessage[] = [{ role: "user", content: contextText }];
   const toolCalls: { name: string; input: unknown }[] = [];
   let usedWebSearch = false;
   let finalText = "";
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    // 매 라운드 전송 직전, 그 시점까지의 마지막 메시지에 캐시 breakpoint를 찍어 다음 라운드가
+    // 이번 라운드의 프리픽스를 그대로 재사용(cache_read)할 수 있게 한다. messages 원본을 직접
+    // 변형하지 않고 요청 본문만 복제하는 이유는, 라운드가 늘어날 때마다 breakpoint가 계속 누적되면
+    // Anthropic의 요청당 캐시 breakpoint 한도(4개: system 1 + tools 1 + messages 2)를 넘기기 때문.
+    const requestMessages: ClaudeMessage[] = messages.map((m, i) =>
+      i === messages.length - 1 ? { ...m, content: withCacheBreakpoint(m.content) } : m,
+    );
+
     const resp = await callClaudeWithTools({
-      systemPrompt: FULL_AGENT_SYSTEM_PROMPT,
-      messages,
+      systemPrompt: FULL_AGENT_CACHED_SYSTEM,
+      messages: requestMessages,
       tools: TOOLS,
       webSearch: true,
       maxTokens: 2048,

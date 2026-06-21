@@ -1,4 +1,13 @@
-import { AGENTS, BUSINESS_CONTEXT, callClaudeCustom, callClaudeRich, type Agent, type RichContentBlock } from "@/lib/agents";
+import {
+  AGENTS,
+  BUSINESS_CONTEXT,
+  callClaudeRich,
+  callClaudeWithTools,
+  withCacheBreakpoint,
+  type Agent,
+  type ClaudeMessage,
+  type RichContentBlock,
+} from "@/lib/agents";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { CONTENT_AGENTS } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
@@ -171,8 +180,10 @@ export async function chatWithAgentPlus(
   options?: { attachment?: ChatAttachment; webSearch?: boolean },
 ): Promise<string> {
   const agent = CHAT_AGENTS.find((a) => a.id === agentId);
-  const systemPrompt = CHAT_SYSTEM_PROMPTS[agentId];
-  if (!agent || !systemPrompt) throw new Error(`알 수 없는 에이전트: ${agentId}`);
+  const persona = CHAT_SYSTEM_PROMPTS[agentId];
+  if (!agent || !persona) throw new Error(`알 수 없는 에이전트: ${agentId}`);
+  // BUSINESS_CONTEXT는 호출마다 동일한 정적 텍스트라 system 쪽에 둬야 프롬프트 캐싱이 걸린다.
+  const systemPrompt = `${persona}\n\n${BUSINESS_CONTEXT}`;
 
   const [history, snapshot, ragContext] = await Promise.all([
     loadChatHistory(agentId, 20),
@@ -180,16 +191,16 @@ export async function chatWithAgentPlus(
     searchKnowledgeBase(userMessage || "").catch(() => ""),
   ]);
 
-  const transcript = history.map((m) => `${m.role === "user" ? "대장" : agent.name}: ${m.content}`).join("\n");
   const ragSection = ragContext ? `\n\n${ragContext}` : "";
-  const contextText = `${BUSINESS_CONTEXT}\n\n[실시간 현황]\n${snapshot}${ragSection}\n\n${
-    transcript ? `[이전 대화]\n${transcript}\n\n` : ""
-  }[새 메시지]\n대장: ${userMessage || "(첨부파일 확인 요청)"}`;
+  const newTurnText = `[실시간 현황]\n${snapshot}${ragSection}\n\n[새 메시지]\n대장: ${userMessage || "(첨부파일 확인 요청)"}`;
 
   const { attachment, webSearch = false } = options ?? {};
 
-  let userContent: string | RichContentBlock[];
+  let reply: string;
   if (attachment) {
+    // 첨부파일 경로는 단발성 호출이라 기존 callClaudeRich를 그대로 사용한다(이미지/문서 블록 지원).
+    const transcript = history.map((m) => `${m.role === "user" ? "대장" : agent.name}: ${m.content}`).join("\n");
+    const contextText = transcript ? `[이전 대화]\n${transcript}\n\n${newTurnText}` : newTurnText;
     const blocks: RichContentBlock[] = [];
     if (attachment.mediaType.startsWith("image/")) {
       blocks.push({ type: "image", source: { type: "url", url: attachment.url } });
@@ -197,14 +208,24 @@ export async function chatWithAgentPlus(
       blocks.push({ type: "document", source: { type: "url", url: attachment.url } });
     }
     blocks.push({ type: "text", text: contextText });
-    userContent = blocks;
+    reply = await callClaudeRich({ systemPrompt, userContent: blocks, maxTokens: 1024, timeoutMs: 60_000, webSearch });
   } else {
-    userContent = contextText;
-  }
+    // 일반 텍스트 경로 — 히스토리를 실제 messages 배열(role 교대)로 구성해 마지막 히스토리 메시지에
+    // 캐시 breakpoint를 찍는다. 대화가 쌓일수록(시스템+히스토리) 1024 토큰을 넘어 캐시가 적중한다.
+    const messages: ClaudeMessage[] = history.map((m) => ({ role: m.role, content: m.content }));
+    if (messages.length > 0) {
+      const lastIdx = messages.length - 1;
+      messages[lastIdx] = { ...messages[lastIdx], content: withCacheBreakpoint(messages[lastIdx].content) };
+    }
+    messages.push({ role: "user", content: newTurnText });
 
-  const reply = webSearch || attachment
-    ? await callClaudeRich({ systemPrompt, userContent, maxTokens: 1024, timeoutMs: 60_000, webSearch })
-    : await callClaudeCustom(systemPrompt, contextText, 1024, 60_000);
+    const resp = await callClaudeWithTools({ systemPrompt, messages, webSearch, maxTokens: 1024, timeoutMs: 60_000 });
+    reply =
+      resp.content
+        .filter((b): b is { type: "text"; text: string } => b.type === "text")
+        .map((b) => b.text)
+        .join("\n") || "응답 없음";
+  }
 
   await appendChatMessage(agentId, "user", userMessage || "(첨부파일)", attachment?.url);
   await appendChatMessage(agentId, "assistant", reply);

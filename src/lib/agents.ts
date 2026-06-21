@@ -149,6 +149,44 @@ export const BUSINESS_CONTEXT = `
 
 const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-4-6";
 
+// ─── 프롬프트 캐싱 (Anthropic ephemeral cache_control) ────────────────────────────
+
+type ClaudeUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+};
+
+/**
+ * 캐시 적중 여부를 로그로 남긴다. cache_read_input_tokens > 0이면 직전 호출의 캐시를 재사용한 것.
+ * Sonnet 기준 캐시 대상 블록이 1024 토큰 미만이면 Anthropic이 에러 없이 캐싱만 건너뛰므로
+ * cache_creation/cache_read가 둘 다 0이어도 정상 동작이다.
+ */
+function logCacheUsage(context: string, usage?: ClaudeUsage) {
+  if (!usage) return;
+  console.log(
+    `[claude-cache] ${context} | input=${usage.input_tokens ?? 0} output=${usage.output_tokens ?? 0} ` +
+      `cache_creation=${usage.cache_creation_input_tokens ?? 0} cache_read=${usage.cache_read_input_tokens ?? 0}`,
+  );
+}
+
+/** 시스템 프롬프트를 ephemeral 캐시 breakpoint가 달린 블록 배열로 감싼다. */
+function cachedSystemBlock(system: string) {
+  return [{ type: "text" as const, text: system, cache_control: { type: "ephemeral" as const } }];
+}
+
+/** 메시지 content(문자열 또는 블록 배열)의 마지막 블록에 캐시 breakpoint를 추가한 새 content를 반환한다. */
+export function withCacheBreakpoint(content: ClaudeMessage["content"]): ClaudeMessage["content"] {
+  if (typeof content === "string") {
+    return [{ type: "text", text: content, cache_control: { type: "ephemeral" } }];
+  }
+  if (content.length === 0) return content;
+  const blocks = [...content];
+  blocks[blocks.length - 1] = { ...blocks[blocks.length - 1], cache_control: { type: "ephemeral" } };
+  return blocks;
+}
+
 // ─── Claude API ─────────────────────────────────────────────────────────────────
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -180,7 +218,7 @@ async function fetchClaude(
         body: JSON.stringify({
           model: CLAUDE_MODEL,
           max_tokens: maxTokens,
-          system,
+          system: cachedSystemBlock(system),
           messages: [{ role: "user", content: userPrompt }],
         }),
         signal: controller.signal,
@@ -209,7 +247,8 @@ async function fetchClaude(
       throw new Error(`Claude API ${res.status} (${CLAUDE_MODEL}): ${detail}`);
     }
 
-    const data = JSON.parse(raw) as { content?: { type: string; text?: string }[] };
+    const data = JSON.parse(raw) as { content?: { type: string; text?: string }[]; usage?: ClaudeUsage };
+    logCacheUsage(`fetchClaude:${system.slice(0, 24).replace(/\s+/g, " ")}`, data.usage);
     return (
       data.content
         ?.filter((b) => b.type === "text")
@@ -271,10 +310,12 @@ export async function callClaudeRich(params: {
   const body: Record<string, unknown> = {
     model: CLAUDE_MODEL,
     max_tokens: maxTokens,
-    system: systemPrompt,
+    system: cachedSystemBlock(systemPrompt),
     messages: [{ role: "user", content: userContent }],
   };
-  if (webSearch) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
+  if (webSearch) {
+    body.tools = [{ type: "web_search_20250305", name: "web_search", cache_control: { type: "ephemeral" } }];
+  }
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -305,7 +346,8 @@ export async function callClaudeRich(params: {
     throw new Error(`Claude API ${res.status}: ${detail}`);
   }
 
-  const data = JSON.parse(raw) as { content?: { type: string; text?: string }[] };
+  const data = JSON.parse(raw) as { content?: { type: string; text?: string }[]; usage?: ClaudeUsage };
+  logCacheUsage(`callClaudeRich:${systemPrompt.slice(0, 24).replace(/\s+/g, " ")}`, data.usage);
   return data.content?.filter((b) => b.type === "text").map((b) => b.text ?? "").join("") || "응답 없음";
 }
 
@@ -313,17 +355,26 @@ export type ToolDefinition = {
   name: string;
   description: string;
   input_schema: Record<string, unknown>;
+  cache_control?: { type: "ephemeral" };
 };
 
-export type ToolUseBlock = { type: "tool_use"; id: string; name: string; input: Record<string, unknown> };
+export type ToolUseBlock = {
+  type: "tool_use";
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+  cache_control?: { type: "ephemeral" };
+};
 export type ClaudeContentBlock =
-  | { type: "text"; text: string }
-  | { type: "web_search_tool_result"; tool_use_id: string; content: unknown }
+  | { type: "text"; text: string; cache_control?: { type: "ephemeral" } }
+  | { type: "web_search_tool_result"; tool_use_id: string; content: unknown; cache_control?: { type: "ephemeral" } }
   | ToolUseBlock;
 
 export type ClaudeMessage = {
   role: "user" | "assistant";
-  content: string | Array<ClaudeContentBlock | { type: "tool_result"; tool_use_id: string; content: string }>;
+  content:
+    | string
+    | Array<ClaudeContentBlock | { type: "tool_result"; tool_use_id: string; content: string; cache_control?: { type: "ephemeral" } }>;
 };
 
 export type ToolCallResponse = {
@@ -344,8 +395,13 @@ export async function callClaudeWithTools(params: {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey || apiKey.length < 20) throw new Error("ANTHROPIC_API_KEY가 설정되지 않았거나 유효하지 않습니다.");
 
-  const allTools: unknown[] = [...tools];
+  const allTools: Record<string, unknown>[] = [...tools];
   if (webSearch) allTools.push({ type: "web_search_20250305", name: "web_search" });
+  // 마지막 도구에 캐시 breakpoint를 찍으면 system+tools 전체가 누적으로 캐싱된다 (도구 스키마가 가장 큰 정적 블록).
+  if (allTools.length > 0) {
+    const lastIdx = allTools.length - 1;
+    allTools[lastIdx] = { ...allTools[lastIdx], cache_control: { type: "ephemeral" } };
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -365,7 +421,7 @@ export async function callClaudeWithTools(params: {
       body: JSON.stringify({
         model: CLAUDE_MODEL,
         max_tokens: maxTokens,
-        system: systemPrompt,
+        system: cachedSystemBlock(systemPrompt),
         messages,
         tools: allTools.length ? allTools : undefined,
       }),
@@ -385,7 +441,8 @@ export async function callClaudeWithTools(params: {
     throw new Error(`Claude API ${res.status}: ${detail}`);
   }
 
-  const data = JSON.parse(raw) as { stop_reason?: string; content?: ClaudeContentBlock[] };
+  const data = JSON.parse(raw) as { stop_reason?: string; content?: ClaudeContentBlock[]; usage?: ClaudeUsage };
+  logCacheUsage(`callClaudeWithTools:${systemPrompt.slice(0, 24).replace(/\s+/g, " ")}`, data.usage);
   return { stopReason: data.stop_reason ?? null, content: data.content ?? [] };
 }
 
