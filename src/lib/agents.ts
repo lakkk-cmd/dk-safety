@@ -309,6 +309,86 @@ export async function callClaudeRich(params: {
   return data.content?.filter((b) => b.type === "text").map((b) => b.text ?? "").join("") || "응답 없음";
 }
 
+export type ToolDefinition = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+};
+
+export type ToolUseBlock = { type: "tool_use"; id: string; name: string; input: Record<string, unknown> };
+export type ClaudeContentBlock =
+  | { type: "text"; text: string }
+  | { type: "web_search_tool_result"; tool_use_id: string; content: unknown }
+  | ToolUseBlock;
+
+export type ClaudeMessage = {
+  role: "user" | "assistant";
+  content: string | Array<ClaudeContentBlock | { type: "tool_result"; tool_use_id: string; content: string }>;
+};
+
+export type ToolCallResponse = {
+  stopReason: string | null;
+  content: ClaudeContentBlock[];
+};
+
+/** 커스텀 도구(tool_use) + 멀티턴 메시지 배열을 직접 다루는 저수준 호출. Full 에이전트 오케스트레이터 전용. */
+export async function callClaudeWithTools(params: {
+  systemPrompt: string;
+  messages: ClaudeMessage[];
+  tools?: ToolDefinition[];
+  webSearch?: boolean;
+  maxTokens?: number;
+  timeoutMs?: number;
+}): Promise<ToolCallResponse> {
+  const { systemPrompt, messages, tools = [], webSearch = false, maxTokens = 2048, timeoutMs = 90_000 } = params;
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey || apiKey.length < 20) throw new Error("ANTHROPIC_API_KEY가 설정되지 않았거나 유효하지 않습니다.");
+
+  const allTools: unknown[] = [...tools];
+  if (webSearch) allTools.push({ type: "web_search_20250305", name: "web_search" });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-api-key": apiKey,
+    "anthropic-version": "2023-06-01",
+  };
+  if (webSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
+
+  let res: Response;
+  try {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages,
+        tools: allTools.length ? allTools : undefined,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const raw = await res.text();
+  if (!res.ok) {
+    let detail = raw.slice(0, 300);
+    try {
+      const err = JSON.parse(raw) as { error?: { message?: string } };
+      detail = err.error?.message ?? detail;
+    } catch { /* keep raw */ }
+    throw new Error(`Claude API ${res.status}: ${detail}`);
+  }
+
+  const data = JSON.parse(raw) as { stop_reason?: string; content?: ClaudeContentBlock[] };
+  return { stopReason: data.stop_reason ?? null, content: data.content ?? [] };
+}
+
 /**
  * chief가 반환한 ```json``` 블록을 파싱하는 범용 헬퍼.
  * 중괄호 깊이를 직접 추적해 첫 `{`에 대응하는 `}`까지 추출한다 — 정규식 기반 추출은

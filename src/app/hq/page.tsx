@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SystemHealthCard from "@/components/hq/system-health-card";
 import { getHqSummary } from "@/lib/hq-summary";
 
 export const dynamic = "force-dynamic";
@@ -186,6 +187,8 @@ export default async function HqPage() {
           )}
         </div>
       </section>
+
+      {summary.agentSupabaseReady ? <SystemHealthCard /> : null}
 
       <footer className="pt-2 text-center text-xs text-slate-400">© 2025 대경안심전기</footer>
     </main>

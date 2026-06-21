@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { CHAT_AGENT_GROUPS, CHAT_AGENTS, chatWithAgentPlus, loadChatHistory } from "@/lib/agent-chat";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
+import { chatWithFullAgent } from "@/lib/full-agent";
 
-export const maxDuration = 60;
+export const maxDuration = 280;
 
 export async function GET(request: Request) {
   if (!(await isAdminAuthenticated())) {
@@ -57,6 +58,11 @@ export async function POST(request: Request) {
     }
     if (!message && !attachmentUrl) {
       return NextResponse.json({ message: "message 또는 첨부파일이 필요합니다." }, { status: 400 });
+    }
+
+    if (agentId === "general") {
+      const result = await chatWithFullAgent(message);
+      return NextResponse.json({ reply: result.reply });
     }
 
     const reply = await chatWithAgentPlus(agentId, message, {

@@ -69,3 +69,22 @@ export async function closeGithubIssue(issueNumber: number): Promise<void> {
     body: JSON.stringify({ state: "closed" }),
   });
 }
+
+const MAX_FILE_BYTES = 50_000;
+
+/** 저장소 파일을 읽기 전용으로 조회한다 (Contents API, base64 디코드). */
+export async function readGithubFile(path: string, ref?: string): Promise<string> {
+  const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
+  const res = await githubFetch(`/repos/${getRepo()}/contents/${path}${query}`, { method: "GET" });
+  const json = (await res.json()) as { content?: string; encoding?: string; size?: number; type?: string };
+  if (json.type && json.type !== "file") {
+    throw new Error(`${path}는 파일이 아닙니다 (type: ${json.type}).`);
+  }
+  if (!json.content || json.encoding !== "base64") {
+    throw new Error(`${path} 콘텐츠를 읽을 수 없습니다.`);
+  }
+  const decoded = Buffer.from(json.content, "base64").toString("utf-8");
+  return decoded.length > MAX_FILE_BYTES
+    ? `${decoded.slice(0, MAX_FILE_BYTES)}\n\n...(파일이 너무 커서 ${MAX_FILE_BYTES}자까지만 표시)`
+    : decoded;
+}

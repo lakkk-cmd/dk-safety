@@ -16,6 +16,11 @@ export const CHAT_AGENT_GROUPS: Record<string, string[]> = {
   콘텐츠팀: CONTENT_AGENTS.map((a) => a.id),
 };
 
+/** Full 에이전트 시스템 프롬프트에서 호출 가능한 9개 에이전트를 소개하는 줄 */
+export const SUB_AGENT_NAMES_LINE = `호출 가능한 9명: ${[...AGENTS, ...CONTENT_AGENTS]
+  .map((a) => `${a.id}(${a.name}·${a.role})`)
+  .join(", ")}`;
+
 const CHAT_FRAMING = `
 
 대장(사장님)과 1:1 대화 중입니다. 친근하고 간결하게 답하라(보통 2~5문장, 필요하면 목록 사용). 이모지를 자연스럽게 1~2개 사용해도 좋다.
@@ -112,6 +117,35 @@ export async function loadChatHistory(agentId: string, limit = 20): Promise<Chat
     .limit(limit);
   if (error) throw error;
   return ((data ?? []) as ChatMessage[]).reverse();
+}
+
+const FULL_HISTORY_ROW_CAP = 1000;
+const FULL_HISTORY_CHAR_BUDGET = 60_000;
+
+/**
+ * Full(총괄) 에이전트 전용 — 요약 없이 전체 대화기록을 최대한 불러온다.
+ * 최근 1000개 행을 가져온 뒤, 글자 수 예산(약 60,000자)을 넘지 않는 한도까지
+ * 가장 최근 메시지부터 채우고 오래된 메시지는 잘라낸다.
+ */
+export async function loadFullChatHistory(agentId: string): Promise<ChatMessage[]> {
+  const supabase = requireAgentSupabase();
+  const { data, error } = await supabase
+    .from("agent_chat_messages")
+    .select("role, content, created_at, attachment_url")
+    .eq("agent_id", agentId)
+    .order("created_at", { ascending: false })
+    .limit(FULL_HISTORY_ROW_CAP);
+  if (error) throw error;
+  const rows = ((data ?? []) as ChatMessage[]).reverse();
+
+  let totalChars = 0;
+  let startIdx = rows.length;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    totalChars += rows[i].content.length;
+    if (totalChars > FULL_HISTORY_CHAR_BUDGET) break;
+    startIdx = i;
+  }
+  return rows.slice(startIdx);
 }
 
 export async function appendChatMessage(

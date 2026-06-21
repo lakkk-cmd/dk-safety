@@ -352,7 +352,7 @@ export default function HqChatClient() {
             <div className="flex flex-col items-start">
               {currentAgent ? <span className="mb-1 text-xs font-bold text-slate-500">{currentAgent.name}</span> : null}
               <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400">
-                생각 중…{webSearchOn ? " 🔍" : ""}
+                생각 중…{selectedAgent === "general" || webSearchOn ? " 🔍" : ""}
               </div>
             </div>
           ) : null}
@@ -397,30 +397,32 @@ export default function HqChatClient() {
                 >
                   <span>🖥️</span> 스크린샷 캡처
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { setWebSearchOn((v) => !v); setShowMenu(false); }}
-                  className="flex items-center gap-2 border-t border-slate-100 px-4 py-3 text-sm hover:bg-cc-bg"
-                >
-                  <span>🔍</span>
-                  <span className={webSearchOn ? "text-cc-navy font-bold" : "text-slate-700"}>
-                    웹 검색 {webSearchOn ? "ON ✓" : "OFF"}
-                  </span>
-                </button>
+                {selectedAgent !== "general" && (
+                  <button
+                    type="button"
+                    onClick={() => { setWebSearchOn((v) => !v); setShowMenu(false); }}
+                    className="flex items-center gap-2 border-t border-slate-100 px-4 py-3 text-sm hover:bg-cc-bg"
+                  >
+                    <span>🔍</span>
+                    <span className={webSearchOn ? "text-cc-navy font-bold" : "text-slate-700"}>
+                      웹 검색 {webSearchOn ? "ON ✓" : "OFF"}
+                    </span>
+                  </button>
+                )}
               </div>
             )}
             <button
               type="button"
               onClick={() => setShowMenu((v) => !v)}
               disabled={sending || uploading}
-              title="첨부/검색 옵션"
+              title={selectedAgent === "general" ? "첨부 (총괄은 웹검색이 항상 켜져 있습니다)" : "첨부/검색 옵션"}
               className={`flex h-[46px] w-[46px] items-center justify-center rounded-xl border text-lg font-bold transition disabled:opacity-50 ${
-                showMenu || webSearchOn || attachment
+                showMenu || (selectedAgent !== "general" && webSearchOn) || attachment
                   ? "border-cc-navy bg-cc-navy/10 text-cc-navy"
                   : "border-slate-300 bg-white text-slate-500 hover:bg-cc-bg"
               }`}
             >
-              {webSearchOn ? "🔍" : "+"}
+              {selectedAgent === "general" ? "🔍" : webSearchOn ? "🔍" : "+"}
             </button>
           </div>
 
@@ -449,7 +451,9 @@ export default function HqChatClient() {
         </div>
 
         {/* 웹 검색 활성 표시 */}
-        {webSearchOn ? (
+        {selectedAgent === "general" ? (
+          <p className="mt-2 text-xs text-cc-navy">🔍 총괄은 필요하다고 판단되면 자동으로 웹 검색을 사용합니다.</p>
+        ) : webSearchOn ? (
           <p className="mt-2 text-xs text-cc-navy">
             🔍 웹 검색 활성 — 전송 시 최신 정보를 검색해 답변합니다.{" "}
             <button type="button" className="underline" onClick={() => setWebSearchOn(false)}>
