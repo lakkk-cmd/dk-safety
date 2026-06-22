@@ -102,7 +102,7 @@ export async function middleware(request: NextRequest) {
     return withFirstVisitCookie(NextResponse.redirect(loginUrl), isFirstVisit);
   }
 
-  const isWorkerRoute = pathname.startsWith("/worker");
+  const isWorkerRoute = pathname.startsWith("/worker") || pathname.startsWith("/field-report");
   const isWorkerLogin = pathname === "/worker/login";
 
   if (isWorkerRoute && !isWorkerLogin) {

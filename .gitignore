@@ -19,3 +19,5 @@ coverage
 data/backups/reservations-auto-*.json
 public/uploads/
 test-output/
+
+.env*

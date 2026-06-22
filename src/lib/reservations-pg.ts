@@ -598,6 +598,22 @@ export async function pgListWorkers(): Promise<WorkerPublic[]> {
   );
 }
 
+export async function pgGetReservationContact(
+  reservationId: string
+): Promise<{ name: string; phone: string; landlordPhone: string | null } | null> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("name, phone, landlord_phone")
+    .eq("id", reservationId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`예약 연락처 조회 실패: ${error.message}`);
+  }
+  if (!data) return null;
+  return { name: data.name, phone: data.phone, landlordPhone: data.landlord_phone };
+}
+
 export async function pgCreateWorker(input: { name: string; phone: string; pinHash: string }): Promise<WorkerPublic> {
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase
