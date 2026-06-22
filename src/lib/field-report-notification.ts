@@ -18,17 +18,12 @@ function normalizePhoneDigits(value: string): string {
   return value.replaceAll(/[^0-9]/g, "");
 }
 
-function buildFallbackText(params: {
-  customerName: string;
-  apartmentAddress: string;
-  riskLevel: string | null;
-  reportUrl: string;
-}): string {
+function buildFallbackText(params: { customerName: string; riskLevel: string | null; reportUrl: string }): string {
   return [
-    `${params.customerName}님, 우리집 전기주치의(대경이엔피) 세대 진단 리포트가 도착했습니다.`,
-    `세대주소: ${params.apartmentAddress}`,
+    `[우리집전기주치의] ${params.customerName}님 점검 완료.`,
     `위험등급: ${params.riskLevel ?? "확인중"}`,
-    `리포트 보기: ${params.reportUrl}`
+    `리포트 확인: ${params.reportUrl}`,
+    `담당: 010-8945-1111`
   ].join("\n");
 }
 
