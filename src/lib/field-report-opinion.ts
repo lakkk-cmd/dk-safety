@@ -98,6 +98,6 @@ function splitOpinion(raw: string): { landlord: string; resident: string } {
 export async function generateFieldReportOpinion(report: FieldReport): Promise<{ landlord: string; resident: string }> {
   const kbContext = await searchKnowledgeBase(buildKnowledgeQuery(report), 5);
   const userPrompt = buildUserPrompt(report, kbContext);
-  const raw = await callClaudeCustom(SYSTEM_PROMPT, userPrompt, 2400, 110_000);
+  const raw = await callClaudeCustom(SYSTEM_PROMPT, userPrompt, 6000, 110_000);
   return splitOpinion(raw);
 }
