@@ -349,6 +349,63 @@ async function pgFindReservationById(id: string): Promise<Reservation | null> {
   return mapReservation(data as ReservationRow);
 }
 
+/** 고객용 "내 예약 현황" — 전화번호로 본인 예약 목록 조회 (최근 20건) */
+export async function pgFindReservationsByPhone(phone: string): Promise<Reservation[]> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("reservations")
+    .select(
+      `
+      id,
+      apartment_id,
+      name,
+      phone,
+      address,
+      service_type,
+      preferred_date,
+      preferred_time,
+      detail,
+      image_urls,
+      priority,
+      status,
+      note,
+      note_updated_at,
+      base_fee,
+      extra_fee,
+      total_amount,
+      is_paid,
+      paid_at,
+      created_at,
+      apartments (
+        name,
+        code
+      ),
+      tasks (
+        id,
+        status,
+        worker_id,
+        workers ( name )
+      ),
+      orders (
+        payment_status,
+        dispatch_status,
+        prepayment_confirmed,
+        final_payment_status,
+        total_final_fee,
+        warranty_issued_at
+      )
+    `
+    )
+    .eq("phone", phone.trim())
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    throw new Error(`예약 조회 실패: ${error.message}`);
+  }
+  return (data as ReservationRow[] | null)?.map(mapReservation) ?? [];
+}
+
 export async function pgHasReservationTimeConflict(preferredDate: string, preferredTime: string): Promise<boolean> {
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase

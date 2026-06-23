@@ -191,6 +191,33 @@ export async function pgGetFieldReportForWorker(id: string, workerId: string): P
   return mapFieldReport(data as FieldReportRow);
 }
 
+/** 고객용 공개 조회 — workerId 검증 없이 id만으로 조회 (검증서 페이지 `/verify/[id]`와 동일한 노출 모델) */
+export async function pgGetFieldReportPublic(id: string): Promise<FieldReport | null> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase.from("field_reports").select("*").eq("id", id).maybeSingle();
+  if (error) {
+    throw new Error(`현장 점검 기록 조회 실패: ${error.message}`);
+  }
+  if (!data) return null;
+  return mapFieldReport(data as FieldReportRow);
+}
+
+/** 예약에 연결된 현장 점검 기록 — `/status` 페이지에서 "리포트 보기" 링크 노출 여부 판단용 */
+export async function pgFindFieldReportByReservationId(reservationId: string): Promise<{ id: string; status: string } | null> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("field_reports")
+    .select("id, status")
+    .eq("reservation_id", reservationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`현장 점검 기록 조회 실패: ${error.message}`);
+  }
+  return data ? { id: data.id as string, status: data.status as string } : null;
+}
+
 export async function pgSaveFieldReportOpinion(
   id: string,
   opinion: { landlord: string; resident: string }
