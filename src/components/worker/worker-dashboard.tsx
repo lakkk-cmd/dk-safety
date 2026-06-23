@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { Reservation } from "@/lib/reservations-store";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Item = {
   task: { id: string; status: string; site_photo_urls: string[] };
@@ -10,20 +11,25 @@ type Item = {
 };
 
 function statusLabel(status: string) {
-  if (status === "assigned") return "배정 완료";
-  if (status === "in_progress") return "진행 중";
-  if (status === "completed") return "작업 완료";
+  if (status === "assigned") return "대기중";
+  if (status === "in_progress") return "진행중";
+  if (status === "completed") return "완료";
   return status;
 }
 
 function statusBadgeClass(status: string) {
-  if (status === "completed") return "bg-emerald-100 text-emerald-800";
-  if (status === "in_progress") return "bg-amber-100 text-amber-900";
-  return "bg-blue-100 text-blue-800";
+  if (status === "completed") return "bg-dk-green text-white";
+  if (status === "in_progress") return "bg-dk-amber text-white";
+  return "bg-dk-blue text-white";
+}
+
+function todayLabel() {
+  return new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" });
 }
 
 export default function WorkerDashboard() {
   const [items, setItems] = useState<Item[]>([]);
+  const [workerName, setWorkerName] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [apartmentFilter, setApartmentFilter] = useState("전체");
 
@@ -44,6 +50,15 @@ export default function WorkerDashboard() {
 
   useEffect(() => {
     void load();
+    (async () => {
+      try {
+        const response = await fetch("/api/worker/me", { cache: "no-store" });
+        const data = (await response.json()) as { name?: string };
+        if (response.ok && data.name) setWorkerName(data.name);
+      } catch {
+        // ignore — greeting falls back to generic label
+      }
+    })();
   }, [load]);
 
   const apartmentOptions = ["전체", ...Array.from(new Set(items.map((row) => row.reservation.apartmentName ?? "미지정"))).sort((a, b) => a.localeCompare(b))];
@@ -54,10 +69,11 @@ export default function WorkerDashboard() {
     return (order[a.task.status] ?? 9) - (order[b.task.status] ?? 9);
   });
   const statusSummary = [
-    { label: "진행 중", count: items.filter((i) => i.task.status === "in_progress").length },
-    { label: "배정대기", count: items.filter((i) => i.task.status === "assigned").length },
-    { label: "완료", count: items.filter((i) => i.task.status === "completed").length }
+    { label: "진행중", count: items.filter((i) => i.task.status === "in_progress").length, color: "text-dk-amber" },
+    { label: "대기중", count: items.filter((i) => i.task.status === "assigned").length, color: "text-dk-blue" },
+    { label: "완료", count: items.filter((i) => i.task.status === "completed").length, color: "text-dk-green" }
   ];
+  const emergencyItems = items.filter((row) => row.reservation.priority === "emergency" && row.task.status !== "completed");
 
   useEffect(() => {
     let closed = false;
@@ -110,90 +126,92 @@ export default function WorkerDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl bg-gradient-to-br from-dk-navy to-dk-blue p-4 text-white shadow-[0_12px_30px_rgba(11,28,58,0.35)]">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="text-sm font-bold text-white/80">현장 기사</p>
-            <h1 className="mt-1 text-2xl font-black">오늘의 작업</h1>
-          </div>
-          <div className="rounded-xl bg-white/15 px-3 py-2 text-center">
-            <p className="text-xl font-black">{items.length}</p>
-            <p className="text-xs font-semibold text-white/85">건</p>
-          </div>
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {statusSummary.map(({ label, count }) => (
-            <div key={label} className="rounded-xl bg-white/10 px-2 py-2 text-center">
-              <p className="text-lg font-black">{count}</p>
-              <p className="text-[11px] font-semibold text-white/85">{label}</p>
-            </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="mt-3 w-full rounded-xl border border-white/30 bg-white/95 py-2 text-sm font-semibold text-dk-navy shadow-sm hover:bg-white"
-        >
-          새로고침
-        </button>
-        <select value={apartmentFilter} onChange={(e) => setApartmentFilter(e.target.value)} className="soft-input mt-2 w-full text-sm">
-          {apartmentOptions.map((option) => (
-            <option key={option} value={option}>
-              아파트: {option}
-            </option>
-          ))}
-        </select>
+      <div>
+        <p className="text-xl font-bold text-dk-navy">
+          안녕하세요, {workerName ? `${workerName} 기사님` : "기사님"} 👋
+        </p>
+        <p className="mt-0.5 text-[15px] font-medium text-slate-500">{todayLabel()}</p>
       </div>
+
+      {emergencyItems.length > 0 ? (
+        <div className="rounded-2xl bg-dk-red px-4 py-3 text-white shadow-[0_10px_24px_rgba(229,62,62,0.35)]">
+          <p className="text-sm font-bold">🔴 긴급 출동 요청 {emergencyItems.length}건</p>
+          <p className="mt-0.5 text-[13px] text-white/85">
+            {emergencyItems[0].reservation.name} · {emergencyItems[0].reservation.address}
+          </p>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-3 gap-2">
+        {statusSummary.map(({ label, count, color }) => (
+          <div key={label} className="rounded-2xl bg-white p-3 text-center shadow-[0_4px_16px_rgba(11,31,58,0.08)]">
+            <p className={`text-2xl font-bold ${color}`}>{count}</p>
+            <p className="mt-0.5 text-[13px] font-semibold text-slate-500">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      <Link
+        href="/field-report"
+        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dk-navy bg-white px-5 text-base font-bold text-dk-navy hover:bg-dk-sky"
+      >
+        <span className="text-xl leading-none">➕</span>
+        <span>새 점검 시작</span>
+      </Link>
 
       {message ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{message}</p> : null}
 
+      <select value={apartmentFilter} onChange={(e) => setApartmentFilter(e.target.value)} className="soft-input w-full text-sm">
+        {apartmentOptions.map((option) => (
+          <option key={option} value={option}>
+            아파트: {option}
+          </option>
+        ))}
+      </select>
+
       {filteredItems.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-600">
-          배정된 작업이 없습니다.
-        </div>
+        <EmptyState icon="🧰" title="오늘 작업이 없어요" description="배정된 작업이 들어오면 여기 표시됩니다." />
       ) : (
         <ul className="space-y-3">
           {sortedItems.map((row) => (
             <li
               key={row.task.id}
-              className={`rounded-2xl border p-4 shadow-[0_12px_24px_rgba(11,28,58,0.12)] ${
-                row.task.status === "in_progress"
-                  ? "border-amber-300 bg-amber-50"
-                  : row.task.status === "completed"
-                    ? "border-slate-200 bg-slate-50 opacity-70"
-                    : "border-slate-200 bg-white"
-              }`}
+              className={`rounded-2xl bg-white p-4 shadow-[0_4px_16px_rgba(11,31,58,0.08)] ${
+                row.task.status === "completed" ? "opacity-60" : ""
+              } ${row.reservation.priority === "emergency" && row.task.status !== "completed" ? "ring-2 ring-dk-red" : ""}`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-bold text-slate-900">{row.reservation.name}</p>
-                  <p className="mt-1 text-[11px] font-semibold text-dk-blue">{row.reservation.apartmentName ?? "미지정 아파트"}</p>
-                  <p className="mt-1 text-xs text-slate-600">{row.reservation.address}</p>
+                  <p className="text-lg font-bold text-dk-navy">{row.reservation.preferredTime}</p>
+                  <p className="mt-0.5 text-[15px] font-bold text-slate-800">{row.reservation.apartmentName ?? "미지정 아파트"}</p>
+                  <p className="mt-0.5 text-sm text-slate-500">{row.reservation.address}</p>
                 </div>
-                <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-bold ${statusBadgeClass(row.task.status)}`}>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${statusBadgeClass(row.task.status)}`}>
                   {statusLabel(row.task.status)}
                 </span>
               </div>
-              <p className="mt-2 text-xs text-slate-500">
-                {row.reservation.preferredDate} {row.reservation.preferredTime} · {row.reservation.serviceType}
-              </p>
+              <p className="mt-2 text-sm text-slate-500">{row.reservation.name} · {row.reservation.serviceType}</p>
               {row.reservation.orderTotalFinalFee != null ? (
-                <p className="mt-1 text-xs font-semibold text-emerald-700">
-                  최종 정산: {row.reservation.orderTotalFinalFee.toLocaleString("ko-KR")}원 · 최종결제:{" "}
-                  {row.reservation.orderFinalPaymentStatus ?? "PENDING"}
+                <p className="mt-1 text-[13px] font-semibold text-dk-green">
+                  최종 정산: {row.reservation.orderTotalFinalFee.toLocaleString("ko-KR")}원
                 </p>
               ) : null}
-              {row.reservation.orderWarrantyIssuedAt ? (
-                <p className="mt-1 text-[11px] text-emerald-700">
-                  보증서 발급: {new Date(row.reservation.orderWarrantyIssuedAt).toLocaleString("ko-KR")}
-                </p>
-              ) : null}
-              <Link
-                href={`/worker/tasks/${row.task.id}`}
-                className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-dk-navy to-dk-blue py-2.5 text-sm font-bold text-white"
-              >
-                작업 상세
-              </Link>
+
+              <div className="mt-3 flex gap-2">
+                <Link
+                  href={`/field-report?reservationId=${row.reservation.id}`}
+                  className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-dk-blue text-[15px] font-bold text-white shadow-[0_8px_20px_rgba(26,92,255,0.28)]"
+                >
+                  <span>🔧</span>
+                  <span>점검 시작</span>
+                </Link>
+                <Link
+                  href={`/worker/tasks/${row.task.id}`}
+                  className="flex min-h-12 items-center justify-center rounded-2xl border-2 border-slate-200 px-4 text-[15px] font-bold text-slate-600"
+                >
+                  작업상세
+                </Link>
+              </div>
             </li>
           ))}
         </ul>

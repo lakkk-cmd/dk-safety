@@ -638,6 +638,16 @@ export async function pgCreateWorker(input: { name: string; phone: string; pinHa
   };
 }
 
+export async function pgGetWorkerById(workerId: string): Promise<{ id: string; name: string } | null> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase.from("workers").select("id, name").eq("id", workerId).maybeSingle();
+  if (error) {
+    throw new Error(`기사 조회 실패: ${error.message}`);
+  }
+  if (!data) return null;
+  return { id: data.id, name: data.name };
+}
+
 export async function pgFindWorkerByPhone(phone: string): Promise<{ id: string; pin_hash: string; active: boolean } | null> {
   const supabase = requireSupabaseAdmin();
   const normalized = phone.trim();

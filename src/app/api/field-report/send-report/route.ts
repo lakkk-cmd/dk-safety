@@ -19,8 +19,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
   }
 
-  const body = (await request.json()) as { fieldReportId?: string };
-  const fieldReportId = body.fieldReportId?.trim();
+  const body = (await request.json().catch(() => null)) as { fieldReportId?: string } | null;
+  const fieldReportId = body?.fieldReportId?.trim();
   if (!fieldReportId) {
     return NextResponse.json({ message: "fieldReportId가 필요합니다." }, { status: 400 });
   }

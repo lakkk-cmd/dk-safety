@@ -1,14 +1,7 @@
 import type { Metadata } from "next";
-import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 import GlobalResidentLogoutButton from "@/components/global-resident-logout-button";
 import PwaRegister from "@/components/pwa-register";
-
-const notoSansKr = Noto_Sans_KR({
-  subsets: ["latin"],
-  weight: ["400", "500", "700", "800"],
-  display: "swap"
-});
 
 export const metadata: Metadata = {
   title: "우리집 전기주치의(대경이엔피)",
@@ -19,7 +12,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body className={notoSansKr.className}>
+      <body>
         <PwaRegister />
         {children}
         <GlobalResidentLogoutButton />

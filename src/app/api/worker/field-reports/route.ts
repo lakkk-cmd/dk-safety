@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
   }
 
-  const body = (await request.json()) as Record<string, unknown>;
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const reservationId = toStringField(body.reservationId).trim();
   if (!reservationId) {
     return NextResponse.json({ message: "예약을 선택해주세요." }, { status: 400 });
