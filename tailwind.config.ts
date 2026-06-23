@@ -17,9 +17,9 @@ const config: Config = {
         "dk-green": "#38A169",
         "dk-amber": "#DD6B20",
         "dk-gray": "#F7F8FA",
-        // AI 사령부(hq/contents/agent/report) 전용 디자인 시스템
-        "cc-bg": "#F5F6FA",
-        "cc-navy": "#1B2E4B",
+        // AI 사령부(hq/contents/agent/report) 전용 디자인 시스템 — Phase 5: dk- 브랜드 톤과 통일(cc-bg/cc-navy를 dk-gray/dk-navy와 동일 값으로)
+        "cc-bg": "#F7F8FA",
+        "cc-navy": "#0B1F3A",
         "cc-gold": "#F5A623",
         "cc-green": "#38A169",
         "cc-red": "#E53E3E",
