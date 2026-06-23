@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Wallet, CheckCircle2, Clock, Building2 } from "lucide-react";
 import BusinessMainAccountForm from "@/components/admin/business-main-account-form";
+import AdminPageHeader from "@/components/admin/admin-page-header";
 
 // 가상계좌 입금 모니터링 관리자 화면
 export default function FinanceAdminPage() {
@@ -16,11 +17,8 @@ export default function FinanceAdminPage() {
   ]);
 
   return (
-    <div className="space-y-6 p-6">
-      <header>
-        <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">금융 / 가상계좌 관리</h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">입금·가상계좌 모니터링과 사업자 주계좌(고객 입금 안내)를 관리합니다.</p>
-      </header>
+    <main className="page-fit max-w-6xl space-y-6">
+      <AdminPageHeader title="금융/가상계좌 관리" description="입금·가상계좌 모니터링과 사업자 주계좌(고객 입금 안내)를 관리합니다." />
 
       {/* 1. 상단 현황 카드 (특허 기반 실시간 통계) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -98,6 +96,6 @@ export default function FinanceAdminPage() {
       </Card>
 
       <BusinessMainAccountForm />
-    </div>
+    </main>
   );
 }

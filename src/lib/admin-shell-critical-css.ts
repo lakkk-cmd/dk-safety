@@ -20,6 +20,7 @@ export const ADMIN_SHELL_CRITICAL_CSS = `
   display: flex !important;
   flex-direction: column !important;
   border-right: 1px solid #cbd5e1 !important;
+  border-top: 3px solid #F5A623 !important;
   background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%) !important;
 }
 [data-dk-admin-root] > aside ul {
@@ -41,6 +42,7 @@ export const ADMIN_SHELL_CRITICAL_CSS = `
   gap: 0.5rem !important;
   padding: 0.5rem 0.75rem !important;
   border: none !important;
+  border-left: 3px solid transparent !important;
   border-radius: 0.375rem !important;
   background: transparent !important;
   cursor: pointer !important;
@@ -54,7 +56,8 @@ export const ADMIN_SHELL_CRITICAL_CSS = `
   background: rgba(148, 163, 184, 0.38) !important;
 }
 [data-dk-admin-root] aside button.dk-admin-shell-nav-btn[data-active="true"] {
-  background: #0f172a !important;
+  border-left-color: #F5A623 !important;
+  background: #0B1F3A !important;
   color: #ffffff !important;
 }
 [data-dk-admin-root] > .dk-admin-main {
@@ -80,6 +83,7 @@ export const ADMIN_SHELL_CRITICAL_CSS = `
   border-bottom: 1px solid #e2e8f0 !important;
   padding: 1rem !important;
   box-sizing: border-box !important;
+  background: #0B1F3A !important;
 }
 [data-dk-admin-root] aside > div:first-of-type p {
   margin: 0.15rem 0 0 !important;
@@ -87,13 +91,16 @@ export const ADMIN_SHELL_CRITICAL_CSS = `
   font-weight: 800 !important;
   letter-spacing: 0.12em !important;
   text-transform: uppercase !important;
-  color: #64748b !important;
+  color: #F5A623 !important;
 }
 [data-dk-admin-root] aside > div:first-of-type h1 {
   margin: 0.35rem 0 0 !important;
   font-size: 1.05rem !important;
   font-weight: 900 !important;
-  color: #0f172a !important;
+  color: #ffffff !important;
+}
+[data-dk-admin-root] aside > div:first-of-type h1 ~ p {
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 [data-dk-admin-root] aside > div:nth-of-type(2) {
   flex: 1 1 auto !important;

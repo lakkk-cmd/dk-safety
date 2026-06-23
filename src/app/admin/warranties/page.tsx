@@ -1,4 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import AdminPageHeader from "@/components/admin/admin-page-header";
 import { requireSupabaseAdmin, isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 
 export const dynamic = "force-dynamic";
@@ -17,14 +18,9 @@ type WarrantyRow = {
 export default async function AdminWarrantiesPage() {
   if (!isSupabaseReservationsDbReady()) {
     return (
-      <section className="space-y-4">
-        <Card className="border-slate-300 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70">
-          <CardHeader>
-            <CardTitle className="text-slate-900 dark:text-slate-100">Digital Warranties</CardTitle>
-            <CardDescription className="dark:text-slate-300">Supabase DB 모드에서 보증서 관제를 사용할 수 있습니다.</CardDescription>
-          </CardHeader>
-        </Card>
-      </section>
+      <main className="page-fit max-w-6xl">
+        <AdminPageHeader title="디지털 보증서 관리" description="Supabase DB 모드에서 보증서 관제를 사용할 수 있습니다." />
+      </main>
     );
   }
 
@@ -37,15 +33,10 @@ export default async function AdminWarrantiesPage() {
   const rows = (data ?? []) as WarrantyRow[];
 
   return (
-    <section className="space-y-4">
+    <main className="page-fit max-w-6xl">
+      <AdminPageHeader title="디지털 보증서 관리" description="보증서 발급 이력 조회와 보증번호 기반 진위 확인을 수행합니다." />
       <Card className="border-slate-300 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70">
-        <CardHeader>
-          <CardTitle className="text-slate-900 dark:text-slate-100">Digital Warranties</CardTitle>
-          <CardDescription className="dark:text-slate-300">
-            보증서 발급 이력 조회와 보증번호 기반 진위 확인을 수행합니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-200/70 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
@@ -83,6 +74,6 @@ export default async function AdminWarrantiesPage() {
           </div>
         </CardContent>
       </Card>
-    </section>
+    </main>
   );
 }

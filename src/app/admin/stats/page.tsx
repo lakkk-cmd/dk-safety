@@ -1,4 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import AdminPageHeader from "@/components/admin/admin-page-header";
 import { pgListApartments } from "@/lib/apartments-pg";
 import { pgListOrdersForAdmin } from "@/lib/orders-pg";
 import { pgReadReservations } from "@/lib/reservations-pg";
@@ -9,14 +10,9 @@ export const dynamic = "force-dynamic";
 export default async function AdminStatsPage() {
   if (!isSupabaseReservationsDbReady()) {
     return (
-      <section className="space-y-4">
-        <Card className="border-slate-300 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70">
-          <CardHeader>
-            <CardTitle className="text-slate-900 dark:text-slate-100">Insight &amp; Config</CardTitle>
-            <CardDescription className="dark:text-slate-300">Supabase DB 모드에서 통계 관제를 사용할 수 있습니다.</CardDescription>
-          </CardHeader>
-        </Card>
-      </section>
+      <main className="page-fit max-w-6xl">
+        <AdminPageHeader title="시스템 통계" description="Supabase DB 모드에서 통계 관제를 사용할 수 있습니다." />
+      </main>
     );
   }
 
@@ -35,15 +31,10 @@ export default async function AdminStatsPage() {
   });
 
   return (
-    <section className="space-y-4">
+    <main className="page-fit max-w-6xl">
+      <AdminPageHeader title="시스템 통계" description="단지별 매출, 이용률, 운영 지표를 모니터링하는 통계 영역입니다." />
       <Card className="border-slate-300 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70">
-        <CardHeader>
-          <CardTitle className="text-slate-900 dark:text-slate-100">Insight &amp; Config</CardTitle>
-          <CardDescription className="dark:text-slate-300">
-            단지별 매출, 이용률, 운영 지표를 모니터링하는 통계 영역입니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-xs text-slate-500 dark:text-slate-400">총 매출</p>
@@ -82,6 +73,6 @@ export default async function AdminStatsPage() {
           </div>
         </CardContent>
       </Card>
-    </section>
+    </main>
   );
 }

@@ -1,4 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import AdminPageHeader from "@/components/admin/admin-page-header";
 import { pgListApartments } from "@/lib/apartments-pg";
 import { pgListOrdersForAdmin } from "@/lib/orders-pg";
 import { pgListWorkers, pgReadReservations } from "@/lib/reservations-pg";
@@ -10,14 +11,9 @@ export const dynamic = "force-dynamic";
 export default async function AdminDispatchPage() {
   if (!isSupabaseReservationsDbReady()) {
     return (
-      <section className="space-y-4">
-        <Card className="border-slate-300 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70">
-          <CardHeader>
-            <CardTitle className="text-slate-900 dark:text-slate-100">Dispatch Control</CardTitle>
-            <CardDescription className="dark:text-slate-300">Supabase DB 모드에서 배정 관제를 사용할 수 있습니다.</CardDescription>
-          </CardHeader>
-        </Card>
-      </section>
+      <main className="page-fit max-w-6xl">
+        <AdminPageHeader title="실시간 배정 관제" description="Supabase DB 모드에서 배정 관제를 사용할 수 있습니다." />
+      </main>
     );
   }
 
@@ -35,31 +31,26 @@ export default async function AdminDispatchPage() {
   const doneCount = reservations.filter((row) => row.taskStatus === "completed").length;
 
   return (
-    <section className="space-y-4">
+    <main className="page-fit max-w-6xl">
+      <AdminPageHeader title="실시간 배정 관제" description="결제 완료 주문을 실시간으로 확인하고 기사 배정을 관제합니다." />
       <Card className="border-slate-300 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70">
-        <CardHeader>
-          <CardTitle className="text-slate-900 dark:text-slate-100">Dispatch Control</CardTitle>
-          <CardDescription className="dark:text-slate-300">
-            결제 완료 주문을 실시간으로 확인하고 기사 배정을 관제합니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 pt-6">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-xs text-slate-500 dark:text-slate-400">배정 대기</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{readyCount}건</p>
+              <p className="mt-1 text-2xl font-black text-dk-navy dark:text-slate-100">{readyCount}건</p>
             </div>
             <div className="rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-xs text-slate-500 dark:text-slate-400">배정 완료</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{assignedCount}건</p>
+              <p className="mt-1 text-2xl font-black text-dk-navy dark:text-slate-100">{assignedCount}건</p>
             </div>
             <div className="rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-xs text-slate-500 dark:text-slate-400">현장 작업중</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{inProgressCount}건</p>
+              <p className="mt-1 text-2xl font-black text-dk-gold dark:text-slate-100">{inProgressCount}건</p>
             </div>
             <div className="rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-xs text-slate-500 dark:text-slate-400">작업 완료</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-slate-100">{doneCount}건</p>
+              <p className="mt-1 text-2xl font-black text-emerald-600 dark:text-slate-100">{doneCount}건</p>
             </div>
           </div>
           <div className="rounded-lg border border-slate-200 bg-slate-200/50 p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200">
@@ -85,6 +76,6 @@ export default async function AdminDispatchPage() {
           />
         </CardContent>
       </Card>
-    </section>
+    </main>
   );
 }

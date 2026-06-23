@@ -1,4 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import AdminPageHeader from "@/components/admin/admin-page-header";
 import { pgListApartments } from "@/lib/apartments-pg";
 import { pgListOrdersForAdmin } from "@/lib/orders-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
@@ -8,14 +9,9 @@ export const dynamic = "force-dynamic";
 export default async function AdminBillingPage() {
   if (!isSupabaseReservationsDbReady()) {
     return (
-      <section className="space-y-4">
-        <Card className="border-slate-300 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70">
-          <CardHeader>
-            <CardTitle className="text-slate-900 dark:text-slate-100">Adjustment &amp; Billing</CardTitle>
-            <CardDescription className="dark:text-slate-300">Supabase DB 모드에서 정산 관제를 사용할 수 있습니다.</CardDescription>
-          </CardHeader>
-        </Card>
-      </section>
+      <main className="page-fit max-w-6xl">
+        <AdminPageHeader title="현장 정산 승인" description="Supabase DB 모드에서 정산 관제를 사용할 수 있습니다." />
+      </main>
     );
   }
 
@@ -23,15 +19,10 @@ export default async function AdminBillingPage() {
   const apartmentById = new Map(apartments.map((apt) => [apt.id, apt]));
 
   return (
-    <section className="space-y-4">
+    <main className="page-fit max-w-6xl">
+      <AdminPageHeader title="현장 정산 승인" description="가변 비용 검증, 최종 정산 승인, 기사/플랫폼 리포트를 관리합니다." />
       <Card className="border-slate-300 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70">
-        <CardHeader>
-          <CardTitle className="text-slate-900 dark:text-slate-100">Adjustment &amp; Billing</CardTitle>
-          <CardDescription className="dark:text-slate-300">
-            가변 비용 검증, 최종 정산 승인, 기사/플랫폼 리포트를 관리합니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-200/70 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
@@ -66,6 +57,6 @@ export default async function AdminBillingPage() {
           </div>
         </CardContent>
       </Card>
-    </section>
+    </main>
   );
 }
