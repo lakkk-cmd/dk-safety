@@ -89,7 +89,7 @@ export async function runWeeklySystemCheck(): Promise<SystemHealthReport> {
 
 위 데이터를 분석해 주간 점검 리포트를 작성하라.`;
 
-  const raw = await callClaudeCustom(SYSTEM_PROMPT, prompt, 4000, 90_000);
+  const raw = await callClaudeCustom(SYSTEM_PROMPT, prompt, 8000, 90_000);
   const jsonText = extractJsonBlock(raw);
   const parsed = jsonText
     ? (JSON.parse(jsonText) as { summary?: string; findings?: HealthFinding[]; delegationPrompts?: DelegationPrompt[] })
