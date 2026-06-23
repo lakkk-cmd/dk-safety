@@ -70,10 +70,14 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 
 ### Route structure
 
-- `/` — public landing page
+- `/` — redirects to `/home`
+- `/home` — public landing page: apartment directory + symptom/trust cards, redesigned 2026-06 (`src/components/home/home-client.tsx`)
+- `/design-system` — internal visual reference for the `dk-` token/component library (BigButton/StatusBadge/SectionCard/StepProgress/EmptyState/LoadingOverlay/BottomSheet)
 - `/reservation` — booking form
 - `/apt/[code]` — per-apartment tenant landing (requires Supabase DB mode)
 - `/[apt_id]` — legacy apt route
+- `/status` — "내 예약 현황": phone-number lookup → reservation progress timeline (`GET /api/reservations/by-phone`); separate from the in-page `ReservationStatusBar` which only works on the same device/browser that made the booking
+- `/diagnosis/[id]` — public customer-facing field-report viewer (risk badge, summary, PDF links, review/rebooking CTAs); deliberately not named `/report/[id]` to avoid colliding with the admin-protected `/report` (보고서 아카이브) route and the `report.dkansim.com` subdomain rewrite
 - `/resident/login`, `/resident/safety-check`, `/resident/history` — resident self-service
 - `/worker/login`, `/worker/(dashboard)` — field technician portal
 - `/admin/*` — admin portal (cookie-protected): reservations, backups, billing, dispatch, workers
