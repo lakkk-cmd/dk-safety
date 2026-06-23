@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  BookOpen,
   Building2,
   CalendarDays,
   ChartColumn,
@@ -120,6 +121,12 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "생활전기정보",
     description: "안전·절약·자가점검 콘텐츠 관리",
     icon: Lightbulb
+  },
+  {
+    href: "/admin/knowledge",
+    label: "지식베이스 관리",
+    description: "PDF 자동분류·학습 — RAG 지식베이스",
+    icon: BookOpen
   },
   {
     href: "/admin/stats",

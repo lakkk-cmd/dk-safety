@@ -20,6 +20,16 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "512x512",
         type: "image/png"
       }
-    ]
+    ],
+    // 안드로이드에서 카카오톡/메일 공유 시트의 "전기주치의"로 PDF를 직접 보낼 수 있게 한다.
+    // (iOS Safari는 Web Share Target API 수신을 지원하지 않아 안드로이드 전용 경로)
+    share_target: {
+      action: "/api/share-target/knowledge-pdf",
+      method: "POST",
+      enctype: "multipart/form-data",
+      params: {
+        files: [{ name: "pdf", accept: ["application/pdf"] }]
+      }
+    }
   };
 }

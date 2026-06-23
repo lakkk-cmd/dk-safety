@@ -1,0 +1,84 @@
+import { NextResponse } from "next/server";
+import { PDFParse } from "pdf-parse";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { requireAgentSupabase } from "@/lib/agent-db";
+import { embedText } from "@/lib/embeddings";
+import { chunkTextWithOverlap } from "@/lib/knowledge-pdf-pipeline";
+import { downloadKnowledgePdf } from "@/lib/knowledge-pdf-storage";
+import { pgGetKnowledgePdf, pgUpdateKnowledgePdf } from "@/lib/knowledge-pdfs";
+
+export const maxDuration = 120;
+
+export async function POST(request: Request) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ message: "권한이 없습니다." }, { status: 401 });
+  }
+  const body = (await request.json().catch(() => null)) as { id?: string } | null;
+  const id = body?.id?.trim();
+  if (!id) {
+    return NextResponse.json({ message: "id가 필요합니다." }, { status: 400 });
+  }
+
+  try {
+    const record = await pgGetKnowledgePdf(id);
+    if (!record) {
+      return NextResponse.json({ message: "PDF 레코드를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const buffer = await downloadKnowledgePdf(record.filePath);
+    const parser = new PDFParse({ data: buffer });
+    let text = "";
+    let pageCount = 0;
+    try {
+      const result = await parser.getText();
+      text = result.text;
+      pageCount = result.total ?? 0;
+    } finally {
+      await parser.destroy();
+    }
+
+    const chunks = chunkTextWithOverlap(text);
+    if (chunks.length === 0) {
+      throw new Error("PDF에서 추출된 텍스트가 없습니다.");
+    }
+
+    const supabase = requireAgentSupabase();
+    let saved = 0;
+    for (let i = 0; i < chunks.length; i++) {
+      const content = chunks[i];
+      try {
+        const embedding = await embedText(content);
+        const { error } = await supabase.from("knowledge_base").insert({
+          source: record.fileName,
+          title: `${record.fileName} (${i + 1}/${chunks.length})`,
+          content,
+          embedding,
+          category: record.category,
+          is_external: false,
+          pdf_id: id
+        });
+        if (!error) saved += 1;
+      } catch {
+        // 청크 1개 실패는 건너뛰고 나머지는 계속 저장
+      }
+    }
+
+    if (saved === 0) {
+      throw new Error("지식베이스 저장에 모두 실패했습니다.");
+    }
+
+    const updated = await pgUpdateKnowledgePdf(id, {
+      status: "completed",
+      chunkCount: saved,
+      pageCount,
+      processedAt: new Date().toISOString(),
+      errorMessage: null
+    });
+
+    return NextResponse.json({ pdf: updated });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "처리에 실패했습니다.";
+    await pgUpdateKnowledgePdf(id, { status: "failed", errorMessage: message }).catch(() => undefined);
+    return NextResponse.json({ message }, { status: 500 });
+  }
+}
