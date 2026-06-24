@@ -20,6 +20,7 @@ type UploadItem = {
 };
 
 const MAX_SIZE_BYTES = 50 * 1024 * 1024;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const STEP_LABEL: Record<StepKey, string> = {
   upload: "업로드",
   classify: "AI 카테고리 분류 중...",
@@ -28,6 +29,17 @@ const STEP_LABEL: Record<StepKey, string> = {
 
 function initialSteps(): Record<StepKey, StepStatus> {
   return { upload: "pending", classify: "pending", process: "pending" };
+}
+
+/** 서버가 플랫폼 레벨 에러(예: Vercel 413 "Request Entity Too Large")를 평문으로 돌려주면
+ *  res.json()이 "Unexpected token..." 으로 깨지므로, 먼저 텍스트로 받아 안전하게 파싱한다. */
+async function parseJsonResponse<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return { message: text.slice(0, 200) || `요청 실패 (${res.status})` } as T;
+  }
 }
 
 function stepIcon(status: StepStatus, done: string, running: string) {
@@ -113,7 +125,7 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: pdfId })
       });
-      const classifyData = (await classifyRes.json()) as { pdf?: KnowledgePdf; message?: string };
+      const classifyData = await parseJsonResponse<{ pdf?: KnowledgePdf; message?: string }>(classifyRes);
       if (!classifyRes.ok) throw new Error(classifyData.message ?? "분류 실패");
       updateStep(clientId, "classify", "done");
 
@@ -123,7 +135,7 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: pdfId })
       });
-      const processData = (await processRes.json()) as { pdf?: KnowledgePdf; message?: string };
+      const processData = await parseJsonResponse<{ pdf?: KnowledgePdf; message?: string }>(processRes);
       if (!processRes.ok) throw new Error(processData.message ?? "처리 실패");
       updateStep(clientId, "process", "done");
       updateItem(clientId, {
@@ -146,14 +158,38 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
     }
   };
 
+  // Vercel 서버리스 함수는 요청 본문이 4.5MB를 넘으면 함수 진입 전에 플랫폼이 바로 끊어버린다
+  // (우리 코드가 응답을 만들 기회조차 없음). 그래서 큰 파일은 우리 서버를 거치지 않고
+  // 서명 URL을 받아 브라우저에서 Supabase Storage로 직접 PUT한다.
   const startUpload = async (clientId: string, file: File, replaceId?: string) => {
     updateStep(clientId, "upload", "running");
     try {
-      const form = new FormData();
-      form.set("file", file);
-      if (replaceId) form.set("replaceId", replaceId);
-      const res = await fetch("/api/admin/knowledge/upload", { method: "POST", body: form });
-      const data = (await res.json()) as { pdf?: KnowledgePdf; message?: string };
+      const signRes = await fetch("/api/admin/knowledge/sign-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name })
+      });
+      const signData = await parseJsonResponse<{ path?: string; signedUrl?: string; message?: string }>(signRes);
+      if (!signRes.ok || !signData.path || !signData.signedUrl) {
+        throw new Error(signData.message ?? "업로드 URL 생성에 실패했습니다.");
+      }
+
+      const putBody = new FormData();
+      putBody.append("cacheControl", "3600");
+      putBody.append("", file);
+      const putRes = await fetch(signData.signedUrl, {
+        method: "PUT",
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        body: putBody
+      });
+      if (!putRes.ok) throw new Error(`PDF 업로드 실패 (Storage ${putRes.status})`);
+
+      const res = await fetch("/api/admin/knowledge/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, path: signData.path, replaceId })
+      });
+      const data = await parseJsonResponse<{ pdf?: KnowledgePdf; message?: string }>(res);
       if (!res.ok || !data.pdf) throw new Error(data.message ?? "업로드 실패");
       updateItem(clientId, { pdfId: data.pdf.id, pendingDuplicate: null });
       updateStep(clientId, "upload", "done");
@@ -323,7 +359,7 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
           </button>
           <p className="text-center text-xs text-slate-500">파일 앱 · 구글 드라이브 · iCloud에서 PDF를 선택할 수 있어요 (최대 50MB)</p>
           <p className="text-center text-xs text-slate-400">
-            안드로이드: 홈 화면에 추가한 뒤 카카오톡/메일의 공유 버튼 → &quot;전기주치의&quot;로 PDF를 바로 보낼 수도 있어요
+            안드로이드: 홈 화면에 추가한 뒤 카카오톡/메일의 공유 버튼 → &quot;전기주치의&quot;로 PDF를 바로 보낼 수도 있어요 (공유는 4MB까지 — 더 크면 위 버튼으로 올려주세요)
           </p>
         </div>
       </div>

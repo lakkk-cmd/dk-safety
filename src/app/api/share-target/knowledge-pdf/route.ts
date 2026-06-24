@@ -8,7 +8,11 @@ import { pgCreateKnowledgePdf } from "@/lib/knowledge-pdfs";
 
 export const maxDuration = 60;
 
-const MAX_SIZE_BYTES = 50 * 1024 * 1024;
+// 공유 시트는 브라우저가 직접 이 라우트로 POST하므로(JS로 가로챌 수 없음) 클라이언트의 50MB 업로드
+// 흐름(서명 URL 직접 PUT)을 쓸 수 없다 — 그대로 Vercel 함수 본문 크기 제한(~4.5MB)에 걸린다.
+// 그 한도를 넘으면 Vercel 플랫폼이 함수 진입 전에 끊어버려 이 검사 자체가 실행되지 않으므로,
+// 안전하게 그 아래 값으로만 제한해 의미 있는 메시지를 줄 수 있는 범위에서 동작한다.
+const MAX_SIZE_BYTES = 4 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const knowledgeUrl = new URL("/admin/knowledge", request.url);
@@ -28,7 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.redirect(knowledgeUrl, 303);
   }
   if (file.size > MAX_SIZE_BYTES) {
-    knowledgeUrl.searchParams.set("shareError", "파일이 너무 큽니다 (최대 50MB)");
+    knowledgeUrl.searchParams.set("shareError", "공유로 보낼 수 있는 PDF는 최대 4MB입니다. 더 큰 파일은 앱에서 '내 파일에서 선택'으로 올려주세요.");
     return NextResponse.redirect(knowledgeUrl, 303);
   }
 

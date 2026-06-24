@@ -41,6 +41,23 @@ export async function uploadKnowledgePdf(objectPath: string, data: Buffer, conte
   }
 }
 
+/** 클라이언트가 Vercel 서버리스 함수의 본문 크기 제한(4.5MB)을 거치지 않고 브라우저에서
+ *  Supabase Storage로 직접 PUT할 수 있는 1회용 서명 업로드 URL을 발급한다. */
+export async function createKnowledgeUploadSignedUrl(objectPath: string): Promise<string> {
+  assertConfig();
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/upload/sign/${KNOWLEDGE_PDF_BUCKET}/${encodePath(objectPath)}`, {
+    method: "POST",
+    headers: headers("application/json"),
+    body: JSON.stringify({})
+  });
+  if (!res.ok) {
+    throw new Error(`업로드 URL 생성 실패: ${res.status} ${await res.text().catch(() => "")}`);
+  }
+  const data = (await res.json()) as { url?: string };
+  if (!data.url) throw new Error("업로드 URL 생성 실패: 응답에 url이 없습니다.");
+  return `${SUPABASE_URL}/storage/v1${data.url}`;
+}
+
 export async function downloadKnowledgePdf(objectPath: string): Promise<Buffer> {
   assertConfig();
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${KNOWLEDGE_PDF_BUCKET}/${encodePath(objectPath)}`, {

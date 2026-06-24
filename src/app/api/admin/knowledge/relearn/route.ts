@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { PDFParse } from "pdf-parse";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { embedText } from "@/lib/embeddings";
 import { chunkTextWithOverlap } from "@/lib/knowledge-pdf-pipeline";
 import { downloadKnowledgePdf } from "@/lib/knowledge-pdf-storage";
 import { pgDeleteKnowledgeChunksForPdf, pgGetKnowledgePdf, pgUpdateKnowledgePdf } from "@/lib/knowledge-pdfs";
+import { loadPDFParse } from "@/lib/pdf-parse-loader";
 
 export const maxDuration = 120;
 
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     await pgDeleteKnowledgeChunksForPdf(id);
 
     const buffer = await downloadKnowledgePdf(record.filePath);
+    const PDFParse = await loadPDFParse();
     const parser = new PDFParse({ data: buffer });
     let text = "";
     let pageCount = 0;

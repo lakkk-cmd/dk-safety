@@ -1,50 +1,38 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
-import { ensureKnowledgeBucket, uploadKnowledgePdf } from "@/lib/knowledge-pdf-storage";
 import {
   pgCreateKnowledgePdf,
   pgDeleteKnowledgeChunksForPdf,
   pgDeleteKnowledgePdfRecord
 } from "@/lib/knowledge-pdfs";
 
-export const maxDuration = 60;
-
-const MAX_SIZE_BYTES = 50 * 1024 * 1024;
-
+/** 2단계 — PDF 바이트는 이미 /api/admin/knowledge/sign-upload로 받은 서명 URL을 통해
+ *  클라이언트가 Supabase Storage에 직접 PUT을 마쳤다. 여기서는 그 결과(path)를
+ *  knowledge_pdfs 레코드로 등록만 한다(요청 본문이 작아 함수 본문 크기 제한과 무관). */
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ message: "권한이 없습니다." }, { status: 401 });
   }
-  const contentType = request.headers.get("content-type") ?? "";
-  if (!contentType.includes("multipart/form-data")) {
-    return NextResponse.json({ message: "multipart 요청이 필요합니다." }, { status: 400 });
+  const body = (await request.json().catch(() => null)) as
+    | { fileName?: string; path?: string; replaceId?: string }
+    | null;
+  const fileName = body?.fileName?.trim();
+  const path = body?.path?.trim();
+  const replaceId = body?.replaceId?.trim();
+  if (!fileName || !path) {
+    return NextResponse.json({ message: "fileName/path가 필요합니다." }, { status: 400 });
   }
-  const formData = await request.formData();
-  const file = formData.get("file");
-  const replaceId = formData.get("replaceId");
-  if (!(file instanceof File) || file.size === 0) {
-    return NextResponse.json({ message: "PDF 파일이 필요합니다." }, { status: 400 });
-  }
-  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+  if (!fileName.toLowerCase().endsWith(".pdf")) {
     return NextResponse.json({ message: "PDF 파일만 업로드할 수 있습니다." }, { status: 400 });
-  }
-  if (file.size > MAX_SIZE_BYTES) {
-    return NextResponse.json({ message: "파일이 너무 큽니다 (최대 50MB)" }, { status: 400 });
   }
 
   try {
-    await ensureKnowledgeBucket();
-
-    if (typeof replaceId === "string" && replaceId) {
+    if (replaceId) {
       await pgDeleteKnowledgeChunksForPdf(replaceId);
       await pgDeleteKnowledgePdfRecord(replaceId);
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const objectPath = `temp/${crypto.randomUUID()}-${file.name}`;
-    await uploadKnowledgePdf(objectPath, buffer);
-
-    const record = await pgCreateKnowledgePdf({ fileName: file.name, filePath: objectPath });
+    const record = await pgCreateKnowledgePdf({ fileName, filePath: path });
     return NextResponse.json({ pdf: record });
   } catch (error) {
     const message = error instanceof Error ? error.message : "업로드에 실패했습니다.";

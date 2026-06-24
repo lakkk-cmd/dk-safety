@@ -1,16 +1,19 @@
 import type { NextConfig } from "next";
 
+const PDF_PARSE_TRACE_INCLUDES = ["./node_modules/pdfjs-dist/**", "./node_modules/pdf-parse/**", "./node_modules/@napi-rs/canvas*/**"];
+
 const nextConfig: NextConfig = {
   output: "standalone",
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // pdf-parse(pdfjs-dist)는 webpack 번들링 시 Object.defineProperty 오류가 나므로 실제 Node 모듈로 둔다.
   serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas"],
   // pdfjs-dist의 워커(.mjs)/canvas 네이티브 바이너리는 동적 경로로 로드되어 Vercel의 파일 트레이싱이
-  // 자동으로 포함시키지 못한다 — 사용하는 라우트에 한해 명시적으로 포함시킨다.
+  // 자동으로 포함시키지 못한다 — pdf-parse를 쓰는 라우트에 한해 명시적으로 포함시킨다.
   outputFileTracingIncludes: {
-    "/api/admin/knowledge/classify": ["./node_modules/pdfjs-dist/**", "./node_modules/pdf-parse/**", "./node_modules/@napi-rs/canvas*/**"],
-    "/api/admin/knowledge/process": ["./node_modules/pdfjs-dist/**", "./node_modules/pdf-parse/**", "./node_modules/@napi-rs/canvas*/**"],
-    "/api/share-target/knowledge-pdf": ["./node_modules/pdfjs-dist/**", "./node_modules/pdf-parse/**", "./node_modules/@napi-rs/canvas*/**"]
+    "/api/admin/knowledge/classify": PDF_PARSE_TRACE_INCLUDES,
+    "/api/admin/knowledge/process": PDF_PARSE_TRACE_INCLUDES,
+    "/api/admin/knowledge/relearn": PDF_PARSE_TRACE_INCLUDES,
+    "/api/share-target/knowledge-pdf": PDF_PARSE_TRACE_INCLUDES
   },
   images: {
     remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com", pathname: "/**" }]
