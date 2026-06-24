@@ -29,6 +29,7 @@
     "harness:all": "npm run harness:api && npm run harness:db && npm run harness:domains"
   },
   "dependencies": {
+    "@napi-rs/canvas": "0.1.80",
     "@supabase/supabase-js": "^2.104.1",
     "lucide-react": "^1.14.0",
     "next": "^15.0.0",

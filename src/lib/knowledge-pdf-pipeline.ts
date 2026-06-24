@@ -1,30 +1,14 @@
 /** /admin/knowledge — PDF 카테고리 자동분류(Haiku) + 청크 분할(중복 오버랩) + 단계 실행 함수 */
 
-import { PDFParse } from "pdf-parse";
 import { callClaudeWithTools, extractJsonBlock, type ClaudeContentBlock } from "@/lib/agents";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { embedText } from "@/lib/embeddings";
+import { KNOWLEDGE_CATEGORIES, type KnowledgeCategoryKey } from "@/lib/knowledge-categories";
 import { downloadKnowledgePdf, moveKnowledgePdf } from "@/lib/knowledge-pdf-storage";
 import { pgGetKnowledgePdf, pgUpdateKnowledgePdf, type KnowledgePdf } from "@/lib/knowledge-pdfs";
-
-export const KNOWLEDGE_CATEGORIES = [
-  { key: "regulation", label: "전기법령" },
-  { key: "technical", label: "전기기술" },
-  { key: "content_youtube", label: "유튜브" },
-  { key: "content_blog", label: "블로그" },
-  { key: "marketing", label: "마케팅" },
-  { key: "ai_automation", label: "AI자동화" },
-  { key: "business", label: "사업경영" },
-  { key: "general", label: "일반" }
-] as const;
-
-export type KnowledgeCategoryKey = (typeof KNOWLEDGE_CATEGORIES)[number]["key"];
+import { loadPDFParse } from "@/lib/pdf-parse-loader";
 
 const CATEGORY_KEYS = KNOWLEDGE_CATEGORIES.map((c) => c.key);
-
-export function categoryLabel(key: string | null): string {
-  return KNOWLEDGE_CATEGORIES.find((c) => c.key === key)?.label ?? key ?? "미분류";
-}
 
 const CLASSIFY_SYSTEM_PROMPT = `PDF 내용을 읽고 아래 카테고리 중 하나로 분류하세요. JSON만 반환하세요.
 카테고리:
@@ -130,6 +114,7 @@ export async function runClassifyStep(id: string): Promise<KnowledgePdf> {
   if (!record) throw new Error("PDF 레코드를 찾을 수 없습니다.");
 
   const buffer = await downloadKnowledgePdf(record.filePath);
+  const PDFParse = await loadPDFParse();
   const parser = new PDFParse({ data: buffer });
   let excerpt = "";
   try {
@@ -160,6 +145,7 @@ export async function runProcessStep(id: string): Promise<KnowledgePdf> {
   if (!record) throw new Error("PDF 레코드를 찾을 수 없습니다.");
 
   const buffer = await downloadKnowledgePdf(record.filePath);
+  const PDFParse = await loadPDFParse();
   const parser = new PDFParse({ data: buffer });
   let text = "";
   let pageCount = 0;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { KNOWLEDGE_CATEGORIES, categoryLabel } from "@/lib/knowledge-pdf-pipeline";
+import { KNOWLEDGE_CATEGORIES, categoryLabel } from "@/lib/knowledge-categories";
 import type { KnowledgePdf } from "@/lib/knowledge-pdfs";
 
 type StepKey = "upload" | "classify" | "process";

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { PDFParse } from "pdf-parse";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { classifyPdfCategory } from "@/lib/knowledge-pdf-pipeline";
 import { downloadKnowledgePdf, moveKnowledgePdf } from "@/lib/knowledge-pdf-storage";
 import { pgGetKnowledgePdf, pgUpdateKnowledgePdf } from "@/lib/knowledge-pdfs";
+import { loadPDFParse } from "@/lib/pdf-parse-loader";
 
 export const maxDuration = 60;
 
@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     }
 
     const buffer = await downloadKnowledgePdf(record.filePath);
+    const PDFParse = await loadPDFParse();
     const parser = new PDFParse({ data: buffer });
     let excerpt = "";
     try {
