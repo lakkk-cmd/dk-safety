@@ -3,7 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
-import { createKnowledgeUploadSignedUrl, ensureKnowledgeBucket } from "@/lib/knowledge-pdf-storage";
+import { createKnowledgeUploadSignedUrl, ensureKnowledgeBucket, safeStorageFileName } from "@/lib/knowledge-pdf-storage";
 
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   try {
     await ensureKnowledgeBucket();
-    const objectPath = `temp/${crypto.randomUUID()}-${fileName}`;
+    const objectPath = `temp/${crypto.randomUUID()}-${safeStorageFileName(fileName)}`;
     const signedUrl = await createKnowledgeUploadSignedUrl(objectPath);
     return NextResponse.json({ path: objectPath, signedUrl });
   } catch (error) {

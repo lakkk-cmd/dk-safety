@@ -29,6 +29,15 @@ function encodePath(path: string): string {
     .join("/");
 }
 
+/** Supabase Storage 객체 키는 비-ASCII 문자(한글 등)를 거부한다("InvalidKey").
+ *  원본 한글 파일명은 DB의 file_name 컬럼에만 보존하고, 실제 저장 경로는 이 함수로 정제한다. */
+export function safeStorageFileName(fileName: string): string {
+  const hasExt = fileName.toLowerCase().endsWith(".pdf");
+  const base = hasExt ? fileName.slice(0, -4) : fileName;
+  const slug = base.replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 60);
+  return `${slug || "file"}.pdf`;
+}
+
 export async function uploadKnowledgePdf(objectPath: string, data: Buffer, contentType = "application/pdf"): Promise<void> {
   assertConfig();
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${KNOWLEDGE_PDF_BUCKET}/${encodePath(objectPath)}`, {

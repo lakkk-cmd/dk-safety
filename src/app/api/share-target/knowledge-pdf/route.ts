@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { runClassifyStepOrFail, runProcessStepOrFail } from "@/lib/knowledge-pdf-pipeline";
-import { ensureKnowledgeBucket, uploadKnowledgePdf } from "@/lib/knowledge-pdf-storage";
+import { ensureKnowledgeBucket, safeStorageFileName, uploadKnowledgePdf } from "@/lib/knowledge-pdf-storage";
 import { pgCreateKnowledgePdf } from "@/lib/knowledge-pdfs";
 
 export const maxDuration = 60;
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   try {
     await ensureKnowledgeBucket();
     const buffer = Buffer.from(await file.arrayBuffer());
-    const objectPath = `temp/${crypto.randomUUID()}-${file.name}`;
+    const objectPath = `temp/${crypto.randomUUID()}-${safeStorageFileName(file.name)}`;
     await uploadKnowledgePdf(objectPath, buffer);
     const record = await pgCreateKnowledgePdf({ fileName: file.name, filePath: objectPath });
 

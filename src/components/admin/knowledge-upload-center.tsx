@@ -182,7 +182,10 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
         body: putBody
       });
-      if (!putRes.ok) throw new Error(`PDF 업로드 실패 (Storage ${putRes.status})`);
+      if (!putRes.ok) {
+        const putErrorText = await putRes.text().catch(() => "");
+        throw new Error(`PDF 업로드 실패 (Storage ${putRes.status})${putErrorText ? `: ${putErrorText.slice(0, 200)}` : ""}`);
+      }
 
       const res = await fetch("/api/admin/knowledge/upload", {
         method: "POST",
