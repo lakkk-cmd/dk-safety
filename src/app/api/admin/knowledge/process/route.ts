@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { requireAgentSupabase } from "@/lib/agent-db";
-import { embedText } from "@/lib/embeddings";
-import { chunkTextWithOverlap } from "@/lib/knowledge-pdf-pipeline";
+import { chunkTextWithOverlap, embedAndSaveChunks } from "@/lib/knowledge-pdf-pipeline";
 import { downloadKnowledgePdf } from "@/lib/knowledge-pdf-storage";
 import { pgGetKnowledgePdf, pgUpdateKnowledgePdf } from "@/lib/knowledge-pdfs";
 import { loadPDFParse } from "@/lib/pdf-parse-loader";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
+
+// 청크가 많은 대형 PDF는 한 번의 호출로 못 끝낼 수 있다 — maxDuration 안에서 깨끗하게 응답할
+// 여유를 두고, 다 못 끝내면 done:false를 돌려줘 클라이언트가 이어서 다시 호출하게 한다.
+const TIME_BUDGET_MS = 270_000;
 
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
@@ -43,40 +46,41 @@ export async function POST(request: Request) {
       throw new Error("PDF에서 추출된 텍스트가 없습니다.");
     }
 
+    // 직전 호출이 시간 예산을 넘겨 중단됐다면 이미 저장된 청크 수만큼 이어서 처리한다.
     const supabase = requireAgentSupabase();
-    let saved = 0;
-    for (let i = 0; i < chunks.length; i++) {
-      const content = chunks[i];
-      try {
-        const embedding = await embedText(content);
-        const { error } = await supabase.from("knowledge_base").insert({
-          source: record.fileName,
-          title: `${record.fileName} (${i + 1}/${chunks.length})`,
-          content,
-          embedding,
-          category: record.category,
-          is_external: false,
-          pdf_id: id
-        });
-        if (!error) saved += 1;
-      } catch {
-        // 청크 1개 실패는 건너뛰고 나머지는 계속 저장
-      }
-    }
+    const { count } = await supabase
+      .from("knowledge_base")
+      .select("id", { count: "exact", head: true })
+      .eq("pdf_id", id);
+    const resumeFrom = count ?? 0;
 
-    if (saved === 0) {
+    const result = await embedAndSaveChunks({
+      pdfId: id,
+      fileName: record.fileName,
+      category: record.category,
+      chunks,
+      resumeFrom,
+      deadline: Date.now() + TIME_BUDGET_MS
+    });
+
+    if (result.saved === 0) {
       throw new Error("지식베이스 저장에 모두 실패했습니다.");
     }
 
     const updated = await pgUpdateKnowledgePdf(id, {
-      status: "completed",
-      chunkCount: saved,
+      status: result.done ? "completed" : "processing",
+      chunkCount: result.saved,
       pageCount,
-      processedAt: new Date().toISOString(),
+      processedAt: result.done ? new Date().toISOString() : undefined,
       errorMessage: null
     });
 
-    return NextResponse.json({ pdf: updated });
+    return NextResponse.json({
+      pdf: updated,
+      done: result.done,
+      totalChunks: result.totalChunks,
+      processedChunks: result.processedChunks
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "처리에 실패했습니다.";
     await pgUpdateKnowledgePdf(id, { status: "failed", errorMessage: message }).catch(() => undefined);

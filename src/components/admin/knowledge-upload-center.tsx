@@ -17,6 +17,7 @@ type UploadItem = {
   result: { category: string; reason: string; chunkCount: number } | null;
   pendingDuplicate: KnowledgePdf | null;
   skipped: boolean;
+  progress: { processed: number; total: number } | null;
 };
 
 const MAX_SIZE_BYTES = 50 * 1024 * 1024;
@@ -130,13 +131,22 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
       updateStep(clientId, "classify", "done");
 
       updateStep(clientId, "process", "running");
-      const processRes = await fetch("/api/admin/knowledge/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: pdfId })
-      });
-      const processData = await parseJsonResponse<{ pdf?: KnowledgePdf; message?: string }>(processRes);
-      if (!processRes.ok) throw new Error(processData.message ?? "처리 실패");
+      // 청크가 아주 많은 대형 PDF는 한 번의 호출로 못 끝낼 수 있다 — done:false가 오면
+      // 서버가 이미 저장한 만큼 이어서(resume) 계속 호출한다.
+      let processData: { pdf?: KnowledgePdf; message?: string; done?: boolean; totalChunks?: number; processedChunks?: number };
+      for (;;) {
+        const processRes = await fetch("/api/admin/knowledge/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: pdfId })
+        });
+        processData = await parseJsonResponse(processRes);
+        if (!processRes.ok) throw new Error(processData.message ?? "처리 실패");
+        if (processData.totalChunks) {
+          updateItem(clientId, { progress: { processed: processData.processedChunks ?? 0, total: processData.totalChunks } });
+        }
+        if (processData.done !== false) break;
+      }
       updateStep(clientId, "process", "done");
       updateItem(clientId, {
         result: {
@@ -226,7 +236,8 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
         error: null,
         result: null,
         pendingDuplicate: null,
-        skipped: false
+        skipped: false,
+        progress: null
       };
       setItems((prev) => [newItem, ...prev]);
 
@@ -269,15 +280,23 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
 
   const relearn = async (id: string) => {
     setPdfs((prev) => prev.map((p) => (p.id === id ? { ...p, status: "processing" } : p)));
+    let reset = true;
     try {
-      const res = await fetch("/api/admin/knowledge/relearn", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id })
-      });
-      if (!res.ok) {
-        const data = (await res.json()) as { message?: string };
-        setToast(data.message ?? "재학습에 실패했습니다.");
+      // 청크가 많은 대형 PDF는 한 번에 못 끝낼 수 있다 — done:false면 reset 없이 이어서 호출한다.
+      for (;;) {
+        const res = await fetch("/api/admin/knowledge/relearn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, reset })
+        });
+        const data = (await parseJsonResponse<{ message?: string; done?: boolean }>(res));
+        if (!res.ok) {
+          setToast(data.message ?? "재학습에 실패했습니다.");
+          break;
+        }
+        reset = false;
+        void refreshList();
+        if (data.done !== false) break;
       }
     } finally {
       void refreshList();
@@ -478,7 +497,10 @@ function UploadProgressCard({
             {stepIcon(item.steps.classify, "✅", "🤖")} {STEP_LABEL.classify}
           </p>
           <p className={item.steps.process === "error" ? "text-rose-700" : "text-slate-700"}>
-            {stepIcon(item.steps.process, "✅", "⏳")} {STEP_LABEL.process}
+            {stepIcon(item.steps.process, "✅", "⏳")}{" "}
+            {item.steps.process === "running" && item.progress
+              ? `텍스트 추출 + 지식베이스 저장 중... (${item.progress.processed}/${item.progress.total} 청크)`
+              : STEP_LABEL.process}
           </p>
         </div>
       )}

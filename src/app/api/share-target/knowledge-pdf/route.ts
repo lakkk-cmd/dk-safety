@@ -36,6 +36,8 @@ export async function POST(request: Request) {
     return NextResponse.redirect(knowledgeUrl, 303);
   }
 
+  const deadline = Date.now() + 50_000; // maxDuration(60s) 안에서 정리해 응답할 여유를 둔다
+
   try {
     await ensureKnowledgeBucket();
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -44,9 +46,14 @@ export async function POST(request: Request) {
     const record = await pgCreateKnowledgePdf({ fileName: file.name, filePath: objectPath });
 
     await runClassifyStepOrFail(record.id);
-    await runProcessStepOrFail(record.id);
+    const processed = await runProcessStepOrFail(record.id, { deadline });
 
     knowledgeUrl.searchParams.set("shared", file.name);
+    if (processed.status !== "completed") {
+      // 4MB 제한 안의 파일도 청크가 아주 많으면 한 번에 못 끝낼 수 있다 — 이미 저장된 만큼은 남기고
+      // "재학습" 버튼으로 나머지를 마치도록 안내한다.
+      knowledgeUrl.searchParams.set("shareError", "용량이 커서 일부만 학습되었습니다 — 목록에서 '재학습'을 눌러주세요.");
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "공유된 PDF 처리에 실패했습니다.";
     knowledgeUrl.searchParams.set("shareError", message);

@@ -2,7 +2,7 @@
 
 import { callClaudeWithTools, extractJsonBlock, type ClaudeContentBlock } from "@/lib/agents";
 import { requireAgentSupabase } from "@/lib/agent-db";
-import { embedText } from "@/lib/embeddings";
+import { embedTexts } from "@/lib/embeddings";
 import { KNOWLEDGE_CATEGORIES, type KnowledgeCategoryKey } from "@/lib/knowledge-categories";
 import { downloadKnowledgePdf, moveKnowledgePdf } from "@/lib/knowledge-pdf-storage";
 import { pgGetKnowledgePdf, pgUpdateKnowledgePdf, type KnowledgePdf } from "@/lib/knowledge-pdfs";
@@ -139,8 +139,61 @@ export async function runClassifyStep(id: string): Promise<KnowledgePdf> {
   });
 }
 
-/** Step 3 — 전체 텍스트 추출 → 청크 분할 → 임베딩 → knowledge_base 저장, status='completed'로 갱신 */
-export async function runProcessStep(id: string): Promise<KnowledgePdf> {
+const EMBED_BATCH_SIZE = 20;
+
+export type EmbedAndSaveResult = {
+  saved: number;
+  processedChunks: number;
+  totalChunks: number;
+  done: boolean;
+};
+
+/** 청크를 배치(기본 20개)로 묶어 한 번의 API 호출로 임베딩하고 한 번의 INSERT로 저장한다 —
+ *  청크 하나마다 네트워크 왕복하던 것이 대형 PDF에서 시간 초과(FUNCTION_INVOCATION_TIMEOUT)의
+ *  가장 큰 원인이었다. deadline을 넘기면 중간에 멈추고 done=false를 반환하므로 호출부가
+ *  resumeFrom(이미 저장된 청크 수)으로 이어서 다시 호출할 수 있다. */
+export async function embedAndSaveChunks(params: {
+  pdfId: string;
+  fileName: string;
+  category: string | null;
+  chunks: string[];
+  resumeFrom: number;
+  deadline: number;
+}): Promise<EmbedAndSaveResult> {
+  const { pdfId, fileName, category, chunks, resumeFrom, deadline } = params;
+  const supabase = requireAgentSupabase();
+
+  let saved = resumeFrom;
+  let cursor = resumeFrom;
+  while (cursor < chunks.length) {
+    if (Date.now() >= deadline) break;
+    const batch = chunks.slice(cursor, cursor + EMBED_BATCH_SIZE);
+    try {
+      const embeddings = await embedTexts(batch);
+      const rows = batch.map((content, i) => ({
+        source: fileName,
+        title: `${fileName} (${cursor + i + 1}/${chunks.length})`,
+        content,
+        embedding: embeddings[i],
+        category,
+        is_external: false,
+        pdf_id: pdfId
+      }));
+      const { error } = await supabase.from("knowledge_base").insert(rows);
+      if (!error) saved += rows.length;
+    } catch {
+      // 배치 전체 실패는 건너뛰고 다음 배치로 계속 — 일부 청크 손실은 허용 가능한 트레이드오프
+    }
+    cursor += batch.length;
+  }
+
+  return { saved, processedChunks: cursor, totalChunks: chunks.length, done: cursor >= chunks.length };
+}
+
+/** Step 3 — 전체 텍스트 추출 → 청크 분할 → 임베딩 → knowledge_base 저장.
+ *  deadline까지 다 못 끝내면 status='processing'으로 남겨 호출부(공유 시트는 단발성이라
+ *  재시도는 "재학습" 버튼에 맡긴다)가 이어서 처리하거나 재학습할 수 있게 한다. */
+export async function runProcessStep(id: string, options?: { deadline?: number }): Promise<KnowledgePdf> {
   const record = await pgGetKnowledgePdf(id);
   if (!record) throw new Error("PDF 레코드를 찾을 수 없습니다.");
 
@@ -160,32 +213,21 @@ export async function runProcessStep(id: string): Promise<KnowledgePdf> {
   const chunks = chunkTextWithOverlap(text);
   if (chunks.length === 0) throw new Error("PDF에서 추출된 텍스트가 없습니다.");
 
-  const supabase = requireAgentSupabase();
-  let saved = 0;
-  for (let i = 0; i < chunks.length; i++) {
-    try {
-      const embedding = await embedText(chunks[i]);
-      const { error } = await supabase.from("knowledge_base").insert({
-        source: record.fileName,
-        title: `${record.fileName} (${i + 1}/${chunks.length})`,
-        content: chunks[i],
-        embedding,
-        category: record.category,
-        is_external: false,
-        pdf_id: id
-      });
-      if (!error) saved += 1;
-    } catch {
-      // 청크 1개 실패는 건너뛰고 나머지는 계속 저장
-    }
-  }
-  if (saved === 0) throw new Error("지식베이스 저장에 모두 실패했습니다.");
+  const result = await embedAndSaveChunks({
+    pdfId: id,
+    fileName: record.fileName,
+    category: record.category,
+    chunks,
+    resumeFrom: 0,
+    deadline: options?.deadline ?? Date.now() + 50_000
+  });
+  if (result.saved === 0) throw new Error("지식베이스 저장에 모두 실패했습니다.");
 
   return pgUpdateKnowledgePdf(id, {
-    status: "completed",
-    chunkCount: saved,
+    status: result.done ? "completed" : "processing",
+    chunkCount: result.saved,
     pageCount,
-    processedAt: new Date().toISOString(),
+    processedAt: result.done ? new Date().toISOString() : undefined,
     errorMessage: null
   });
 }
@@ -201,9 +243,9 @@ export async function runClassifyStepOrFail(id: string): Promise<KnowledgePdf> {
   }
 }
 
-export async function runProcessStepOrFail(id: string): Promise<KnowledgePdf> {
+export async function runProcessStepOrFail(id: string, options?: { deadline?: number }): Promise<KnowledgePdf> {
   try {
-    return await runProcessStep(id);
+    return await runProcessStep(id, options);
   } catch (err) {
     const message = err instanceof Error ? err.message : "처리에 실패했습니다.";
     await pgUpdateKnowledgePdf(id, { status: "failed", errorMessage: message }).catch(() => undefined);
