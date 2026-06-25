@@ -13,7 +13,8 @@ const nextConfig: NextConfig = {
     "/api/admin/knowledge/classify": PDF_PARSE_TRACE_INCLUDES,
     "/api/admin/knowledge/process": PDF_PARSE_TRACE_INCLUDES,
     "/api/admin/knowledge/relearn": PDF_PARSE_TRACE_INCLUDES,
-    "/api/share-target/knowledge-pdf": PDF_PARSE_TRACE_INCLUDES
+    "/api/share-target/knowledge-pdf": PDF_PARSE_TRACE_INCLUDES,
+    "/api/knowledge/upload": PDF_PARSE_TRACE_INCLUDES
   },
   images: {
     remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com", pathname: "/**" }]
