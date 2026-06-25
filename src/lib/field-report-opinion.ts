@@ -2,6 +2,7 @@
 
 import { callClaudeCustom } from "@/lib/agents";
 import { searchKnowledgeBase } from "@/lib/knowledge-base";
+import { searchKnowledgeChunks } from "@/lib/knowledge-chunks-search";
 import type { FieldReport } from "@/lib/field-reports";
 
 const SYSTEM_PROMPT = `당신은 전기기사 자격을 보유한 전기안전 전문가입니다.
@@ -50,7 +51,7 @@ function buildKnowledgeQuery(report: FieldReport): string {
     .join(" ");
 }
 
-function buildUserPrompt(report: FieldReport, kbContext: string): string {
+function buildUserPrompt(report: FieldReport, kbContext: string, chunkContext: string): string {
   const lines = [
     `세대 주소: ${report.apartmentAddress}`,
     `점검일시: ${report.inspectedAt}`,
@@ -77,7 +78,8 @@ function buildUserPrompt(report: FieldReport, kbContext: string): string {
     `긴급 교체 필요 부품: ${report.urgentParts.length > 0 ? report.urgentParts.join(", ") : "없음"}`,
     `현장 메모: ${report.siteMemo || "없음"}`,
     "",
-    kbContext || "[지식베이스 관련 정보]\n관련 KEC 조항을 찾지 못했습니다. 일반적인 전기안전 상식에 근거해 작성하세요."
+    kbContext || "[지식베이스 관련 정보]\n관련 KEC 조항을 찾지 못했습니다. 일반적인 전기안전 상식에 근거해 작성하세요.",
+    chunkContext || null
   ];
   return lines.filter((line) => line !== null).join("\n");
 }
@@ -96,8 +98,12 @@ function splitOpinion(raw: string): { landlord: string; resident: string } {
 }
 
 export async function generateFieldReportOpinion(report: FieldReport): Promise<{ landlord: string; resident: string }> {
-  const kbContext = await searchKnowledgeBase(buildKnowledgeQuery(report), 5);
-  const userPrompt = buildUserPrompt(report, kbContext);
+  const knowledgeQuery = buildKnowledgeQuery(report);
+  const [kbContext, chunkContext] = await Promise.all([
+    searchKnowledgeBase(knowledgeQuery, 5),
+    searchKnowledgeChunks(knowledgeQuery, 5).catch(() => "")
+  ]);
+  const userPrompt = buildUserPrompt(report, kbContext, chunkContext);
   const raw = await callClaudeCustom(SYSTEM_PROMPT, userPrompt, 6000, 110_000);
   return splitOpinion(raw);
 }

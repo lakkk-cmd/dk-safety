@@ -13,6 +13,7 @@ import { CONTENT_AGENTS } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
 import { getHqSummary } from "@/lib/hq-summary";
 import { searchKnowledgeBase } from "@/lib/knowledge-base";
+import { searchKnowledgeChunks } from "@/lib/knowledge-chunks-search";
 
 // ─── 총괄 + 9-에이전트 채팅 ──────────────────────────────────────────────────────
 
@@ -185,14 +186,16 @@ export async function chatWithAgentPlus(
   // BUSINESS_CONTEXT는 호출마다 동일한 정적 텍스트라 system 쪽에 둬야 프롬프트 캐싱이 걸린다.
   const systemPrompt = `${persona}\n\n${BUSINESS_CONTEXT}`;
 
-  const [history, snapshot, ragContext] = await Promise.all([
+  const [history, snapshot, ragContext, chunkContext] = await Promise.all([
     loadChatHistory(agentId, 20),
     buildBusinessSnapshot(),
     searchKnowledgeBase(userMessage || "").catch(() => ""),
+    searchKnowledgeChunks(userMessage || "").catch(() => ""),
   ]);
 
-  const ragSection = ragContext ? `\n\n${ragContext}` : "";
-  const newTurnText = `[실시간 현황]\n${snapshot}${ragSection}\n\n[새 메시지]\n대장: ${userMessage || "(첨부파일 확인 요청)"}`;
+  const ragSection = [ragContext, chunkContext].filter(Boolean).join("\n\n");
+  const ragBlock = ragSection ? `\n\n${ragSection}` : "";
+  const newTurnText = `[실시간 현황]\n${snapshot}${ragBlock}\n\n[새 메시지]\n대장: ${userMessage || "(첨부파일 확인 요청)"}`;
 
   const { attachment, webSearch = false } = options ?? {};
 
