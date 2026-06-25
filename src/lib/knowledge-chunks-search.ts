@@ -28,7 +28,7 @@ export async function searchKnowledgeChunks(query: string, topK = 5): Promise<st
     if (error || !data || (data as ChunkRow[]).length === 0) return "";
 
     const chunks = (data as ChunkRow[]).map((row) => `[${row.source_file}] ${row.content}`);
-    return `다음 자료를 참고해서 답변하세요:\n${chunks.join("\n\n")}`;
+    return `다음 자료를 참고해서 답변하세요(자료가 영문이어도 답변은 반드시 한국어로 작성하세요):\n${chunks.join("\n\n")}`;
   } catch {
     return "";
   }

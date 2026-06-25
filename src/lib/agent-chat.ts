@@ -184,7 +184,8 @@ export async function chatWithAgentPlus(
   const persona = CHAT_SYSTEM_PROMPTS[agentId];
   if (!agent || !persona) throw new Error(`알 수 없는 에이전트: ${agentId}`);
   // BUSINESS_CONTEXT는 호출마다 동일한 정적 텍스트라 system 쪽에 둬야 프롬프트 캐싱이 걸린다.
-  const systemPrompt = `${persona}\n\n${BUSINESS_CONTEXT}`;
+  // RAG로 주입되는 지식베이스 자료가 영문 PDF여도 답변은 항상 한국어로 작성하도록 명시한다.
+  const systemPrompt = `${persona}\n\n${BUSINESS_CONTEXT}\n\n답변은 항상 한국어로 작성하세요. 참고 자료가 영문이어도 한국어로 번역해 답변하세요.`;
 
   const [history, snapshot, ragContext, chunkContext] = await Promise.all([
     loadChatHistory(agentId, 20),
