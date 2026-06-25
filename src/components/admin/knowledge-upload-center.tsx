@@ -1,36 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { KNOWLEDGE_CATEGORIES, categoryLabel } from "@/lib/knowledge-categories";
+import { KNOWLEDGE_CATEGORIES } from "@/lib/knowledge-categories";
 import type { KnowledgePdf } from "@/lib/knowledge-pdfs";
 
-type StepKey = "upload" | "classify" | "process";
-type StepStatus = "pending" | "running" | "done" | "error";
+type UploadStatus = "uploading" | "done" | "error";
 
 type UploadItem = {
   clientId: string;
   fileName: string;
   file: File;
-  pdfId: string | null;
-  steps: Record<StepKey, StepStatus>;
+  status: UploadStatus;
   error: string | null;
-  result: { category: string; reason: string; chunkCount: number } | null;
-  pendingDuplicate: KnowledgePdf | null;
-  skipped: boolean;
-  progress: { processed: number; total: number } | null;
+  result: { sourceFile: string; chunkCount: number } | null;
 };
 
 const MAX_SIZE_BYTES = 50 * 1024 * 1024;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-const STEP_LABEL: Record<StepKey, string> = {
-  upload: "업로드",
-  classify: "AI 카테고리 분류 중...",
-  process: "텍스트 추출 + 지식베이스 저장 중..."
-};
-
-function initialSteps(): Record<StepKey, StepStatus> {
-  return { upload: "pending", classify: "pending", process: "pending" };
-}
 
 /** 서버가 플랫폼 레벨 에러(예: Vercel 413 "Request Entity Too Large")를 평문으로 돌려주면
  *  res.json()이 "Unexpected token..." 으로 깨지므로, 먼저 텍스트로 받아 안전하게 파싱한다. */
@@ -41,13 +26,6 @@ async function parseJsonResponse<T>(res: Response): Promise<T> {
   } catch {
     return { message: text.slice(0, 200) || `요청 실패 (${res.status})` } as T;
   }
-}
-
-function stepIcon(status: StepStatus, done: string, running: string) {
-  if (status === "done") return done;
-  if (status === "running") return running;
-  if (status === "error") return "❌";
-  return "⏳";
 }
 
 export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: KnowledgePdf[] }) {
@@ -87,15 +65,13 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
   }, []);
 
   useEffect(() => {
-    const anyRunning = itemsRef.current.some((it) =>
-      Object.values(it.steps).some((s) => s === "running" || s === "pending")
-    );
     const handler = (e: BeforeUnloadEvent) => {
-      if (!itemsRef.current.some((it) => Object.values(it.steps).some((s) => s === "running"))) return;
+      if (!itemsRef.current.some((it) => it.status === "uploading")) return;
       e.preventDefault();
       e.returnValue = "";
     };
-    if (anyRunning) window.addEventListener("beforeunload", handler);
+    const anyUploading = itemsRef.current.some((it) => it.status === "uploading");
+    if (anyUploading) window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [items]);
 
@@ -112,105 +88,38 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
   const updateItem = (clientId: string, patch: Partial<UploadItem>) => {
     setItems((prev) => prev.map((it) => (it.clientId === clientId ? { ...it, ...patch } : it)));
   };
-  const updateStep = (clientId: string, step: StepKey, status: StepStatus) => {
-    setItems((prev) =>
-      prev.map((it) => (it.clientId === clientId ? { ...it, steps: { ...it.steps, [step]: status } } : it))
-    );
-  };
 
-  const runClassifyAndProcess = async (clientId: string, pdfId: string) => {
-    updateStep(clientId, "classify", "running");
+  // Voyage AI 기반 새 파이프라인 — PDF 파싱/청크/임베딩/저장을 서버 한 번 호출로 전부 처리한다.
+  const startUpload = async (clientId: string, file: File) => {
+    updateItem(clientId, { status: "uploading", error: null });
     try {
-      const classifyRes = await fetch("/api/admin/knowledge/classify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: pdfId })
-      });
-      const classifyData = await parseJsonResponse<{ pdf?: KnowledgePdf; message?: string }>(classifyRes);
-      if (!classifyRes.ok) throw new Error(classifyData.message ?? "분류 실패");
-      updateStep(clientId, "classify", "done");
+      const formData = new FormData();
+      formData.append("file", file);
 
-      updateStep(clientId, "process", "running");
-      // 청크가 아주 많은 대형 PDF는 한 번의 호출로 못 끝낼 수 있다 — done:false가 오면
-      // 서버가 이미 저장한 만큼 이어서(resume) 계속 호출한다.
-      let processData: { pdf?: KnowledgePdf; message?: string; done?: boolean; totalChunks?: number; processedChunks?: number };
-      for (;;) {
-        const processRes = await fetch("/api/admin/knowledge/process", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: pdfId })
-        });
-        processData = await parseJsonResponse(processRes);
-        if (!processRes.ok) throw new Error(processData.message ?? "처리 실패");
-        if (processData.totalChunks) {
-          updateItem(clientId, { progress: { processed: processData.processedChunks ?? 0, total: processData.totalChunks } });
-        }
-        if (processData.done !== false) break;
+      const res = await fetch("/api/knowledge/upload", {
+        method: "POST",
+        body: formData
+        // Content-Type 헤더는 설정하지 말 것 (브라우저가 자동으로 multipart/form-data 설정)
+      });
+
+      const result = await parseJsonResponse<{
+        success?: boolean;
+        sourceFile?: string;
+        chunkCount?: number;
+        error?: string;
+      }>(res);
+
+      if (!res.ok) {
+        throw new Error(result.error ?? "업로드 실패");
       }
-      updateStep(clientId, "process", "done");
+
       updateItem(clientId, {
-        result: {
-          category: processData.pdf?.category ?? "general",
-          reason: processData.pdf?.categoryReason ?? "",
-          chunkCount: processData.pdf?.chunkCount ?? 0
-        }
+        status: "done",
+        result: { sourceFile: result.sourceFile ?? file.name, chunkCount: result.chunkCount ?? 0 }
       });
-      void refreshList();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "처리에 실패했습니다.";
-      setItems((prev) =>
-        prev.map((it) => {
-          if (it.clientId !== clientId) return it;
-          const failedStep: StepKey = it.steps.classify === "running" || it.steps.classify === "pending" ? "classify" : "process";
-          return { ...it, error: message, steps: { ...it.steps, [failedStep]: "error" } };
-        })
-      );
-    }
-  };
-
-  // Vercel 서버리스 함수는 요청 본문이 4.5MB를 넘으면 함수 진입 전에 플랫폼이 바로 끊어버린다
-  // (우리 코드가 응답을 만들 기회조차 없음). 그래서 큰 파일은 우리 서버를 거치지 않고
-  // 서명 URL을 받아 브라우저에서 Supabase Storage로 직접 PUT한다.
-  const startUpload = async (clientId: string, file: File, replaceId?: string) => {
-    updateStep(clientId, "upload", "running");
-    try {
-      const signRes = await fetch("/api/admin/knowledge/sign-upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name })
-      });
-      const signData = await parseJsonResponse<{ path?: string; signedUrl?: string; message?: string }>(signRes);
-      if (!signRes.ok || !signData.path || !signData.signedUrl) {
-        throw new Error(signData.message ?? "업로드 URL 생성에 실패했습니다.");
-      }
-
-      const putBody = new FormData();
-      putBody.append("cacheControl", "3600");
-      putBody.append("", file);
-      const putRes = await fetch(signData.signedUrl, {
-        method: "PUT",
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-        body: putBody
-      });
-      if (!putRes.ok) {
-        const putErrorText = await putRes.text().catch(() => "");
-        throw new Error(`PDF 업로드 실패 (Storage ${putRes.status})${putErrorText ? `: ${putErrorText.slice(0, 200)}` : ""}`);
-      }
-
-      const res = await fetch("/api/admin/knowledge/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, path: signData.path, replaceId })
-      });
-      const data = await parseJsonResponse<{ pdf?: KnowledgePdf; message?: string }>(res);
-      if (!res.ok || !data.pdf) throw new Error(data.message ?? "업로드 실패");
-      updateItem(clientId, { pdfId: data.pdf.id, pendingDuplicate: null });
-      updateStep(clientId, "upload", "done");
-      await runClassifyAndProcess(clientId, data.pdf.id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "업로드에 실패했습니다.";
-      updateItem(clientId, { error: message });
-      updateStep(clientId, "upload", "error");
+      updateItem(clientId, { status: "error", error: message });
     }
   };
 
@@ -231,51 +140,18 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
         clientId,
         fileName: file.name,
         file,
-        pdfId: null,
-        steps: initialSteps(),
+        status: "uploading",
         error: null,
-        result: null,
-        pendingDuplicate: null,
-        skipped: false,
-        progress: null
+        result: null
       };
       setItems((prev) => [newItem, ...prev]);
-
-      try {
-        const dupRes = await fetch("/api/admin/knowledge/check-duplicate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileName: file.name })
-        });
-        const dupData = (await dupRes.json()) as { duplicate?: KnowledgePdf | null };
-        if (dupRes.ok && dupData.duplicate) {
-          updateItem(clientId, { pendingDuplicate: dupData.duplicate });
-          continue;
-        }
-      } catch {
-        /* 중복 확인 실패 시 그냥 진행 */
-      }
       void startUpload(clientId, file);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const confirmReplace = (item: UploadItem) => {
-    if (!item.pendingDuplicate) return;
-    void startUpload(item.clientId, item.file, item.pendingDuplicate.id);
-  };
-  const cancelReplace = (clientId: string) => {
-    setItems((prev) => prev.filter((it) => it.clientId !== clientId));
-  };
-
   const retry = (item: UploadItem) => {
-    if (item.steps.upload === "error") {
-      void startUpload(item.clientId, item.file);
-      return;
-    }
-    if (!item.pdfId) return;
-    updateItem(item.clientId, { error: null });
-    void runClassifyAndProcess(item.clientId, item.pdfId);
+    void startUpload(item.clientId, item.file);
   };
 
   const relearn = async (id: string) => {
@@ -289,7 +165,7 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id, reset })
         });
-        const data = (await parseJsonResponse<{ message?: string; done?: boolean }>(res));
+        const data = await parseJsonResponse<{ message?: string; done?: boolean }>(res);
         if (!res.ok) {
           setToast(data.message ?? "재학습에 실패했습니다.");
           break;
@@ -390,13 +266,7 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
       {items.length > 0 ? (
         <div className="space-y-2.5">
           {items.map((item) => (
-            <UploadProgressCard
-              key={item.clientId}
-              item={item}
-              onConfirmReplace={() => confirmReplace(item)}
-              onCancelReplace={() => cancelReplace(item.clientId)}
-              onRetry={() => retry(item)}
-            />
+            <UploadProgressCard key={item.clientId} item={item} onRetry={() => retry(item)} />
           ))}
         </div>
       ) : null}
@@ -436,76 +306,27 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
   );
 }
 
-function UploadProgressCard({
-  item,
-  onConfirmReplace,
-  onCancelReplace,
-  onRetry
-}: {
-  item: UploadItem;
-  onConfirmReplace: () => void;
-  onCancelReplace: () => void;
-  onRetry: () => void;
-}) {
-  if (item.pendingDuplicate) {
-    return (
-      <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
-        <p className="truncate text-sm font-bold text-slate-800">📄 {item.fileName}</p>
-        <p className="mt-1 text-sm text-amber-900">이미 학습된 파일입니다. 재학습할까요?</p>
-        <div className="mt-3 flex gap-2">
-          <button
-            type="button"
-            onClick={onConfirmReplace}
-            className="min-h-11 flex-1 rounded-xl bg-dk-navy text-sm font-bold text-white"
-          >
-            재학습
-          </button>
-          <button
-            type="button"
-            onClick={onCancelReplace}
-            className="min-h-11 flex-1 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-700"
-          >
-            취소
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const allDone = item.steps.upload === "done" && item.steps.classify === "done" && item.steps.process === "done";
-  const hasError = Object.values(item.steps).some((s) => s === "error");
-
+function UploadProgressCard({ item, onRetry }: { item: UploadItem; onRetry: () => void }) {
   return (
-    <div className={`rounded-2xl border p-4 ${hasError ? "border-rose-300 bg-rose-50" : allDone ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"}`}>
+    <div
+      className={`rounded-2xl border p-4 ${
+        item.status === "error" ? "border-rose-300 bg-rose-50" : item.status === "done" ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"
+      }`}
+    >
       <p className="truncate text-[16px] font-bold text-slate-800">📄 {item.fileName}</p>
 
-      {allDone && item.result ? (
+      {item.status === "done" && item.result ? (
         <div className="mt-2 space-y-1 text-[15px]">
           <p className="font-bold text-emerald-700">✅ 학습 완료</p>
-          <p className="text-slate-700">
-            📁 카테고리: {categoryLabel(item.result.category)} ({item.result.category})
-          </p>
-          {item.result.reason ? <p className="text-slate-600">💬 &quot;{item.result.reason}&quot;</p> : null}
           <p className="text-slate-600">📊 {item.result.chunkCount}개 청크 저장됨</p>
         </div>
-      ) : (
+      ) : item.status === "uploading" ? (
         <div className="mt-2 space-y-1 text-[15px]">
-          <p className={item.steps.upload === "error" ? "text-rose-700" : "text-slate-700"}>
-            {stepIcon(item.steps.upload, "✅", "⏳")} 업로드{item.steps.upload === "done" ? " 완료" : item.steps.upload === "running" ? " 중..." : ""}
-          </p>
-          <p className={item.steps.classify === "error" ? "text-rose-700" : "text-slate-700"}>
-            {stepIcon(item.steps.classify, "✅", "🤖")} {STEP_LABEL.classify}
-          </p>
-          <p className={item.steps.process === "error" ? "text-rose-700" : "text-slate-700"}>
-            {stepIcon(item.steps.process, "✅", "⏳")}{" "}
-            {item.steps.process === "running" && item.progress
-              ? `텍스트 추출 + 지식베이스 저장 중... (${item.progress.processed}/${item.progress.total} 청크)`
-              : STEP_LABEL.process}
-          </p>
+          <p className="text-slate-700">⏳ 업로드 + 임베딩 + 저장 중...</p>
         </div>
-      )}
+      ) : null}
 
-      {hasError ? (
+      {item.status === "error" ? (
         <div className="mt-3 rounded-xl bg-white p-3">
           <p className="text-sm text-rose-800">{item.error}</p>
           <button
