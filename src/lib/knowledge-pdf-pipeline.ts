@@ -146,6 +146,7 @@ export type EmbedAndSaveResult = {
   processedChunks: number;
   totalChunks: number;
   done: boolean;
+  lastError: string | null;
 };
 
 /** 청크를 배치(기본 20개)로 묶어 한 번의 API 호출로 임베딩하고 한 번의 INSERT로 저장한다 —
@@ -165,6 +166,7 @@ export async function embedAndSaveChunks(params: {
 
   let saved = resumeFrom;
   let cursor = resumeFrom;
+  let lastError: string | null = null;
   while (cursor < chunks.length) {
     if (Date.now() >= deadline) break;
     const batch = chunks.slice(cursor, cursor + EMBED_BATCH_SIZE);
@@ -180,14 +182,17 @@ export async function embedAndSaveChunks(params: {
         pdf_id: pdfId
       }));
       const { error } = await supabase.from("knowledge_base").insert(rows);
-      if (!error) saved += rows.length;
-    } catch {
-      // 배치 전체 실패는 건너뛰고 다음 배치로 계속 — 일부 청크 손실은 허용 가능한 트레이드오프
+      if (error) lastError = error.message;
+      else saved += rows.length;
+    } catch (err) {
+      // 배치 전체 실패는 건너뛰고 다음 배치로 계속 — 일부 청크 손실은 허용 가능한 트레이드오프.
+      // 단, 모든 배치가 실패하면(saved===resumeFrom) 호출부가 진단할 수 있도록 마지막 에러는 보존한다.
+      lastError = err instanceof Error ? err.message : "임베딩 배치 처리 중 알 수 없는 오류";
     }
     cursor += batch.length;
   }
 
-  return { saved, processedChunks: cursor, totalChunks: chunks.length, done: cursor >= chunks.length };
+  return { saved, processedChunks: cursor, totalChunks: chunks.length, done: cursor >= chunks.length, lastError };
 }
 
 /** Step 3 — 전체 텍스트 추출 → 청크 분할 → 임베딩 → knowledge_base 저장.
@@ -221,7 +226,7 @@ export async function runProcessStep(id: string, options?: { deadline?: number }
     resumeFrom: 0,
     deadline: options?.deadline ?? Date.now() + 50_000
   });
-  if (result.saved === 0) throw new Error("지식베이스 저장에 모두 실패했습니다.");
+  if (result.saved === 0) throw new Error(result.lastError ?? "지식베이스 저장에 모두 실패했습니다.");
 
   return pgUpdateKnowledgePdf(id, {
     status: result.done ? "completed" : "processing",

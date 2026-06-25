@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { loadPDFParse } from '@/lib/pdf-parse-loader';
 
 // ── Supabase 클라이언트 (서버 전용) ──────────────────────────────────────
 const supabase = createClient(
@@ -7,40 +6,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ── 1. PDF 텍스트 추출 ────────────────────────────────────────────────────
-// 주의: 설치된 pdf-parse는 2.x(PDFParse 클래스 API)이며, 1.x의 `import pdf from 'pdf-parse'`
-// 형태(default export 함수)는 제공하지 않는다. 같은 패키지를 쓰는 기존 /admin/knowledge
-// 파이프라인과 버전을 분리할 수 없으므로(동일 패키지명은 하나의 버전만 설치 가능) 실제
-// 설치된 2.x API로 호출한다. loadPDFParse()는 pdf.js가 Node에서 전역 DOMMatrix를 참조해
-// 발생하는 ReferenceError를 막는 폴리필도 함께 적용한다(오늘 /admin/knowledge에서 같은
-// 문제를 겪고 고친 것과 동일한 이슈).
-export async function parsePDF(buffer: Buffer): Promise<string> {
-  try {
-    const PDFParse = await loadPDFParse();
-    const parser = new PDFParse({ data: buffer });
-    let text = '';
-    let numpages = 0;
-    try {
-      const data = await parser.getText();
-      text = data.text?.trim() ?? '';
-      numpages = data.total ?? 0;
-    } finally {
-      await parser.destroy();
-    }
+// PDF 텍스트 추출은 /api/knowledge/upload에서 knowledge_base/knowledge_chunks 양쪽이
+// 공유하도록 한 번만 수행한다(@/lib/pdf-parse-loader의 loadPDFParse 사용) — 이 파일에는
+// 청크 분할/Voyage 임베딩/저장만 남긴다.
 
-    // 텍스트가 너무 짧으면 이미지 기반 슬라이드 가능성 — 페이지 수 정보라도 반환
-    if (text.length < 50) {
-      console.warn('[parsePDF] 텍스트 추출 결과가 빈값에 가깝습니다. 이미지 기반 PDF일 수 있습니다.');
-      return `[이미지 기반 PDF - 페이지 수: ${numpages}] 텍스트 추출 불가`;
-    }
-    return text;
-  } catch (err) {
-    console.error('[parsePDF] 오류:', err);
-    throw new Error(`PDF 파싱 실패: ${(err as Error).message}`);
-  }
-}
-
-// ── 2. 청크 분할 ──────────────────────────────────────────────────────────
+// ── 1. 청크 분할 ──────────────────────────────────────────────────────────
 export function chunkText(
   text: string,
   chunkSize: number = 500,

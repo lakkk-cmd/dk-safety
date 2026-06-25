@@ -12,8 +12,17 @@ type UploadItem = {
   file: File;
   status: UploadStatus;
   error: string | null;
-  result: { sourceFile: string; chunkCount: number } | null;
+  result: {
+    sourceFile: string;
+    category?: string;
+    knowledgeBaseChunkCount: number;
+    knowledgeBaseError: string | null;
+    voyageChunkCount: number;
+    voyageError: string | null;
+  } | null;
 };
+
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 const MAX_SIZE_BYTES = 50 * 1024 * 1024;
 
@@ -89,23 +98,49 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
     setItems((prev) => prev.map((it) => (it.clientId === clientId ? { ...it, ...patch } : it)));
   };
 
-  // Voyage AI 기반 새 파이프라인 — PDF 파싱/청크/임베딩/저장을 서버 한 번 호출로 전부 처리한다.
+  // 1) 서명 URL 발급 → 2) 브라우저가 Storage로 직접 PUT(Vercel 4.5MB 본문 제한 회피) →
+  // 3) /api/knowledge/upload 한 번 호출로 Claude 자동분류(knowledge_base)와 Voyage
+  //    임베딩(knowledge_chunks)을 동시에 실행한다.
   const startUpload = async (clientId: string, file: File) => {
     updateItem(clientId, { status: "uploading", error: null });
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      const signRes = await fetch("/api/admin/knowledge/sign-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name })
+      });
+      const signed = await parseJsonResponse<{ path?: string; signedUrl?: string; message?: string }>(signRes);
+      if (!signRes.ok || !signed.path || !signed.signedUrl) {
+        throw new Error(signed.message ?? "업로드 URL 발급에 실패했습니다.");
+      }
+
+      const putRes = await fetch(signed.signedUrl, {
+        method: "PUT",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          "Content-Type": file.type || "application/pdf"
+        },
+        body: file
+      });
+      if (!putRes.ok) {
+        throw new Error(`Storage 업로드 실패 (${putRes.status}) ${(await putRes.text().catch(() => "")).slice(0, 200)}`);
+      }
 
       const res = await fetch("/api/knowledge/upload", {
         method: "POST",
-        body: formData
-        // Content-Type 헤더는 설정하지 말 것 (브라우저가 자동으로 multipart/form-data 설정)
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, path: signed.path })
       });
 
       const result = await parseJsonResponse<{
         success?: boolean;
         sourceFile?: string;
-        chunkCount?: number;
+        pdf?: { category?: string };
+        knowledgeBaseChunkCount?: number;
+        knowledgeBaseError?: string | null;
+        voyageChunkCount?: number;
+        voyageError?: string | null;
         error?: string;
       }>(res);
 
@@ -115,8 +150,16 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
 
       updateItem(clientId, {
         status: "done",
-        result: { sourceFile: result.sourceFile ?? file.name, chunkCount: result.chunkCount ?? 0 }
+        result: {
+          sourceFile: result.sourceFile ?? file.name,
+          category: result.pdf?.category,
+          knowledgeBaseChunkCount: result.knowledgeBaseChunkCount ?? 0,
+          knowledgeBaseError: result.knowledgeBaseError ?? null,
+          voyageChunkCount: result.voyageChunkCount ?? 0,
+          voyageError: result.voyageError ?? null
+        }
       });
+      void refreshList();
     } catch (err) {
       const message = err instanceof Error ? err.message : "업로드에 실패했습니다.";
       updateItem(clientId, { status: "error", error: message });
@@ -317,12 +360,19 @@ function UploadProgressCard({ item, onRetry }: { item: UploadItem; onRetry: () =
 
       {item.status === "done" && item.result ? (
         <div className="mt-2 space-y-1 text-[15px]">
-          <p className="font-bold text-emerald-700">✅ 학습 완료</p>
-          <p className="text-slate-600">📊 {item.result.chunkCount}개 청크 저장됨</p>
+          <p className="font-bold text-emerald-700">
+            ✅ 학습 완료{item.result.category ? ` · ${item.result.category}` : ""}
+          </p>
+          <p className="text-slate-600">📊 분류 학습 {item.result.knowledgeBaseChunkCount}개 청크</p>
+          <p className="text-slate-600">🔎 검색 학습 {item.result.voyageChunkCount}개 청크</p>
+          {item.result.knowledgeBaseError ? (
+            <p className="text-amber-700">⚠ 분류 학습 일부 실패: {item.result.knowledgeBaseError}</p>
+          ) : null}
+          {item.result.voyageError ? <p className="text-amber-700">⚠ 검색 학습 일부 실패: {item.result.voyageError}</p> : null}
         </div>
       ) : item.status === "uploading" ? (
         <div className="mt-2 space-y-1 text-[15px]">
-          <p className="text-slate-700">⏳ 업로드 + 임베딩 + 저장 중...</p>
+          <p className="text-slate-700">⏳ 업로드 + 분류 + 임베딩 + 저장 중...</p>
         </div>
       ) : null}
 
