@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useChatSession } from "@/hooks/useChatSession";
 
 type ChatAgent = { id: string; name: string; role: string };
 type ChatMessage = {
@@ -109,6 +110,7 @@ export default function HqChatClient() {
   const [groups, setGroups] = useState<Record<string, string[]>>({});
   const [selectedAgent, setSelectedAgent] = useState("general");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { saveSession } = useChatSession(messages);
   const [input, setInput] = useState("");
   const [lastUserMessage, setLastUserMessage] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
@@ -122,6 +124,8 @@ export default function HqChatClient() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const sessionIdRef = useRef<string>(`${selectedAgent}-${Date.now()}`);
+  const savingRef = useRef(false);
 
   const showHeader = messages.length === 0 || headerPinned;
 
@@ -170,11 +174,25 @@ export default function HqChatClient() {
   const handleSelectAgent = useCallback(
     (agentId: string) => {
       if (agentId === selectedAgent || sending) return;
+      // 현재 대화 세션 저장 (fire-and-forget)
+      if (messages.length > 0 && !savingRef.current) {
+        savingRef.current = true;
+        const sid = sessionIdRef.current;
+        const msgs = messages.map((m) => ({ role: m.role, content: m.content }));
+        fetch("/api/chat/end-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sid, messages: msgs }),
+        })
+          .catch(() => {})
+          .finally(() => { savingRef.current = false; });
+        sessionIdRef.current = `${agentId}-${Date.now()}`;
+      }
       setInitialLoading(true);
       setHeaderPinned(false);
       void load(agentId);
     },
-    [selectedAgent, sending, load],
+    [selectedAgent, sending, load, messages],
   );
 
   // 파일 업로드 공통 처리
@@ -294,6 +312,15 @@ export default function HqChatClient() {
     [lastUserMessage, handleSelectAgent],
   );
 
+  // "새 대화" — 현재 세션 저장 후 메시지 초기화
+  const handleNewChat = useCallback(async () => {
+    await saveSession(true);
+    setMessages([]);
+    setInput("");
+    setError(null);
+    clearAttachment();
+  }, [saveSession, clearAttachment]);
+
   const currentAgent = agents.find((a) => a.id === selectedAgent);
   const flatAgentIds = Object.values(groups).flat();
 
@@ -309,15 +336,27 @@ export default function HqChatClient() {
             {agentIcon(selectedAgent)} {currentAgent ? `${currentAgent.name} · ${currentAgent.role}` : "대화"}
           </span>
         </div>
-        {messages.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => setHeaderPinned((v) => !v)}
-            className="text-xs font-bold text-slate-400 underline hover:text-cc-navy"
-          >
-            {showHeader ? "설명 닫기" : "ℹ️ 설명"}
-          </button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {messages.length > 0 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void handleNewChat()}
+                disabled={sending || savingRef.current}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-500 transition hover:border-cc-navy hover:text-cc-navy disabled:opacity-40"
+              >
+                💾 저장 &amp; 새 대화
+              </button>
+              <button
+                type="button"
+                onClick={() => setHeaderPinned((v) => !v)}
+                className="text-xs font-bold text-slate-400 underline hover:text-cc-navy"
+              >
+                {showHeader ? "설명 닫기" : "ℹ️ 설명"}
+              </button>
+            </>
+          ) : null}
+        </div>
       </div>
 
       {showHeader ? (
