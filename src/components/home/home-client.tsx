@@ -11,6 +11,7 @@ interface Apartment {
 
 interface Props {
   apartments: Apartment[];
+  config?: Record<string, string>;
 }
 
 const SYMPTOMS = [
@@ -28,7 +29,16 @@ const FLOW_STEPS = [
   { icon: "3️⃣", label: "리포트 받기" }
 ];
 
-export default function HomeClient({ apartments }: Props) {
+export default function HomeClient({ apartments, config = {} }: Props) {
+  const heroTitle = config.hero_title ?? "우리집 전기 걱정되시나요?";
+  const heroSubtitle = config.hero_subtitle ?? "전기기사가 직접 방문해서 해결해드립니다";
+  const heroCta = config.hero_cta ?? "🔴 지금 점검 예약하기";
+  const bottomCta = config.bottom_cta ?? "예약하기";
+  const noticeActive = config.notice_active === "true";
+  const noticeText = config.notice_text ?? "";
+  const seasonBannerActive = config.season_banner === "true";
+  const seasonBannerText = config.season_banner_text ?? "";
+
   return (
     <div className="min-h-screen bg-dk-gray pb-24">
       <header className="sticky top-0 z-50 bg-dk-navy">
@@ -60,21 +70,28 @@ export default function HomeClient({ apartments }: Props) {
       </header>
 
       <div className="mx-auto max-w-lg space-y-4 px-4 pt-4">
+        {noticeActive && noticeText ? (
+          <div className="rounded-2xl bg-dk-gold/20 px-4 py-3 text-center text-sm font-bold text-dk-navy">
+            📢 {noticeText}
+          </div>
+        ) : null}
+        {seasonBannerActive && seasonBannerText ? (
+          <div className="rounded-2xl bg-dk-blue/10 px-4 py-3 text-center text-sm font-bold text-dk-blue">
+            🌟 {seasonBannerText}
+          </div>
+        ) : null}
+
         <section className="rounded-3xl bg-dk-navy p-6 text-center text-white">
           <p className="text-5xl">⚡</p>
-          <h1 className="mt-3 text-[28px] font-bold leading-tight">
-            우리집 전기
-            <br />
-            걱정되시나요?
-          </h1>
-          <p className="mt-2 text-[15px] text-white/70">전기기사가 직접 방문해서 해결해드립니다</p>
+          <h1 className="mt-3 text-[28px] font-bold leading-tight">{heroTitle}</h1>
+          <p className="mt-2 text-[15px] text-white/70">{heroSubtitle}</p>
 
           <div className="mt-5 space-y-2.5">
             <a
               href="#apartments"
               className="flex min-h-[60px] w-full items-center justify-center gap-2 rounded-2xl bg-dk-blue text-lg font-bold text-white shadow-[0_10px_28px_rgba(26,92,255,0.4)]"
             >
-              🔴 지금 점검 예약하기
+              {heroCta}
             </a>
             <Link
               href="/status"
@@ -168,7 +185,7 @@ export default function HomeClient({ apartments }: Props) {
           href="#apartments"
           className="mx-auto flex min-h-14 max-w-lg items-center justify-center gap-2 rounded-2xl bg-dk-blue text-base font-bold text-white shadow-[0_8px_20px_rgba(26,92,255,0.28)]"
         >
-          예약하기
+          {bottomCta}
         </a>
       </div>
     </div>

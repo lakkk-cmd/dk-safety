@@ -12,6 +12,7 @@ import { requireAgentSupabase } from "@/lib/agent-db";
 import { CONTENT_AGENTS } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
 import { getHqSummary } from "@/lib/hq-summary";
+import { buildRestoreContext } from "@/lib/chat-restore";
 import { searchKnowledgeBase } from "@/lib/knowledge-base";
 import { searchKnowledgeChunks } from "@/lib/knowledge-chunks-search";
 
@@ -45,7 +46,15 @@ const CHAT_PERSONAS: Record<string, string> = {
 1. [실시간 현황] 데이터만 보고 핵심 수치를 2~3줄로 간결하게 요약한다. 길게 분석하거나 해석하지 않는다.
 2. 디테일이 필요한 질문은 반드시 담당 에이전트로 위임 안내한다. 예: "매출 세부사항은 CFO 계산기에게 물어보세요."
 3. 현황에 없는 정보는 절대 추측하거나 만들어내지 않는다. "현재 데이터로는 알 수 없습니다"라고 답한다.
-4. 이모지 1~2개 자연스럽게 사용 가능.`,
+4. 이모지 1~2개 자연스럽게 사용 가능.
+
+[결정 감지 규칙]
+대화에서 아래 패턴이 감지되면 결정 내용을 명확히 정리해 안내하라:
+- 요금 변경: basic_price(기본 출장점검비) | full_price(풀패키지) | extra_price(추가작업)
+- CTA 변경: hero_title(메인 헤드라인) | hero_subtitle(서브타이틀) | hero_cta(메인 버튼) | bottom_cta(하단 버튼)
+- 공지 등록: notice_active(true/false) | notice_text(공지 내용)
+- 시즌 배너: season_banner(true/false) | season_banner_text(배너 문구)
+결정이 확정되면 "/api/chat/decision 호출 준비 완료" 라고 안내하라.`,
   cto: `당신은 우리집 전기주치의(대경이엔피)의 CTO 스파크입니다. dkansim.com(Next.js 15 + Supabase + Toss Payments), 앱(FlutterFlow + Firebase), KIPO 특허(14개 청구항)를 담당하는 기술 전문가입니다. 말투는 직설적이고 효율을 중시하며, 기술 용어를 쓸 때는 항상 1인 사업자가 바로 실행 가능한 수준으로 풀어서 설명합니다.`,
   cso: `당신은 우리집 전기주치의(대경이엔피)의 CSO 브릿지입니다. 시장 트렌드와 경영 데이터를 연결해 성장 전략을 제시하는 전략총괄로, 차분하고 분석적인 말투를 씁니다. 대장이 본업(아파트 전기팀장)을 병행하는 1인 사업자임을 항상 고려해 현실적인 우선순위를 제시합니다.`,
   cmo: `당신은 우리집 전기주치의(대경이엔피)의 CMO 확성기입니다. "우리집 안심전기" 브랜드의 콘텐츠·채널 성과를 챙기는 마케팅총괄로, 에너지 넘치고 긍정적인 말투를 씁니다. 콘텐츠 성과 데이터를 인용해 다음에 무엇을 밀어붙이면 좋을지 제안합니다.`,
@@ -187,16 +196,18 @@ export async function chatWithAgentPlus(
   // RAG로 주입되는 지식베이스 자료가 영문 PDF여도 답변은 항상 한국어로 작성하도록 명시한다.
   const systemPrompt = `${persona}\n\n${BUSINESS_CONTEXT}\n\n답변은 항상 한국어로 작성하세요. 참고 자료가 영문이어도 한국어로 번역해 답변하세요.`;
 
-  const [history, snapshot, ragContext, chunkContext] = await Promise.all([
+  const [history, snapshot, ragContext, chunkContext, restoreBlock] = await Promise.all([
     loadChatHistory(agentId, 20),
     buildBusinessSnapshot(),
     searchKnowledgeBase(userMessage || "").catch(() => ""),
     searchKnowledgeChunks(userMessage || "").catch(() => ""),
+    buildRestoreContext().catch(() => ""),
   ]);
 
   const ragSection = [ragContext, chunkContext].filter(Boolean).join("\n\n");
   const ragBlock = ragSection ? `\n\n${ragSection}` : "";
-  const newTurnText = `[실시간 현황]\n${snapshot}${ragBlock}\n\n[새 메시지]\n대장: ${userMessage || "(첨부파일 확인 요청)"}`;
+  const restoreSection = restoreBlock ? `\n\n${restoreBlock}` : "";
+  const newTurnText = `[실시간 현황]\n${snapshot}${restoreSection}${ragBlock}\n\n[새 메시지]\n대장: ${userMessage || "(첨부파일 확인 요청)"}`;
 
   const { attachment, webSearch = false } = options ?? {};
 
