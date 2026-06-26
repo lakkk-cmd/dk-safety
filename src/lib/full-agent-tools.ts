@@ -149,3 +149,176 @@ export async function toolCreateContentDraft(args: {
     return `콘텐츠 초안 등록 실패: ${err instanceof Error ? err.message : String(err)}`;
   }
 }
+
+// ─── 신규 API 래퍼 도구 (에이전트 자율 실행용) ─────────────────────────────────
+
+const BASE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+
+function writeHeaders(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${process.env.AGENT_WRITE_SECRET ?? ""}`,
+  };
+}
+
+function readHeaders(): Record<string, string> {
+  return {
+    Authorization: `Bearer ${process.env.AGENT_READ_SECRET ?? process.env.AGENT_WRITE_SECRET ?? ""}`,
+  };
+}
+
+export async function queryDB(table: string, options: Record<string, unknown> = {}) {
+  const res = await fetch(`${BASE_URL}/api/agent/query`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ table, ...options }),
+  });
+  if (!res.ok) throw new Error(`queryDB error: ${res.status}`);
+  return res.json() as Promise<{ data: unknown[]; count: number }>;
+}
+
+export async function writeDB(
+  table: string,
+  action: "insert" | "update" | "delete",
+  payload: Record<string, unknown>,
+  filters?: Record<string, unknown>,
+) {
+  const res = await fetch(`${BASE_URL}/api/agent/write`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ table, action, payload, filters, boss_confirmed: true }),
+  });
+  if (!res.ok) throw new Error(`writeDB error: ${res.status}`);
+  return res.json() as Promise<{ success: boolean; affected_rows: number }>;
+}
+
+export async function sendKakao(type: "alimtalk" | "channel_post", params: Record<string, unknown>) {
+  const res = await fetch(`${BASE_URL}/api/kakao/send`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ type, ...params, boss_confirmed: true }),
+  });
+  if (!res.ok) throw new Error(`sendKakao error: ${res.status}`);
+  return res.json();
+}
+
+export async function uploadYoutube(videoUrl: string, metadata: Record<string, unknown>) {
+  const res = await fetch(`${BASE_URL}/api/youtube/upload`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ videoUrl, ...metadata, boss_confirmed: true }),
+  });
+  if (!res.ok) throw new Error(`uploadYoutube error: ${res.status}`);
+  return res.json() as Promise<{ success: boolean; videoId: string }>;
+}
+
+export async function getYoutubeAnalytics(videoId?: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (videoId) params.set("videoId", videoId);
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const res = await fetch(`${BASE_URL}/api/youtube/analytics?${params.toString()}`, {
+    headers: readHeaders(),
+  });
+  if (!res.ok) throw new Error(`getYoutubeAnalytics error: ${res.status}`);
+  return res.json();
+}
+
+export async function publishBlog(
+  title: string,
+  content: string,
+  tags: string[],
+  category: string,
+  scheduledAt?: string,
+) {
+  const res = await fetch(`${BASE_URL}/api/blog/publish`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ title, content, tags, category, scheduledAt, boss_confirmed: true }),
+  });
+  if (!res.ok) throw new Error(`publishBlog error: ${res.status}`);
+  return res.json() as Promise<{ success: boolean; postId: string }>;
+}
+
+export async function sendSMS(
+  to: string | string[],
+  text: string,
+  type: "sms" | "lms" = "sms",
+  title?: string,
+) {
+  const res = await fetch(`${BASE_URL}/api/sms/send`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ to, text, type, title }),
+  });
+  if (!res.ok) throw new Error(`sendSMS error: ${res.status}`);
+  return res.json();
+}
+
+export async function getRevenue(type: "daily" | "monthly" | "range", from?: string, to?: string) {
+  const params = new URLSearchParams({ type });
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const res = await fetch(`${BASE_URL}/api/toss/revenue?${params.toString()}`, {
+    headers: readHeaders(),
+  });
+  if (!res.ok) throw new Error(`getRevenue error: ${res.status}`);
+  return res.json() as Promise<{ total: number; count: number; average: number; list: unknown[] }>;
+}
+
+export async function writeGithubFile(path: string, content: string, message: string, branch?: string) {
+  const res = await fetch(`${BASE_URL}/api/github/write`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ path, content, message, branch }),
+  });
+  if (!res.ok) throw new Error(`writeGithubFile error: ${res.status}`);
+  return res.json() as Promise<{ success: boolean; sha: string; url: string }>;
+}
+
+export async function getBlogStats(postId?: string) {
+  const params = postId ? `?postId=${postId}` : "";
+  const res = await fetch(`${BASE_URL}/api/blog/stats${params}`, {
+    headers: readHeaders(),
+  });
+  if (!res.ok) throw new Error(`getBlogStats error: ${res.status}`);
+  return res.json();
+}
+
+export async function getAgentStatus() {
+  const res = await fetch(`${BASE_URL}/api/agent/status`, { headers: readHeaders() });
+  if (!res.ok) throw new Error(`getAgentStatus error: ${res.status}`);
+  return res.json();
+}
+
+export async function toolApplySiteDecision(args: {
+  decisions?: Array<{
+    decision_type: string;
+    target_page: string;
+    key: string;
+    value: string;
+    label?: string;
+  }>;
+  session_id?: string;
+}): Promise<string> {
+  const decisions = args.decisions;
+  const session_id = args.session_id?.trim() || `agent-${Date.now()}`;
+  if (!Array.isArray(decisions) || decisions.length === 0) {
+    return "오류: decisions 배열이 필요합니다.";
+  }
+  try {
+    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+    const res = await fetch(`${baseUrl}/api/chat/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: "dk_admin_auth=ok" },
+      body: JSON.stringify({ session_id, decisions }),
+      cache: "no-store",
+    });
+    const data = (await res.json()) as { success?: boolean; applied_count?: number; applied?: { key: string; new_value: string; target_page: string }[]; error?: string };
+    if (!data.success) return `반영 실패: ${data.error ?? "알 수 없는 오류"}`;
+    const summary = (data.applied ?? []).map((a) => `${a.key}=${a.new_value} (${a.target_page})`).join(", ");
+    return `✅ [반영 완료] ${data.applied_count}건 → dkansim.com에 즉시 적용됐습니다. (${summary})`;
+  } catch (e) {
+    return `반영 실패: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}

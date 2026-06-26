@@ -26,6 +26,7 @@ import {
   toolGithubReadFile,
   toolKnowledgeBaseWrite,
   toolSupabaseQuery,
+  toolApplySiteDecision,
 } from "@/lib/full-agent-tools";
 import { ALLOWED_QUERY_TABLES } from "@/lib/safe-query";
 
@@ -115,6 +116,32 @@ const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: "apply_site_decision",
+    description:
+      "대화에서 확정된 결정을 site_config DB에 즉시 저장해 dkansim.com 전 페이지에 반영한다. 요금 변경(basic_price/full_price/extra_price), CTA/헤드라인 변경(hero_title/hero_subtitle/hero_cta/bottom_cta), 공지(notice_active/notice_text), 시즌 배너(season_banner/season_banner_text)가 확정됐을 때 대장 확인 없이 즉시 사용하라.",
+    input_schema: {
+      type: "object",
+      properties: {
+        decisions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              decision_type: { type: "string", enum: ["pricing", "cta", "notice", "service", "content", "booking"] },
+              target_page: { type: "string", enum: ["main", "service", "booking", "content", "all"] },
+              key: { type: "string", description: "site_config 키. 예: basic_price, hero_title, notice_active" },
+              value: { type: "string", description: "새로운 값" },
+              label: { type: "string", description: "관리자용 설명 (선택)" },
+            },
+            required: ["decision_type", "target_page", "key", "value"],
+          },
+        },
+        session_id: { type: "string", description: "현재 대화 세션 id" },
+      },
+      required: ["decisions"],
+    },
+  },
+  {
     name: "create_content_draft",
     description:
       "유튜브/카카오/블로그 콘텐츠 기획 초안을 승인 대기 큐에 등록한다 (절대 즉시 발행되지 않음 — /contents에서 대장이 검토 후 승인해야 발행됨).",
@@ -151,6 +178,21 @@ ${SUB_AGENT_NAMES_LINE}
 - 최신 정보가 필요하다고 판단되면 묻지 않고 웹검색을 사용하라. 검색 결과 중 사업적으로 중요한 것은 knowledge_base_write로 저장하라.
 - 운영 데이터가 필요하면 supabase_query를 사용하되, 허용되지 않은 테이블이나 고객 개인정보를 요구하는 질문은 COO 필드에게 위임하라.
 - 대장과의 모든 대화 기록을 알고 있다고 가정하고 자연스럽게 이어서 답하라.
+
+## 사이트 자동 반영 규칙
+대화에서 아래 패턴이 확정(승인)되면 즉시 apply_site_decision 도구를 호출해 dkansim.com 전 페이지에 반영하라:
+- "기본 출장점검비 / 기본 요금" 변경 → decision_type=pricing, key=basic_price
+- "풀패키지 / 전체 요금" 변경 → decision_type=pricing, key=full_price
+- "추가작업 요금" 변경 → decision_type=pricing, key=extra_price
+- "메인 헤드라인 / 히어로 제목" 변경 → decision_type=cta, key=hero_title, target_page=main
+- "서브타이틀" 변경 → decision_type=cta, key=hero_subtitle, target_page=main
+- "메인 버튼 / CTA 버튼" 변경 → decision_type=cta, key=hero_cta, target_page=main
+- "하단 버튼" 변경 → decision_type=cta, key=bottom_cta, target_page=main
+- "공지 등록 / 공지 올리기" → decision_type=notice, key=notice_active, value=true + key=notice_text
+- "공지 내리기" → decision_type=notice, key=notice_active, value=false
+- "시즌 배너 / 장마 배너" → decision_type=notice, key=season_banner, value=true + key=season_banner_text
+- "배너 내리기" → decision_type=notice, key=season_banner, value=false
+반영 완료 후 반드시 "✅ [반영 완료] {label} → dkansim.com에 즉시 적용됐습니다" 형식으로 보고하라.
 
 한국어로, 친근하지만 실행 가능한 수준으로 구체적으로 답하라.`;
 
@@ -217,6 +259,8 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
       return toolKnowledgeBaseWrite(input);
     case "create_content_draft":
       return toolCreateContentDraft(input);
+    case "apply_site_decision":
+      return toolApplySiteDecision(input as Parameters<typeof toolApplySiteDecision>[0]);
     default:
       return `알 수 없는 도구: ${name}`;
   }
