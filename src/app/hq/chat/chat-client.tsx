@@ -350,7 +350,7 @@ export default function HqChatClient() {
   const flatAgentIds = Object.values(groups).flat();
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+    <main className="flex min-h-0 flex-1 flex-col gap-2">
       {/* 컴팩트 상단 바 */}
       <div className="flex flex-shrink-0 items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -459,7 +459,7 @@ export default function HqChatClient() {
           onDrop={handleDrop}
         >
           {/* 메시지 목록 */}
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-xl bg-cc-bg p-2 md:p-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain rounded-xl bg-cc-bg p-2 md:p-3">
             {initialLoading ? (
               <p className="text-sm text-slate-500">불러오는 중…</p>
             ) : messages.length === 0 ? (
