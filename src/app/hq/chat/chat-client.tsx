@@ -350,7 +350,7 @@ export default function HqChatClient() {
   const flatAgentIds = Object.values(groups).flat();
 
   return (
-    <main className="flex h-[calc(100dvh-176px)] min-h-0 flex-col gap-2 md:h-[calc(100dvh-200px)]">
+    <main className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
       {/* 컴팩트 상단 바 */}
       <div className="flex flex-shrink-0 items-center justify-between gap-2">
         <div className="flex items-center gap-2">
