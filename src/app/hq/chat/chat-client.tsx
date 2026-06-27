@@ -385,7 +385,7 @@ export default function HqChatClient() {
       </div>
 
       {showHeader ? (
-        <header className="flex-shrink-0 cc-card p-4 md:p-5">
+        <header className="hidden flex-shrink-0 cc-card p-4 md:flex md:p-5">
           <h1 className="text-lg font-black tracking-[-0.02em] text-cc-text md:text-xl">AI 에이전트와 1:1 대화</h1>
           <p className="mt-1 max-w-2xl text-xs text-slate-600 md:text-sm">
             총괄에게 전체 현황을 물어보거나, 경영진 6명 + 콘텐츠팀 3명에게 직접 질문하세요.
@@ -398,7 +398,7 @@ export default function HqChatClient() {
       ) : null}
 
       {/* 모바일: 가로 스크롤 칩 */}
-      <div className="flex flex-shrink-0 gap-1.5 overflow-x-auto pb-1 md:hidden">
+      <div className="flex flex-shrink-0 gap-1 overflow-x-auto pb-1 pt-0 md:hidden">
         {flatAgentIds.map((id) => {
           const agent = agents.find((a) => a.id === id);
           if (!agent) return null;
@@ -409,7 +409,7 @@ export default function HqChatClient() {
               type="button"
               onClick={() => handleSelectAgent(id)}
               disabled={sending}
-              className={`flex-shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 transition disabled:opacity-50 ${
+              className={`flex-shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs transition disabled:opacity-50 ${
                 active
                   ? "border-cc-gold bg-cc-gold/10 text-sm font-black text-cc-navy"
                   : "border-slate-300 bg-white text-xs font-bold text-slate-500"
@@ -454,12 +454,12 @@ export default function HqChatClient() {
 
         {/* 채팅 영역 */}
         <section
-          className="flex min-h-0 flex-1 flex-col cc-card p-3 md:p-4"
+          className="flex min-h-0 flex-1 flex-col cc-card p-2 md:p-4"
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
         >
           {/* 메시지 목록 */}
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-xl bg-cc-bg p-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-xl bg-cc-bg p-2 md:p-3">
             {initialLoading ? (
               <p className="text-sm text-slate-500">불러오는 중…</p>
             ) : messages.length === 0 ? (
@@ -603,7 +603,7 @@ export default function HqChatClient() {
                 }
               }}
               disabled={sending || initialLoading || uploading}
-              rows={2}
+              rows={1}
               placeholder={currentAgent ? `${currentAgent.name}에게 메시지 보내기...` : "메시지 입력..."}
               className="flex-1 resize-none rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-cc-navy focus:outline-none disabled:opacity-50"
             />

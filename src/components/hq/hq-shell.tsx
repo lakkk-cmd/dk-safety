@@ -42,12 +42,12 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const isChat = pathname.startsWith("/chat");
+  const isChat = pathname.includes("/chat");
 
   return (
     <div className={`flex flex-col bg-cc-bg text-cc-text ${isChat ? "h-dvh overflow-hidden" : "min-h-dvh"}`}>
       <header className="flex-shrink-0 bg-cc-navy text-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 md:px-6">
+        <div className="flex w-full items-center justify-between gap-3 px-3 py-3 md:mx-auto md:max-w-5xl md:px-6 md:py-4">
           <BrandLockup />
           <div className="flex items-center gap-3">
             {notificationCount > 0 ? (
@@ -59,7 +59,7 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <SubdomainNav />
-        <nav className="mx-auto max-w-5xl overflow-x-auto px-2 md:px-4">
+        <nav className="w-full overflow-x-auto px-2 md:mx-auto md:max-w-5xl md:px-4">
           <ul className="flex min-w-max gap-1">
             {TABS.map((tab) => {
               const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
@@ -81,7 +81,7 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
           </ul>
         </nav>
       </header>
-      <div className={isChat ? "flex min-h-0 flex-1 flex-col px-2 py-2 md:px-4 md:py-3" : "mx-auto max-w-5xl px-4 py-3 md:px-6 md:py-6"}>{children}</div>
+      <div className={isChat ? "flex min-h-0 flex-1 flex-col p-2 md:p-3" : "mx-auto w-full max-w-5xl px-4 py-3 md:px-6 md:py-6"}>{children}</div>
     </div>
   );
 }
