@@ -41,6 +41,8 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
   const [pdfs, setPdfs] = useState<KnowledgePdf[]>(initialPdfs);
   const [items, setItems] = useState<UploadItem[]>([]);
   const [activeTab, setActiveTab] = useState<string>("all");
+  const ITEMS_PER_PAGE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
   const [dragOver, setDragOver] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -242,6 +244,11 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
   const tabCounts = (key: string) => (key === "all" ? pdfs.length : pdfs.filter((p) => p.category === key).length);
   const filteredPdfs = activeTab === "all" ? pdfs : pdfs.filter((p) => p.category === activeTab);
   const totalChunks = filteredPdfs.reduce((sum, p) => sum + p.chunkCount, 0);
+  const totalPages = Math.ceil(filteredPdfs.length / ITEMS_PER_PAGE);
+  const paginatedPdfs = filteredPdfs.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="space-y-6">
@@ -321,12 +328,15 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
             <button
               key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => { setActiveTab(tab.key); setCurrentPage(1); }}
               className={`shrink-0 rounded-t-lg px-3 py-2 text-sm font-bold transition ${
                 activeTab === tab.key ? "border-b-2 border-dk-navy text-dk-navy" : "text-slate-500 hover:text-slate-700"
               }`}
             >
-              {tab.label} ({tabCounts(tab.key)})
+              {tab.label}
+              <span className="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                {tabCounts(tab.key)}
+              </span>
             </button>
           ))}
         </div>
@@ -335,13 +345,71 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
             총 {filteredPdfs.length}개 파일 / {totalChunks}개 청크 학습됨
           </p>
           {filteredPdfs.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-400">학습된 PDF가 없습니다.</p>
-          ) : (
-            <div className="space-y-2">
-              {filteredPdfs.map((pdf) => (
-                <PdfListRow key={pdf.id} pdf={pdf} onRelearn={() => void relearn(pdf.id)} onDelete={() => void remove(pdf.id)} />
-              ))}
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+              <span className="mb-3 text-4xl">📂</span>
+              <p className="text-sm font-medium">등록된 지식베이스가 없습니다</p>
+              <p className="mt-1 text-xs">위 업로드 영역에서 PDF를 추가해주세요</p>
             </div>
+          ) : (
+            <>
+              <div className="max-h-[600px] overflow-y-auto space-y-2">
+                {paginatedPdfs.map((pdf) => (
+                  <PdfListRow key={pdf.id} pdf={pdf} onRelearn={() => void relearn(pdf.id)} onDelete={() => void remove(pdf.id)} />
+                ))}
+              </div>
+              {totalPages > 1 && (
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                  <span className="text-xs text-slate-500">
+                    전체 {filteredPdfs.length}건 중{" "}
+                    {(currentPage - 1) * ITEMS_PER_PAGE + 1}~
+                    {Math.min(currentPage * ITEMS_PER_PAGE, filteredPdfs.length)}건
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-50"
+                    >
+                      이전
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((page) => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
+                      .reduce<(number | string)[]>((acc, page, idx, arr) => {
+                        if (idx > 0 && (page as number) - (arr[idx - 1] as number) > 1) acc.push("...");
+                        acc.push(page);
+                        return acc;
+                      }, [])
+                      .map((page, idx) =>
+                        page === "..." ? (
+                          <span key={`dots-${idx}`} className="px-1 text-xs text-slate-400">...</span>
+                        ) : (
+                          <button
+                            key={page}
+                            type="button"
+                            onClick={() => setCurrentPage(page as number)}
+                            className={`min-h-8 min-w-8 rounded-lg border text-xs font-bold transition ${
+                              page === currentPage
+                                ? "border-dk-navy bg-dk-navy text-white"
+                                : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        )
+                      )}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-30 hover:bg-slate-50"
+                    >
+                      다음
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
