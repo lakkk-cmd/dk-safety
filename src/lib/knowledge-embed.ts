@@ -1,11 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 
-// ── Supabase 클라이언트 (서버 전용) ──────────────────────────────────────
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 // PDF 텍스트 추출은 /api/knowledge/upload에서 knowledge_base/knowledge_chunks 양쪽이
 // 공유하도록 한 번만 수행한다(@/lib/pdf-parse-loader의 loadPDFParse 사용) — 이 파일에는
 // 청크 분할/Voyage 임베딩/저장만 남긴다.
@@ -84,6 +78,11 @@ export async function saveChunks(
   if (chunks.length !== embeddings.length) {
     throw new Error(`청크 수(${chunks.length})와 임베딩 수(${embeddings.length})가 다릅니다.`);
   }
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
   // 기존 동일 파일 청크 삭제 (중복 방지)
   const { error: deleteError } = await supabase
