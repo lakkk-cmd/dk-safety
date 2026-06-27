@@ -43,8 +43,8 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-cc-bg text-cc-text">
-      <header className="bg-cc-navy text-white">
+    <div className="flex min-h-dvh flex-col bg-cc-bg text-cc-text">
+      <header className="flex-shrink-0 bg-cc-navy text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 md:px-6">
           <BrandLockup />
           <div className="flex items-center gap-3">
@@ -79,7 +79,7 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
           </ul>
         </nav>
       </header>
-      <div className="mx-auto max-w-5xl px-4 py-6 md:px-6">{children}</div>
+      <div className="mx-auto max-w-5xl px-4 py-3 md:px-6 md:py-6">{children}</div>
     </div>
   );
 }
