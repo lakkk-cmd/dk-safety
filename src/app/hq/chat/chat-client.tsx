@@ -11,7 +11,7 @@ type ChatMessage = {
   attachment_url?: string | null;
 };
 type PdfLearning = { chunksSaved: number; error?: string };
-type Attachment = { url: string; name: string; mediaType: string; previewUrl?: string; pdfLearning?: PdfLearning };
+type Attachment = { url?: string; base64?: string; name: string; mediaType: string; previewUrl?: string; pdfLearning?: PdfLearning };
 
 const AGENT_ICONS: Record<string, string> = {
   general: "🧭",
@@ -196,37 +196,61 @@ export default function HqChatClient() {
   );
 
   // 파일 업로드 공통 처리
-  const uploadFile = useCallback(async (file: File) => {
-    setUploading(true);
+  const uploadFile = useCallback((file: File) => {
     setShowMenu(false);
     setError(null);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/admin/chat/upload", { method: "POST", body: form });
-      const data = (await res.json()) as { url?: string; mediaType?: string; message?: string; pdfLearning?: PdfLearning };
-      if (!res.ok) { setError(data.message ?? "업로드 실패"); return; }
-      const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
-      setAttachment({
-        url: data.url!,
-        name: file.name,
-        mediaType: data.mediaType ?? file.type,
-        previewUrl,
-        pdfLearning: data.pdfLearning,
-      });
-    } catch {
-      setError("파일 업로드에 실패했습니다.");
-    } finally {
-      setUploading(false);
+
+    if (file.type.startsWith("image/")) {
+      // 이미지: 클라이언트 base64 변환 (Supabase 업로드 불필요)
+      if (file.size > 5 * 1024 * 1024) {
+        setError("이미지는 5MB 이하만 첨부 가능합니다.");
+        return;
+      }
+      const previewUrl = URL.createObjectURL(file);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        const base64 = dataUrl.split(",")[1];
+        setAttachment({ base64, name: file.name, mediaType: file.type, previewUrl });
+      };
+      reader.readAsDataURL(file);
+      return;
     }
+
+    // PDF 등 비이미지: Supabase 업로드 (PDF 학습 기능 유지)
+    void (async () => {
+      setUploading(true);
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch("/api/admin/chat/upload", { method: "POST", body: form });
+        const data = (await res.json()) as { url?: string; mediaType?: string; message?: string; pdfLearning?: PdfLearning };
+        if (!res.ok) { setError(data.message ?? "업로드 실패"); return; }
+        setAttachment({ url: data.url!, name: file.name, mediaType: data.mediaType ?? file.type, pdfLearning: data.pdfLearning });
+      } catch {
+        setError("파일 업로드에 실패했습니다.");
+      } finally {
+        setUploading(false);
+      }
+    })();
   }, []);
 
   // 파일 선택 핸들러
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (file) void uploadFile(file);
+      if (file) uploadFile(file);
       e.target.value = "";
+    },
+    [uploadFile],
+  );
+
+  // 드래그앤드롭 핸들러
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files?.[0];
+      if (file) uploadFile(file);
     },
     [uploadFile],
   );
@@ -253,7 +277,7 @@ export default function HqChatClient() {
         canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("캡처 실패"))), "image/png"),
       );
       const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
-      await uploadFile(file);
+      uploadFile(file);
     } catch (err) {
       if ((err as Error).name !== "NotAllowedError") {
         setError("스크린샷 캡처 실패. HTTPS 환경에서만 동작합니다.");
@@ -287,6 +311,7 @@ export default function HqChatClient() {
           agentId: selectedAgent,
           message: text,
           attachmentUrl: sent?.url,
+          attachmentBase64: sent?.base64,
           attachmentType: sent?.mediaType,
           webSearch: webSearchOn,
         }),
@@ -428,7 +453,11 @@ export default function HqChatClient() {
         </aside>
 
         {/* 채팅 영역 */}
-        <section className="flex min-h-0 flex-1 flex-col cc-card p-3 md:p-4">
+        <section
+          className="flex min-h-0 flex-1 flex-col cc-card p-3 md:p-4"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+        >
           {/* 메시지 목록 */}
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-xl bg-cc-bg p-3">
             {initialLoading ? (

@@ -75,7 +75,9 @@ const CHAT_SYSTEM_PROMPTS: Record<string, string> = Object.fromEntries(
 
 export type ChatMessage = { role: "user" | "assistant"; content: string; created_at: string; attachment_url?: string | null };
 
-export type ChatAttachment = { url: string; mediaType: string };
+export type ChatAttachment =
+  | { url: string; mediaType: string }
+  | { base64: string; mediaType: string };
 
 /** 사령부 전체 현황(예약/콘텐츠 승인대기/로드맵/시장 인텔리전스/성과 학습)을 텍스트 블록으로 요약 — 9개 에이전트가 공유 */
 export async function buildBusinessSnapshot(): Promise<string> {
@@ -218,9 +220,14 @@ export async function chatWithAgentPlus(
     const contextText = transcript ? `[이전 대화]\n${transcript}\n\n${newTurnText}` : newTurnText;
     const blocks: RichContentBlock[] = [];
     if (attachment.mediaType.startsWith("image/")) {
-      blocks.push({ type: "image", source: { type: "url", url: attachment.url } });
+      if ("base64" in attachment) {
+        blocks.push({ type: "image", source: { type: "base64", media_type: attachment.mediaType, data: attachment.base64 } });
+      } else {
+        blocks.push({ type: "image", source: { type: "url", url: attachment.url } });
+      }
     } else {
-      blocks.push({ type: "document", source: { type: "url", url: attachment.url } });
+      const url = "url" in attachment ? attachment.url : "";
+      blocks.push({ type: "document", source: { type: "url", url } });
     }
     blocks.push({ type: "text", text: contextText });
     reply = await callClaudeRich({ systemPrompt, userContent: blocks, maxTokens: 1024, timeoutMs: 60_000, webSearch });
@@ -242,7 +249,8 @@ export async function chatWithAgentPlus(
         .join("\n") || "응답 없음";
   }
 
-  await appendChatMessage(agentId, "user", userMessage || "(첨부파일)", attachment?.url);
+  const attUrl = attachment && "url" in attachment ? attachment.url : undefined;
+  await appendChatMessage(agentId, "user", userMessage || "(이미지 첨부)", attUrl);
   await appendChatMessage(agentId, "assistant", reply);
 
   return reply;

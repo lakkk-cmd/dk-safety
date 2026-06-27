@@ -47,26 +47,38 @@ export async function POST(request: Request) {
       agentId?: string;
       message?: string;
       attachmentUrl?: string;
+      attachmentBase64?: string;
       attachmentType?: string;
       webSearch?: boolean;
     };
     const agentId = body.agentId?.trim();
     const message = body.message?.trim() ?? "";
     const attachmentUrl = body.attachmentUrl?.trim();
+    const attachmentBase64 = body.attachmentBase64?.trim();
     if (!agentId || !CHAT_AGENTS.some((a) => a.id === agentId)) {
       return NextResponse.json({ message: `알 수 없는 에이전트: ${agentId}` }, { status: 400 });
     }
-    if (!message && !attachmentUrl) {
+    if (!message && !attachmentUrl && !attachmentBase64) {
       return NextResponse.json({ message: "message 또는 첨부파일이 필요합니다." }, { status: 400 });
     }
 
+    const attachment = attachmentBase64
+      ? { base64: attachmentBase64, mediaType: body.attachmentType ?? "image/jpeg" }
+      : attachmentUrl
+      ? { url: attachmentUrl, mediaType: body.attachmentType ?? "application/octet-stream" }
+      : undefined;
+
     if (agentId === "general") {
+      if (attachment) {
+        const reply = await chatWithAgentPlus("general", message, { attachment, webSearch: body.webSearch ?? false });
+        return NextResponse.json({ reply });
+      }
       const result = await chatWithFullAgent(message);
       return NextResponse.json({ reply: result.reply });
     }
 
     const reply = await chatWithAgentPlus(agentId, message, {
-      attachment: attachmentUrl ? { url: attachmentUrl, mediaType: body.attachmentType ?? "application/octet-stream" } : undefined,
+      attachment,
       webSearch: body.webSearch ?? false,
     });
     return NextResponse.json({ reply });

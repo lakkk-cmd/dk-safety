@@ -289,7 +289,7 @@ export async function callClaudeCustom(
 
 export type RichContentBlock =
   | { type: "text"; text: string }
-  | { type: "image"; source: { type: "url"; url: string } }
+  | { type: "image"; source: { type: "url"; url: string } | { type: "base64"; media_type: string; data: string } }
   | { type: "document"; source: { type: "url"; url: string } };
 
 /** 이미지/문서 첨부 또는 웹 검색 도구가 필요한 채팅 호출 */
@@ -742,3 +742,137 @@ JSON만 출력:
 
   return callClaude("chief", prompt);
 }
+
+// ─── 풀 에이전트 도구 스키마 정의 (Claude API tool_use 형식) ─────────────────
+
+export type AgentToolDefinition = {
+  name: string;
+  description: string;
+  input_schema: {
+    type: "object";
+    properties: Record<string, { type: string; description: string; enum?: string[] }>;
+    required: string[];
+  };
+};
+
+export const FULL_AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
+  {
+    name: "query_database",
+    description: "Supabase DB 테이블을 조회합니다. 예약, 콘텐츠 큐, 에이전트 로그 등 읽기 가능.",
+    input_schema: {
+      type: "object",
+      properties: {
+        table: { type: "string", description: "조회할 테이블명 (허용 목록에 있는 테이블만 가능)" },
+        limit: { type: "string", description: "최대 반환 행 수 (기본 20, 최대 100)" },
+        filter_column: { type: "string", description: "필터 컬럼명 (선택)" },
+        filter_value: { type: "string", description: "필터 값 (선택)" },
+        order_by: { type: "string", description: "정렬 컬럼명 (선택)" },
+      },
+      required: ["table"],
+    },
+  },
+  {
+    name: "write_database",
+    description: "Supabase DB에 INSERT / UPDATE / DELETE를 수행합니다. PROTECTED_TABLES(payments, customers, reservations)에는 DELETE 불가.",
+    input_schema: {
+      type: "object",
+      properties: {
+        table: { type: "string", description: "대상 테이블명" },
+        action: { type: "string", description: "수행할 작업", enum: ["insert", "update", "delete"] },
+        payload: { type: "string", description: "JSON 형식의 삽입/수정 데이터" },
+        filters: { type: "string", description: "UPDATE/DELETE 조건 (JSON 형식, 선택)" },
+      },
+      required: ["table", "action", "payload"],
+    },
+  },
+  {
+    name: "send_kakao",
+    description: "카카오 알림톡 또는 채널 포스트를 발송합니다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        type: { type: "string", description: "발송 유형", enum: ["alimtalk", "channel_post"] },
+        to: { type: "string", description: "수신자 전화번호 (alimtalk 전용)" },
+        template_id: { type: "string", description: "알림톡 템플릿 ID" },
+        variables: { type: "string", description: "템플릿 변수 (JSON 형식)" },
+        text: { type: "string", description: "채널 포스트 본문 텍스트" },
+      },
+      required: ["type"],
+    },
+  },
+  {
+    name: "send_sms",
+    description: "SMS 또는 LMS를 발송합니다. 10건 초과 시 boss_confirmed 필요, 100건 초과 불가.",
+    input_schema: {
+      type: "object",
+      properties: {
+        to: { type: "string", description: "수신 전화번호 (단일) 또는 JSON 배열 (복수)" },
+        text: { type: "string", description: "발송할 메시지 본문" },
+        type: { type: "string", description: "발송 유형", enum: ["sms", "lms"] },
+        title: { type: "string", description: "LMS 제목 (type=lms일 때만 사용)" },
+      },
+      required: ["to", "text"],
+    },
+  },
+  {
+    name: "get_youtube_analytics",
+    description: "YouTube 영상 또는 채널 전체 통계를 조회합니다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        video_id: { type: "string", description: "조회할 영상 ID (없으면 채널 전체 집계)" },
+        from: { type: "string", description: "시작일 (YYYY-MM-DD, 채널 조회 시 사용)" },
+        to: { type: "string", description: "종료일 (YYYY-MM-DD, 채널 조회 시 사용)" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "publish_blog",
+    description: "블로그 포스트를 발행합니다. 제목, 본문, 태그, 카테고리가 필요합니다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "포스트 제목" },
+        content: { type: "string", description: "포스트 본문 (Markdown)" },
+        tags: { type: "string", description: "태그 목록 (JSON 배열 형식)" },
+        category: { type: "string", description: "카테고리 (예: 전기안전, 생활팁)" },
+        scheduled_at: { type: "string", description: "예약 발행 일시 (ISO 8601, 선택)" },
+      },
+      required: ["title", "content", "tags", "category"],
+    },
+  },
+  {
+    name: "get_revenue",
+    description: "Toss Payments 매출 데이터를 조회합니다. 고객 PII는 자동 마스킹됩니다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        type: { type: "string", description: "조회 유형", enum: ["daily", "monthly", "range"] },
+        from: { type: "string", description: "시작일 (YYYY-MM-DD, range 유형 필수)" },
+        to: { type: "string", description: "종료일 (YYYY-MM-DD, range 유형 필수)" },
+      },
+      required: ["type"],
+    },
+  },
+  {
+    name: "get_blog_stats",
+    description: "블로그 포스트 통계(조회수 등)를 조회합니다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        post_id: { type: "string", description: "특정 포스트 ID (없으면 전체 집계)" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_agent_status",
+    description: "시스템 실시간 현황(오늘 예약수, 콘텐츠 승인 대기, 이번달 매출, 파이프라인 상태)을 조회합니다.",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+];
