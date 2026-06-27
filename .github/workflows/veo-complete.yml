@@ -1,5 +1,7 @@
 name: Veo Scene Completion
 
+# NOTE: Veo API 직접 호출 비용 문제로 스케줄 비활성화 (2026-06-26)
+# Google Flow 수동 방식으로 전환. 수동 실행(workflow_dispatch)은 유지.
 on:
   workflow_dispatch:
     inputs:
@@ -7,8 +9,8 @@ on:
         description: "content_youtube_queue.id (빈 값이면 전체 veo_generating 처리)"
         required: false
         type: string
-  schedule:
-    - cron: "*/30 * * * *" # 30분마다 폴백 체크
+  # schedule:
+  #   - cron: "*/30 * * * *" # 30분마다 폴백 체크
 
 jobs:
   complete-veo:
