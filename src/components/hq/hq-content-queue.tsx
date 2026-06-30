@@ -99,8 +99,8 @@ export default function HqContentQueue() {
       setYoutube(pending);
       setYoutubeMap(new Map(pending.map((i) => [i.id, i])));
       setKakao((data.kakaoQueue ?? []).filter((i) => APPROVAL_STATUSES.includes(i.status)));
-      // 블로그는 draft = 기획중(AI 초안 전), pending_approval/pending = 승인대기
-      setBlog((data.blogPosts ?? []).filter((i) => ["pending_approval", "pending"].includes(i.status)));
+      // 블로그: draft(승인대기) | pending_approval(최종승인대기) | pending 모두 포함
+      setBlog((data.blogPosts ?? []).filter((i) => APPROVAL_STATUSES.includes(i.status)));
     } catch {
       setMessage("콘텐츠 현황을 불러오지 못했습니다.");
     } finally {

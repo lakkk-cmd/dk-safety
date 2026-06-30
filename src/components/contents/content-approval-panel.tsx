@@ -627,7 +627,7 @@ export default function ContentApprovalPanel() {
                 <p className="mt-2 text-xs text-slate-400">생성: {formatDate(item.created_at)}</p>
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {["pending_approval", "pending"].includes(item.status) ? (
+                  {["draft", "pending_approval", "pending"].includes(item.status) ? (
                     <>
                       <button
                         type="button"

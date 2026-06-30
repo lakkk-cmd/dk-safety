@@ -279,12 +279,12 @@ export async function runContentApprovalNotify(): Promise<ContentApprovalNotifyR
 export async function getPendingApprovalCounts(): Promise<{ youtube: number; kakao: number; blog: number }> {
   const supabase = requireAgentSupabase();
   const APPROVAL_STATUSES = ["draft", "pending", "pending_approval"];
-  const [ytRes, kkRes, blogPending] = await Promise.all([
+  const [ytRes, kkRes, blogRes] = await Promise.all([
     supabase.from("content_youtube_queue").select("id", { count: "exact", head: true }).in("status", APPROVAL_STATUSES),
     supabase.from("content_kakao_queue").select("id", { count: "exact", head: true }).in("status", APPROVAL_STATUSES),
-    countBlogPostsByStatus("pending_approval"),
+    supabase.from("blog_posts").select("id", { count: "exact", head: true }).in("status", APPROVAL_STATUSES),
   ]);
-  return { youtube: ytRes.count ?? 0, kakao: kkRes.count ?? 0, blog: blogPending };
+  return { youtube: ytRes.count ?? 0, kakao: kkRes.count ?? 0, blog: blogRes.count ?? 0 };
 }
 
 export async function getContentWeeklyStats(): Promise<{
