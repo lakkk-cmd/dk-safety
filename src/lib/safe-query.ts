@@ -19,6 +19,10 @@ export const ALLOWED_QUERY_TABLES = [
   "gemini_usage_log",
   "agent_memory",
   "system_health_reports",
+  // 대화 저장/복원
+  "chat_sessions",
+  "chat_messages",
+  "key_decisions",
 ] as const;
 
 export type AllowedQueryTable = (typeof ALLOWED_QUERY_TABLES)[number];

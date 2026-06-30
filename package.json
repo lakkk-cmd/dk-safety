@@ -29,8 +29,10 @@
     "harness:all": "npm run harness:api && npm run harness:db && npm run harness:domains"
   },
   "dependencies": {
+    "@mendable/firecrawl-js": "^4.28.3",
     "@napi-rs/canvas": "0.1.80",
     "@supabase/supabase-js": "^2.104.1",
+    "@tavily/core": "^0.7.6",
     "@types/pdf-parse": "^1.1.5",
     "lucide-react": "^1.14.0",
     "next": "^15.0.0",

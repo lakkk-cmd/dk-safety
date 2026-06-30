@@ -39,6 +39,10 @@
     {
       "path": "/api/cron/weekly-system-check",
       "schedule": "30 22 * * 0"
+    },
+    {
+      "path": "/api/agent/cron",
+      "schedule": "0 23 * * *"
     }
   ]
 }

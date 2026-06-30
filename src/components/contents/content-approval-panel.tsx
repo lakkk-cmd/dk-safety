@@ -15,7 +15,7 @@ type YoutubeQueueItem = {
   competitor_notes: string | null;
   script: string | null;
   thumbnail_concept: string | null;
-  status: "planning" | "pending_approval" | "approved" | "rejected" | "uploaded" | "producing" | "veo_generating" | "assets_ready";
+  status: "planning" | "draft" | "pending" | "pending_approval" | "approved" | "rejected" | "uploaded" | "producing" | "veo_generating" | "assets_ready";
   youtube_video_id: string | null;
   scenes: VideoScene[];
   video_asset_url: string | null;
@@ -33,7 +33,7 @@ type KakaoQueueItem = {
   id: string;
   title: string;
   content: string;
-  status: "planning" | "pending_approval" | "approved" | "rejected" | "published";
+  status: "planning" | "draft" | "pending" | "pending_approval" | "approved" | "rejected" | "published";
   reject_reason: string | null;
   created_at: string;
   updated_at: string;
@@ -73,7 +73,8 @@ type OverviewResponse = {
 
 const STATUS_LABEL: Record<string, string> = {
   planning: "기획 중",
-  draft: "초안",
+  draft: "승인대기",
+  pending: "최종승인대기",
   pending_approval: "승인 대기",
   approved: "승인됨",
   producing: "영상 제작 중",
@@ -86,7 +87,8 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_BADGE: Record<string, string> = {
   planning: "bg-slate-100 text-slate-600",
-  draft: "bg-slate-100 text-slate-600",
+  draft: "bg-amber-100 text-amber-800",
+  pending: "bg-orange-100 text-orange-800",
   pending_approval: "bg-amber-100 text-amber-800",
   approved: "bg-blue-100 text-blue-800",
   producing: "bg-amber-100 text-amber-800",
@@ -474,7 +476,7 @@ export default function ContentApprovalPanel() {
                 ) : null}
                 <p className="mt-2 text-xs text-slate-400">생성: {formatDate(item.created_at)}</p>
 
-                {item.status === "pending_approval" ? (
+                {["draft", "pending", "pending_approval"].includes(item.status) ? (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <input
                       type="file"
@@ -558,7 +560,7 @@ export default function ContentApprovalPanel() {
                 ) : null}
                 <p className="mt-2 text-xs text-slate-400">생성: {formatDate(item.created_at)}</p>
 
-                {item.status === "pending_approval" ? (
+                {["draft", "pending", "pending_approval"].includes(item.status) ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -625,7 +627,7 @@ export default function ContentApprovalPanel() {
                 <p className="mt-2 text-xs text-slate-400">생성: {formatDate(item.created_at)}</p>
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {item.status === "pending_approval" ? (
+                  {["pending_approval", "pending"].includes(item.status) ? (
                     <>
                       <button
                         type="button"

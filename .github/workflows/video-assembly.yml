@@ -1,9 +1,11 @@
 name: Video Assembly Pipeline
 
+# NOTE: Veo API 직접 호출 보류 결정으로 스케줄 비활성화 (2026-06-29)
+# Google Flow 수동 방식으로 전환. 수동 실행(workflow_dispatch)은 유지.
 on:
-  schedule:
-    - cron: "0 22 * * *" # 매일 07:00 KST
   workflow_dispatch:
+  # schedule:
+  #   - cron: "0 22 * * *" # 매일 07:00 KST
 
 jobs:
   assemble:

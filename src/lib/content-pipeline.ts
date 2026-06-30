@@ -178,7 +178,7 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
         .update({
           script: draft.script,
           thumbnail_concept: `${titleCandidatesBlock}${draft.thumbnailConcept}`,
-          status: "pending_approval",
+          status: "draft",
           updated_at: new Date().toISOString(),
         })
         .eq("id", ytRow.id);
@@ -197,7 +197,7 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
       const draft = await draftKakaoPost(kkRow.title, kkRow.content ?? "", weekStatus);
       await supabase
         .from("content_kakao_queue")
-        .update({ content: draft, status: "pending_approval", updated_at: new Date().toISOString() })
+        .update({ content: draft, status: "draft", updated_at: new Date().toISOString() })
         .eq("id", kkRow.id);
       kakaoUpdated = true;
     }
@@ -278,9 +278,10 @@ export async function runContentApprovalNotify(): Promise<ContentApprovalNotifyR
 
 export async function getPendingApprovalCounts(): Promise<{ youtube: number; kakao: number; blog: number }> {
   const supabase = requireAgentSupabase();
+  const APPROVAL_STATUSES = ["draft", "pending", "pending_approval"];
   const [ytRes, kkRes, blogPending] = await Promise.all([
-    supabase.from("content_youtube_queue").select("id", { count: "exact", head: true }).eq("status", "pending_approval"),
-    supabase.from("content_kakao_queue").select("id", { count: "exact", head: true }).eq("status", "pending_approval"),
+    supabase.from("content_youtube_queue").select("id", { count: "exact", head: true }).in("status", APPROVAL_STATUSES),
+    supabase.from("content_kakao_queue").select("id", { count: "exact", head: true }).in("status", APPROVAL_STATUSES),
     countBlogPostsByStatus("pending_approval"),
   ]);
   return { youtube: ytRes.count ?? 0, kakao: kkRes.count ?? 0, blog: blogPending };

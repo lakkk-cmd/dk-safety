@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // pdf-parse(pdfjs-dist)는 webpack 번들링 시 Object.defineProperty 오류가 나므로 실제 Node 모듈로 둔다.
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas"],
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas", "@mendable/firecrawl-js"],
   // pdfjs-dist의 워커(.mjs)/canvas 네이티브 바이너리는 동적 경로로 로드되어 Vercel의 파일 트레이싱이
   // 자동으로 포함시키지 못한다 — pdf-parse를 쓰는 라우트에 한해 명시적으로 포함시킨다.
   outputFileTracingIncludes: {

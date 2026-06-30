@@ -94,11 +94,13 @@ export default function HqContentQueue() {
         setMessage(data.message ?? "콘텐츠 현황을 불러오지 못했습니다.");
         return;
       }
-      const pending = (data.youtubeQueue ?? []).filter((i) => i.status === "pending_approval");
+      const APPROVAL_STATUSES = ["draft", "pending", "pending_approval"];
+      const pending = (data.youtubeQueue ?? []).filter((i) => APPROVAL_STATUSES.includes(i.status));
       setYoutube(pending);
       setYoutubeMap(new Map(pending.map((i) => [i.id, i])));
-      setKakao((data.kakaoQueue ?? []).filter((i) => i.status === "pending_approval"));
-      setBlog((data.blogPosts ?? []).filter((i) => i.status === "pending_approval"));
+      setKakao((data.kakaoQueue ?? []).filter((i) => APPROVAL_STATUSES.includes(i.status)));
+      // 블로그는 draft = 기획중(AI 초안 전), pending_approval/pending = 승인대기
+      setBlog((data.blogPosts ?? []).filter((i) => ["pending_approval", "pending"].includes(i.status)));
     } catch {
       setMessage("콘텐츠 현황을 불러오지 못했습니다.");
     } finally {

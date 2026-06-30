@@ -1,5 +1,6 @@
 import AdminPageHeader from "@/components/admin/admin-page-header";
 import KnowledgeUploadCenter from "@/components/admin/knowledge-upload-center";
+import KnowledgeLearnDashboard from "@/components/admin/knowledge-learn-dashboard";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { pgListKnowledgePdfs } from "@/lib/knowledge-pdfs";
 
@@ -20,7 +21,10 @@ export default async function AdminKnowledgePage() {
           Supabase가 설정되지 않아 지식베이스를 사용할 수 없습니다.
         </p>
       ) : (
-        <KnowledgeUploadCenter initialPdfs={pdfs} />
+        <div className="space-y-10">
+          <KnowledgeLearnDashboard />
+          <KnowledgeUploadCenter initialPdfs={pdfs} />
+        </div>
       )}
     </main>
   );
