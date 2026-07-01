@@ -5,6 +5,7 @@ import { classifyPdfCategory, chunkTextWithOverlap, embedAndSaveChunks } from '@
 import { downloadKnowledgePdf, moveKnowledgePdf } from '@/lib/knowledge-pdf-storage';
 import { pgCreateKnowledgePdf, pgUpdateKnowledgePdf } from '@/lib/knowledge-pdfs';
 import { loadPDFParse } from '@/lib/pdf-parse-loader';
+import { GEMINI_ENABLED, validateKnowledgeChunk } from '@/lib/cross-validate';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -111,6 +112,19 @@ export async function POST(req: NextRequest) {
       processedAt: kbSaved > 0 ? new Date().toISOString() : undefined,
       errorMessage: kbError
     });
+
+    // 샘플 청크 3개 비동기 교차검증 (응답 지연 없음)
+    if (GEMINI_ENABLED) {
+      const sampleSize = 1000;
+      const sampleChunks = Array.from({ length: 3 }, (_, i) =>
+        text.slice(i * sampleSize, (i + 1) * sampleSize).trim()
+      ).filter((c) => c.length > 100);
+      void Promise.all(
+        sampleChunks.map((c) =>
+          validateKnowledgeChunk({ sourceFile: fileName, content: c, category: classification.category }).catch(() => {})
+        )
+      );
+    }
 
     return NextResponse.json({
       success: true,

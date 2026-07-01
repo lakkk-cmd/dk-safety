@@ -5,6 +5,7 @@ import {
   countBlogPostsByStatus,
   createBlogPost,
 } from "@/lib/blog-store";
+import { GEMINI_ENABLED, validateContent } from "@/lib/cross-validate";
 import {
   CONTENT_CATEGORIES,
   draftBlogPost,
@@ -173,12 +174,25 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
       const titleCandidatesBlock = draft.titleCandidates.length
         ? `[제목 후보]\n${draft.titleCandidates.map((t, i) => `${i + 1}. ${t}`).join("\n")}\n\n`
         : "";
+      let ytStatus: "draft" | "review_required" = "draft";
+      if (GEMINI_ENABLED) {
+        try {
+          const validation = await validateContent({
+            title: ytRow.title,
+            content: draft.script,
+            contentType: "youtube",
+          });
+          if (!validation.passed) ytStatus = "review_required";
+        } catch (err) {
+          await logAgentEvent("warn", "content-draft", `YouTube 교차검증 실패 (건너뜀): ${errMessage(err)}`);
+        }
+      }
       await supabase
         .from("content_youtube_queue")
         .update({
           script: draft.script,
           thumbnail_concept: `${titleCandidatesBlock}${draft.thumbnailConcept}`,
-          status: "draft",
+          status: ytStatus,
           updated_at: new Date().toISOString(),
         })
         .eq("id", ytRow.id);
@@ -195,9 +209,18 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
 
     if (kkRow) {
       const draft = await draftKakaoPost(kkRow.title, kkRow.content ?? "", weekStatus);
+      let kkStatus: "draft" | "review_required" = "draft";
+      if (GEMINI_ENABLED) {
+        try {
+          const validation = await validateContent({ title: kkRow.title, content: draft, contentType: "kakao" });
+          if (!validation.passed) kkStatus = "review_required";
+        } catch (err) {
+          await logAgentEvent("warn", "content-draft", `Kakao 교차검증 실패 (건너뜀): ${errMessage(err)}`);
+        }
+      }
       await supabase
         .from("content_kakao_queue")
-        .update({ content: draft, status: "draft", updated_at: new Date().toISOString() })
+        .update({ content: draft, status: kkStatus, updated_at: new Date().toISOString() })
         .eq("id", kkRow.id);
       kakaoUpdated = true;
     }
@@ -211,13 +234,27 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
 
     for (const row of blogRows ?? []) {
       const draft = await draftBlogPost(row.title, row.content ?? "", row.keywords ?? [], weekStatus);
+      let blogStatus: "pending_approval" | "review_required" = "pending_approval";
+      if (GEMINI_ENABLED) {
+        try {
+          const validation = await validateContent({
+            title: row.title,
+            content: draft.content,
+            contentType: "blog",
+            keywords: row.keywords as string[] | undefined,
+          });
+          if (!validation.passed) blogStatus = "review_required";
+        } catch (err) {
+          await logAgentEvent("warn", "content-draft", `Blog 교차검증 실패 (건너뜀): ${errMessage(err)}`);
+        }
+      }
       await supabase
         .from("blog_posts")
         .update({
           content: draft.content,
           excerpt: draft.excerpt,
           meta_description: draft.metaDescription,
-          status: "pending_approval",
+          status: blogStatus,
           updated_at: new Date().toISOString(),
         })
         .eq("id", row.id);
@@ -278,7 +315,7 @@ export async function runContentApprovalNotify(): Promise<ContentApprovalNotifyR
 
 export async function getPendingApprovalCounts(): Promise<{ youtube: number; kakao: number; blog: number }> {
   const supabase = requireAgentSupabase();
-  const APPROVAL_STATUSES = ["draft", "pending", "pending_approval"];
+  const APPROVAL_STATUSES = ["draft", "pending", "pending_approval", "review_required"];
   const [ytRes, kkRes, blogRes] = await Promise.all([
     supabase.from("content_youtube_queue").select("id", { count: "exact", head: true }).in("status", APPROVAL_STATUSES),
     supabase.from("content_kakao_queue").select("id", { count: "exact", head: true }).in("status", APPROVAL_STATUSES),

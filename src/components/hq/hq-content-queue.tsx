@@ -94,7 +94,7 @@ export default function HqContentQueue() {
         setMessage(data.message ?? "콘텐츠 현황을 불러오지 못했습니다.");
         return;
       }
-      const APPROVAL_STATUSES = ["draft", "pending", "pending_approval"];
+      const APPROVAL_STATUSES = ["draft", "pending", "pending_approval", "review_required"];
       const pending = (data.youtubeQueue ?? []).filter((i) => APPROVAL_STATUSES.includes(i.status));
       setYoutube(pending);
       setYoutubeMap(new Map(pending.map((i) => [i.id, i])));

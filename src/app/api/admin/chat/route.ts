@@ -3,6 +3,7 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { CHAT_AGENT_GROUPS, CHAT_AGENTS, chatWithAgentPlus, loadChatHistory } from "@/lib/agent-chat";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { chatWithFullAgent } from "@/lib/full-agent";
+import { GEMINI_ENABLED, validateRAGAnswer } from "@/lib/cross-validate";
 
 export const maxDuration = 280;
 
@@ -81,6 +82,12 @@ export async function POST(request: Request) {
       attachment,
       webSearch: body.webSearch ?? false,
     });
+
+    // 비동기 교차검증 — 응답 지연 없음
+    if (GEMINI_ENABLED && message) {
+      void validateRAGAnswer({ question: message, answer: reply, chunks: [] }).catch(() => {});
+    }
+
     return NextResponse.json({ reply });
   } catch (error) {
     return NextResponse.json(
