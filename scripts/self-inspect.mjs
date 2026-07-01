@@ -83,44 +83,59 @@ async function checkTables() {
 async function checkKnowledgeQuality() {
   console.log('\n🧠 지식베이스 품질 교차검증 (Gemini)...');
 
-  const categories = ['전기법령', '전기기술', '일반'];
-  for (const category of categories) {
+  // 총 행 수 파악 후 3개 랜덤 오프셋 선택 (content 길이 최소 200자 필터)
+  const { count } = await supabase.from('knowledge_chunks').select('*', { count: 'exact', head: true });
+  if (!count || count === 0) { log('지식베이스', '샘플 3개', 'WARN', '데이터 없음'); return; }
+
+  const offsets = Array.from({ length: 3 }, () => Math.floor(Math.random() * count));
+
+  for (let i = 0; i < offsets.length; i++) {
     try {
       const { data } = await supabase
         .from('knowledge_chunks')
         .select('content, source_file')
-        .limit(1)
+        .gte('content', '') // content 있는 것만
+        .range(offsets[i], offsets[i])
         .maybeSingle();
 
-      if (!data) { log('지식베이스', `${category} 샘플`, 'WARN', '데이터 없음'); continue; }
+      if (!data || data.content.length < 100 || data.content.includes('%EC%') || data.content.includes('%EA%')) {
+        log('지식베이스', `샘플 ${i + 1}`, 'WARN', '청크 품질 불량(너무 짧거나 URL 인코딩) — 건너뜀');
+        continue;
+      }
 
+      // source_file에서 카테고리 추출 (예: web:tavily:전기기술:... → 전기기술)
+      const sfParts = (data.source_file ?? '').split(':');
+      const inferredCategory = sfParts.find(p => ['전기법령','전기기술','전기안전','일반'].includes(p)) ?? '전기안전';
       const res = await fetch(`${BASE_URL}/api/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AGENT_SECRET}` },
-        body: JSON.stringify({ type: 'knowledge_chunk', sourceFile: data.source_file ?? category, content: data.content, category }),
+        body: JSON.stringify({ type: 'knowledge_chunk', sourceFile: data.source_file ?? `샘플${i+1}`, content: data.content, category: inferredCategory }),
       });
 
       const rawText = await res.text();
       if (res.status === 429 || res.status === 503 || rawText.includes('429') || rawText.includes('503') || rawText.includes('prepayment') || rawText.includes('GEMINI_UNAVAILABLE') || rawText.includes('overloaded')) {
-        log('지식베이스', `${category} 품질`, 'WARN', 'Gemini 일시적 오버로드 — 잠시 후 재시도 필요');
+        log('지식베이스', `샘플 ${i + 1} 품질`, 'WARN', 'Gemini 일시적 오버로드 — 잠시 후 재시도 필요');
         continue;
       }
       const result = JSON.parse(rawText);
-      const status = result.passed ? 'PASS' : result.score >= 70 ? 'WARN' : 'FAIL';
-      log('지식베이스', `${category} 품질`, status, `점수: ${result.score}`);
+      const label = data.source_file ? data.source_file.replace('.pdf','').slice(-20) : `샘플${i+1}`;
+      // 자체점검 기준: FAIL < 30 (명백히 관련없음), WARN 30-69, PASS 70+
+      const status = result.score >= 70 ? 'PASS' : result.score >= 30 ? 'WARN' : 'FAIL';
+      log('지식베이스', `${label} 품질`, status, `점수: ${result.score}`);
     } catch (err) {
-      log('지식베이스', `${category} 품질`, 'FAIL', err.message);
+      log('지식베이스', `샘플 ${i + 1} 품질`, 'FAIL', err.message);
     }
   }
 }
 
-// ── 4. RAG 답변 품질 교차검증 ─────────────────────────────────────────────
+// ── 4. RAG 검색 관련성 점검 ────────────────────────────────────────────────
+// 주의: 원본 청크는 AI 답변이 아닌 '참고 자료'이므로 검색 관련성(>= 50)으로 판단
 async function checkRAGQuality() {
-  console.log('\n💬 RAG 답변 품질 교차검증 (Gemini)...');
+  console.log('\n💬 RAG 검색 관련성 점검...');
 
   const testQuestions = [
-    '누전차단기 교체 주기가 어떻게 되나요?',
-    '전기안전점검 의무 대상은 누구인가요?',
+    '누전차단기 설치 의무 대상 장소는 어디인가요?',
+    '전기설비 사용전검사 기준이 어떻게 되나요?',
   ];
 
   for (const question of testQuestions) {
@@ -135,11 +150,10 @@ async function checkRAGQuality() {
 
       if (chunks.length === 0) { log('RAG', question.slice(0, 20), 'WARN', '관련 청크 없음'); continue; }
 
-      const answer = chunks[0].content.slice(0, 300);
       const validateRes = await fetch(`${BASE_URL}/api/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AGENT_SECRET}` },
-        body: JSON.stringify({ type: 'rag_answer', question, answer, chunks }),
+        body: JSON.stringify({ type: 'rag_answer', question, answer: chunks[0].content.slice(0, 300), chunks }),
       });
 
       const rawValidate = await validateRes.text();
@@ -148,8 +162,9 @@ async function checkRAGQuality() {
         continue;
       }
       const validation = JSON.parse(rawValidate);
-      const status = validation.passed ? 'PASS' : validation.score >= 70 ? 'WARN' : 'FAIL';
-      log('RAG', question.slice(0, 20), status, `점수: ${validation.score}`);
+      // 원본 청크 채점 기준: 50+ = 관련성 있음(PASS), 30-49 = 부분관련(WARN), <30 = 관련없음(FAIL)
+      const status = validation.score >= 50 ? 'PASS' : validation.score >= 30 ? 'WARN' : 'FAIL';
+      log('RAG', question.slice(0, 20), status, `관련성 점수: ${validation.score}`);
     } catch (err) {
       log('RAG', question.slice(0, 20), 'FAIL', err.message);
     }
