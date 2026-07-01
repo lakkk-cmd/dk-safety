@@ -31,7 +31,7 @@ async function checkAPIs() {
 
       const res = await fetch(ep.url, { method: ep.method, headers, body: JSON.stringify(ep.body) });
       const text = await res.text();
-      const isGeminiQuota = text.includes('429') || text.includes('prepayment') || text.includes('GEMINI_QUOTA');
+      const isGeminiQuota = text.includes('429') || text.includes('503') || text.includes('prepayment') || text.includes('GEMINI_UNAVAILABLE') || text.includes('overloaded');
 
       if (res.ok) {
         log('API', ep.name, 'PASS', `HTTP ${res.status}`);
@@ -101,8 +101,8 @@ async function checkKnowledgeQuality() {
       });
 
       const rawText = await res.text();
-      if (res.status === 429 || res.status === 503 || rawText.includes('429') || rawText.includes('prepayment') || rawText.includes('GEMINI_QUOTA')) {
-        log('지식베이스', `${category} 품질`, 'WARN', 'Gemini 크레딧 소진 — 검증 불가');
+      if (res.status === 429 || res.status === 503 || rawText.includes('429') || rawText.includes('503') || rawText.includes('prepayment') || rawText.includes('GEMINI_UNAVAILABLE') || rawText.includes('overloaded')) {
+        log('지식베이스', `${category} 품질`, 'WARN', 'Gemini 일시적 오버로드 — 잠시 후 재시도 필요');
         continue;
       }
       const result = JSON.parse(rawText);
@@ -143,8 +143,8 @@ async function checkRAGQuality() {
       });
 
       const rawValidate = await validateRes.text();
-      if (validateRes.status === 429 || validateRes.status === 503 || rawValidate.includes('429') || rawValidate.includes('prepayment') || rawValidate.includes('GEMINI_QUOTA')) {
-        log('RAG', question.slice(0, 20), 'WARN', 'Gemini 크레딧 소진 — 검증 불가');
+      if (validateRes.status === 429 || validateRes.status === 503 || rawValidate.includes('429') || rawValidate.includes('503') || rawValidate.includes('prepayment') || rawValidate.includes('GEMINI_UNAVAILABLE') || rawValidate.includes('overloaded')) {
+        log('RAG', question.slice(0, 20), 'WARN', 'Gemini 일시적 오버로드 — 잠시 후 재시도 필요');
         continue;
       }
       const validation = JSON.parse(rawValidate);

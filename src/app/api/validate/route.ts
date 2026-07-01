@@ -49,8 +49,8 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[/api/validate]", err);
     const msg = (err as Error).message ?? "";
-    if (msg.includes("429") || msg.includes("prepayment") || msg.includes("quota")) {
-      return NextResponse.json({ error: "GEMINI_QUOTA_DEPLETED: " + msg }, { status: 503 });
+    if (msg.includes("429") || msg.includes("503") || msg.includes("prepayment") || msg.includes("quota") || msg.includes("overloaded")) {
+      return NextResponse.json({ error: "GEMINI_UNAVAILABLE: " + msg }, { status: 503 });
     }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
