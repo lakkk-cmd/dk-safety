@@ -13,7 +13,8 @@ import {
   ShieldUser,
   Table2,
   UserCog,
-  Users
+  Users,
+  Wrench
 } from "lucide-react";
 
 export const ADMIN_HOME_HREF = "/admin/home";
@@ -127,6 +128,12 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "지식베이스 관리",
     description: "PDF 자동분류·학습 — RAG 지식베이스",
     icon: BookOpen
+  },
+  {
+    href: "/admin/walk-in",
+    label: "현장 즉시접수",
+    description: "예약 없는 현장 작업 즉시 등록·완료 처리",
+    icon: Wrench
   },
   {
     href: "/admin/stats",

@@ -51,6 +51,10 @@ export type Reservation = {
   orderDispatchStatus?: string | null;
   /** orders.prepayment_confirmed — Supabase DB 모드에서만 채워질 수 있습니다. */
   orderPrepaymentConfirmed?: boolean;
+  /** 접수 경로: online(웹 예약) | walk_in(현장 즉시접수) | phone(전화접수) */
+  source?: "online" | "walk_in" | "phone";
+  /** 작업 완료 시각 (walk_in 완료 처리 시 기록) */
+  completedAt?: string | null;
 };
 
 export type BackupSnapshot = {

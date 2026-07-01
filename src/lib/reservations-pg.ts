@@ -52,6 +52,8 @@ type ReservationRow = {
   is_paid: boolean;
   paid_at: string | null;
   created_at: string;
+  source?: string | null;
+  completed_at?: string | null;
   apartments: { name: string; code: string } | { name: string; code: string }[] | null;
   tasks: TaskRow[] | TaskRow | null;
   orders?:
@@ -238,7 +240,9 @@ function mapReservation(row: ReservationRow): Reservation {
     orderWarrantyIssuedAt: o?.warranty_issued_at ?? null,
     orderPaymentStatus: o?.payment_status ?? null,
     orderDispatchStatus: o?.dispatch_status ?? null,
-    orderPrepaymentConfirmed: Boolean(o?.prepayment_confirmed)
+    orderPrepaymentConfirmed: Boolean(o?.prepayment_confirmed),
+    source: (row.source as "online" | "walk_in" | "phone" | null) ?? "online",
+    completedAt: row.completed_at ?? null
   };
 }
 
@@ -268,6 +272,8 @@ export async function pgReadReservations(): Promise<Reservation[]> {
       is_paid,
       paid_at,
       created_at,
+      source,
+      completed_at,
       apartments (
         name,
         code
@@ -322,6 +328,8 @@ async function pgFindReservationById(id: string): Promise<Reservation | null> {
       is_paid,
       paid_at,
       created_at,
+      source,
+      completed_at,
       apartments (
         name,
         code
@@ -376,6 +384,8 @@ export async function pgFindReservationsByPhone(phone: string): Promise<Reservat
       is_paid,
       paid_at,
       created_at,
+      source,
+      completed_at,
       apartments (
         name,
         code
@@ -1215,4 +1225,123 @@ export async function pgUnassignTask(reservationId: string): Promise<Reservation
     throw new Error(`예약 상태 복구 실패: ${rErr.message}`);
   }
   return pgFindReservationById(reservationId);
+}
+
+// ─── 현장 즉시접수(walk-in) ───────────────────────────────────────────────────
+
+export async function pgCreateWalkInReservation(payload: {
+  name: string;
+  phone: string;
+  address: string;
+  serviceType: string;
+  workDate: string;
+  workTime: string;
+  detail: string;
+  imageUrls: string[];
+  totalAmount: number;
+}): Promise<Reservation> {
+  const supabase = requireSupabaseAdmin();
+  const now = new Date().toISOString();
+  const insert = {
+    apartment_id: null,
+    name: payload.name,
+    phone: payload.phone,
+    address: payload.address,
+    service_type: payload.serviceType,
+    preferred_date: payload.workDate,
+    preferred_time: payload.workTime,
+    detail: payload.detail,
+    image_urls: payload.imageUrls,
+    priority: "normal" as const,
+    status: "접수" as const,
+    note: "",
+    note_updated_at: null,
+    base_fee: 0,
+    extra_fee: 0,
+    total_amount: payload.totalAmount,
+    is_paid: true,
+    paid_at: now,
+    source: "walk_in"
+  };
+  const { data, error } = await supabase.from("reservations").insert(insert).select(`
+    id, apartment_id, name, phone, address, service_type, preferred_date, preferred_time,
+    detail, image_urls, priority, status, note, note_updated_at,
+    base_fee, extra_fee, total_amount, is_paid, paid_at, created_at, source, completed_at,
+    apartments(name,code), tasks(id,status,worker_id,workers(name)),
+    orders(payment_status,dispatch_status,prepayment_confirmed,final_payment_status,total_final_fee,warranty_issued_at)
+  `).single();
+  if (error || !data) throw new Error(`현장 즉시접수 생성 실패: ${error?.message ?? "unknown"}`);
+  return mapReservation(data as ReservationRow);
+}
+
+export async function issueWalkInWarranty(params: {
+  reservationId: string;
+  serviceType: string;
+  serviceSummary: string;
+  finalAmount: number;
+  sitePhotos: string[];
+}): Promise<{ warrantyId: string; warrantyNumber: string; verifyUrl: string }> {
+  const supabase = requireSupabaseAdmin();
+  const now = new Date();
+  const warrantyNumber = buildPatentWarrantyNumber({
+    issuedAt: now,
+    reservationId: params.reservationId,
+    aptCode: "WALK"
+  });
+  const startDate = now.toISOString().slice(0, 10);
+  const endDate = new Date(now);
+  endDate.setFullYear(endDate.getFullYear() + 1);
+  const verifyBase = (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://dkansim.com").replace(/\/$/, "");
+  const verifyUrl = `${verifyBase}/verify/${encodeURIComponent(warrantyNumber)}`;
+
+  const { data, error } = await supabase
+    .from("warranties")
+    .upsert(
+      {
+        warranty_number: warrantyNumber,
+        reservation_id: params.reservationId,
+        apt_id: null,
+        technician_id: null,
+        service_type: mapServiceTypeToPatentKey(params.serviceType),
+        service_summary: params.serviceSummary,
+        warranty_months: 12,
+        warranty_start: startDate,
+        warranty_end: endDate.toISOString().slice(0, 10),
+        final_amount: params.finalAmount,
+        site_photos: params.sitePhotos,
+        verify_url: verifyUrl,
+        status: "ISSUED"
+      },
+      { onConflict: "reservation_id" }
+    )
+    .select("id, warranty_number")
+    .single();
+  if (error || !data) throw new Error(`보증서 저장 실패: ${error?.message ?? "unknown"}`);
+  return { warrantyId: data.id, warrantyNumber: data.warranty_number, verifyUrl };
+}
+
+export async function pgCompleteWalkInReservation(reservationId: string): Promise<void> {
+  const supabase = requireSupabaseAdmin();
+  const { error } = await supabase
+    .from("reservations")
+    .update({ status: "완료", completed_at: new Date().toISOString() })
+    .eq("id", reservationId);
+  if (error) throw new Error(`완료 처리 실패: ${error.message}`);
+}
+
+export async function pgReadWalkInReservations(): Promise<Reservation[]> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("reservations")
+    .select(`
+      id, apartment_id, name, phone, address, service_type, preferred_date, preferred_time,
+      detail, image_urls, priority, status, note, note_updated_at,
+      base_fee, extra_fee, total_amount, is_paid, paid_at, created_at, source, completed_at,
+      apartments(name,code), tasks(id,status,worker_id,workers(name)),
+      orders(payment_status,dispatch_status,prepayment_confirmed,final_payment_status,total_final_fee,warranty_issued_at)
+    `)
+    .eq("source", "walk_in")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`현장 기록 조회 실패: ${error.message}`);
+  return (data as ReservationRow[] | null)?.map(mapReservation) ?? [];
 }
