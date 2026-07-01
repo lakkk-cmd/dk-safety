@@ -4,6 +4,8 @@ import { pgListApartments } from "@/lib/apartments-pg";
 import { pgListOrdersForAdmin } from "@/lib/orders-pg";
 import { pgReadReservations } from "@/lib/reservations-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
+import { listCodeReviewLogs } from "@/lib/code-review";
+import type { CodeReviewLog } from "@/lib/code-review";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,12 @@ export default async function AdminStatsPage() {
     );
   }
 
-  const [apartments, orders, reservations] = await Promise.all([pgListApartments(), pgListOrdersForAdmin(), pgReadReservations()]);
+  const [apartments, orders, reservations, reviewLogs] = await Promise.all([
+    pgListApartments(),
+    pgListOrdersForAdmin(),
+    pgReadReservations(),
+    listCodeReviewLogs(15),
+  ]);
   const totalRevenue = orders.reduce((sum, order) => sum + (order.total_final_fee ?? order.base_fee ?? 0), 0);
   const paidCount = orders.filter((order) => order.payment_status === "PAID").length;
   const completionCount = reservations.filter((reservation) => reservation.status === "완료").length;
@@ -71,6 +78,67 @@ export default async function AdminStatsPage() {
               </tbody>
             </table>
           </div>
+        </CardContent>
+      </Card>
+      {/* 코드 리뷰 이력 */}
+      <Card className="mt-6 border-slate-300 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70">
+        <CardContent className="pt-6">
+          <h2 className="mb-3 text-sm font-bold text-slate-900 dark:text-slate-100">
+            🤖 Gemini 코드 리뷰 이력
+          </h2>
+          {reviewLogs.length === 0 ? (
+            <p className="text-xs text-slate-500">아직 코드 리뷰 기록이 없습니다.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-200/70 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  <tr>
+                    <th className="px-3 py-2">커밋</th>
+                    <th className="px-3 py-2">변경 파일</th>
+                    <th className="px-3 py-2 text-center">점수</th>
+                    <th className="px-3 py-2 text-center">판정</th>
+                    <th className="px-3 py-2">일시</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reviewLogs.map((log: CodeReviewLog) => {
+                    const score = log.meta?.score ?? 0;
+                    const passed = log.meta?.passed ?? false;
+                    const files = log.meta?.files ?? [];
+                    const commit = log.meta?.commit ?? "-";
+                    return (
+                      <tr key={log.id} className="border-t border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td className="px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-400">{commit}</td>
+                        <td className="px-3 py-2 max-w-[280px]">
+                          <p className="truncate text-xs text-slate-700 dark:text-slate-300">
+                            {files.length > 0 ? files[0] : "-"}
+                          </p>
+                          {files.length > 1 && (
+                            <p className="text-[10px] text-slate-400">외 {files.length - 1}개</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`font-bold ${score >= 80 ? "text-green-600" : score >= 60 ? "text-amber-600" : "text-red-600"}`}>
+                            {score}점
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {passed ? (
+                            <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700">✅ 통과</span>
+                          ) : (
+                            <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">❌ 반려</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-slate-500">
+                          {new Date(log.created_at).toLocaleString("ko-KR")}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </main>

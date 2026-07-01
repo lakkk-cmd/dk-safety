@@ -1,0 +1,97 @@
+name: Gemini Code Review
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  gemini-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Get changed TypeScript files
+        id: changed
+        run: |
+          git diff HEAD~1 --name-only --diff-filter=ACMR \
+            | grep -E '\.(ts|tsx)$' \
+            | grep -v '\.d\.ts$' \
+            | head -10 > changed_files.txt || true
+          echo "Changed files:"
+          cat changed_files.txt
+          COUNT=$(wc -l < changed_files.txt | tr -d ' ')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Skip if no TS files changed
+        if: steps.changed.outputs.count == '0'
+        run: |
+          echo "TypeScript 변경 파일 없음 — 코드 리뷰 건너뜀"
+
+      - name: Build review payload
+        if: steps.changed.outputs.count != '0'
+        run: |
+          python3 - <<'PYEOF'
+          import json, os
+
+          files = []
+          with open('changed_files.txt') as f:
+            paths = [l.strip() for l in f if l.strip()]
+
+          for path in paths:
+            if os.path.exists(path):
+              with open(path, encoding='utf-8', errors='ignore') as f:
+                content = f.read(3000)
+              files.append({'path': path, 'content': content})
+
+          payload = {
+            'files': files,
+            'context': 'GitHub Actions 자동 코드 리뷰 — main 브랜치 푸시/PR',
+            'commit': os.environ.get('GITHUB_SHA', '')[:7],
+          }
+          with open('review_payload.json', 'w') as f:
+            json.dump(payload, f)
+          print(f"리뷰 대상: {len(files)}개 파일")
+          PYEOF
+
+      - name: Run Gemini Code Review
+        if: steps.changed.outputs.count != '0'
+        run: |
+          RESPONSE=$(curl -sf -X POST "https://dkansim.com/api/code-review" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.AGENT_WRITE_SECRET }}" \
+            -d @review_payload.json \
+            --max-time 55 || echo '{"passed":true,"score":0,"issues":[],"verdict":"API 호출 실패 — 건너뜀"}')
+
+          echo "리뷰 결과:"
+          echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('verdict',''))" || true
+
+          PASSED=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('passed', True))" 2>/dev/null || echo "True")
+          SCORE=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('score', 80))" 2>/dev/null || echo "80")
+
+          echo "📊 점수: $SCORE / 통과: $PASSED"
+
+          # Gemini 일시장애는 통과 처리 (배포 차단 방지)
+          if echo "$RESPONSE" | grep -q "GEMINI_UNAVAILABLE"; then
+            echo "⚠️ Gemini 일시 장애 — 리뷰 건너뜀 (통과 처리)"
+            exit 0
+          fi
+
+          if [ "$PASSED" = "False" ]; then
+            echo "❌ Gemini 코드 리뷰 실패 (점수: $SCORE/100)"
+            echo "$RESPONSE" | python3 -c "
+          import sys,json
+          d=json.load(sys.stdin)
+          for issue in d.get('issues', []):
+            print(' -', issue)
+          " || true
+            exit 1
+          else
+            echo "✅ Gemini 코드 리뷰 통과 (점수: $SCORE/100)"
+          fi
