@@ -7,13 +7,17 @@ import {
   ClipboardCheck,
   CreditCard,
   FileBadge,
+  FileText,
   LayoutDashboard,
   Lightbulb,
   ListOrdered,
+  MessageSquare,
+  PieChart,
   ShieldUser,
   Table2,
   UserCog,
   Users,
+  Wallet,
   Wrench
 } from "lucide-react";
 
@@ -53,6 +57,8 @@ export type AdminNavItem = {
   label: string;
   description: string;
   icon: LucideIcon;
+  /** 이 항목 앞에 렌더링할 섹션 구분자 레이블 */
+  sectionLabel?: string;
 };
 
 /** 왼쪽 사이드바 및 메인 대시보드 카드와 동일한 순서 */
@@ -140,6 +146,52 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "시스템 통계",
     description: "집계·현황·로그",
     icon: ShieldUser
+  },
+  // ── CRM ──────────────────────────────────────────────────────────────────
+  {
+    href: "/admin/crm/customers",
+    label: "고객관리 (CRM)",
+    description: "예약 이력 기반 고객 목록·재상담 일정",
+    icon: Users,
+    sectionLabel: "CRM"
+  },
+  {
+    href: "/admin/crm/consultations",
+    label: "상담관리",
+    description: "전화·카카오·방문 상담 기록 입력·조회",
+    icon: MessageSquare
+  },
+  {
+    href: "/admin/crm/follow-up",
+    label: "재상담알림",
+    description: "이번 주 재상담 예정·문자 발송",
+    icon: CalendarDays
+  },
+  // ── ERP ──────────────────────────────────────────────────────────────────
+  {
+    href: "/admin/erp/workers",
+    label: "작업자관리",
+    description: "직원·외주 인력 단가·전문분야",
+    icon: UserCog,
+    sectionLabel: "ERP"
+  },
+  {
+    href: "/admin/erp/expenses",
+    label: "경비관리",
+    description: "재료비·교통비 등 경비 입력·월별 집계",
+    icon: Wallet
+  },
+  {
+    href: "/admin/erp/invoices",
+    label: "견적/영수증",
+    description: "세금계산서·영수증·견적서 발행",
+    icon: FileText
+  },
+  {
+    href: "/admin/erp/dashboard",
+    label: "경영대시보드",
+    description: "매출·지출·수익 6개월 추세·미수금",
+    icon: PieChart
   }
 ];
 

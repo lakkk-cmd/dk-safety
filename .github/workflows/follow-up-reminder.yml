@@ -1,0 +1,34 @@
+name: Follow-up Reminder (Daily 09:00 KST)
+
+on:
+  schedule:
+    # 09:00 KST = 00:00 UTC
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Send follow-up reminders
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.NEXT_PUBLIC_APP_URL || 'https://dkansim.com' }}/api/crm/follow-up-send" \
+            -H "Authorization: Bearer ${{ secrets.AGENT_WRITE_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+
+          HTTP_BODY=$(echo "$RESPONSE" | head -n -1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $HTTP_BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Follow-up send failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          TOTAL=$(echo "$HTTP_BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total', 0))" 2>/dev/null || echo "?")
+          echo "✅ $TOTAL 건 처리 완료"

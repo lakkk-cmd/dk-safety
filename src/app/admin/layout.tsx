@@ -79,24 +79,33 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <SidebarMenu>
             {adminSidebarNavItems.map((menu) => {
               const Icon = menu.icon;
-              const active = pathname === menu.href;
+              const active = pathname === menu.href || pathname.startsWith(menu.href + "/");
               return (
-                <SidebarMenuItem key={menu.href}>
-                  <SidebarMenuButton isActive={active} onClick={() => router.push(menu.href)}>
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span>{menu.label}</span>
-                    {menu.href === "/admin/dispatch" && prepPending > 0 ? (
-                      <span className="ml-auto inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-white">
-                        {prepPending > 99 ? "99+" : prepPending}
-                      </span>
-                    ) : null}
-                    {menu.href === "/admin/billing" && settlePending > 0 ? (
-                      <span className="ml-auto inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-amber-950">
-                        {settlePending}
-                      </span>
-                    ) : null}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <Fragment key={menu.href}>
+                  {menu.sectionLabel && (
+                    <li className="px-3 pb-1 pt-4">
+                      <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                        {menu.sectionLabel}
+                      </p>
+                    </li>
+                  )}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton isActive={active} onClick={() => router.push(menu.href)}>
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span>{menu.label}</span>
+                      {menu.href === "/admin/dispatch" && prepPending > 0 ? (
+                        <span className="ml-auto inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-white">
+                          {prepPending > 99 ? "99+" : prepPending}
+                        </span>
+                      ) : null}
+                      {menu.href === "/admin/billing" && settlePending > 0 ? (
+                        <span className="ml-auto inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-amber-950">
+                          {settlePending}
+                        </span>
+                      ) : null}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </Fragment>
               );
             })}
           </SidebarMenu>
