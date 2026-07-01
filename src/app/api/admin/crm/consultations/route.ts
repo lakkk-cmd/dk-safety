@@ -7,6 +7,7 @@ import {
   updateConsultationLog,
   createFollowUpReminder,
 } from "@/lib/crm-db";
+import { validateConsultation, GEMINI_ENABLED } from "@/lib/cross-validate";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,19 @@ export async function POST(req: NextRequest) {
         next_contact_at: body.next_contact_at ?? null,
       });
       return NextResponse.json({ ok: true });
+    }
+
+    if (GEMINI_ENABLED) {
+      const validation = await validateConsultation({
+        customerName: body.customer_name,
+        customerPhone: body.customer_phone,
+        channel: body.channel ?? "phone",
+        content: body.content,
+        nextContactAt: body.next_contact_at ?? null,
+      });
+      if (!validation.passed) {
+        return NextResponse.json({ error: `상담 기록 검증 실패: ${validation.reason}` }, { status: 422 });
+      }
     }
 
     const log = await createConsultationLog({

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { appendActivityLog } from "@/lib/activity-log";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
-import { pgAssignTask } from "@/lib/reservations-pg";
+import { pgAssignTask, pgGetWorkerAssignmentContext, pgGetWorkerById } from "@/lib/reservations-pg";
 import { activateDispatch } from "@/lib/orders-pg";
 import { pushLiveNotification, pushReservationProgressNotifications } from "@/lib/live-notify";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
+import { validateWorkerAssignment } from "@/lib/cross-validate";
 
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
@@ -21,6 +22,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "예약 ID와 기사 ID가 필요합니다." }, { status: 400 });
   }
   try {
+    // 작업자 배정 충돌(당일 과부하/2시간 이내 중복) 검증 — Gemini 불필요, DB 조회만으로 처리
+    const worker = await pgGetWorkerById(workerId);
+    const { scheduledAt, existingAssignments } = await pgGetWorkerAssignmentContext(reservationId, workerId);
+    const validation = await validateWorkerAssignment({
+      workerId,
+      workerName: worker?.name ?? workerId,
+      reservationId,
+      scheduledAt,
+      existingAssignments
+    });
+    if (!validation.passed) {
+      return NextResponse.json({ message: validation.reason }, { status: 422 });
+    }
+
     // orders: 결제(PAID) 확인 후 dispatch_status를 READY(배정 대기)로 맞춥니다(015+ 제약).
     if (orderId) {
       await activateDispatch(orderId);

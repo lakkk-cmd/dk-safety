@@ -726,6 +726,48 @@ export async function pgFindWorkerByPhone(phone: string): Promise<{ id: string; 
   return { id: data.id, pin_hash: data.pin_hash, active: data.active };
 }
 
+export async function pgGetWorkerAssignmentContext(
+  reservationId: string,
+  workerId: string
+): Promise<{ scheduledAt: string; existingAssignments: { scheduledAt: string; customerName: string }[] }> {
+  const supabase = requireSupabaseAdmin();
+
+  const { data: reservation, error: rErr } = await supabase
+    .from("reservations")
+    .select("preferred_date, preferred_time")
+    .eq("id", reservationId)
+    .maybeSingle();
+  if (rErr || !reservation) {
+    throw new Error(`예약 조회 실패: ${rErr?.message ?? "not found"}`);
+  }
+  const scheduledAt = `${reservation.preferred_date}T${(reservation.preferred_time || "09:00").padStart(5, "0")}:00+09:00`;
+
+  const { data: existing, error: eErr } = await supabase
+    .from("tasks")
+    .select("reservation_id, reservations(preferred_date, preferred_time, name)")
+    .eq("worker_id", workerId)
+    .neq("status", "completed");
+  if (eErr) {
+    throw new Error(`기존 배정 조회 실패: ${eErr.message}`);
+  }
+
+  type ExistingTaskRow = {
+    reservations: { preferred_date: string; preferred_time: string | null; name: string } | { preferred_date: string; preferred_time: string | null; name: string }[] | null;
+  };
+  const existingAssignments = ((existing ?? []) as ExistingTaskRow[])
+    .map((row) => {
+      const res = Array.isArray(row.reservations) ? row.reservations[0] : row.reservations;
+      if (!res?.preferred_date) return null;
+      return {
+        scheduledAt: `${res.preferred_date}T${(res.preferred_time || "09:00").padStart(5, "0")}:00+09:00`,
+        customerName: res.name ?? ""
+      };
+    })
+    .filter((v): v is { scheduledAt: string; customerName: string } => v !== null);
+
+  return { scheduledAt, existingAssignments };
+}
+
 export async function pgAssignTask(reservationId: string, workerId: string): Promise<Reservation> {
   const supabase = requireSupabaseAdmin();
 

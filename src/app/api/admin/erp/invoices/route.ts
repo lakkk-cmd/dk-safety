@@ -3,6 +3,7 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { listInvoices, createInvoice } from "@/lib/erp-db";
 import type { InvoiceItem } from "@/lib/erp-db";
+import { validateInvoice, GEMINI_ENABLED } from "@/lib/cross-validate";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,27 @@ export async function POST(req: NextRequest) {
     const invoiceType = (body.type ?? "receipt") as "tax_invoice" | "receipt" | "quote";
     const tax = invoiceType === "tax_invoice" ? Math.round(subtotal * 0.1) : 0;
     const total = subtotal + tax;
+
+    // 수학 계산 오류는 Gemini 없이도 항상 검증. Gemini 품질 검증은 GEMINI_API_KEY가 있을 때만 수행.
+    try {
+      const validation = await validateInvoice({
+        type: invoiceType,
+        customerName: body.customer_name,
+        items: items.map((i) => ({ description: i.description, qty: i.qty, unit_price: i.unit_price, amount: i.amount })),
+        subtotal,
+        tax,
+        total,
+      });
+      if (!validation.passed || validation.errors.length > 0) {
+        return NextResponse.json(
+          { error: "청구서 검증 실패", errors: validation.errors, reason: validation.reason },
+          { status: 422 }
+        );
+      }
+    } catch (validationErr) {
+      if (GEMINI_ENABLED) throw validationErr;
+      // Gemini 미설정: 수학 검증은 오류 발생 시 이미 위에서 반환되었으므로 여기 도달 시 계속 진행
+    }
 
     const invoice = await createInvoice({
       customer_name: body.customer_name,

@@ -3,6 +3,10 @@ import {
   validateContent,
   validateKnowledgeChunk,
   validateRAGAnswer,
+  validateExpense,
+  validateInvoice,
+  validateConsultation,
+  validateWorkerAssignment,
   GEMINI_ENABLED,
 } from "@/lib/cross-validate";
 
@@ -39,6 +43,39 @@ export async function POST(req: NextRequest) {
       case "knowledge_chunk":
         result = await validateKnowledgeChunk(
           body as { sourceFile: string; content: string; category: string }
+        );
+        break;
+      case "expense":
+        result = await validateExpense(
+          body as { category: string; amount: number; description?: string | null; paymentMethod: string; expenseDate: string }
+        );
+        break;
+      case "invoice":
+        result = await validateInvoice(
+          body as {
+            type: string;
+            customerName: string;
+            items: { description: string; qty: number; unit_price: number; amount: number }[];
+            subtotal: number;
+            tax: number;
+            total: number;
+          }
+        );
+        break;
+      case "consultation":
+        result = await validateConsultation(
+          body as { customerName: string; customerPhone: string; channel: string; content: string; nextContactAt?: string | null }
+        );
+        break;
+      case "worker_assignment":
+        result = await validateWorkerAssignment(
+          body as {
+            workerId: string;
+            workerName: string;
+            reservationId: string;
+            scheduledAt: string;
+            existingAssignments: { scheduledAt: string; customerName: string }[];
+          }
         );
         break;
       default:

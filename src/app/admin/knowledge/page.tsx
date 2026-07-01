@@ -7,9 +7,14 @@ import { pgListKnowledgePdfs } from "@/lib/knowledge-pdfs";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminKnowledgePage() {
+export default async function AdminKnowledgePage({
+  searchParams
+}: {
+  searchParams: Promise<{ vtype?: string }>;
+}) {
   const ready = isAgentSupabaseReady();
   const pdfs = ready ? await pgListKnowledgePdfs().catch(() => []) : [];
+  const { vtype } = await searchParams;
 
   return (
     <main className="page-fit max-w-6xl">
@@ -25,7 +30,7 @@ export default async function AdminKnowledgePage() {
         <div className="space-y-10">
           <KnowledgeLearnDashboard />
           <KnowledgeUploadCenter initialPdfs={pdfs} />
-          <CrossValidationDashboard />
+          <CrossValidationDashboard type={vtype} />
         </div>
       )}
     </main>

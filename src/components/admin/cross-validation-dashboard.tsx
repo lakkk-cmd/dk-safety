@@ -14,15 +14,17 @@ type ValidationLog = {
   };
 };
 
-async function loadValidationLogs(): Promise<ValidationLog[]> {
+async function loadValidationLogs(type?: string): Promise<ValidationLog[]> {
   try {
     const supabase = requireAgentSupabase();
-    const { data } = await supabase
+    let query = supabase
       .from("agent_logs")
       .select("id, created_at, level, message, meta")
-      .eq("source", "cross_validator")
-      .order("created_at", { ascending: false })
-      .limit(20);
+      .eq("source", "cross_validator");
+    if (type) {
+      query = query.eq("meta->>type", type);
+    }
+    const { data } = await query.order("created_at", { ascending: false }).limit(20);
     return (data ?? []) as ValidationLog[];
   } catch {
     return [];
@@ -35,19 +37,47 @@ function scoreColor(score: number) {
   return "text-red-700";
 }
 
+const VALIDATION_TYPES = [
+  { value: "", label: "전체" },
+  { value: "content", label: "콘텐츠" },
+  { value: "rag_answer", label: "RAG" },
+  { value: "knowledge_chunk", label: "지식베이스" },
+  { value: "expense", label: "경비" },
+  { value: "invoice", label: "청구서" },
+  { value: "consultation", label: "상담" },
+  { value: "worker_assignment", label: "작업자배정" }
+];
+
 function typeLabel(type: string) {
-  return { content: "콘텐츠", rag_answer: "RAG 답변", knowledge_chunk: "지식 청크" }[type] ?? type;
+  return VALIDATION_TYPES.find((t) => t.value === type)?.label ?? type;
 }
 
-export default async function CrossValidationDashboard() {
-  const logs = await loadValidationLogs();
+export default async function CrossValidationDashboard({ type }: { type?: string }) {
+  const activeType = type ?? "";
+  const logs = await loadValidationLogs(activeType || undefined);
 
   return (
     <div>
       <h2 className="mb-3 text-lg font-black text-slate-900">최근 교차검증 이력</h2>
       <p className="mb-4 text-xs text-slate-500">
-        Gemini가 Claude 생성 결과를 자동 검증한 기록입니다. (agent_logs · source=cross_validator)
+        Gemini가 Claude 생성 결과 및 CRM+ERP 입력 데이터를 자동 검증한 기록입니다. (agent_logs · source=cross_validator)
       </p>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {VALIDATION_TYPES.map((t) => (
+          <a
+            key={t.value || "all"}
+            href={t.value ? `?vtype=${t.value}` : "?"}
+            className={`rounded-full border px-3 py-1 text-xs font-bold ${
+              activeType === t.value
+                ? "border-dk-navy bg-dk-navy text-white"
+                : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            {t.label}
+          </a>
+        ))}
+      </div>
 
       {logs.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white py-8 text-center text-sm text-slate-400">
