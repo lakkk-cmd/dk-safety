@@ -48,6 +48,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, ...(result as object) });
   } catch (err) {
     console.error("[/api/validate]", err);
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    const msg = (err as Error).message ?? "";
+    if (msg.includes("429") || msg.includes("prepayment") || msg.includes("quota")) {
+      return NextResponse.json({ error: "GEMINI_QUOTA_DEPLETED: " + msg }, { status: 503 });
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
