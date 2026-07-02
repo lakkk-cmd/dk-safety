@@ -1,30 +1,54 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
-import { CHAT_AGENT_GROUPS, CHAT_AGENTS, chatWithAgentPlus, loadChatHistory } from "@/lib/agent-chat";
+import { appendChatMessage, CHAT_AGENT_GROUPS, CHAT_AGENTS, chatWithAgentPlus, loadChatHistory } from "@/lib/agent-chat";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { chatWithFullAgent } from "@/lib/full-agent";
 import { GEMINI_ENABLED, validateAgentAnswer, validateRAGAnswer } from "@/lib/cross-validate";
 
 export const maxDuration = 280;
 
-/** 풀 에이전트(총괄) 답변만 동기적으로 Gemini 검토 — 심각한 오류는 안전 메시지로, 경미한 오류는 수정본으로 대체 */
+type ChatBadge = "ok" | "no_evidence" | "corrected" | "blocked";
+type ChatValidation = { score: number; passed: boolean; warnings: string[]; hasEvidence: boolean; evidenceSummary: string; badge: ChatBadge };
+
+const BLOCKED_MESSAGE =
+  "죄송합니다. 해당 질문에 대해 정확한 정보를 제공하기 어렵습니다.\n\n정확한 답변을 위해:\n1. 관련 자료를 지식베이스에 추가해 주세요\n2. 또는 전문가에게 직접 문의해 주세요\n\n📞 우리집 전기주치의(대경이엔피) 직접 문의: dkansim.com";
+
+/**
+ * 풀 에이전트(총괄) 답변만 동기적으로 Gemini 검토 — RAG 근거 여부를 함께 판단시켜, 명백한 거짓/위험
+ * 오정보는 차단, 경미한 오류는 수정본으로 대체, 근거 없는 일반지식 답변은 배지로만 표시(차단 안 함).
+ */
 async function reviewFullAgentAnswer(
   question: string,
   answer: string,
-): Promise<{ reply: string; validation?: { score: number; passed: boolean; warnings: string[] } }> {
-  if (!GEMINI_ENABLED || !question) return { reply: answer };
+  hasEvidence: boolean,
+  evidenceSummary: string,
+): Promise<{ reply: string; validation: ChatValidation }> {
+  const fallback: ChatValidation = {
+    score: 0,
+    passed: true,
+    warnings: [],
+    hasEvidence,
+    evidenceSummary,
+    badge: hasEvidence ? "ok" : "no_evidence",
+  };
+  if (!GEMINI_ENABLED || !question) return { reply: answer, validation: fallback };
   try {
-    const v = await validateAgentAnswer({ question, answer });
+    const v = await validateAgentAnswer({ question, answer, hasRAGEvidence: hasEvidence });
     let finalAnswer = answer;
-    if (v.score < 30 && v.hasDangerousMisinfo) {
-      finalAnswer =
-        "죄송합니다. 정확한 정보 제공을 위해 해당 질문은 전문가 확인이 필요합니다. 우리집 전기주치의(대경이엔피)에 직접 문의해 주세요.";
+    let badge: ChatBadge = hasEvidence ? "ok" : "no_evidence";
+    if (v.hasFalseInfo || v.hasDangerousMisinfo) {
+      finalAnswer = BLOCKED_MESSAGE;
+      badge = "blocked";
     } else if (!v.passed && v.correctedAnswer) {
       finalAnswer = v.correctedAnswer;
+      badge = "corrected";
     }
-    return { reply: finalAnswer, validation: { score: v.score, passed: v.passed, warnings: v.warnings } };
+    return {
+      reply: finalAnswer,
+      validation: { score: v.score, passed: v.passed, warnings: v.warnings, hasEvidence, evidenceSummary, badge },
+    };
   } catch {
-    return { reply: answer };
+    return { reply: answer, validation: fallback };
   }
 }
 
@@ -92,12 +116,17 @@ export async function POST(request: Request) {
 
     if (agentId === "general") {
       if (attachment) {
+        // chatWithAgentPlus는 내부적으로 자체 RAG(searchKnowledgeChunks)를 쓰지만 구조화된 근거
+        // 정보를 반환하지 않으므로, 여기서는 근거 없음으로 간주해 검토한다.
         const reply = await chatWithAgentPlus("general", message, { attachment, webSearch: body.webSearch ?? false });
-        const reviewed = await reviewFullAgentAnswer(message, reply);
+        const reviewed = await reviewFullAgentAnswer(message, reply, false, "");
         return NextResponse.json(reviewed);
       }
       const result = await chatWithFullAgent(message);
-      const reviewed = await reviewFullAgentAnswer(message, result.reply);
+      const reviewed = await reviewFullAgentAnswer(message, result.reply, result.hasEvidence, result.evidenceSummary);
+      // chatWithFullAgent는 assistant 메시지를 저장하지 않는다 — Gemini 검토를 거친 최종 답변
+      // (원본/수정본/차단 메시지)을 여기서 저장해야 대화 히스토리가 실제 화면과 일치한다.
+      await appendChatMessage("general", "assistant", reviewed.reply);
       return NextResponse.json(reviewed);
     }
 

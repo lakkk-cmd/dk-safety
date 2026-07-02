@@ -476,28 +476,41 @@ export async function validateAgentAnswer(params: {
   question: string;
   answer: string;
   context?: string;
-}): Promise<{ passed: boolean; score: number; correctedAnswer?: string; warnings: string[]; hasDangerousMisinfo: boolean }> {
+  hasRAGEvidence?: boolean;
+}): Promise<{
+  passed: boolean;
+  score: number;
+  correctedAnswer?: string;
+  warnings: string[];
+  hasDangerousMisinfo: boolean;
+  hasFalseInfo: boolean;
+}> {
   const prompt = `당신은 AI 에이전트 답변 검증 전문가입니다.
 이 AI는 전기안전 서비스 회사의 총괄 비서로, 전기안전뿐 아니라 마케팅/경영/IT/일반 업무 질문에도 답합니다.
-주제가 전기안전과 무관하다는 이유만으로는 절대 감점하지 마세요 — 아래 네 가지 문제가 있는지만 확인하세요.
+주제가 전기안전과 무관하다는 이유만으로는 절대 감점하지 마세요.
+RAG 학습자료 근거가 없다는 이유, 또는 이 AI가 자신의 일반 지식으로 자신 있게 답했다는 이유만으로도 절대 "거짓정보"로 판단하지 마세요 — 이 AI는 학습자료가 없는 질문에도 일반 지식으로 정상 답변할 수 있어야 합니다.
+아래 다섯 가지 문제가 실제로 있을 때만 감점하세요. 의심스럽다는 이유만으로는 감점하지 마세요.
 
 사용자 질문: ${params.question}
 
 AI 답변:
 ${params.answer.slice(0, 2000)}
 
+RAG 근거 자료: ${params.hasRAGEvidence ? "있음 (아래 참고 자료 참조)" : "없음 — 일반 지식 기반 답변. 이 자체는 결함이 아닙니다."}
 ${params.context ? `참고 자료:\n${params.context.slice(0, 1000)}` : ""}
 
-검증 기준 (아래 항목에 해당할 때만 감점):
-1. 허위/과장 정보 (사실이 아닌 것을 사실처럼 단정)
-2. 위험한 오정보 (감전/화재 등 안전사고로 이어질 수 있는 잘못된 안전 정보)
-3. 욕설/비하 표현
-4. 명백히 잘못된 사실 (검증 가능한 사실 오류)
+검증 기준 (아래 항목에 실제로 해당할 때만 감점):
+1. 허위/과장 정보 — 검증 가능하게 틀린 사실을 사실처럼 단정
+2. 미구현 기능 오안내 — 이 시스템에 실제로 없는 기능/서비스를 "이미 가능합니다/구현돼 있습니다"라고 확정적으로 안내 (앞으로 만들 수 있다는 제안·추천은 문제 아님)
+3. 위험한 오정보 — 감전/화재 등 안전사고로 이어질 수 있는 잘못된 안전 정보
+4. 비용/시간 왜곡 — 유료를 무료라고, 오래 걸리는 걸 즉시 된다고 명백히 잘못 안내
+5. 욕설/비하 표현
 
 응답 형식:
 점수: [0-100]
 판정: [통과/수정필요/거부]
-위험정보감지: [있음/없음] — 감전·화재 등 실제 사고로 이어질 수 있는 잘못된 안전 정보가 있을 때만 "있음"
+위험정보감지: [있음/없음] — 감전·화재 등 실제 사고로 이어질 수 있는 안전 정보 오류가 있을 때만 "있음"
+거짓정보감지: [있음/없음] — 기준 1·2·4에 실제로 해당할 때만 "있음"
 경고사항: [문제점 목록, 없으면 "없음"]
 수정제안: [수정이 필요한 경우만 전체 수정본 작성, 없으면 "없음"]`.trim();
 
@@ -505,8 +518,11 @@ ${params.context ? `참고 자료:\n${params.context.slice(0, 1000)}` : ""}
   const score = parseScore(verdict);
   const passed = score >= 75;
 
-  const dangerMatch = verdict.match(/위험정보감지[:\s]*([\s\S]+?)(?=경고사항|수정제안|$)/);
+  const dangerMatch = verdict.match(/위험정보감지[:\s]*([\s\S]+?)(?=거짓정보감지|경고사항|수정제안|$)/);
   const hasDangerousMisinfo = Boolean(dangerMatch && /있음/.test(dangerMatch[1]) && !/없음/.test(dangerMatch[1]));
+
+  const falseInfoMatch = verdict.match(/거짓정보감지[:\s]*([\s\S]+?)(?=경고사항|수정제안|$)/);
+  const hasFalseInfo = Boolean(falseInfoMatch && /있음/.test(falseInfoMatch[1]) && !/없음/.test(falseInfoMatch[1]));
 
   const warnings: string[] = [];
   const warningMatch = verdict.match(/경고사항[:\s]*([\s\S]+?)(?=수정제안|$)/);
@@ -527,7 +543,7 @@ ${params.context ? `참고 자료:\n${params.context.slice(0, 1000)}` : ""}
     passed,
   });
 
-  return { passed, score, correctedAnswer, warnings, hasDangerousMisinfo };
+  return { passed, score, correctedAnswer, warnings, hasDangerousMisinfo, hasFalseInfo };
 }
 
 // ── Gemini 사용 가능 여부 ──────────────────────────────────────────────────────

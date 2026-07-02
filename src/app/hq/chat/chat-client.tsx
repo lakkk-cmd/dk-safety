@@ -4,7 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useChatSession } from "@/hooks/useChatSession";
 
 type ChatAgent = { id: string; name: string; role: string };
-type ChatValidation = { score: number; passed: boolean; warnings: string[] };
+type ChatBadge = "ok" | "no_evidence" | "corrected" | "blocked";
+type ChatValidation = {
+  score: number;
+  passed: boolean;
+  warnings: string[];
+  hasEvidence?: boolean;
+  evidenceSummary?: string;
+  badge?: ChatBadge;
+};
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
@@ -48,10 +56,21 @@ function Linkified({ text }: { text: string }) {
 }
 
 function ValidationBadge({ validation }: { validation: ChatValidation }) {
-  if (validation.passed) {
-    return <p className="mt-1 text-[10px] font-bold text-cc-green">✅ Gemini 검증 완료 ({validation.score}점)</p>;
+  const badge = validation.badge ?? (validation.passed ? "ok" : "corrected");
+  if (badge === "blocked") {
+    return <p className="mt-1 text-[10px] font-bold text-cc-red">🚫 거짓/위험 정보 감지 - 답변 차단</p>;
   }
-  return <p className="mt-1 text-[10px] font-bold text-amber-600">⚠️ 검토 후 처리된 답변 ({validation.score}점)</p>;
+  if (badge === "corrected") {
+    return <p className="mt-1 text-[10px] font-bold text-amber-600">⚠️ 검토 후 수정된 답변 ({validation.score}점)</p>;
+  }
+  if (badge === "no_evidence") {
+    return <p className="mt-1 text-[10px] font-bold text-amber-600">⚠️ 학습된 자료 없음 - 일반 지식 기반 답변</p>;
+  }
+  return (
+    <p className="mt-1 text-[10px] font-bold text-cc-green">
+      ✅ Gemini 검증 완료 ({validation.score}점){validation.hasEvidence ? " · 학습자료 근거 있음" : ""}
+    </p>
+  );
 }
 type PdfLearning = { chunksSaved: number; error?: string };
 type Attachment = { url?: string; base64?: string; name: string; mediaType: string; previewUrl?: string; pdfLearning?: PdfLearning };
