@@ -197,6 +197,15 @@ ${params.content.slice(0, 1000)}
 // 4. 경비 데이터 검증
 // ══════════════════════════════════════════════════════════════════════════════
 
+const EXPENSE_CATEGORY_LIMITS: Record<string, number> = {
+  "재료비": 1_000_000,
+  "공구/장비": 1_000_000,
+  "교통비": 500_000,
+  "통신비": 200_000,
+  "광고비": 1_000_000,
+  "기타": 500_000,
+};
+
 export async function validateExpense(params: {
   category: string;
   amount: number;
@@ -204,21 +213,40 @@ export async function validateExpense(params: {
   paymentMethod: string;
   expenseDate: string;
 }): Promise<{ passed: boolean; score: number; reason: string }> {
+  // 결정론적 검증 우선 (Gemini는 "오늘 날짜"를 모르므로 미래 날짜/금액 이상값은 코드로 판단)
+  if (params.amount <= 0) {
+    const reason = `금액이 0원 이하입니다: ${params.amount}원`;
+    await logResult({ type: "expense", target: `${params.category} ${params.amount}원`, original: JSON.stringify(params), verdict: reason, score: 0, passed: false });
+    return { passed: false, score: 0, reason };
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  if (params.expenseDate > today) {
+    const reason = `날짜가 미래입니다: ${params.expenseDate} (오늘: ${today})`;
+    await logResult({ type: "expense", target: `${params.category} ${params.amount.toLocaleString()}원`, original: JSON.stringify(params), verdict: reason, score: 0, passed: false });
+    return { passed: false, score: 0, reason };
+  }
+
+  const limit = EXPENSE_CATEGORY_LIMITS[params.category] ?? 500_000;
+  if (params.amount > limit) {
+    const reason = `금액 이상값: "${params.category}" 카테고리 한도(${limit.toLocaleString()}원) 초과 — ${params.amount.toLocaleString()}원`;
+    await logResult({ type: "expense", target: `${params.category} ${params.amount.toLocaleString()}원`, original: JSON.stringify(params), verdict: reason, score: 30, passed: false });
+    return { passed: false, score: 30, reason };
+  }
+
   const prompt = `당신은 소상공인 경비 데이터 검증 전문가입니다.
-아래 경비 입력 데이터가 정상적인지 검증해주세요.
+아래 경비 입력 데이터의 카테고리와 설명이 서로 일치하는지, 스팸/테스트성 데이터가 아닌지만 검증해주세요.
+(금액 한도와 날짜는 이미 별도로 검증했으니 신경쓰지 마세요.)
 
 경비 데이터:
 - 카테고리: ${params.category}
 - 금액: ${params.amount.toLocaleString()}원
 - 설명: ${params.description ?? "(없음)"}
 - 결제수단: ${params.paymentMethod}
-- 날짜: ${params.expenseDate}
 
 검증 기준:
-1. 금액이 비정상적으로 크지 않은가 (재료비 100만원 초과, 차량비 50만원 초과 등 이상값)
-2. 카테고리와 설명이 일치하는가
-3. 날짜가 미래 날짜가 아닌가
-4. 금액이 0원 이하가 아닌가
+1. 카테고리와 설명이 일치하는가 (예: "재료비"인데 설명이 전기안전 자재와 무관하면 불일치)
+2. 설명이 스팸/테스트/의미없는 문자열이 아닌가
 
 응답 형식:
 점수: [0-100]
