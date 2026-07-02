@@ -16,7 +16,7 @@ async function reviewFullAgentAnswer(
   try {
     const v = await validateAgentAnswer({ question, answer });
     let finalAnswer = answer;
-    if (!v.passed && v.score < 50) {
+    if (v.score < 30 && v.hasDangerousMisinfo) {
       finalAnswer =
         "죄송합니다. 정확한 정보 제공을 위해 해당 질문은 전문가 확인이 필요합니다. 우리집 전기주치의(대경이엔피)에 직접 문의해 주세요.";
     } else if (!v.passed && v.correctedAnswer) {

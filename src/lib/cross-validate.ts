@@ -476,9 +476,10 @@ export async function validateAgentAnswer(params: {
   question: string;
   answer: string;
   context?: string;
-}): Promise<{ passed: boolean; score: number; correctedAnswer?: string; warnings: string[] }> {
-  const prompt = `당신은 전기안전 서비스 AI 답변 품질 검증 전문가입니다.
-아래 AI 에이전트의 답변을 검토하고 문제점을 찾아주세요.
+}): Promise<{ passed: boolean; score: number; correctedAnswer?: string; warnings: string[]; hasDangerousMisinfo: boolean }> {
+  const prompt = `당신은 AI 에이전트 답변 검증 전문가입니다.
+이 AI는 전기안전 서비스 회사의 총괄 비서로, 전기안전뿐 아니라 마케팅/경영/IT/일반 업무 질문에도 답합니다.
+주제가 전기안전과 무관하다는 이유만으로는 절대 감점하지 마세요 — 아래 네 가지 문제가 있는지만 확인하세요.
 
 사용자 질문: ${params.question}
 
@@ -487,23 +488,25 @@ ${params.answer.slice(0, 2000)}
 
 ${params.context ? `참고 자료:\n${params.context.slice(0, 1000)}` : ""}
 
-검증 기준:
-1. 사실 정확성 (전기안전 법령/기술 기준 준수)
-2. 허위/과장 정보 없음
-3. 위험한 오정보 없음 (감전, 화재 위험 관련)
-4. 답변이 질문에 적절히 응답하는가
-5. 한국어로 작성되었는가
-6. 전문적이고 신뢰할 수 있는 내용인가
+검증 기준 (아래 항목에 해당할 때만 감점):
+1. 허위/과장 정보 (사실이 아닌 것을 사실처럼 단정)
+2. 위험한 오정보 (감전/화재 등 안전사고로 이어질 수 있는 잘못된 안전 정보)
+3. 욕설/비하 표현
+4. 명백히 잘못된 사실 (검증 가능한 사실 오류)
 
 응답 형식:
 점수: [0-100]
 판정: [통과/수정필요/거부]
+위험정보감지: [있음/없음] — 감전·화재 등 실제 사고로 이어질 수 있는 잘못된 안전 정보가 있을 때만 "있음"
 경고사항: [문제점 목록, 없으면 "없음"]
 수정제안: [수정이 필요한 경우만 전체 수정본 작성, 없으면 "없음"]`.trim();
 
   const verdict = await callGemini(prompt);
   const score = parseScore(verdict);
   const passed = score >= 75;
+
+  const dangerMatch = verdict.match(/위험정보감지[:\s]*([\s\S]+?)(?=경고사항|수정제안|$)/);
+  const hasDangerousMisinfo = Boolean(dangerMatch && /있음/.test(dangerMatch[1]) && !/없음/.test(dangerMatch[1]));
 
   const warnings: string[] = [];
   const warningMatch = verdict.match(/경고사항[:\s]*([\s\S]+?)(?=수정제안|$)/);
@@ -524,7 +527,7 @@ ${params.context ? `참고 자료:\n${params.context.slice(0, 1000)}` : ""}
     passed,
   });
 
-  return { passed, score, correctedAnswer, warnings };
+  return { passed, score, correctedAnswer, warnings, hasDangerousMisinfo };
 }
 
 // ── Gemini 사용 가능 여부 ──────────────────────────────────────────────────────
