@@ -412,18 +412,18 @@ export default function HqChatClient() {
   const flatAgentIds = Object.values(groups).flat();
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-2">
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
       {/* 컴팩트 상단 바 */}
-      <div className="flex flex-shrink-0 items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="hidden rounded-full bg-cc-navy px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white sm:inline-flex">
             AI 채팅
           </span>
-          <span className="text-sm font-black text-cc-text">
+          <span className="min-w-0 truncate text-sm font-black text-cc-text">
             {agentIcon(selectedAgent)} {currentAgent ? `${currentAgent.name} · ${currentAgent.role}` : "대화"}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-shrink-0 items-center gap-2">
           {messages.length > 0 ? (
             <>
               <button
@@ -460,7 +460,7 @@ export default function HqChatClient() {
       ) : null}
 
       {/* 모바일: 가로 스크롤 칩 */}
-      <div className="flex flex-shrink-0 gap-1 overflow-x-auto pb-1 pt-0 md:hidden">
+      <div className="flex min-w-0 flex-shrink-0 gap-1 overflow-x-auto pb-1 pt-0 md:hidden">
         {flatAgentIds.map((id) => {
           const agent = agents.find((a) => a.id === id);
           if (!agent) return null;
@@ -483,7 +483,7 @@ export default function HqChatClient() {
         })}
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-3">
+      <div className="flex min-h-0 min-w-0 flex-1 gap-3 overflow-hidden">
         {/* 데스크톱: 좌측 사이드바 */}
         <aside className="hidden w-44 flex-shrink-0 flex-col gap-3 overflow-y-auto cc-card p-2 md:flex">
           {Object.entries(groups).map(([groupLabel, ids]) => (
@@ -516,12 +516,12 @@ export default function HqChatClient() {
 
         {/* 채팅 영역 */}
         <section
-          className="flex min-h-0 flex-1 flex-col cc-card p-2 md:p-4"
+          className="flex min-h-0 min-w-0 flex-1 flex-col cc-card p-2 md:p-4"
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
         >
           {/* 메시지 목록 */}
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain rounded-xl bg-cc-bg p-2 md:p-3">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain rounded-xl bg-cc-bg p-2 md:p-3">
             {initialLoading ? (
               <p className="text-sm text-slate-500">불러오는 중…</p>
             ) : messages.length === 0 ? (
@@ -548,7 +548,7 @@ export default function HqChatClient() {
                         <div className="flex-1 h-px bg-slate-200" />
                       </div>
                     )}
-                    <div className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
+                    <div className={`flex min-w-0 flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
                       {m.role === "assistant" && currentAgent ? (
                         <span className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-500">
                           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-cc-navy text-sm">
@@ -558,13 +558,13 @@ export default function HqChatClient() {
                         </span>
                       ) : null}
                       {m.attachment_url ? (
-                        <div className="mb-1 max-w-[85%]">
+                        <div className="mb-1 max-w-[85%] min-w-0">
                           {isImage(m.attachment_url) ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={m.attachment_url}
                               alt="첨부 이미지"
-                              className="max-h-48 rounded-xl object-cover"
+                              className="max-h-48 max-w-full rounded-xl object-cover"
                             />
                           ) : (
                             <a
@@ -579,14 +579,14 @@ export default function HqChatClient() {
                         </div>
                       ) : null}
                       {m.content ? (
-                        <div className="flex max-w-[85%] items-end gap-1">
+                        <div className="flex max-w-[85%] min-w-0 items-end gap-1">
                           {m.role === "user" ? (
                             <span className="mb-0.5 flex-shrink-0 text-[10px] text-slate-400">
                               {formatTime(m.created_at)}
                             </span>
                           ) : null}
                           <div
-                            className={`whitespace-pre-wrap px-3 py-2 text-sm shadow-sm ${
+                            className={`min-w-0 whitespace-pre-wrap break-words px-3 py-2 text-sm shadow-sm ${
                               m.role === "user"
                                 ? "rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl rounded-br-sm bg-[#FEE500] text-slate-900"
                                 : "rounded-tl-sm rounded-tr-2xl rounded-br-2xl rounded-bl-2xl border border-slate-200 bg-white text-cc-text"
@@ -660,7 +660,7 @@ export default function HqChatClient() {
           ) : null}
 
           {/* 입력창 + 버튼 */}
-          <div className="mt-3 flex flex-shrink-0 items-end gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="mt-3 flex min-w-0 flex-shrink-0 items-end gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
             {/* hidden file input */}
             <input
               ref={fileInputRef}
@@ -732,7 +732,7 @@ export default function HqChatClient() {
               disabled={sending || initialLoading || uploading}
               rows={1}
               placeholder={currentAgent ? `${currentAgent.name}에게 메시지 보내기...` : "메시지 입력..."}
-              className="flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm focus:outline-none disabled:opacity-50"
+              className="min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm focus:outline-none disabled:opacity-50"
             />
             <button
               type="button"
