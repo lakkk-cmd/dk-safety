@@ -33,7 +33,7 @@ async function reviewFullAgentAnswer(
   };
   if (!GEMINI_ENABLED || !question) return { reply: answer, validation: fallback };
   try {
-    const v = await validateAgentAnswer({ question, answer, hasRAGEvidence: hasEvidence });
+    const v = await validateAgentAnswer({ question, answer, hasRAGEvidence: hasEvidence, includeProjectContext: true });
     let finalAnswer = answer;
     let badge: ChatBadge = hasEvidence ? "ok" : "no_evidence";
     if (v.hasFalseInfo || v.hasDangerousMisinfo) {

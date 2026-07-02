@@ -479,6 +479,9 @@ export async function validateAgentAnswer(params: {
   answer: string;
   context?: string;
   hasRAGEvidence?: boolean;
+  /** true면 project_features 기반 프로젝트 컨텍스트를 함께 주입해 "미구현 기능 오안내"를 더 정확히 잡는다.
+   *  기본 false — 공유 callGemini()는 건드리지 않고 이 함수 호출부에서만 선택적으로 사용한다. */
+  includeProjectContext?: boolean;
 }): Promise<{
   passed: boolean;
   score: number;
@@ -487,12 +490,25 @@ export async function validateAgentAnswer(params: {
   hasDangerousMisinfo: boolean;
   hasFalseInfo: boolean;
 }> {
+  let projectContextBlock = "";
+  if (params.includeProjectContext) {
+    try {
+      const { getProjectContext } = await import("@/lib/project-context");
+      const ctx = await getProjectContext();
+      if (ctx) {
+        projectContextBlock = `\n${ctx}\n\n위 프로젝트 컨텍스트의 "미구현/예정 기능" 목록에 있는 기능을 AI 답변이 "이미 가능합니다/구현돼 있습니다"라고 확정적으로 안내했다면 기준 2(미구현 기능 오안내)에 해당합니다. 목록에 없는 것은 이 컨텍스트만으로 구현 여부를 판단하지 마세요(이 목록이 전체 코드베이스를 완전히 대표하지 않을 수 있습니다).\n`;
+      }
+    } catch {
+      // 컨텍스트 조회 실패 시 프로젝트 컨텍스트 없이 검증 계속 진행
+    }
+  }
+
   const prompt = `당신은 AI 에이전트 답변 검증 전문가입니다.
 이 AI는 전기안전 서비스 회사의 총괄 비서로, 전기안전뿐 아니라 마케팅/경영/IT/일반 업무 질문에도 답합니다.
 주제가 전기안전과 무관하다는 이유만으로는 절대 감점하지 마세요.
 RAG 학습자료 근거가 없다는 이유, 또는 이 AI가 자신의 일반 지식으로 자신 있게 답했다는 이유만으로도 절대 "거짓정보"로 판단하지 마세요 — 이 AI는 학습자료가 없는 질문에도 일반 지식으로 정상 답변할 수 있어야 합니다.
 아래 다섯 가지 문제가 실제로 있을 때만 감점하세요. 의심스럽다는 이유만으로는 감점하지 마세요.
-
+${projectContextBlock}
 사용자 질문: ${params.question}
 
 AI 답변:

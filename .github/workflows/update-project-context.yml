@@ -1,0 +1,32 @@
+name: Update Project Context
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/app/api/**'
+      - 'src/app/admin/**'
+      - 'src/app/hq/**'
+  schedule:
+    - cron: '0 18 * * 0' # 매주 일요일 03:00 KST
+  workflow_dispatch:
+
+jobs:
+  update-context:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Sync project_features from codebase + refresh Gemini context cache
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/analyze-codebase.mjs

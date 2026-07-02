@@ -6,8 +6,22 @@ import { pgReadReservations } from "@/lib/reservations-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { listCodeReviewLogs } from "@/lib/code-review";
 import type { CodeReviewLog } from "@/lib/code-review";
+import { isAgentSupabaseReady, requireAgentSupabase } from "@/lib/agent-db";
 
 export const dynamic = "force-dynamic";
+
+type ProjectFeatureRow = { category: string; status: string; name: string; description: string };
+type ProjectContextMeta = { generated_at: string } | null;
+
+async function loadProjectFeatures(): Promise<{ features: ProjectFeatureRow[]; cacheMeta: ProjectContextMeta }> {
+  if (!isAgentSupabaseReady()) return { features: [], cacheMeta: null };
+  const supabase = requireAgentSupabase();
+  const [{ data: features }, { data: cache }] = await Promise.all([
+    supabase.from("project_features").select("category, status, name, description"),
+    supabase.from("project_context_cache").select("generated_at").eq("context_type", "gemini_context").maybeSingle(),
+  ]);
+  return { features: (features as ProjectFeatureRow[]) ?? [], cacheMeta: cache ?? null };
+}
 
 export default async function AdminStatsPage() {
   if (!isSupabaseReservationsDbReady()) {
@@ -18,15 +32,20 @@ export default async function AdminStatsPage() {
     );
   }
 
-  const [apartments, orders, reservations, reviewLogs] = await Promise.all([
+  const [apartments, orders, reservations, reviewLogs, { features, cacheMeta }] = await Promise.all([
     pgListApartments(),
     pgListOrdersForAdmin(),
     pgReadReservations(),
     listCodeReviewLogs(15),
+    loadProjectFeatures(),
   ]);
   const totalRevenue = orders.reduce((sum, order) => sum + (order.total_final_fee ?? order.base_fee ?? 0), 0);
   const paidCount = orders.filter((order) => order.payment_status === "PAID").length;
   const completionCount = reservations.filter((reservation) => reservation.status === "완료").length;
+  const implementedFeatures = features.filter((f) => f.status === "implemented");
+  const pendingFeatures = features.filter((f) => f.status === "pending");
+  const deprecatedCount = features.filter((f) => f.status === "deprecated").length;
+  const integrationCount = implementedFeatures.filter((f) => f.category === "integration").length;
   const apartmentMetrics = apartments.map((apt) => {
     const aptOrders = orders.filter((order) => order.apt_id === apt.id);
     return {
@@ -80,6 +99,54 @@ export default async function AdminStatsPage() {
           </div>
         </CardContent>
       </Card>
+      {/* Gemini 학습 컨텍스트 현황 */}
+      <Card className="mt-6 border-slate-300 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70">
+        <CardContent className="pt-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">🧠 Gemini 학습 컨텍스트 현황</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              마지막 갱신: {cacheMeta ? new Date(cacheMeta.generated_at).toLocaleString("ko-KR") : "미생성"}
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-950">
+              <p className="text-xs text-slate-500 dark:text-slate-400">구현된 기능</p>
+              <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">{implementedFeatures.length}개</p>
+            </div>
+            <div className="rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-950">
+              <p className="text-xs text-slate-500 dark:text-slate-400">미구현/예정</p>
+              <p className="mt-1 text-lg font-black text-amber-600">{pendingFeatures.length}개</p>
+            </div>
+            <div className="rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-950">
+              <p className="text-xs text-slate-500 dark:text-slate-400">연동 서비스</p>
+              <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">{integrationCount}개</p>
+            </div>
+            <div className="rounded-lg border border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-950">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Deprecated</p>
+              <p className="mt-1 text-lg font-black text-slate-400">{deprecatedCount}개</p>
+            </div>
+          </div>
+          {pendingFeatures.length > 0 ? (
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                미구현 기능 — 풀 에이전트 채팅이 &ldquo;가능합니다&rdquo;라고 안내하면 안 되는 목록
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {pendingFeatures.map((f) => (
+                  <span
+                    key={f.name}
+                    title={f.description}
+                    className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                  >
+                    {f.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
       {/* 코드 리뷰 이력 */}
       <Card className="mt-6 border-slate-300 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70">
         <CardContent className="pt-6">

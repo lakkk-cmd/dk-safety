@@ -7,6 +7,7 @@ import {
   validateInvoice,
   validateConsultation,
   validateWorkerAssignment,
+  validateAgentAnswer,
   GEMINI_ENABLED,
 } from "@/lib/cross-validate";
 
@@ -76,6 +77,11 @@ export async function POST(req: NextRequest) {
             scheduledAt: string;
             existingAssignments: { scheduledAt: string; customerName: string }[];
           }
+        );
+        break;
+      case "agent_answer":
+        result = await validateAgentAnswer(
+          body as { question: string; answer: string; context?: string; hasRAGEvidence?: boolean; includeProjectContext?: boolean }
         );
         break;
       default:

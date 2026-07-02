@@ -13,7 +13,10 @@ async function callGeminiReview(prompt: string): Promise<string> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2000 },
+        // gemini-2.5 계열은 기본적으로 내부 reasoning("thinking")에 maxOutputTokens를 먼저 소모해
+        // 실제 리뷰 텍스트가 잘리는 문제가 있어 thinkingBudget:0으로 비활성화한다.
+        // (cross-validate.ts의 callGemini()와 동일한 수정 — 이 파일은 별도 구현이라 누락돼 있었음)
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2000, thinkingConfig: { thinkingBudget: 0 } },
       }),
     }
   );
@@ -24,7 +27,8 @@ async function callGeminiReview(prompt: string): Promise<string> {
   }
 
   const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-  return json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const parts = json.candidates?.[0]?.content?.parts ?? [];
+  return parts.map((p) => p.text ?? "").join("");
 }
 
 function parseScore(text: string): number {
