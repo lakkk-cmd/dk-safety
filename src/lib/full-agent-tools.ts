@@ -22,17 +22,26 @@ export async function toolCallSubAgent(args: { agent_name?: string; query?: stri
   return reply;
 }
 
-export async function toolGithubCreateIssue(args: { title?: string; body?: string }): Promise<string> {
+export async function toolGithubCreateIssue(args: {
+  title?: string;
+  body?: string;
+  auto_implement?: boolean;
+}): Promise<string> {
   const title = args.title?.trim();
   const body = args.body?.trim();
   if (!title || !body) return "오류: title과 body가 모두 필요합니다.";
+  const autoImplement = args.auto_implement === true;
   try {
     const issue = await createGithubIssue({
       title,
-      body: `${body}\n\n---\n_이 이슈는 Full 에이전트(총괄) 채팅에서 생성되었습니다. 자동 구현 파이프라인을 트리거하지 않는 별도 라벨(chat-suggestion)이 붙어 있어, 검토 후 필요하면 대장이 직접 ai-improvement로 전환해야 합니다._`,
-      labels: ["chat-suggestion"],
+      body: autoImplement
+        ? `${body}\n\n---\n_이 이슈는 Full 에이전트(총괄) 채팅에서 생성되었으며, 에이전트가 저위험 변경으로 판단해 'ai-improvement' 라벨을 붙여 자동 구현/자동병합 파이프라인이 즉시 시작됩니다. lint/build 통과 시 사람 검토 없이 프로덕션에 배포될 수 있습니다._`
+        : `${body}\n\n---\n_이 이슈는 Full 에이전트(총괄) 채팅에서 생성되었습니다. 자동 구현 파이프라인을 트리거하지 않는 별도 라벨(chat-suggestion)이 붙어 있어, 검토 후 필요하면 대장이 직접 ai-improvement로 전환해야 합니다._`,
+      labels: [autoImplement ? "ai-improvement" : "chat-suggestion"],
     });
-    return `이슈 생성 완료: ${issue.url} (#${issue.number})`;
+    return autoImplement
+      ? `이슈 생성 완료 (자동구현 시작됨): ${issue.url} (#${issue.number}) — Claude Code가 바로 구현에 들어갑니다. lint/build 통과 시 사람 검토 없이 자동 머지·배포됩니다.`
+      : `이슈 생성 완료: ${issue.url} (#${issue.number})`;
   } catch (err) {
     return `이슈 생성 실패: ${err instanceof Error ? err.message : String(err)}`;
   }
