@@ -58,6 +58,7 @@ async function logResult(params: {
   verdict: string;
   score: number;
   passed: boolean;
+  extraMeta?: Record<string, unknown>;
 }): Promise<void> {
   const label = params.passed ? "통과" : "검증실패";
   await logAgentEvent(
@@ -71,6 +72,7 @@ async function logResult(params: {
       passed: params.passed,
       original: params.original.slice(0, 400),
       verdict: params.verdict.slice(0, 800),
+      ...params.extraMeta,
     }
   );
 }
@@ -541,6 +543,7 @@ ${params.context ? `참고 자료:\n${params.context.slice(0, 1000)}` : ""}
     verdict,
     score,
     passed,
+    extraMeta: { hasDangerousMisinfo, hasFalseInfo, hasRAGEvidence: Boolean(params.hasRAGEvidence) },
   });
 
   return { passed, score, correctedAnswer, warnings, hasDangerousMisinfo, hasFalseInfo };
