@@ -527,53 +527,100 @@ export default function HqChatClient() {
             ) : messages.length === 0 ? (
               <p className="text-sm text-slate-500">{currentAgent?.name ?? "에이전트"}에게 첫 메시지를 보내보세요.</p>
             ) : (
-              messages.map((m, i) => (
-                <div key={i} className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
-                  {m.role === "assistant" && currentAgent ? (
-                    <span className="mb-1 text-xs font-bold text-slate-500">{currentAgent.name}</span>
-                  ) : null}
-                  {m.attachment_url ? (
-                    <div className="mb-1 max-w-[85%]">
-                      {isImage(m.attachment_url) ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={m.attachment_url}
-                          alt="첨부 이미지"
-                          className="max-h-48 rounded-xl object-cover"
-                        />
-                      ) : (
-                        <a
-                          href={m.attachment_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs text-cc-navy underline"
-                        >
-                          📄 첨부파일 보기
-                        </a>
-                      )}
+              messages.map((m, i) => {
+                const prevMsg = messages[i - 1];
+                const showDate =
+                  !prevMsg ||
+                  new Date(m.created_at).toDateString() !==
+                    new Date(prevMsg.created_at).toDateString();
+                return (
+                  <div key={i}>
+                    {showDate && (
+                      <div className="flex items-center gap-2 my-3">
+                        <div className="flex-1 h-px bg-slate-200" />
+                        <span className="text-[11px] text-slate-400 font-medium px-2">
+                          {new Date(m.created_at).toLocaleDateString("ko-KR", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </span>
+                        <div className="flex-1 h-px bg-slate-200" />
+                      </div>
+                    )}
+                    <div className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
+                      {m.role === "assistant" && currentAgent ? (
+                        <span className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-cc-navy text-sm">
+                            {agentIcon(selectedAgent)}
+                          </span>
+                          {currentAgent.name}
+                        </span>
+                      ) : null}
+                      {m.attachment_url ? (
+                        <div className="mb-1 max-w-[85%]">
+                          {isImage(m.attachment_url) ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={m.attachment_url}
+                              alt="첨부 이미지"
+                              className="max-h-48 rounded-xl object-cover"
+                            />
+                          ) : (
+                            <a
+                              href={m.attachment_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-cc-navy underline"
+                            >
+                              📄 첨부파일 보기
+                            </a>
+                          )}
+                        </div>
+                      ) : null}
+                      {m.content ? (
+                        <div className="flex max-w-[85%] items-end gap-1">
+                          {m.role === "user" ? (
+                            <span className="mb-0.5 flex-shrink-0 text-[10px] text-slate-400">
+                              {formatTime(m.created_at)}
+                            </span>
+                          ) : null}
+                          <div
+                            className={`whitespace-pre-wrap px-3 py-2 text-sm shadow-sm ${
+                              m.role === "user"
+                                ? "rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl rounded-br-sm bg-[#FEE500] text-slate-900"
+                                : "rounded-tl-sm rounded-tr-2xl rounded-br-2xl rounded-bl-2xl border border-slate-200 bg-white text-cc-text"
+                            }`}
+                          >
+                            <Linkified text={m.content} />
+                          </div>
+                          {m.role === "assistant" ? (
+                            <span className="mb-0.5 flex-shrink-0 text-[10px] text-slate-400">
+                              {formatTime(m.created_at)}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {m.role === "assistant" && m.validation ? <ValidationBadge validation={m.validation} /> : null}
+                      {m.role === "assistant" && selectedAgent === "general" ? (
+                        <DelegationButtons content={m.content} agents={agents} onDelegate={handleDelegate} />
+                      ) : null}
                     </div>
-                  ) : null}
-                  {m.content ? (
-                    <div
-                      className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm ${
-                        m.role === "user" ? "bg-cc-navy text-white" : "border border-slate-200 bg-white text-cc-text"
-                      }`}
-                    >
-                      <Linkified text={m.content} />
-                    </div>
-                  ) : null}
-                  {m.role === "assistant" && m.validation ? <ValidationBadge validation={m.validation} /> : null}
-                  {m.role === "assistant" && selectedAgent === "general" ? (
-                    <DelegationButtons content={m.content} agents={agents} onDelegate={handleDelegate} />
-                  ) : null}
-                  <span className="mt-1 text-[10px] text-slate-400">{formatTime(m.created_at)}</span>
-                </div>
-              ))
+                  </div>
+                );
+              })
             )}
             {sending ? (
               <div className="flex flex-col items-start">
-                {currentAgent ? <span className="mb-1 text-xs font-bold text-slate-500">{currentAgent.name}</span> : null}
-                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400">
+                {currentAgent ? (
+                  <span className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-cc-navy text-sm">
+                      {agentIcon(selectedAgent)}
+                    </span>
+                    {currentAgent.name}
+                  </span>
+                ) : null}
+                <div className="rounded-tl-sm rounded-tr-2xl rounded-br-2xl rounded-bl-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400 shadow-sm">
                   생각 중…{selectedAgent === "general" || webSearchOn ? " 🔍" : ""}
                 </div>
               </div>
@@ -613,7 +660,7 @@ export default function HqChatClient() {
           ) : null}
 
           {/* 입력창 + 버튼 */}
-          <div className="mt-3 flex flex-shrink-0 items-end gap-2">
+          <div className="mt-3 flex flex-shrink-0 items-end gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
             {/* hidden file input */}
             <input
               ref={fileInputRef}
@@ -685,15 +732,17 @@ export default function HqChatClient() {
               disabled={sending || initialLoading || uploading}
               rows={1}
               placeholder={currentAgent ? `${currentAgent.name}에게 메시지 보내기...` : "메시지 입력..."}
-              className="flex-1 resize-none rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-cc-navy focus:outline-none disabled:opacity-50"
+              className="flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm focus:outline-none disabled:opacity-50"
             />
             <button
               type="button"
               onClick={() => void handleSend()}
               disabled={sending || initialLoading || uploading || (!input.trim() && !attachment)}
-              className="flex min-h-[46px] items-center justify-center rounded-xl bg-cc-navy px-5 text-sm font-bold text-white disabled:opacity-50"
+              aria-label="전송"
+              title="전송"
+              className="flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-full bg-cc-navy text-lg font-bold text-white disabled:opacity-50"
             >
-              {sending ? "전송 중…" : uploading ? "업로드 중…" : "전송"}
+              {sending || uploading ? "⏳" : "➤"}
             </button>
           </div>
 

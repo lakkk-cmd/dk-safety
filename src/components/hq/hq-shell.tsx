@@ -45,8 +45,8 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
   const isChat = pathname.includes("/chat");
 
   return (
-    <div className={`flex flex-col bg-cc-bg text-cc-text ${isChat ? "h-dvh" : "min-h-dvh"}`}>
-      <header className="flex-shrink-0 bg-cc-navy text-white">
+    <div className={`flex flex-col bg-cc-bg text-cc-text overflow-x-hidden w-full ${isChat ? "h-dvh" : "min-h-dvh"}`}>
+      <header className="flex-shrink-0 bg-cc-navy text-white w-full overflow-x-hidden">
         <div className="flex w-full items-center justify-between gap-3 px-3 py-3 md:mx-auto md:max-w-5xl md:px-6 md:py-4">
           <BrandLockup />
           <div className="flex items-center gap-3">
@@ -81,7 +81,7 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
           </ul>
         </nav>
       </header>
-      <div className={isChat ? "flex min-h-0 flex-1 flex-col p-2 md:p-3" : "mx-auto w-full max-w-5xl px-4 py-3 md:px-6 md:py-6"}>{children}</div>
+      <div className={isChat ? "flex min-h-0 flex-1 flex-col overflow-hidden p-2 md:p-3" : "mx-auto w-full max-w-5xl px-4 py-3 md:px-6 md:py-6"}>{children}</div>
     </div>
   );
 }
