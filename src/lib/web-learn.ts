@@ -1,16 +1,12 @@
 import { tavily } from '@tavily/core';
 import FirecrawlApp from '@mendable/firecrawl-js';
-import { createClient } from '@supabase/supabase-js';
 import { SEARCH_KEYWORDS, CRAWL_TARGETS } from './web-learn-keywords';
 import { validateKnowledgeChunk, GEMINI_ENABLED } from './cross-validate';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { requireAgentSupabase } from './agent-db';
 
 // ── 신뢰 도메인 필터링 ────────────────────────────────────────────────────
 async function getTrustedDomains(category: string): Promise<string[]> {
+  const supabase = requireAgentSupabase();
   const { data } = await supabase
     .from('trusted_domains')
     .select('domain')
@@ -91,6 +87,7 @@ async function saveWebChunks(
 ): Promise<number> {
   if (chunks.length === 0) return 0;
 
+  const supabase = requireAgentSupabase();
   const embeddings = await embedTexts(chunks);
 
   await supabase.from('knowledge_chunks').delete().eq('source_file', sourceFile);
