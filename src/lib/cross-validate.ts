@@ -7,7 +7,7 @@ import { logAgentEvent } from "@/lib/pipeline-logs";
 
 // ── Gemini API 호출 ───────────────────────────────────────────────────────────
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
 
 async function callGemini(prompt: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY?.trim();
@@ -20,7 +20,9 @@ async function callGemini(prompt: string): Promise<string> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 800 },
+        // gemini-2.5 계열은 기본적으로 내부 reasoning("thinking")에 maxOutputTokens를 먼저 소모해
+        // 실제 응답 텍스트가 잘리는 문제가 있어 thinkingBudget:0으로 비활성화한다.
+        generationConfig: { temperature: 0.1, maxOutputTokens: 800, thinkingConfig: { thinkingBudget: 0 } },
       }),
     }
   );
@@ -33,7 +35,8 @@ async function callGemini(prompt: string): Promise<string> {
   const json = (await res.json()) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   };
-  return json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const parts = json.candidates?.[0]?.content?.parts ?? [];
+  return parts.map((p) => p.text ?? "").join("");
 }
 
 // ── 점수 파싱 ──────────────────────────────────────────────────────────────────
