@@ -57,6 +57,7 @@ const uploadId = process.env.SUPABASE_UPLOAD_BUCKET ?? "dk-safety-uploads";
 const dataId = process.env.SUPABASE_DATA_BUCKET ?? "dk-safety-data";
 const videoId = process.env.SUPABASE_VIDEO_BUCKET ?? "dk-safety-video-assets";
 const knowledgeId = process.env.SUPABASE_KNOWLEDGE_BUCKET ?? "knowledge-pdfs";
+const documentsId = process.env.SUPABASE_DOCUMENTS_BUCKET ?? "dk-safety-documents";
 
 const buckets = await listBuckets();
 const ids = new Set(buckets.map((b) => b.id));
@@ -84,6 +85,12 @@ if (!ids.has(knowledgeId)) {
   await createBucket(knowledgeId, false);
 } else {
   console.log("지식베이스 PDF 버킷 이미 있음:", knowledgeId);
+}
+
+if (!ids.has(documentsId)) {
+  await createBucket(documentsId, true);
+} else {
+  console.log("문서 버킷 이미 있음:", documentsId);
 }
 
 console.log("Storage 점검 완료.");

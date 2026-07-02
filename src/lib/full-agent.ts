@@ -27,7 +27,9 @@ import {
   toolKnowledgeBaseWrite,
   toolSupabaseQuery,
   toolApplySiteDecision,
+  toolGenerateDocument,
 } from "@/lib/full-agent-tools";
+import { DOC_TEMPLATES } from "@/lib/document-generator";
 import { ALLOWED_QUERY_TABLES } from "@/lib/safe-query";
 
 const MAX_TOOL_ROUNDS = 6;
@@ -157,6 +159,25 @@ const TOOLS: ToolDefinition[] = [
       required: ["type", "title", "brief"],
     },
   },
+  {
+    name: "generate_document",
+    description:
+      "점검보고서/견적서/완료확인서/안전안내문/계약서/제안서를 실제 업무용 문서로 작성해 PDF/Word 다운로드 링크를 만든다. 대장이 필요한 정보(고객명, 작업 내용, 금액 등)를 충분히 말하기 전까지는 먼저 되물어 정보를 모으고, 정보가 모이면 이 도구를 호출하라.",
+    input_schema: {
+      type: "object",
+      properties: {
+        doc_type: {
+          type: "string",
+          enum: Object.keys(DOC_TEMPLATES).filter((id) => id !== "custom"),
+          description: "문서 유형",
+        },
+        user_request: { type: "string", description: "문서에 들어갈 구체적인 내용/요청 사항 전체" },
+        customer_name: { type: "string" },
+        reservation_id: { type: "string", description: "관련 예약 UUID (있는 경우만)" },
+      },
+      required: ["doc_type", "user_request"],
+    },
+  },
 ];
 
 const FULL_AGENT_SYSTEM_PROMPT = `당신은 우리집 전기주치의(대경이엔피)의 Full 에이전트(총괄)입니다. 경영진 6명과 콘텐츠팀 3명, 총 9명의 전문 에이전트를 실제로 호출(call_sub_agent)해서 종합 답변을 만들 수 있고, 디지털 작업을 직접 처리할 도구를 갖고 있습니다.
@@ -171,6 +192,9 @@ ${SUB_AGENT_NAMES_LINE}
    - 코드/설정 변경이 필요하면, 다음 패턴을 그대로 따르는 완성된 Claude Code 프롬프트를 마크다운 코드블록으로 제공: "작업 배경 → 번호 매긴 지시사항 → 테스트/검증 단계 → '증거 없는 완료 불인정' 문구 포함"
    - 마지막에 "완료 후 알려주시면 이어서 진행하겠습니다" 안내
 3. 고객 대량 발송, 할인/쿠폰 발행처럼 비용·리스크가 크고 되돌리기 어려운 작업은 그런 도구 자체가 없다 — 절대 임의로 진행하지 말고 반드시 대장에게 확인부터 요청하라.
+
+## 문서 작성
+"점검 보고서/견적서/완료 확인서/안전 안내문/계약서/제안서 작성해줘" 같은 요청을 받으면, 문서에 필요한 정보(고객명, 작업 내용, 금액 등)가 메시지나 이전 대화에 충분히 있는지 먼저 확인하라. 부족하면 도구를 호출하지 말고 필요한 정보를 되물어라. 정보가 충분하면 generate_document를 호출하고, 결과로 받은 PDF/Word 링크를 그대로 답변에 포함해 전달하라.
 
 ## 도구 사용 원칙
 - [실시간 현황]에 "[라우팅된 에이전트 의견 — 미리 호출됨]" 섹션이 있으면 이미 관련 에이전트에게 질문을 보내 받은 답변이다 — 그 의견을 우선 활용해 종합하고, 추가로 더 필요한 에이전트가 있을 때만 call_sub_agent를 추가로 호출하라.
@@ -261,6 +285,8 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
       return toolCreateContentDraft(input);
     case "apply_site_decision":
       return toolApplySiteDecision(input as Parameters<typeof toolApplySiteDecision>[0]);
+    case "generate_document":
+      return toolGenerateDocument(input);
     default:
       return `알 수 없는 도구: ${name}`;
   }

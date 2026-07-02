@@ -468,6 +468,65 @@ export async function validateWorkerAssignment(params: {
   return { passed: true, score: 95, reason: "배정 가능합니다." };
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// 8. 풀 에이전트 채팅 답변 Gemini 검토
+// ══════════════════════════════════════════════════════════════════════════════
+
+export async function validateAgentAnswer(params: {
+  question: string;
+  answer: string;
+  context?: string;
+}): Promise<{ passed: boolean; score: number; correctedAnswer?: string; warnings: string[] }> {
+  const prompt = `당신은 전기안전 서비스 AI 답변 품질 검증 전문가입니다.
+아래 AI 에이전트의 답변을 검토하고 문제점을 찾아주세요.
+
+사용자 질문: ${params.question}
+
+AI 답변:
+${params.answer.slice(0, 2000)}
+
+${params.context ? `참고 자료:\n${params.context.slice(0, 1000)}` : ""}
+
+검증 기준:
+1. 사실 정확성 (전기안전 법령/기술 기준 준수)
+2. 허위/과장 정보 없음
+3. 위험한 오정보 없음 (감전, 화재 위험 관련)
+4. 답변이 질문에 적절히 응답하는가
+5. 한국어로 작성되었는가
+6. 전문적이고 신뢰할 수 있는 내용인가
+
+응답 형식:
+점수: [0-100]
+판정: [통과/수정필요/거부]
+경고사항: [문제점 목록, 없으면 "없음"]
+수정제안: [수정이 필요한 경우만 전체 수정본 작성, 없으면 "없음"]`.trim();
+
+  const verdict = await callGemini(prompt);
+  const score = parseScore(verdict);
+  const passed = score >= 75;
+
+  const warnings: string[] = [];
+  const warningMatch = verdict.match(/경고사항[:\s]*([\s\S]+?)(?=수정제안|$)/);
+  if (warningMatch && !warningMatch[1].includes("없음")) {
+    warnings.push(warningMatch[1].trim());
+  }
+
+  const correctionMatch = verdict.match(/수정제안[:\s]*([\s\S]+?)$/);
+  const correctedAnswer =
+    correctionMatch && !correctionMatch[1].trim().startsWith("없음") ? correctionMatch[1].trim() : undefined;
+
+  await logResult({
+    type: "agent_answer",
+    target: params.question.slice(0, 100),
+    original: params.answer.slice(0, 500),
+    verdict,
+    score,
+    passed,
+  });
+
+  return { passed, score, correctedAnswer, warnings };
+}
+
 // ── Gemini 사용 가능 여부 ──────────────────────────────────────────────────────
 
 export const GEMINI_ENABLED = Boolean(process.env.GEMINI_API_KEY?.trim());

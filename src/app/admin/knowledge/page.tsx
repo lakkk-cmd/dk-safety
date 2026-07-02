@@ -2,6 +2,7 @@ import AdminPageHeader from "@/components/admin/admin-page-header";
 import KnowledgeUploadCenter from "@/components/admin/knowledge-upload-center";
 import KnowledgeLearnDashboard from "@/components/admin/knowledge-learn-dashboard";
 import CrossValidationDashboard from "@/components/admin/cross-validation-dashboard";
+import TrustedDomainManager from "@/components/admin/trusted-domain-manager";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { pgListKnowledgePdfs } from "@/lib/knowledge-pdfs";
 
@@ -30,6 +31,7 @@ export default async function AdminKnowledgePage({
         <div className="space-y-10">
           <KnowledgeLearnDashboard />
           <KnowledgeUploadCenter initialPdfs={pdfs} />
+          <TrustedDomainManager />
           <CrossValidationDashboard type={vtype} />
         </div>
       )}

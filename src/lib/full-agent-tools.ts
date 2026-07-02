@@ -7,6 +7,7 @@ import type { ContentCategory } from "@/lib/content-agents";
 import { embedText } from "@/lib/embeddings";
 import { createGithubIssue, readGithubFile } from "@/lib/github-issues";
 import { ALLOWED_QUERY_TABLES, runSafeQuery, type QueryFilter } from "@/lib/safe-query";
+import { DOC_TEMPLATES, generateDocument } from "@/lib/document-generator";
 
 export const SUB_AGENT_IDS = CHAT_AGENTS.filter((a) => a.id !== "general").map((a) => a.id);
 
@@ -147,6 +148,38 @@ export async function toolCreateContentDraft(args: {
     return `블로그 초안 등록됨 (id: ${post.id}, status: draft) — /contents에서 승인 대기 중`;
   } catch (err) {
     return `콘텐츠 초안 등록 실패: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+const DOC_TYPE_IDS = Object.keys(DOC_TEMPLATES).filter((id) => id !== "custom");
+
+export async function toolGenerateDocument(args: {
+  doc_type?: string;
+  user_request?: string;
+  customer_name?: string;
+  reservation_id?: string;
+}): Promise<string> {
+  const docType = args.doc_type?.trim();
+  const userRequest = args.user_request?.trim();
+  if (!docType || !DOC_TYPE_IDS.includes(docType)) {
+    return `오류: doc_type은 다음 중 하나여야 합니다: ${DOC_TYPE_IDS.join(", ")}`;
+  }
+  if (!userRequest) return "오류: user_request가 필요합니다.";
+
+  try {
+    const result = await generateDocument({
+      docType,
+      userRequest,
+      customerName: args.customer_name?.trim() || undefined,
+      reservationId: args.reservation_id?.trim() || undefined,
+    });
+    const links = [
+      result.pdfUrl ? `PDF: ${result.pdfUrl}` : null,
+      result.docxUrl ? `Word: ${result.docxUrl}` : null,
+    ].filter(Boolean).join("\n");
+    return `문서 생성 완료: "${result.title}" (검증 점수: ${result.validationScore}점)\n${links || "(다운로드 파일 생성 실패 — 본문만 저장됨)"}\n\n---\n${result.content}`;
+  } catch (err) {
+    return `문서 생성 실패: ${err instanceof Error ? err.message : String(err)}`;
   }
 }
 

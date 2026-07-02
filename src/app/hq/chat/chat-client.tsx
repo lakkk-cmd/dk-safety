@@ -4,12 +4,55 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useChatSession } from "@/hooks/useChatSession";
 
 type ChatAgent = { id: string; name: string; role: string };
+type ChatValidation = { score: number; passed: boolean; warnings: string[] };
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   created_at: string;
   attachment_url?: string | null;
+  validation?: ChatValidation;
 };
+
+const DOC_TYPE_BUTTONS: { id: string; label: string }[] = [
+  { id: "inspection_report", label: "📋 점검 보고서" },
+  { id: "estimate", label: "💰 견적서" },
+  { id: "completion_cert", label: "✅ 완료 확인서" },
+  { id: "safety_guide", label: "📢 안전 안내문" },
+  { id: "contract", label: "📄 계약서" },
+  { id: "proposal", label: "📊 제안서" },
+];
+
+const URL_RE = /(https?:\/\/[^\s]+)/g;
+
+function Linkified({ text }: { text: string }) {
+  const parts = text.split(URL_RE);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.startsWith("http://") || part.startsWith("https://") ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="break-all underline"
+          >
+            {part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+function ValidationBadge({ validation }: { validation: ChatValidation }) {
+  if (validation.passed) {
+    return <p className="mt-1 text-[10px] font-bold text-cc-green">✅ Gemini 검증 완료 ({validation.score}점)</p>;
+  }
+  return <p className="mt-1 text-[10px] font-bold text-amber-600">⚠️ 검토 후 처리된 답변 ({validation.score}점)</p>;
+}
 type PdfLearning = { chunksSaved: number; error?: string };
 type Attachment = { url?: string; base64?: string; name: string; mediaType: string; previewUrl?: string; pdfLearning?: PdfLearning };
 
@@ -316,11 +359,11 @@ export default function HqChatClient() {
           webSearch: webSearchOn,
         }),
       });
-      const data = (await res.json()) as { reply?: string; message?: string };
+      const data = (await res.json()) as { reply?: string; message?: string; validation?: ChatValidation };
       if (!res.ok || !data.reply) { setError(data.message ?? "응답 생성에 실패했습니다."); return; }
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply as string, created_at: new Date().toISOString() },
+        { role: "assistant", content: data.reply as string, created_at: new Date().toISOString(), validation: data.validation },
       ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "응답 생성에 실패했습니다.");
@@ -497,9 +540,10 @@ export default function HqChatClient() {
                         m.role === "user" ? "bg-cc-navy text-white" : "border border-slate-200 bg-white text-cc-text"
                       }`}
                     >
-                      {m.content}
+                      <Linkified text={m.content} />
                     </div>
                   ) : null}
+                  {m.role === "assistant" && m.validation ? <ValidationBadge validation={m.validation} /> : null}
                   {m.role === "assistant" && selectedAgent === "general" ? (
                     <DelegationButtons content={m.content} agents={agents} onDelegate={handleDelegate} />
                   ) : null}
@@ -529,6 +573,23 @@ export default function HqChatClient() {
                 pdfLearning={attachment.pdfLearning}
                 onRemove={clearAttachment}
               />
+            </div>
+          ) : null}
+
+          {/* 문서 작성 빠른 버튼 (총괄 전용) */}
+          {selectedAgent === "general" ? (
+            <div className="mt-2 flex flex-shrink-0 flex-wrap gap-1">
+              {DOC_TYPE_BUTTONS.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  disabled={sending}
+                  onClick={() => setInput(`${d.label.replace(/^\S+\s/, "")} 작성해줘`)}
+                  className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 transition hover:border-cc-navy hover:text-cc-navy disabled:opacity-40"
+                >
+                  {d.label}
+                </button>
+              ))}
             </div>
           ) : null}
 

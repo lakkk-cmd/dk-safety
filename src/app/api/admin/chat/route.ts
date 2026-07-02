@@ -3,9 +3,30 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { CHAT_AGENT_GROUPS, CHAT_AGENTS, chatWithAgentPlus, loadChatHistory } from "@/lib/agent-chat";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { chatWithFullAgent } from "@/lib/full-agent";
-import { GEMINI_ENABLED, validateRAGAnswer } from "@/lib/cross-validate";
+import { GEMINI_ENABLED, validateAgentAnswer, validateRAGAnswer } from "@/lib/cross-validate";
 
 export const maxDuration = 280;
+
+/** 풀 에이전트(총괄) 답변만 동기적으로 Gemini 검토 — 심각한 오류는 안전 메시지로, 경미한 오류는 수정본으로 대체 */
+async function reviewFullAgentAnswer(
+  question: string,
+  answer: string,
+): Promise<{ reply: string; validation?: { score: number; passed: boolean; warnings: string[] } }> {
+  if (!GEMINI_ENABLED || !question) return { reply: answer };
+  try {
+    const v = await validateAgentAnswer({ question, answer });
+    let finalAnswer = answer;
+    if (!v.passed && v.score < 50) {
+      finalAnswer =
+        "죄송합니다. 정확한 정보 제공을 위해 해당 질문은 전문가 확인이 필요합니다. 우리집 전기주치의(대경이엔피)에 직접 문의해 주세요.";
+    } else if (!v.passed && v.correctedAnswer) {
+      finalAnswer = v.correctedAnswer;
+    }
+    return { reply: finalAnswer, validation: { score: v.score, passed: v.passed, warnings: v.warnings } };
+  } catch {
+    return { reply: answer };
+  }
+}
 
 export async function GET(request: Request) {
   if (!(await isAdminAuthenticated())) {
@@ -72,10 +93,12 @@ export async function POST(request: Request) {
     if (agentId === "general") {
       if (attachment) {
         const reply = await chatWithAgentPlus("general", message, { attachment, webSearch: body.webSearch ?? false });
-        return NextResponse.json({ reply });
+        const reviewed = await reviewFullAgentAnswer(message, reply);
+        return NextResponse.json(reviewed);
       }
       const result = await chatWithFullAgent(message);
-      return NextResponse.json({ reply: result.reply });
+      const reviewed = await reviewFullAgentAnswer(message, result.reply);
+      return NextResponse.json(reviewed);
     }
 
     const reply = await chatWithAgentPlus(agentId, message, {

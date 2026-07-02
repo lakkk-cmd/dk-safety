@@ -136,6 +136,12 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     icon: BookOpen
   },
   {
+    href: "/admin/documents",
+    label: "생성된 문서 관리",
+    description: "AI 채팅이 작성한 점검보고서·견적서 등 PDF/Word",
+    icon: FileText
+  },
+  {
     href: "/admin/walk-in",
     label: "현장 즉시접수",
     description: "예약 없는 현장 작업 즉시 등록·완료 처리",

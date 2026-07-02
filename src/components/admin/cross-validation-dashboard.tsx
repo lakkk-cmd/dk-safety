@@ -42,6 +42,7 @@ const VALIDATION_TYPES = [
   { value: "content", label: "콘텐츠" },
   { value: "rag_answer", label: "RAG" },
   { value: "knowledge_chunk", label: "지식베이스" },
+  { value: "agent_answer", label: "AI채팅" },
   { value: "expense", label: "경비" },
   { value: "invoice", label: "청구서" },
   { value: "consultation", label: "상담" },

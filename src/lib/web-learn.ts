@@ -2,11 +2,58 @@ import { tavily } from '@tavily/core';
 import FirecrawlApp from '@mendable/firecrawl-js';
 import { createClient } from '@supabase/supabase-js';
 import { SEARCH_KEYWORDS, CRAWL_TARGETS } from './web-learn-keywords';
+import { validateKnowledgeChunk, GEMINI_ENABLED } from './cross-validate';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// ── 신뢰 도메인 필터링 ────────────────────────────────────────────────────
+async function getTrustedDomains(category: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('trusted_domains')
+    .select('domain')
+    .eq('category', category)
+    .eq('is_active', true);
+  return data?.map((d: { domain: string }) => d.domain) ?? [];
+}
+
+function isTrustedUrl(targetUrl: string, trustedDomains: string[]): boolean {
+  if (trustedDomains.length === 0) return true; // 카테고리에 등록된 도메인이 없으면 전부 허용
+  try {
+    const hostname = new URL(targetUrl).hostname.replace(/^www\./, '');
+    return trustedDomains.some((d) => hostname === d || hostname.endsWith('.' + d));
+  } catch {
+    return false;
+  }
+}
+
+// ── 청크 전수 검증 (Gemini) — 기존 지식베이스 검증기 재사용 ─────────────────
+async function filterValidatedChunks(
+  chunks: string[],
+  sourceFile: string,
+  category: string
+): Promise<string[]> {
+  if (!GEMINI_ENABLED) return chunks; // 검증 불가 시 전부 통과(기존 동작 유지)
+
+  const validated: string[] = [];
+  for (const chunk of chunks) {
+    try {
+      const result = await validateKnowledgeChunk({ sourceFile, content: chunk, category });
+      if (result.passed) {
+        validated.push(chunk);
+      } else {
+        console.warn(`⚠️ [전수검증거부] ${sourceFile} 청크 거부 (점수: ${result.score})`);
+      }
+    } catch (err) {
+      console.warn(`⚠️ [전수검증오류] ${sourceFile}:`, err);
+      validated.push(chunk); // 검증 자체가 실패하면(예: Gemini 일시 오류) 통과 처리해 학습이 멈추지 않게 함
+    }
+    await new Promise((r) => setTimeout(r, 200)); // rate limit 방지
+  }
+  return validated;
+}
 
 // ── Voyage AI 임베딩 ──────────────────────────────────────────────────────
 async function embedTexts(texts: string[]): Promise<number[][]> {
@@ -95,6 +142,8 @@ export async function runTavilySearch(category?: string): Promise<{
     : SEARCH_KEYWORDS;
 
   for (const group of groups) {
+    const trustedDomains = await getTrustedDomains(group.category);
+
     for (const keyword of group.keywords) {
       try {
         const result = await client.search(keyword, {
@@ -104,15 +153,32 @@ export async function runTavilySearch(category?: string): Promise<{
           language: 'ko',
         });
 
-        const texts = result.results
-          .map((r) => `# ${r.title}\n${r.content ?? ''}`)
+        // 신뢰 도메인 필터링 — 등록된 도메인 밖 출처는 차단
+        const filteredResults = result.results.filter((r) => !r.url || isTrustedUrl(r.url, trustedDomains));
+        if (filteredResults.length === 0) {
+          console.warn(`⚠️ [도메인차단] ${keyword} → 신뢰 도메인 결과 없음`);
+          failed++;
+          continue;
+        }
+
+        const texts = filteredResults
+          .map((r) => `# ${r.title}\n출처: ${r.url ?? '-'}\n${r.content ?? ''}`)
           .filter((t) => t.length > 100);
 
         if (texts.length === 0) continue;
 
         const combined = texts.join('\n\n');
-        const chunks = chunkText(combined);
+        const rawChunks = chunkText(combined);
         const sourceFile = `web:tavily:${group.category}:${group.subcategory}:${keyword}`;
+
+        // 전수 Gemini 검증 — 허위/위험 정보 청크는 저장 전 차단
+        const chunks = await filterValidatedChunks(rawChunks, sourceFile, group.category);
+        if (chunks.length === 0) {
+          console.warn(`❌ [전수검증] ${keyword} → 모든 청크 거부`);
+          failed++;
+          continue;
+        }
+        console.log(`✅ [전수검증] ${keyword} → ${chunks.length}/${rawChunks.length}개 통과`);
 
         const saved = await saveWebChunks(sourceFile, group.category, chunks);
         totalChunks += saved;
@@ -158,8 +224,16 @@ export async function runFirecrawl(category?: string): Promise<{
         continue;
       }
 
-      const chunks = chunkText(result.markdown);
+      const rawChunks = chunkText(result.markdown);
       const sourceFile = `web:firecrawl:${target.category}:${target.name}`;
+
+      const chunks = await filterValidatedChunks(rawChunks, sourceFile, target.category);
+      if (chunks.length === 0) {
+        console.warn(`❌ [전수검증] ${target.name} → 모든 청크 거부`);
+        failed++;
+        continue;
+      }
+      console.log(`✅ [전수검증] ${target.name} → ${chunks.length}/${rawChunks.length}개 통과`);
 
       const saved = await saveWebChunks(sourceFile, target.category, chunks);
       totalChunks += saved;
