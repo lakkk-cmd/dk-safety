@@ -52,3 +52,27 @@ export async function notifyImprovementRequestReceived(title: string, issueUrl: 
 export async function notifyImprovementRequestCompleted(title: string, prUrl: string): Promise<void> {
   await sendKakaoMemo(`[개선요청 완료]\n${title}\n\n자동 구현 및 배포가 완료되었습니다.`, prUrl);
 }
+
+/** Vercel 프로덕션 배포 완료/실패 알림 — Vercel 웹훅(deployment.succeeded/deployment.error)에서 호출 */
+export async function notifyVercelDeployment(params: {
+  status: "succeeded" | "error";
+  projectName: string;
+  deploymentUrl: string;
+  commitSha?: string;
+  commitMessage?: string;
+  inspectorUrl?: string;
+}): Promise<void> {
+  const shaLine = params.commitSha ? `커밋: ${params.commitSha.slice(0, 7)}` : "";
+  const msgLine = params.commitMessage ? params.commitMessage.split("\n")[0].slice(0, 80) : "";
+  if (params.status === "succeeded") {
+    await sendKakaoMemo(
+      `[배포 완료]\n${params.projectName} 프로덕션 배포가 완료되었습니다.\n${msgLine}\n${shaLine}`.trim(),
+      `https://${params.deploymentUrl}`,
+    );
+  } else {
+    await sendKakaoMemo(
+      `[배포 실패] ⚠️\n${params.projectName} 프로덕션 배포가 실패했습니다.\n${msgLine}\n${shaLine}\n확인이 필요합니다.`.trim(),
+      params.inspectorUrl ?? `https://${params.deploymentUrl}`,
+    );
+  }
+}
