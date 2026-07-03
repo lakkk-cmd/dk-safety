@@ -315,7 +315,7 @@ async function checkGeminiBudget(supabase: SupabaseClient): Promise<void> {
 
 // ─── Flux ai_bg 씬 처리 (Veo 비활성 또는 폴백) ───────────────────────────────
 
-async function produceAiBgSceneFlux(
+export async function produceAiBgSceneFlux(
   scene: VideoScene,
   queueId: string,
   sceneIndex: number,
@@ -355,7 +355,7 @@ async function produceAiBgSceneFlux(
 // ─── 전체 자산 생성 ───────────────────────────────────────────────────────────
 
 export type VeoLroEntry = { sceneIndex: number; lroName: string; prompt: string };
-export type ProduceVideoAssetsResult = { scenes: VideoScene[]; veoAsync?: boolean };
+export type ProduceVideoAssetsResult = { scenes: VideoScene[]; veoAsync?: boolean; fluxAsync?: boolean };
 
 /** 승인된 유튜브 큐 항목의 스크립트를 씬으로 분해하고 Veo(또는 Flux) 자산을 생성.
  *  USE_VEO_VIDEO=true: ai_bg 씬에 Veo LRO만 제출 후 즉시 반환 (GitHub Actions가 폴링 완료).
@@ -451,9 +451,11 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
         continue;
       }
 
-      // ── ai_bg + Flux (USE_VEO_VIDEO=false) ────────────────────────────────
-      const { imageUrl } = await produceAiBgSceneFlux(scene, queueId, i, bucket);
-      scenes.push({ ...scene, imageUrl });
+      // ── ai_bg + Flux (USE_VEO_VIDEO=false): 여기서 생성하지 않고 GitHub Actions에 위임 ──
+      // 씬이 5~8개라 전부 동기로 생성하면 Vercel 함수 시간제한을 넘겨 504가 나는 문제가
+      // 실제로 있었음 (Veo LRO 제출처럼 빠르게 끝나지 않고 Flux+OCR을 순차로 다 돌리기 때문).
+      // imageUrl 없이 씬만 저장해두고 flux-complete.yml이 씬별로 나눠서 채운다.
+      scenes.push({ ...scene });
     }
 
     // Veo 비동기: LRO 이름 저장 + veo_generating 상태 (GitHub Actions가 폴링 후 완료)
@@ -473,7 +475,19 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
       return { scenes, veoAsync: true };
     }
 
-    // Flux 동기 완료
+    // Flux 비동기: ai_bg 씬 중 imageUrl 없는 게 있으면 GitHub Actions에 완료 위임
+    const needsFlux = scenes.some((s) => (s.sceneType ?? "ai_bg") === "ai_bg" && !s.imageUrl);
+    if (!USE_VEO && needsFlux) {
+      await supabase
+        .from("content_youtube_queue")
+        .update({ scenes, conti_summary: contiSummary || null, status: "producing", updated_at: new Date().toISOString() })
+        .eq("id", queueId)
+        .throwOnError();
+      console.log(`[Flux 비동기] 씬 계획 저장됨. GitHub Actions가 이미지 생성 후 완료 처리.`);
+      return { scenes, fluxAsync: true };
+    }
+
+    // 모든 씬이 이미 준비됨 (verdict_card/phone_ui만 있는 경우 등)
     await supabase
       .from("content_youtube_queue")
       .update({ scenes, conti_summary: contiSummary || null, status: "assets_ready", updated_at: new Date().toISOString() })

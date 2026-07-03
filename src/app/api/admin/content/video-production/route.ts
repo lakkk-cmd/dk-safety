@@ -6,15 +6,15 @@ import { produceVideoAssets } from "@/lib/video-pipeline";
 // Veo 비동기: Claude 씬 분해 + LRO 제출만 (~30s). Flux 동기: 이미지 최대 8장 (~240s).
 export const maxDuration = 300;
 
-async function triggerVeoCompleteWorkflow(queueId: string): Promise<void> {
+async function triggerCompleteWorkflow(workflowFile: string, queueId: string): Promise<void> {
   const token = process.env.GITHUB_TOKEN?.trim();
   const repo = (process.env.GITHUB_REPO?.trim()) || "lakkk-cmd/dk-safety";
   if (!token) {
-    console.warn("[veo-complete] GITHUB_TOKEN 없음 — schedule 폴백 사용");
+    console.warn(`[${workflowFile}] GITHUB_TOKEN 없음 — schedule 폴백 사용`);
     return;
   }
   const res = await fetch(
-    `https://api.github.com/repos/${repo}/actions/workflows/veo-complete.yml/dispatches`,
+    `https://api.github.com/repos/${repo}/actions/workflows/${workflowFile}/dispatches`,
     {
       method: "POST",
       headers: {
@@ -26,9 +26,9 @@ async function triggerVeoCompleteWorkflow(queueId: string): Promise<void> {
     },
   );
   if (!res.ok) {
-    console.warn(`[veo-complete] GitHub Actions 트리거 실패 ${res.status}: ${await res.text().then(t => t.slice(0,100))}`);
+    console.warn(`[${workflowFile}] GitHub Actions 트리거 실패 ${res.status}: ${await res.text().then(t => t.slice(0,100))}`);
   } else {
-    console.log(`[veo-complete] GitHub Actions 트리거 완료 → queue_id: ${queueId}`);
+    console.log(`[${workflowFile}] GitHub Actions 트리거 완료 → queue_id: ${queueId}`);
   }
 }
 
@@ -54,11 +54,23 @@ export async function POST(request: Request) {
 
     // Veo 비동기 경로: GitHub Actions에 완료 위임
     if (result.veoAsync) {
-      await triggerVeoCompleteWorkflow(queueId).catch((e) =>
+      await triggerCompleteWorkflow("veo-complete.yml", queueId).catch((e) =>
         console.error("[veo-complete] dispatch 오류:", e),
       );
       return NextResponse.json({
         message: `씬 ${result.scenes.length}개 계획 완료. Veo 영상 생성 중 (GitHub Actions)...`,
+        ...result,
+      });
+    }
+
+    // Flux 비동기 경로: 씬 계획만 동기로 끝내고 이미지 생성은 GitHub Actions에 위임
+    // (전체 씬을 이 요청 안에서 순차 생성하면 Vercel 함수 시간제한을 넘겨 504가 나던 문제 수정)
+    if (result.fluxAsync) {
+      await triggerCompleteWorkflow("flux-complete.yml", queueId).catch((e) =>
+        console.error("[flux-complete] dispatch 오류:", e),
+      );
+      return NextResponse.json({
+        message: `씬 ${result.scenes.length}개 계획 완료. 이미지 생성 중 (GitHub Actions)...`,
         ...result,
       });
     }
