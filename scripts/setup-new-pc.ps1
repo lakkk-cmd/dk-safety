@@ -1,13 +1,22 @@
 ﻿# dk-safety 새 PC 완전 자동 셋업 스크립트
 #
-# 완전히 빈 새 PC에서, 아무것도 설치되어 있지 않은 상태에서 실행할 단 한 줄:
+# === 완전히 빈 새 PC, 최초 1회 ===
+# scripts/setup.cmd 파일 하나를 외장하드 등으로 옮겨 새 PC 아무 폴더에나 두고
+# 더블클릭하면 끝 (파일탐색기 더블클릭은 Windows 보안정책과 무관하게 항상 동작함).
+# 터미널을 쓰고 싶다면 그 폴더에서 PowerShell에 아래 한 줄을 직접 입력해도 동일:
 #
 #   irm https://raw.githubusercontent.com/lakkk-cmd/dk-safety/main/scripts/setup-new-pc.ps1 | iex
 #
 # 이 한 줄이 하는 일: Git/Node.js/GitHub CLI/Claude Code CLI 설치 -> 저장소 clone
 # -> npm install -> GitHub/Claude 로그인 -> claude-design MCP 등록 ->
-# oh-my-claudecode 플러그인 설치 -> 마지막으로 dk-safety 폴더 안에서 Claude Code를
-# 직접 실행(claude)까지 자동으로 이어집니다.
+# oh-my-claudecode 플러그인 설치 -> "setup" 명령어를 PowerShell 프로필에 영구 등록 ->
+# 마지막으로 dk-safety 폴더 안에서 Claude Code를 직접 실행(claude)까지 자동으로 이어집니다.
+#
+# === 그 다음부터 (같은 PC) ===
+# 아무 PowerShell 창에서나 그냥:
+#   setup
+# (cmd.exe에서 bare 명령어로는 안 될 수 있음 - Windows 보안정책에 따라 cwd 자동탐색이
+#  막혀있는 PC가 있음. 그런 경우 scripts/setup.cmd를 더블클릭하거나 PowerShell을 쓸 것)
 #
 # 이미 clone된 폴더 안에서는 다음으로도 실행 가능:
 #   npm run setup:new-pc
@@ -175,6 +184,37 @@ function Start-DkSafetySetup {
     claude plugin marketplace add "https://github.com/Yeachan-Heo/oh-my-claudecode.git"
     claude plugin install oh-my-claudecode
     Write-Host "완료 (이미 설치돼 있으면 위에 안내 메시지가 표시됩니다)"
+
+    # --- 13. "setup" 명령어를 PowerShell 프로필에 영구 등록 ---
+    # 최초 1회는 irm|iex 긴 명령이 필요하지만, 이 단계 이후부터는 이 PC의
+    # 어떤 PowerShell 창(Cursor 터미널 포함)에서도 그냥 "setup"만 치면 이 스크립트가
+    # 다시 실행된다. cmd.exe의 cwd 자동탐색과 달리 프로필 함수는 보안정책과 무관하게
+    # 항상 이름으로 바로 찾아진다.
+    Write-Step "'setup' 명령어 등록"
+    $profilePath = $PROFILE.CurrentUserAllHosts
+    $marker = "# dk-safety setup shortcut"
+    $needsInstall = $true
+    if (Test-Path $profilePath) {
+        $existing = Get-Content -Raw $profilePath -ErrorAction SilentlyContinue
+        if ($existing -and $existing.Contains($marker)) { $needsInstall = $false }
+    }
+    if ($needsInstall) {
+        $profileDir = Split-Path $profilePath -Parent
+        if (-not (Test-Path $profileDir)) {
+            New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
+        }
+        Add-Content -Path $profilePath -Encoding UTF8 -Value @"
+
+$marker
+function setup { irm https://raw.githubusercontent.com/lakkk-cmd/dk-safety/main/scripts/setup-new-pc.ps1 | iex }
+"@
+        Write-Host "등록됨: $profilePath"
+        Write-Host "(지금 이 창에서 바로 쓰려면 마지막 줄을 실행: . `$PROFILE.CurrentUserAllHosts)"
+    } else {
+        Write-Host "이미 등록돼 있음: $profilePath"
+    }
+    # 지금 이 세션에도 즉시 반영 (새 창을 열지 않아도 바로 setup 사용 가능)
+    function global:setup { irm https://raw.githubusercontent.com/lakkk-cmd/dk-safety/main/scripts/setup-new-pc.ps1 | iex }
 
     # --- 완료 ---
     Write-Step "셋업 완료 - Claude Code를 시작합니다"
