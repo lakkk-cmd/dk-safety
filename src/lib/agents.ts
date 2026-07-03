@@ -145,6 +145,11 @@ export const BUSINESS_CONTEXT = `
 - 앱: FlutterFlow + Firebase
 - 특허: KIPO 출원 완료 (14개 청구항)
 - 3년 로드맵: 1년차 5천만 → 2년차 2억5천만 → 3년차 7억5천만 (법인·전국화)
+
+[확정 요금 체계 — 대장 승인 사항, 승인 없이 변경 금지]
+- 기본 출장점검(방문+누전점검+차단기 확인+점검기록표): 150,000원
+- 풀패키지(기본+절연저항 정밀측정+분전함 정밀점검+개선 리포트): 200,000원
+- 추가 작업(누전차단기 교체/콘센트·스위치 교체 등): 별도 협의(현장 견적)
 `;
 
 const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-4-6";

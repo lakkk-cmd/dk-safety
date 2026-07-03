@@ -356,10 +356,19 @@ export async function toolApplySiteDecision(args: {
       body: JSON.stringify({ session_id, decisions }),
       cache: "no-store",
     });
-    const data = (await res.json()) as { success?: boolean; applied_count?: number; applied?: { key: string; new_value: string; target_page: string }[]; error?: string };
+    const data = (await res.json()) as {
+      success?: boolean;
+      applied_count?: number;
+      applied?: { key: string; new_value: string; target_page: string }[];
+      warnings?: string[];
+      error?: string;
+    };
     if (!data.success) return `반영 실패: ${data.error ?? "알 수 없는 오류"}`;
     const summary = (data.applied ?? []).map((a) => `${a.key}=${a.new_value} (${a.target_page})`).join(", ");
-    return `✅ [반영 완료] ${data.applied_count}건 → dkansim.com에 즉시 적용됐습니다. (${summary})`;
+    const warningsText = data.warnings && data.warnings.length > 0
+      ? `\n⚠️ 일부 항목은 완전히 반영되지 않았습니다:\n${data.warnings.map((w) => `- ${w}`).join("\n")}`
+      : "";
+    return `✅ [반영 완료] ${data.applied_count}건 → dkansim.com에 즉시 적용됐습니다. (${summary})${warningsText}`;
   } catch (e) {
     return `반영 실패: ${e instanceof Error ? e.message : String(e)}`;
   }

@@ -18,15 +18,15 @@ export function defaultPricingCatalog(baseDispatchFee: number): PricingCatalogLi
   return [
     {
       key: "base_dispatch",
-      title: "기본 출장비",
+      title: "기본 출장점검",
       amount: base,
-      detail: "현장 방문, 육안 점검 및 기술 상담 · 모든 서비스의 공통 기본료"
+      detail: "방문 + 누전점검 + 차단기 확인 + 점검기록표"
     },
     {
-      key: "diagnosis",
-      title: "정밀 안전진단",
-      amount: 150000,
-      detail: "분전반 수치 측정 및 열화상 진단 · 출장비 포함 (기술료 10만 원 추가)"
+      key: "full_package",
+      title: "풀패키지",
+      amount: 200000,
+      detail: "기본 출장점검 + 절연저항 정밀측정 + 분전함 정밀점검 + 개선 리포트"
     },
     {
       key: "leakage",
@@ -44,7 +44,7 @@ export function defaultPricingCatalog(baseDispatchFee: number): PricingCatalogLi
       key: "breaker_swap",
       title: "차단기 교체",
       amount: null,
-      detail: "노후 차단기 교체 (자재비 별도) · 안전 점검비 포함"
+      detail: "노후 누전차단기 교체 (자재비 별도) · 안전 점검비 포함"
     },
     {
       key: "emergency_dispatch",

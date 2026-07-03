@@ -21,7 +21,7 @@ const SYMPTOMS = [
   { icon: "📈", text: "전기요금이 갑자기 올랐어요" }
 ];
 
-const TRUST_ITEMS = ["🏅 전기기사 자격", "⚡ 24시간 출동", "📄 디지털 보증서", "⭐ 특허 기술"];
+const TRUST_ITEMS = ["🏅 전기기사 자격", "⚡ 24시간 출동", "📄 디지털 보증서", "⭐ 특허 기술", "💰 150,000원~"];
 
 const FLOW_STEPS = [
   { icon: "1️⃣", label: "예약" },
