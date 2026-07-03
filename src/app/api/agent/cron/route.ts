@@ -10,7 +10,7 @@ function checkCronAuth(request: Request): boolean {
   return request.headers.get("Authorization") === `Bearer ${secret}`;
 }
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   if (!checkCronAuth(request)) {
     return NextResponse.json({ error: "인증 실패" }, { status: 401 });
   }

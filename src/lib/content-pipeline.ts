@@ -162,7 +162,8 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
       .from("content_youtube_queue")
       .select("id, title, competitor_notes, category")
       .eq("status", "planning")
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(2);
 
     for (const ytRow of ytRows ?? []) {
       const draft = await draftYoutubeScript(
