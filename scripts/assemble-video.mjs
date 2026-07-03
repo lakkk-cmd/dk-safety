@@ -310,7 +310,30 @@ async function main() {
   const dir = mkdtempSync(join(tmpdir(), "dk-video-"));
 
   try {
-    if (!videoAssetUrl) {
+    await assembleQueueItem(queue, videoAssetUrl, dir);
+  } catch (err) {
+    console.error(`영상 조립 실패 (${queue.id}):`, err);
+    // 실패한 항목을 assets_ready에 그대로 두면 다음 실행에서 (updated_at 오름차순 limit 1)
+    // 똑같은 항목을 다시 골라 매번 동일하게 크래시한다 (실제로 8일+ 연속 발생했던 문제).
+    // approved로 되돌려 다음 "영상 제작 시작" 때 씬을 처음부터 새로 생성하도록 한다.
+    await supabase
+      .from("content_youtube_queue")
+      .update({ status: "approved", scenes: [], video_asset_url: null, updated_at: new Date().toISOString() })
+      .eq("id", queue.id);
+    await supabase.from("agent_logs").insert({
+      level: "error",
+      source: "video-assembly",
+      message: `영상 조립 실패, approved로 되돌림: ${queue.title} — ${err instanceof Error ? err.message : String(err)}`,
+    });
+    throw err;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function assembleQueueItem(queue, videoAssetUrlIn, dir) {
+  let videoAssetUrl = videoAssetUrlIn;
+  if (!videoAssetUrl) {
       const scenes = queue.scenes ?? [];
       if (scenes.length === 0) throw new Error("scenes가 비어 있습니다.");
 
@@ -372,9 +395,6 @@ async function main() {
     } else {
       console.log("유튜브 업로드는 생략됨. status=assets_ready 유지 (video_asset_url 저장됨, 재시도 가능)");
     }
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
 }
 
 main().catch((err) => {
