@@ -324,7 +324,12 @@ export async function produceAiBgSceneFlux(
   let generated: { data: Buffer; contentType: string } | null = null;
   let hasText = false;
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // 씬 1개 = 요청 1개(video-production/scene)로 나눠 처리하는 구조라, OCR 재시도를
+  // 많이 돌리면 Vercel 함수 실행시간 한도를 넘겨 FUNCTION_INVOCATION_TIMEOUT이 남
+  // (실측: 504로 재현됨). 재시도를 1회로 줄여 매 요청을 확실히 짧게 유지하고,
+  // 텍스트가 남아있으면 boss_feedback 알림으로 사람이 확인하도록 한다.
+  const MAX_OCR_ATTEMPTS = 1;
+  for (let attempt = 0; attempt < MAX_OCR_ATTEMPTS; attempt++) {
     const seedSuffix = attempt > 0 ? ` (variation ${attempt + 1}, avoid all text)` : "";
     const { data, contentType: ct } = await generateSceneImage(scene.imagePrompt + seedSuffix);
     generated = { data, contentType: ct };
@@ -338,7 +343,7 @@ export async function produceAiBgSceneFlux(
   }
 
   if (hasText) {
-    console.warn(`  씬 ${sceneIndex + 1} OCR 3회 실패 → boss_feedback 알림`);
+    console.warn(`  씬 ${sceneIndex + 1} OCR 실패 → boss_feedback 알림`);
     await notifyOcrFailure(queueId, sceneIndex, scene.imagePrompt).catch(console.error);
   }
 
