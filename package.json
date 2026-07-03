@@ -21,6 +21,7 @@
     "verify:supabase": "node --env-file=.env.local scripts/verify-supabase-connection.mjs",
     "env:production": "node -e \"require('fs').copyFileSync('.env.example','.env.production'); console.log('Wrote .env.production from .env.example');\"",
     "setup:deploy": "node scripts/setup-github-vercel.mjs",
+    "setup:new-pc": "powershell -ExecutionPolicy Bypass -File scripts/setup-new-pc.ps1",
     "cron:test": "node --env-file=.env.local scripts/test-morning-cron.mjs",
     "intel:test": "node --env-file=.env.local scripts/test-market-intelligence.mjs",
     "harness:api": "tsx tests/harness/api.test.ts",
