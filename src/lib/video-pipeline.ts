@@ -467,7 +467,8 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
           status: "veo_generating",
           updated_at: new Date().toISOString(),
         })
-        .eq("id", queueId);
+        .eq("id", queueId)
+        .throwOnError();
       console.log(`[Veo 비동기] ${veoLroNames.length}개 LRO 저장됨. GitHub Actions가 완료 처리.`);
       return { scenes, veoAsync: true };
     }
@@ -476,7 +477,8 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
     await supabase
       .from("content_youtube_queue")
       .update({ scenes, conti_summary: contiSummary || null, status: "assets_ready", updated_at: new Date().toISOString() })
-      .eq("id", queueId);
+      .eq("id", queueId)
+      .throwOnError();
 
     return { scenes };
   } catch (err) {
