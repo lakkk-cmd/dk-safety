@@ -32,6 +32,7 @@ import {
 import { DOC_TEMPLATES } from "@/lib/document-generator";
 import { ALLOWED_QUERY_TABLES } from "@/lib/safe-query";
 import { searchKnowledgeChunksWithEvidence } from "@/lib/knowledge-chunks-search";
+import { extractAndSaveSharedMemory } from "@/lib/shared-memory";
 
 const MAX_TOOL_ROUNDS = 6;
 
@@ -417,6 +418,9 @@ export async function chatWithFullAgent(userMessage: string): Promise<FullAgentR
   // assistant 메시지는 여기서 저장하지 않는다 — 호출부(route.ts)가 Gemini 검토를 거쳐 최종
   // 확정된 답변(원본 그대로/수정본/차단 메시지)을 저장해야 히스토리가 실제 화면 표시와 일치한다.
   await appendChatMessage("general", "user", userMessage);
+
+  // 다른 에이전트도 알아야 할 정보인지 판단해 공유 메모리에 기록 — 응답 지연을 막기 위해 fire-and-forget
+  void extractAndSaveSharedMemory("general", userMessage, finalText).catch(() => {});
 
   return {
     reply: finalText,

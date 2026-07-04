@@ -15,6 +15,7 @@ import { getHqSummary } from "@/lib/hq-summary";
 import { buildRestoreContext } from "@/lib/chat-restore";
 import { searchKnowledgeBase } from "@/lib/knowledge-base";
 import { searchKnowledgeChunks } from "@/lib/knowledge-chunks-search";
+import { extractAndSaveSharedMemory, loadRecentSharedMemory } from "@/lib/shared-memory";
 
 // ─── 총괄 + 9-에이전트 채팅 ──────────────────────────────────────────────────────
 
@@ -89,13 +90,14 @@ export type ChatAttachment =
 export async function buildBusinessSnapshot(): Promise<string> {
   const summary = await getHqSummary();
   const supabase = requireAgentSupabase();
-  const [intelRes, lessons] = await Promise.all([
+  const [intelRes, lessons, sharedMemory] = await Promise.all([
     supabase
       .from("market_intelligence_insights")
       .select("category, trend_keywords, insight")
       .order("date", { ascending: false })
       .limit(3),
     loadPerformanceLessons().catch(() => ""),
+    loadRecentSharedMemory().catch(() => []),
   ]);
 
   const lines: string[] = [];
@@ -129,6 +131,13 @@ export async function buildBusinessSnapshot(): Promise<string> {
 
   if (lessons.trim()) {
     lines.push(`[콘텐츠 성과 학습]\n${lessons.trim()}`);
+  }
+
+  if (sharedMemory.length > 0) {
+    lines.push("[공유 기억 — 다른 에이전트와의 대화에서 나온 사실·결정]");
+    for (const m of sharedMemory) {
+      lines.push(`- (${m.source_agent_id}) ${m.content}`);
+    }
   }
 
   return lines.join("\n");
@@ -258,6 +267,9 @@ export async function chatWithAgentPlus(
   const attUrl = attachment && "url" in attachment ? attachment.url : undefined;
   await appendChatMessage(agentId, "user", userMessage || "(이미지 첨부)", attUrl);
   await appendChatMessage(agentId, "assistant", reply);
+
+  // 다른 에이전트도 알아야 할 정보인지 판단해 공유 메모리에 기록 — 응답 지연을 막기 위해 fire-and-forget
+  void extractAndSaveSharedMemory(agentId, userMessage, reply).catch(() => {});
 
   return reply;
 }
