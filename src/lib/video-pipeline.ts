@@ -36,7 +36,7 @@ const MAX_SCENES = 8;
 
 // Flux 폴백 이미지 생성 시 텍스트 방지 네거티브 프롬프트
 const NEGATIVE_PROMPT_SUFFIX =
-  " Negative prompt: no text, no Korean characters, no Chinese characters, no Japanese characters, no signage with text, no readable characters, no captions, no subtitles, no labels, no watermarks, no logos with text.";
+  " Negative prompt: no text, no Korean characters, no Chinese characters, no Japanese characters, no signage with text, no readable characters, no captions, no subtitles, no labels, no watermarks, no logos with text, no gibberish text, no fake English text, no nonsense letters on screens or dials or buttons. Not an illustration, not a cartoon, not anime, not flat vector art, not a 3D render, not clip art, not a drawing — must be photorealistic, shot on a real camera.";
 
 // ─── 예산 상수 ────────────────────────────────────────────────────────────────
 
@@ -81,7 +81,8 @@ sceneType 결정:
 5. **Mood/atmosphere**: 감정 톤 명시 (tense/urgent, reassuring/professional, calm/informative 등)
 6. **Action/motion**: 씬 내 동작을 시간 순서대로. 복잡한 손동작 금지 — Veo 취약점.
    수치/텍스트 표시가 필요한 정보는 프롬프트에 넣지 말고 "text overlay will be composited separately" 로 메모.
-7. **Visual style**: 반드시 마지막에 → "Photorealistic documentary style, 9:16 vertical, no readable text, no Korean characters, no signage, no subtitles."
+   측정기·계기판·버튼처럼 화면/라벨이 있는 소품이 등장하면, 반드시 "device screen is angled away from camera / motion-blurred / out of focus, no legible display or button labels"를 프롬프트에 명시해 Flux가 화면에 가짜 글자를 그리지 않게 한다.
+7. **Visual style**: 반드시 마지막에 → "Photorealistic documentary style, shot on a real camera (DSLR/mirrorless look, natural lens grain), 9:16 vertical, no readable text, no Korean characters, no signage, no subtitles. NOT an illustration, NOT a cartoon, NOT anime, NOT flat vector art, NOT a 3D render, NOT clip art — must look like an actual photograph."
 마지막에 Continuity 메모 추가: "Continuity: [인물/공간 일관성 메모]"
 
 ---
@@ -240,7 +241,12 @@ export async function detectTextInImage(imageUrl: string): Promise<boolean> {
         { type: "image", source: { type: "url", url: imageUrl } },
         {
           type: "text",
-          text: "이 이미지에 한국어, 한자, 일본어, 또는 기타 읽을 수 있는 텍스트/문자가 포함되어 있나요? YES 또는 NO 하나만 답하세요.",
+          text:
+            "이 이미지에 다음 중 하나라도 있나요?\n" +
+            "1. 한국어, 한자, 일본어 등 읽을 수 있는 문자\n" +
+            "2. 계기판 화면·버튼·다이얼·라벨 등에 있는 의미 없는 가짜 영어 글자(예: 실제 단어가 아닌 철자, 깨진 브랜드명 같은 것)\n" +
+            "3. 기타 읽을 수 있거나 읽으려고 시도하게 되는 모든 문자/숫자 표시\n" +
+            "위 셋 중 하나라도 있으면 YES, 전혀 없으면 NO 하나만 답하세요.",
         },
       ],
       maxTokens: 10,
@@ -326,10 +332,10 @@ export async function produceAiBgSceneFlux(
   let hasText = false;
 
   // 씬 1개 = 요청 1개(video-production/scene)로 나눠 처리하는 구조라, OCR 재시도를
-  // 많이 돌리면 Vercel 함수 실행시간 한도를 넘겨 FUNCTION_INVOCATION_TIMEOUT이 남
-  // (실측: 504로 재현됨). 재시도를 1회로 줄여 매 요청을 확실히 짧게 유지하고,
+  // 무한정 늘리면 Vercel 함수 실행시간 한도를 넘겨 FUNCTION_INVOCATION_TIMEOUT이 남
+  // (실측: 504로 재현됨). 2회로 맞추고 라우트의 maxDuration도 함께 늘렸다 — 그래도
   // 텍스트가 남아있으면 boss_feedback 알림으로 사람이 확인하도록 한다.
-  const MAX_OCR_ATTEMPTS = 1;
+  const MAX_OCR_ATTEMPTS = 2;
   for (let attempt = 0; attempt < MAX_OCR_ATTEMPTS; attempt++) {
     const seedSuffix = attempt > 0 ? ` (variation ${attempt + 1}, avoid all text)` : "";
     const { data, contentType: ct } = await generateSceneImage(scene.imagePrompt + seedSuffix);

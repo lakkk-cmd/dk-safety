@@ -4,7 +4,8 @@ import { produceAiBgSceneFlux, type VideoScene } from "@/lib/video-pipeline";
 
 // 씬 1개만 Flux로 생성 — GitHub Actions(flux-complete.yml)가 씬별로 나눠 호출해
 // Vercel 함수 시간제한(전체 씬을 한 요청에서 순차 생성하면 504가 남)을 피한다.
-export const maxDuration = 90;
+// OCR 재시도가 최대 2회(각 최대 90s)라 여유를 두고 280으로 올렸다.
+export const maxDuration = 280;
 
 function checkAuth(request: Request): boolean {
   const secret = process.env.AGENT_WRITE_SECRET?.trim();

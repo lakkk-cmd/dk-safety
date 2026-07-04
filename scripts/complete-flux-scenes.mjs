@@ -37,7 +37,9 @@ async function callApi(path, body) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(100_000),
+    // /scene 라우트의 maxDuration(280s, OCR 재시도 2회 반영)보다 넉넉하게 잡아야
+    // 서버가 정상 작업 중인데도 클라이언트가 먼저 포기하고 재시도하는 걸 막는다.
+    signal: AbortSignal.timeout(290_000),
   });
   const text = await res.text();
   let json;
