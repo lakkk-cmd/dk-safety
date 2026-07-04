@@ -18,7 +18,12 @@ import {
   type ContentPlanResult,
 } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
-import { KAKAO_MEMO_ENABLED, publishKakaoPost, sendContentApprovalNotification } from "@/lib/kakao-publish";
+import {
+  broadcastKakaoFriendTalkToCustomers,
+  KAKAO_MEMO_ENABLED,
+  publishKakaoPost,
+  sendContentApprovalNotification,
+} from "@/lib/kakao-publish";
 import { NAVER_ENABLED, collectNaverTrends, getRecentTrendKeywords } from "@/lib/naver-pipeline";
 import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
 import { produceVideoAssets } from "@/lib/video-pipeline";
@@ -251,6 +256,20 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
           await logAgentEvent("info", "content-draft", `카카오 포스트 자동발행: ${kkRow.title}`);
         } catch (err) {
           await logAgentEvent("warn", "content-draft", `카카오 자동발행 실패 (수동 승인 필요): ${errMessage(err)}`);
+        }
+
+        // 최근 완료 고객에게 친구톡 자동 발송 — KAKAO_FRIENDTALK_BROADCAST_ENABLED=true일 때만 동작.
+        try {
+          const result = await broadcastKakaoFriendTalkToCustomers(kkRow.title, draft);
+          if (!result.skipped) {
+            await logAgentEvent(
+              "info",
+              "content-draft",
+              `친구톡 발송: 성공 ${result.sent}건, 실패 ${result.failed}건`,
+            );
+          }
+        } catch (err) {
+          await logAgentEvent("warn", "content-draft", `친구톡 발송 실패: ${errMessage(err)}`);
         }
       }
       kakaoUpdated = true;

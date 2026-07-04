@@ -55,6 +55,26 @@ export async function sendLMS(to: string, title: string, text: string): Promise<
   return { to, messageId: result?.messageId, statusCode: result?.statusCode };
 }
 
+/**
+ * 카카오톡 채널 친구톡 발송 — 알림톡과 달리 템플릿 사전승인 없이 pfId만으로 자유 작성 가능.
+ * SOLAPI_PFID 환경변수(연동된 카카오톡 채널)가 필요하다.
+ */
+export async function sendKakaoFriendTalk(to: string, text: string): Promise<SolapiSendResult> {
+  const { apiKey, apiSecret, senderNumber } = getSolapiEnv();
+  const pfId = process.env.SOLAPI_PFID?.trim();
+  if (!pfId) throw new Error("SOLAPI_PFID가 설정되지 않았습니다.");
+
+  const { SolapiMessageService } = await import("solapi");
+  const client = new SolapiMessageService(apiKey, apiSecret);
+  const result = (await client.send({
+    to: normalizePhone(to),
+    from: senderNumber,
+    text,
+    kakaoOptions: { pfId },
+  })) as any;
+  return { to, messageId: result?.messageId, statusCode: result?.statusCode };
+}
+
 export type BulkTarget = { to: string };
 
 /** 동일 메시지 대량 발송 */
