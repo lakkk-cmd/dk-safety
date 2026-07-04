@@ -13,13 +13,103 @@ type ChatValidation = {
   evidenceSummary?: string;
   badge?: ChatBadge;
 };
+type PendingImprovement = { requestId: string; issueNumber: number };
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   created_at: string;
   attachment_url?: string | null;
   validation?: ChatValidation;
+  pendingImprovement?: PendingImprovement;
 };
+
+type ImprovementStatus =
+  | "issue_created"
+  | "in_progress"
+  | "reviewing"
+  | "deploying"
+  | "completed"
+  | "failed";
+
+const IMPROVEMENT_STAGES: { status: ImprovementStatus; label: string }[] = [
+  { status: "issue_created", label: "📝 이슈 생성됨" },
+  { status: "in_progress", label: "🔨 구현 중" },
+  { status: "reviewing", label: "🔍 리뷰 중" },
+  { status: "deploying", label: "🚀 배포 중" },
+  { status: "completed", label: "✅ 배포 완료" },
+];
+
+function ImprovementProgressCard({ requestId, issueNumber }: PendingImprovement) {
+  const [status, setStatus] = useState<ImprovementStatus>("issue_created");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [prUrl, setPrUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/admin/improvement-requests/status?id=${requestId}`, { cache: "no-store" });
+        const data = (await res.json()) as {
+          item?: { status: ImprovementStatus; error_message: string | null; github_pr_url: string | null };
+        };
+        if (cancelled || !data.item) return;
+        setStatus(data.item.status);
+        setErrorMessage(data.item.error_message);
+        setPrUrl(data.item.github_pr_url);
+        if (data.item.status === "completed" || data.item.status === "failed") {
+          clearInterval(intervalId);
+        }
+      } catch {
+        // 폴링 실패는 조용히 무시하고 다음 주기에 재시도
+      }
+    };
+
+    void poll();
+    const intervalId = setInterval(poll, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [requestId]);
+
+  if (status === "failed") {
+    return (
+      <div className="mt-2 max-w-[85%] rounded-lg border border-cc-red/30 bg-cc-red/5 px-3 py-2 text-xs">
+        <p className="font-bold text-cc-red">⚠️ 자동구현 파이프라인 실패 (이슈 #{issueNumber})</p>
+        {errorMessage ? <p className="mt-1 text-slate-600">{errorMessage}</p> : null}
+      </div>
+    );
+  }
+
+  const currentIdx = IMPROVEMENT_STAGES.findIndex((s) => s.status === status);
+  return (
+    <div className="mt-2 max-w-[85%] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+      <p className="mb-1 font-bold text-slate-500">자동구현 진행상황 (이슈 #{issueNumber})</p>
+      <div className="flex flex-wrap items-center gap-1">
+        {IMPROVEMENT_STAGES.map((stage, i) => (
+          <span
+            key={stage.status}
+            className={`rounded-full px-2 py-0.5 ${
+              i < currentIdx
+                ? "bg-cc-green/10 text-cc-green"
+                : i === currentIdx
+                ? "bg-cc-navy/10 font-bold text-cc-navy"
+                : "text-slate-400"
+            }`}
+          >
+            {stage.label}
+          </span>
+        ))}
+      </div>
+      {status === "completed" && prUrl ? (
+        <a href={prUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block text-cc-navy underline">
+          PR 보기 →
+        </a>
+      ) : null}
+    </div>
+  );
+}
 
 const DOC_TYPE_BUTTONS: { id: string; label: string }[] = [
   { id: "inspection_report", label: "📋 점검 보고서" },
@@ -378,11 +468,22 @@ export default function HqChatClient() {
           webSearch: webSearchOn,
         }),
       });
-      const data = (await res.json()) as { reply?: string; message?: string; validation?: ChatValidation };
+      const data = (await res.json()) as {
+        reply?: string;
+        message?: string;
+        validation?: ChatValidation;
+        pendingImprovement?: PendingImprovement;
+      };
       if (!res.ok || !data.reply) { setError(data.message ?? "응답 생성에 실패했습니다."); return; }
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply as string, created_at: new Date().toISOString(), validation: data.validation },
+        {
+          role: "assistant",
+          content: data.reply as string,
+          created_at: new Date().toISOString(),
+          validation: data.validation,
+          pendingImprovement: data.pendingImprovement,
+        },
       ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "응답 생성에 실패했습니다.");
@@ -602,6 +703,12 @@ export default function HqChatClient() {
                         </div>
                       ) : null}
                       {m.role === "assistant" && m.validation ? <ValidationBadge validation={m.validation} /> : null}
+                      {m.role === "assistant" && m.pendingImprovement ? (
+                        <ImprovementProgressCard
+                          requestId={m.pendingImprovement.requestId}
+                          issueNumber={m.pendingImprovement.issueNumber}
+                        />
+                      ) : null}
                       {m.role === "assistant" && selectedAgent === "general" ? (
                         <DelegationButtons content={m.content} agents={agents} onDelegate={handleDelegate} />
                       ) : null}

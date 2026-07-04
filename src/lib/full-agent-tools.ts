@@ -6,6 +6,7 @@ import { createBlogPost } from "@/lib/blog-store";
 import type { ContentCategory } from "@/lib/content-agents";
 import { embedText } from "@/lib/embeddings";
 import { createGithubIssue, readGithubFile } from "@/lib/github-issues";
+import { createChatImprovementRequest } from "@/lib/improvement-requests";
 import { ALLOWED_QUERY_TABLES, runSafeQuery, type QueryFilter } from "@/lib/safe-query";
 import { DOC_TEMPLATES, generateDocument } from "@/lib/document-generator";
 
@@ -22,14 +23,19 @@ export async function toolCallSubAgent(args: { agent_name?: string; query?: stri
   return reply;
 }
 
+export type GithubCreateIssueResult = {
+  message: string;
+  pendingImprovement?: { requestId: string; issueNumber: number };
+};
+
 export async function toolGithubCreateIssue(args: {
   title?: string;
   body?: string;
   auto_implement?: boolean;
-}): Promise<string> {
+}): Promise<GithubCreateIssueResult> {
   const title = args.title?.trim();
   const body = args.body?.trim();
-  if (!title || !body) return "오류: title과 body가 모두 필요합니다.";
+  if (!title || !body) return { message: "오류: title과 body가 모두 필요합니다." };
   const autoImplement = args.auto_implement === true;
   try {
     const issue = await createGithubIssue({
@@ -39,11 +45,32 @@ export async function toolGithubCreateIssue(args: {
         : `${body}\n\n---\n_이 이슈는 Full 에이전트(총괄) 채팅에서 생성되었습니다. 자동 구현 파이프라인을 트리거하지 않는 별도 라벨(chat-suggestion)이 붙어 있어, 검토 후 필요하면 대장이 직접 ai-improvement로 전환해야 합니다._`,
       labels: [autoImplement ? "ai-improvement" : "chat-suggestion"],
     });
-    return autoImplement
-      ? `이슈 생성 완료 (자동구현 시작됨): ${issue.url} (#${issue.number}) — Claude Code가 바로 구현에 들어갑니다. lint/build 통과 시 사람 검토 없이 자동 머지·배포됩니다.`
-      : `이슈 생성 완료: ${issue.url} (#${issue.number})`;
+
+    if (!autoImplement) {
+      return { message: `이슈 생성 완료: ${issue.url} (#${issue.number})` };
+    }
+
+    // 자동구현 경로만 진행상황 추적 테이블에 연결한다 — chat-suggestion은 사람이 라벨을 바꿔야
+    // 파이프라인이 시작되므로 실시간 진행상황이 존재하지 않는다.
+    try {
+      const tracked = await createChatImprovementRequest({
+        title,
+        body,
+        githubIssueUrl: issue.url,
+        githubIssueNumber: issue.number,
+      });
+      return {
+        message: `이슈 생성 완료 (자동구현 시작됨): ${issue.url} (#${issue.number}) — Claude Code가 바로 구현에 들어갑니다. lint/build 통과 시 사람 검토 없이 자동 머지·배포됩니다.`,
+        pendingImprovement: { requestId: tracked.id, issueNumber: issue.number },
+      };
+    } catch {
+      // 추적 레코드 생성 실패는 파이프라인 자체(GitHub 라벨 기반)에는 영향 없음 — 진행상황 카드만 못 띄움
+      return {
+        message: `이슈 생성 완료 (자동구현 시작됨): ${issue.url} (#${issue.number}) — Claude Code가 바로 구현에 들어갑니다. lint/build 통과 시 사람 검토 없이 자동 머지·배포됩니다.`,
+      };
+    }
   } catch (err) {
-    return `이슈 생성 실패: ${err instanceof Error ? err.message : String(err)}`;
+    return { message: `이슈 생성 실패: ${err instanceof Error ? err.message : String(err)}` };
   }
 }
 

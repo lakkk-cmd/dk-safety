@@ -13,6 +13,8 @@ export type ImprovementRequestStatus =
   | "analyzing"
   | "issue_created"
   | "in_progress"
+  | "reviewing"
+  | "deploying"
   | "completed"
   | "failed";
 
@@ -190,6 +192,60 @@ _이 이슈는 hq.dkansim.com 개선 요청 시스템(#${request.id})에서 자�
     await patchImprovementRequest(id, { status: "failed", error_message: message.slice(0, 500) });
     throw err;
   }
+}
+
+/** 채팅(Full 에이전트)에서 이미 생성된 GitHub Issue를 추적 테이블에 연결한다 — 실시간 진행상황 폴링용. */
+export async function createChatImprovementRequest(input: {
+  title: string;
+  body: string;
+  githubIssueUrl: string;
+  githubIssueNumber: number;
+}): Promise<ImprovementRequest> {
+  const supabase = requireAgentSupabase();
+  const { data, error } = await supabase
+    .from("improvement_requests")
+    .insert({
+      type: "other",
+      content: input.body,
+      ai_title: input.title,
+      ai_analysis: input.body,
+      github_issue_url: input.githubIssueUrl,
+      github_issue_number: input.githubIssueNumber,
+      status: "issue_created",
+    })
+    .select(COLUMNS)
+    .single();
+  if (error) throw error;
+  return data as ImprovementRequest;
+}
+
+/** id로 진행상황만 가볍게 조회한다 (채팅 UI 폴링용). */
+export async function getImprovementRequestStatusById(id: string): Promise<Pick<
+  ImprovementRequest,
+  "id" | "status" | "ai_title" | "github_pr_url" | "error_message" | "updated_at"
+> | null> {
+  const supabase = requireAgentSupabase();
+  const { data, error } = await supabase
+    .from("improvement_requests")
+    .select("id, status, ai_title, github_pr_url, error_message, updated_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/** GH Actions 워크플로우 진행상황 콜백 — 구현중/리뷰중/배포중 단계 전환을 기록한다. */
+export async function updateImprovementRequestProgress(
+  issueNumber: number,
+  status: ImprovementRequestStatus,
+  message?: string,
+): Promise<void> {
+  const request = await getImprovementRequestByIssueNumber(issueNumber);
+  if (!request) return;
+  await patchImprovementRequest(request.id, {
+    status,
+    ...(message ? { error_message: message.slice(0, 500) } : {}),
+  });
 }
 
 /** GitHub Issue 번호로 개선 요청을 조회한다 (워크플로우 콜백용). */

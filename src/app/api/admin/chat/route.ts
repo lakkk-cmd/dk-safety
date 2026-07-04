@@ -127,7 +127,7 @@ export async function POST(request: Request) {
       // chatWithFullAgent는 assistant 메시지를 저장하지 않는다 — Gemini 검토를 거친 최종 답변
       // (원본/수정본/차단 메시지)을 여기서 저장해야 대화 히스토리가 실제 화면과 일치한다.
       await appendChatMessage("general", "assistant", reviewed.reply);
-      return NextResponse.json(reviewed);
+      return NextResponse.json({ ...reviewed, pendingImprovement: result.pendingImprovement });
     }
 
     const reply = await chatWithAgentPlus(agentId, message, {

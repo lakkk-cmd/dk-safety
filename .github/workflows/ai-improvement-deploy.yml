@@ -22,6 +22,14 @@ jobs:
           BRANCH="${{ github.event.pull_request.head.ref }}"
           echo "number=${BRANCH##*-}" >> "$GITHUB_OUTPUT"
 
+      - name: Report progress (배포 중)
+        continue-on-error: true
+        run: |
+          curl -s --fail-with-body -X POST "https://dkansim.com/api/admin/improvement-requests/progress" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -d "{\"issueNumber\": ${{ steps.issue.outputs.number }}, \"status\": \"deploying\"}"
+
       - name: Deploy to Vercel (production)
         id: deploy
         env:

@@ -290,8 +290,6 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   switch (name) {
     case "call_sub_agent":
       return toolCallSubAgent(input);
-    case "github_create_issue":
-      return toolGithubCreateIssue(input);
     case "github_read_file":
       return toolGithubReadFile(input);
     case "supabase_query":
@@ -316,6 +314,7 @@ export type FullAgentResult = {
   hasEvidence: boolean;
   evidenceSummary: string;
   ragContext: string;
+  pendingImprovement?: { requestId: string; issueNumber: number };
 };
 
 const FULL_AGENT_CACHED_SYSTEM = `${FULL_AGENT_SYSTEM_PROMPT}\n\n${BUSINESS_CONTEXT}`;
@@ -364,6 +363,7 @@ export async function chatWithFullAgent(userMessage: string): Promise<FullAgentR
 
   let usedWebSearch = false;
   let finalText = "";
+  let pendingImprovement: FullAgentResult["pendingImprovement"];
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     // 매 라운드 전송 직전, 그 시점까지의 마지막 메시지에 캐시 breakpoint를 찍어 다음 라운드가
@@ -396,6 +396,13 @@ export async function chatWithFullAgent(userMessage: string): Promise<FullAgentR
     const toolResults = await Promise.all(
       toolUseBlocks.map(async (block) => {
         toolCalls.push({ name: block.name, input: block.input });
+        if (block.name === "github_create_issue") {
+          const result = await toolGithubCreateIssue(
+            block.input as Parameters<typeof toolGithubCreateIssue>[0],
+          );
+          if (result.pendingImprovement) pendingImprovement = result.pendingImprovement;
+          return { type: "tool_result" as const, tool_use_id: block.id, content: result.message };
+        }
         const result = await dispatchTool(block.name, block.input);
         return { type: "tool_result" as const, tool_use_id: block.id, content: result };
       }),
@@ -418,5 +425,6 @@ export async function chatWithFullAgent(userMessage: string): Promise<FullAgentR
     hasEvidence: evidence.hasEvidence,
     evidenceSummary: evidence.evidenceSummary,
     ragContext: evidence.contextBlock,
+    pendingImprovement,
   };
 }
