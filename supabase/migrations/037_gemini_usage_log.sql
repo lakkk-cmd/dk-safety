@@ -12,8 +12,16 @@ CREATE TABLE IF NOT EXISTS public.gemini_usage_log (
 );
 
 ALTER TABLE public.gemini_usage_log ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Service role full access" ON public.gemini_usage_log
-  USING (true) WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='gemini_usage_log'
+      AND policyname='Service role full access'
+  ) THEN
+    CREATE POLICY "Service role full access" ON public.gemini_usage_log
+      USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 COMMENT ON TABLE  public.gemini_usage_log IS 'Gemini API(Veo 3.1) 호출 비용 로그';
 COMMENT ON COLUMN public.gemini_usage_log.operation IS 'veo_video | veo_video_fallback';

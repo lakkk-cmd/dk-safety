@@ -15,7 +15,14 @@ CREATE INDEX IF NOT EXISTS idx_trusted_domains_category ON trusted_domains(categ
 CREATE INDEX IF NOT EXISTS idx_trusted_domains_active ON trusted_domains(is_active);
 
 ALTER TABLE trusted_domains ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "service_role_all" ON trusted_domains FOR ALL USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='trusted_domains' AND policyname='service_role_all'
+  ) THEN
+    CREATE POLICY "service_role_all" ON trusted_domains FOR ALL USING (true);
+  END IF;
+END $$;
 
 -- 생성된 문서 관리 테이블
 CREATE TABLE IF NOT EXISTS generated_documents (
@@ -37,7 +44,14 @@ CREATE INDEX IF NOT EXISTS idx_generated_documents_type ON generated_documents(d
 CREATE INDEX IF NOT EXISTS idx_generated_documents_created ON generated_documents(created_at DESC);
 
 ALTER TABLE generated_documents ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "service_role_all" ON generated_documents FOR ALL USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='generated_documents' AND policyname='service_role_all'
+  ) THEN
+    CREATE POLICY "service_role_all" ON generated_documents FOR ALL USING (true);
+  END IF;
+END $$;
 
 -- 초기 신뢰 도메인 데이터
 INSERT INTO trusted_domains (category, domain, name) VALUES

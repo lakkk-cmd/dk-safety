@@ -11,10 +11,9 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks (
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS knowledge_chunks_embedding_idx
-ON knowledge_chunks
-USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);
+-- ivfflat 인덱스는 047에서 바로 제거된다(빈 테이블에 생성하면 클러스터링이 무의미해서
+-- match_chunks가 실제 매치를 놓치는 문제 실측 확인 — 047 참고). 재실행 시 불필요하게
+-- 인덱스를 만들었다가 바로 지우며 메모리를 낭비/실패하지 않도록 여기서는 만들지 않는다.
 
 CREATE OR REPLACE FUNCTION match_chunks(
   query_embedding vector(1024),

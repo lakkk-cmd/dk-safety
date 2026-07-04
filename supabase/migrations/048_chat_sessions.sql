@@ -18,9 +18,17 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 CREATE INDEX IF NOT EXISTS chat_sessions_started_at_idx ON chat_sessions (started_at DESC);
 
 ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "service role full access" ON chat_sessions
-  USING (auth.role() = 'service_role')
-  WITH CHECK (auth.role() = 'service_role');
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='chat_sessions'
+      AND policyname='service role full access'
+  ) THEN
+    CREATE POLICY "service role full access" ON chat_sessions
+      USING (auth.role() = 'service_role')
+      WITH CHECK (auth.role() = 'service_role');
+  END IF;
+END $$;
 
 -- ② 메시지 기록
 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -35,9 +43,17 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS chat_messages_session_id_idx ON chat_messages (session_id, created_at DESC);
 
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "service role full access" ON chat_messages
-  USING (auth.role() = 'service_role')
-  WITH CHECK (auth.role() = 'service_role');
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='chat_messages'
+      AND policyname='service role full access'
+  ) THEN
+    CREATE POLICY "service role full access" ON chat_messages
+      USING (auth.role() = 'service_role')
+      WITH CHECK (auth.role() = 'service_role');
+  END IF;
+END $$;
 
 -- ③ 핵심 결정 사항
 CREATE TABLE IF NOT EXISTS key_decisions (
@@ -53,6 +69,14 @@ CREATE TABLE IF NOT EXISTS key_decisions (
 CREATE INDEX IF NOT EXISTS key_decisions_active_idx ON key_decisions (is_active, decided_at DESC);
 
 ALTER TABLE key_decisions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "service role full access" ON key_decisions
-  USING (auth.role() = 'service_role')
-  WITH CHECK (auth.role() = 'service_role');
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='key_decisions'
+      AND policyname='service role full access'
+  ) THEN
+    CREATE POLICY "service role full access" ON key_decisions
+      USING (auth.role() = 'service_role')
+      WITH CHECK (auth.role() = 'service_role');
+  END IF;
+END $$;

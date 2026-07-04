@@ -110,8 +110,20 @@ ALTER TABLE public.invoices            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.worker_assignments  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.follow_up_reminders ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "service_all" ON public.consultation_logs   FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_all" ON public.expenses            FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_all" ON public.invoices            FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_all" ON public.worker_assignments  FOR ALL TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "service_all" ON public.follow_up_reminders FOR ALL TO service_role USING (true) WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='consultation_logs' AND policyname='service_all') THEN
+    CREATE POLICY "service_all" ON public.consultation_logs   FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='expenses' AND policyname='service_all') THEN
+    CREATE POLICY "service_all" ON public.expenses            FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='invoices' AND policyname='service_all') THEN
+    CREATE POLICY "service_all" ON public.invoices            FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='worker_assignments' AND policyname='service_all') THEN
+    CREATE POLICY "service_all" ON public.worker_assignments  FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='follow_up_reminders' AND policyname='service_all') THEN
+    CREATE POLICY "service_all" ON public.follow_up_reminders FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END $$;

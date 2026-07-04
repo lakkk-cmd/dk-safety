@@ -17,7 +17,14 @@ CREATE INDEX IF NOT EXISTS idx_project_features_category ON project_features(cat
 CREATE INDEX IF NOT EXISTS idx_project_features_status ON project_features(status);
 
 ALTER TABLE project_features ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "service_role_all" ON project_features FOR ALL USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='project_features' AND policyname='service_role_all'
+  ) THEN
+    CREATE POLICY "service_role_all" ON project_features FOR ALL USING (true);
+  END IF;
+END $$;
 
 -- 프로젝트 컨텍스트 캐시 테이블 (Gemini 호출 시 재사용)
 CREATE TABLE IF NOT EXISTS project_context_cache (
@@ -28,7 +35,14 @@ CREATE TABLE IF NOT EXISTS project_context_cache (
 );
 
 ALTER TABLE project_context_cache ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "service_role_all" ON project_context_cache FOR ALL USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='project_context_cache' AND policyname='service_role_all'
+  ) THEN
+    CREATE POLICY "service_role_all" ON project_context_cache FOR ALL USING (true);
+  END IF;
+END $$;
 
 -- 초기 프로젝트 기능 데이터 삽입
 -- 코드 리뷰(2026-07-02)로 원안의 경로 오류 2건을 수정함:
@@ -36,7 +50,10 @@ CREATE POLICY "service_role_all" ON project_context_cache FOR ALL USING (true);
 --   '/api/agent/generate-document'는 존재하지 않음(브라우저에 서버 전용 AGENT_WRITE_SECRET을
 --   넘길 방법이 없어 REST 엔드포인트 대신 풀 에이전트 도구 generate_document로 구현됨) → path를
 --   NULL로, category를 'feature'로 정정
-INSERT INTO project_features (category, name, description, status, path, tech_stack, note) VALUES
+-- ON CONFLICT DO NOTHING은 실제 UNIQUE 제약이 없어 무의미했다(재실행마다 중복 삽입 —
+-- 057에서 정리됨). (category, name) 기준 존재 여부를 직접 확인해 진짜 멱등하게 만든다.
+INSERT INTO project_features (category, name, description, status, path, tech_stack, note)
+SELECT * FROM (VALUES
 
 -- 구현된 페이지
 ('page', '메인 홈', '전기안전 서비스 소개 및 예약', 'implemented', '/', ARRAY['Next.js'], NULL),
@@ -102,5 +119,8 @@ INSERT INTO project_features (category, name, description, status, path, tech_st
 ('pending', '모바일 앱', '기사용 현장 앱', 'pending', NULL, NULL, NULL),
 ('pending', 'Track C 전기공사업', '전기공사업 등록 후 직접 시공', 'pending', NULL, NULL, NULL),
 ('pending', '카카오페이 자동결제 연동', '카카오페이를 통한 자동/정기 결제', 'pending', NULL, NULL, NULL)
-
-ON CONFLICT DO NOTHING;
+) AS v(category, name, description, status, path, tech_stack, note)
+WHERE NOT EXISTS (
+  SELECT 1 FROM project_features pf
+  WHERE pf.category = v.category AND pf.name = v.name
+);
