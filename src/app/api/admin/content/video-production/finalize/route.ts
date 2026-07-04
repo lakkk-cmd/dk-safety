@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAgentSupabase } from "@/lib/agent-db";
+import { dispatchGithubWorkflow } from "@/lib/github-issues";
 import type { VideoScene } from "@/lib/video-pipeline";
 
 // flux-complete.yml이 모든 씬 이미지 생성을 마친 뒤 호출 — assets_ready로 전환.
@@ -51,7 +52,10 @@ export async function POST(request: Request) {
       .eq("id", queueId)
       .throwOnError();
 
-    return NextResponse.json({ message: "모든 씬 이미지 생성 완료. assets_ready로 전환됨." });
+    // 사람이 GitHub Actions에서 직접 눌러야 했던 최종 합성+업로드 단계를 자동 트리거한다.
+    await dispatchGithubWorkflow("video-assembly.yml");
+
+    return NextResponse.json({ message: "모든 씬 이미지 생성 완료. assets_ready로 전환 + 영상 합성 자동 트리거됨." });
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "완료 처리 실패" },

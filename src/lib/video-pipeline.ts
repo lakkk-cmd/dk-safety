@@ -5,6 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { BUSINESS_CONTEXT, callClaudeCustom, callClaudeRich, extractJsonBlock } from "@/lib/agents";
+import { dispatchGithubWorkflow } from "@/lib/github-issues";
 import { KAKAO_MEMO_ENABLED, publishKakaoPost } from "@/lib/kakao-publish";
 import { generatePhoneUiBuffer, generateVerdictCardBuffer } from "@/lib/scene-cards";
 import { uploadBinaryObject } from "@/lib/supabase-server";
@@ -498,6 +499,9 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
       .update({ scenes, conti_summary: contiSummary || null, status: "assets_ready", updated_at: new Date().toISOString() })
       .eq("id", queueId)
       .throwOnError();
+
+    // 사람이 GitHub Actions에서 직접 눌러야 했던 최종 합성+업로드 단계를 자동 트리거한다.
+    await dispatchGithubWorkflow("video-assembly.yml");
 
     return { scenes };
   } catch (err) {

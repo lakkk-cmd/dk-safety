@@ -36,3 +36,4 @@ jobs:
           VEO_MODEL: ${{ secrets.VEO_MODEL }}
           SUPABASE_VIDEO_BUCKET: ${{ secrets.SUPABASE_VIDEO_BUCKET }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}

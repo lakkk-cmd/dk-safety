@@ -16,6 +16,37 @@ const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY?.trim();
 const VEO_MODEL     = process.env.VEO_MODEL?.trim() || "veo-3.1-generate-preview";
 const BUCKET        = process.env.SUPABASE_VIDEO_BUCKET?.trim() || "dk-safety-video-assets";
 const GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1beta";
+const GITHUB_TOKEN  = (process.env.PAT_TOKEN || process.env.GITHUB_TOKEN)?.trim();
+const GITHUB_REPO   = process.env.GITHUB_REPO?.trim() || "lakkk-cmd/dk-safety";
+
+// 사람이 GitHub Actions에서 직접 눌러야 했던 최종 합성+업로드 단계(video-assembly.yml)를 자동 트리거한다.
+async function triggerVideoAssembly() {
+  if (!GITHUB_TOKEN) {
+    console.warn("  [video-assembly.yml] GITHUB_TOKEN/PAT_TOKEN 없음 — 트리거 건너뜀");
+    return;
+  }
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/video-assembly.yml/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${GITHUB_TOKEN}`,
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ref: "main", inputs: {} }),
+      },
+    );
+    if (!res.ok) {
+      console.warn(`  [video-assembly.yml] 트리거 실패 ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    } else {
+      console.log("  [video-assembly.yml] 트리거 완료");
+    }
+  } catch (err) {
+    console.warn("  [video-assembly.yml] 트리거 오류:", err);
+  }
+}
 
 if (!SUPABASE_URL || !SUPABASE_KEY) { console.error("❌ Supabase 환경변수 미설정"); process.exit(1); }
 if (!GEMINI_KEY)  { console.error("❌ GEMINI_API_KEY 미설정"); process.exit(1); }
@@ -147,6 +178,7 @@ async function completeQueueItem(item) {
       .eq("id", queueId)
       .throwOnError();
     console.log(`  ✅ assets_ready`);
+    await triggerVideoAssembly();
   } else {
     console.warn(`  ⚠ 일부 씬 실패. status 유지 (veo_generating).`);
   }

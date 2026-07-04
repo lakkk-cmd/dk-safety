@@ -54,6 +54,36 @@ export async function createGithubIssue(params: {
   return { url: json.html_url, number: json.number };
 }
 
+/**
+ * GitHub Actions workflow_dispatch로 워크플로우를 트리거한다 (예: assets_ready 전환 직후
+ * video-assembly.yml 자동 실행). 트리거 실패는 호출부 흐름을 막지 않도록 예외를 던지지 않는다.
+ */
+export async function dispatchGithubWorkflow(workflowFile: string, inputs: Record<string, string> = {}): Promise<void> {
+  const token = process.env.GITHUB_TOKEN?.trim();
+  if (!token) {
+    console.warn(`[${workflowFile}] GITHUB_TOKEN 없음 — 트리거 건너뜀`);
+    return;
+  }
+  try {
+    const res = await fetch(`${GITHUB_API_BASE}/repos/${getRepo()}/actions/workflows/${workflowFile}/dispatches`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ref: "main", inputs }),
+    });
+    if (!res.ok) {
+      console.warn(`[${workflowFile}] GitHub Actions 트리거 실패 ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    } else {
+      console.log(`[${workflowFile}] GitHub Actions 트리거 완료`);
+    }
+  } catch (err) {
+    console.warn(`[${workflowFile}] GitHub Actions 트리거 오류:`, err);
+  }
+}
+
 /** 이슈에 댓글을 추가한다 (완료/실패 알림용). */
 export async function addGithubIssueComment(issueNumber: number, body: string): Promise<void> {
   await githubFetch(`/repos/${getRepo()}/issues/${issueNumber}/comments`, {
