@@ -2,6 +2,7 @@ import { getCurrentWeekStatus, type WeekStatus } from "@/lib/agents";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { loadPendingFeedback } from "@/lib/agent-memory";
 import {
+  approveBlogPost,
   countBlogPostsByStatus,
   createBlogPost,
 } from "@/lib/blog-store";
@@ -20,6 +21,7 @@ import { loadPerformanceLessons } from "@/lib/content-performance";
 import { KAKAO_MEMO_ENABLED, publishKakaoPost, sendContentApprovalNotification } from "@/lib/kakao-publish";
 import { NAVER_ENABLED, collectNaverTrends, getRecentTrendKeywords } from "@/lib/naver-pipeline";
 import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
+import { produceVideoAssets } from "@/lib/video-pipeline";
 import { uploadYoutubeVideo } from "@/lib/youtube-upload";
 
 const CONTENT_MEMORY_KEY = "content_pipeline_log";
@@ -175,7 +177,10 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
       const titleCandidatesBlock = draft.titleCandidates.length
         ? `[제목 후보]\n${draft.titleCandidates.map((t, i) => `${i + 1}. ${t}`).join("\n")}\n\n`
         : "";
-      let ytStatus: "draft" | "review_required" = "draft";
+      // 사람 승인 대신 Gemini 자동검수 게이트 — 통과하면 즉시 approved 처리하고 영상 제작(Flux 씬
+      // 생성)까지 자동 트리거한다. 최종 합성+유튜브 업로드는 별도 워크플로우(video-assembly.yml,
+      // Veo 비용 이슈로 스케줄 비활성화·workflow_dispatch 전용)나 Google Flow 수동 작업이 필요하다.
+      let validationPassed = false;
       if (GEMINI_ENABLED) {
         try {
           const validation = await validateContent({
@@ -183,21 +188,32 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
             content: draft.script,
             contentType: "youtube",
           });
-          if (!validation.passed) ytStatus = "review_required";
+          validationPassed = validation.passed;
         } catch (err) {
           await logAgentEvent("warn", "content-draft", `YouTube 교차검증 실패 (건너뜀): ${errMessage(err)}`);
         }
       }
+      const ytStatus = validationPassed ? "approved" : "review_required";
       await supabase
         .from("content_youtube_queue")
         .update({
           script: draft.script,
           thumbnail_concept: `${titleCandidatesBlock}${draft.thumbnailConcept}`,
           status: ytStatus,
+          approved_at: validationPassed ? new Date().toISOString() : null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", ytRow.id);
       youtubeUpdated = true;
+
+      if (validationPassed) {
+        try {
+          await produceVideoAssets(ytRow.id);
+          await logAgentEvent("info", "content-draft", `유튜브 스크립트 자동승인 + 영상 제작 트리거: ${ytRow.title}`);
+        } catch (err) {
+          await logAgentEvent("warn", "content-draft", `영상 자산 자동생성 실패 (건너뜀): ${errMessage(err)}`);
+        }
+      }
     }
 
     const { data: kkRow } = await supabase
@@ -210,19 +226,33 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
 
     if (kkRow) {
       const draft = await draftKakaoPost(kkRow.title, kkRow.content ?? "", weekStatus);
-      let kkStatus: "draft" | "review_required" = "draft";
+      // 사람 승인 대신 Gemini 자동검수 게이트 — 통과하면 사람 클릭 없이 즉시 카카오 채널로 발송한다.
+      let validationPassed = false;
       if (GEMINI_ENABLED) {
         try {
           const validation = await validateContent({ title: kkRow.title, content: draft, contentType: "kakao" });
-          if (!validation.passed) kkStatus = "review_required";
+          validationPassed = validation.passed;
         } catch (err) {
           await logAgentEvent("warn", "content-draft", `Kakao 교차검증 실패 (건너뜀): ${errMessage(err)}`);
         }
       }
       await supabase
         .from("content_kakao_queue")
-        .update({ content: draft, status: kkStatus, updated_at: new Date().toISOString() })
+        .update({
+          content: draft,
+          status: validationPassed ? "draft" : "review_required",
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", kkRow.id);
+
+      if (validationPassed) {
+        try {
+          await approveKakaoQueueItem(kkRow.id);
+          await logAgentEvent("info", "content-draft", `카카오 포스트 자동발행: ${kkRow.title}`);
+        } catch (err) {
+          await logAgentEvent("warn", "content-draft", `카카오 자동발행 실패 (수동 승인 필요): ${errMessage(err)}`);
+        }
+      }
       kakaoUpdated = true;
     }
 
@@ -235,7 +265,8 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
 
     for (const row of blogRows ?? []) {
       const draft = await draftBlogPost(row.title, row.content ?? "", row.keywords ?? [], weekStatus);
-      let blogStatus: "pending_approval" | "review_required" = "pending_approval";
+      // 사람 승인 대신 Gemini 자동검수 게이트 — 통과하면 사람 클릭 없이 즉시 dkansim.com/blog에 발행한다.
+      let validationPassed = false;
       if (GEMINI_ENABLED) {
         try {
           const validation = await validateContent({
@@ -244,7 +275,7 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
             contentType: "blog",
             keywords: row.keywords as string[] | undefined,
           });
-          if (!validation.passed) blogStatus = "review_required";
+          validationPassed = validation.passed;
         } catch (err) {
           await logAgentEvent("warn", "content-draft", `Blog 교차검증 실패 (건너뜀): ${errMessage(err)}`);
         }
@@ -255,10 +286,19 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
           content: draft.content,
           excerpt: draft.excerpt,
           meta_description: draft.metaDescription,
-          status: blogStatus,
+          status: validationPassed ? "published" : "review_required",
           updated_at: new Date().toISOString(),
         })
         .eq("id", row.id);
+
+      if (validationPassed) {
+        try {
+          await approveBlogPost(row.id);
+          await logAgentEvent("info", "content-draft", `블로그 자동발행: ${row.title}`);
+        } catch (err) {
+          await logAgentEvent("warn", "content-draft", `블로그 자동발행 실패 (수동 승인 필요): ${errMessage(err)}`);
+        }
+      }
       blogUpdated += 1;
     }
 
