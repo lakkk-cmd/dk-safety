@@ -47,7 +47,7 @@ jobs:
           for path in paths:
             if os.path.exists(path):
               with open(path, encoding='utf-8', errors='ignore') as f:
-                content = f.read(3000)
+                content = f.read(30000)
               files.append({'path': path, 'content': content})
 
           payload = {

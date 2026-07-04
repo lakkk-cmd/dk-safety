@@ -83,7 +83,7 @@ export async function reviewCode(params: {
 }): Promise<ReviewResult> {
   const filesSummary = params.files
     .slice(0, 10)
-    .map((f) => `### ${f.path}\n\`\`\`\n${f.content.slice(0, 1500)}\n\`\`\``)
+    .map((f) => `### ${f.path}\n\`\`\`\n${f.content.slice(0, 30000)}\n\`\`\``)
     .join("\n\n");
 
   const prompt = `
