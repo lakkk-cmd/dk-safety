@@ -202,6 +202,36 @@ export async function pgGetFieldReportPublic(id: string): Promise<FieldReport | 
   return mapFieldReport(data as FieldReportRow);
 }
 
+/** 최근 현장 점검 사진들 — 영상 제작용 미디어 보관함에서 재업로드 없이 골라 쓰기 위한 목록 */
+export type FieldReportPhoto = {
+  reportId: string;
+  apartmentAddress: string;
+  inspectedAt: string;
+  photoUrl: string;
+};
+
+export async function pgListRecentFieldReportPhotos(limit = 40): Promise<FieldReportPhoto[]> {
+  const supabase = requireSupabaseAdmin();
+  // photo_urls가 jsonb라 PostgREST 쪽에서 "빈 배열 아님"을 안정적으로 필터링하기 어려워,
+  // 최근 리포트를 넉넉히 가져온 뒤 사진이 있는 것만 JS에서 골라낸다.
+  const { data, error } = await supabase
+    .from("field_reports")
+    .select("id, apartment_address, inspected_at, photo_urls")
+    .order("inspected_at", { ascending: false })
+    .limit(200);
+  if (error) {
+    throw new Error(`현장 사진 목록 조회 실패: ${error.message}`);
+  }
+  const photos: FieldReportPhoto[] = [];
+  for (const row of (data ?? []) as { id: string; apartment_address: string; inspected_at: string; photo_urls: unknown }[]) {
+    for (const url of asStringArray(row.photo_urls)) {
+      photos.push({ reportId: row.id, apartmentAddress: row.apartment_address, inspectedAt: row.inspected_at, photoUrl: url });
+      if (photos.length >= limit) return photos;
+    }
+  }
+  return photos;
+}
+
 /** 예약에 연결된 현장 점검 기록 — `/status` 페이지에서 "리포트 보기" 링크 노출 여부 판단용 */
 export async function pgFindFieldReportByReservationId(reservationId: string): Promise<{ id: string; status: string } | null> {
   const supabase = requireSupabaseAdmin();

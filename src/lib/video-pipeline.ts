@@ -7,11 +7,12 @@ import { requireAgentSupabase } from "@/lib/agent-db";
 import { BUSINESS_CONTEXT, callClaudeCustom, callClaudeRich, extractJsonBlock } from "@/lib/agents";
 import { dispatchGithubWorkflow } from "@/lib/github-issues";
 import { KAKAO_MEMO_ENABLED, publishKakaoPost } from "@/lib/kakao-publish";
+import { listAvailablePhotoTags, pickLibraryPhotoForTag } from "@/lib/media-library";
 import { generatePhoneUiBuffer, generateVerdictCardBuffer } from "@/lib/scene-cards";
 import { uploadBinaryObject } from "@/lib/supabase-server";
 import { submitVeoLro, VEO_COST_PER_CLIP_USD } from "@/lib/veo-pipeline";
 
-export type SceneType = "ai_bg" | "verdict_card" | "phone_ui";
+export type SceneType = "ai_bg" | "verdict_card" | "phone_ui" | "real_photo";
 
 export type VideoScene = {
   narration: string;
@@ -23,6 +24,7 @@ export type VideoScene = {
   emotionTone?: string;     // 긴장|경고|설명|안심|CTA
   connectionNote?: string;  // 직전 씬과의 연결 메모 (Flow용)
   koreanSummary?: string;   // 대장 한 줄 요약
+  photoTag?: string;        // 미디어 보관함의 실제 사진 태그와 일치하면 Flux 대신 그 사진 사용
 };
 
 export type ScenePlanResult = {
@@ -70,6 +72,8 @@ sceneType 결정:
 - "verdict_card": 측정값·판정 결과를 카드로 보여주는 씬 (텍스트 오버레이로 별도 합성)
 - "phone_ui": dkansim.com 예약 화면을 폰 UI로 보여주는 씬 (별도 합성)
 
+{{AVAILABLE_PHOTO_TAGS_SECTION}}
+
 ### 3단계: ai_bg 씬마다 Veo 프롬프트 작성
 7가지 요소를 모두 포함한 영어 프롬프트 (2~4문장, 8초 분량):
 1. **Scene description**: 인물·사물·배경 구체 묘사 (한국 아파트 내부)
@@ -115,7 +119,8 @@ sceneType 결정:
       "emotionTone": "긴장|경고|설명|안심|CTA 중 하나",
       "connectionNote": "직전 씬과 시공간·감정 연결 메모 (씬1은 '오프닝 — 미스터리 훅')",
       "imagePrompt": "7요소 포함 영어 프롬프트. Continuity: [인물/공간 일관성 메모]",
-      "koreanSummary": "대장이 이 씬을 한 줄로 이해할 수 있는 설명"
+      "koreanSummary": "대장이 이 씬을 한 줄로 이해할 수 있는 설명",
+      "photoTag": "이 씬 내용이 '사용 가능한 실제 사진 태그' 목록 중 하나와 일치하면 그 태그 문자열, 아니면 생략"
     },
     {
       "narration": "...",
@@ -131,8 +136,15 @@ sceneType 결정:
 
 /** 스크립트를 9:16 쇼츠용 씬 5~8개로 분해 (시네마틱 콘티 + Veo 프롬프트 포함) */
 export async function planVideoScenes(title: string, script: string): Promise<ScenePlanResult> {
+  const availableTags = await listAvailablePhotoTags().catch(() => []);
+  const tagsSection = availableTags.length > 0
+    ? `사용 가능한 실제 사진 태그 (분전함 등 사장님이 직접 등록한 현장 사진): ${availableTags.join(", ")}\n` +
+      `씬 내용이 이 태그 중 하나와 명확히 맞으면 그 씬의 "photoTag"에 해당 태그를 넣어라 (AI 생성 대신 실제 사진을 사용한다). 애매하면 생략.`
+    : "현재 등록된 실제 사진 태그가 없음 — photoTag는 모두 생략.";
+  const systemPrompt = SCENE_PLAN_SYSTEM_PROMPT.replace("{{AVAILABLE_PHOTO_TAGS_SECTION}}", tagsSection);
+
   const prompt = `영상 제목: ${title}\n\n[스크립트]\n${script}\n\n위 스크립트를 단편 영화처럼 씬으로 분해하라.`.trim();
-  const raw = await callClaudeCustom(SCENE_PLAN_SYSTEM_PROMPT, prompt, 8000, 120_000);
+  const raw = await callClaudeCustom(systemPrompt, prompt, 8000, 120_000);
   const jsonText = extractJsonBlock(raw);
   if (!jsonText) throw new Error("씬 분해 응답에서 JSON을 파싱할 수 없습니다.");
 
@@ -142,6 +154,7 @@ export async function planVideoScenes(title: string, script: string): Promise<Sc
     visualMotif?: string;
   };
 
+  const availableTagSet = new Set(availableTags);
   const scenes = (parsed.scenes ?? [])
     .map((s) => ({
       narration: String(s.narration ?? "").trim(),
@@ -150,6 +163,7 @@ export async function planVideoScenes(title: string, script: string): Promise<Sc
       emotionTone: s.emotionTone ? String(s.emotionTone).trim() : undefined,
       connectionNote: s.connectionNote ? String(s.connectionNote).trim() : undefined,
       koreanSummary: s.koreanSummary ? String(s.koreanSummary).trim() : undefined,
+      photoTag: s.photoTag && availableTagSet.has(String(s.photoTag).trim()) ? String(s.photoTag).trim() : undefined,
     }))
     .filter((s) => s.narration)
     .slice(0, MAX_SCENES);
@@ -161,6 +175,22 @@ export async function planVideoScenes(title: string, script: string): Promise<Sc
     contiSummary: String(parsed.contiSummary ?? "").trim(),
     visualMotif: parsed.visualMotif ? String(parsed.visualMotif).trim() : undefined,
   };
+}
+
+/** photoTag가 붙은 씬을 실제 등록 사진으로 치환 (Flux/Veo 생성 스킵) — 재고가 없으면 그대로 둠(ai_bg 유지) */
+async function resolveRealPhotoScenes(scenes: VideoScene[]): Promise<VideoScene[]> {
+  const resolved: VideoScene[] = [];
+  for (const scene of scenes) {
+    if (scene.photoTag) {
+      const photo = await pickLibraryPhotoForTag(scene.photoTag).catch(() => null);
+      if (photo) {
+        resolved.push({ ...scene, sceneType: "real_photo", imageUrl: photo.url });
+        continue;
+      }
+    }
+    resolved.push(scene);
+  }
+  return resolved;
 }
 
 // ─── Flux 이미지 생성 (Veo 폴백 전용) ──────────────────────────────────────────
@@ -392,7 +422,8 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
     .eq("id", queueId);
 
   try {
-    const { scenes: planned, contiSummary, visualMotif } = await planVideoScenes(row.title, row.script);
+    const { scenes: rawPlanned, contiSummary, visualMotif } = await planVideoScenes(row.title, row.script);
+    const planned = await resolveRealPhotoScenes(rawPlanned);
     const bucket = process.env.SUPABASE_VIDEO_BUCKET?.trim() || "dk-safety-video-assets";
 
     if (contiSummary) {

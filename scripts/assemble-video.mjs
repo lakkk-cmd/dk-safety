@@ -1,10 +1,12 @@
 /**
  * assets_ready 상태의 유튜브 큐 항목 1건을 가져와
- * 씬 이미지(Ken Burns 줌) + edge-tts 나레이션 + 자막 번인으로 9:16 영상을 합성하고,
- * Supabase Storage에 업로드(video_asset_url) 후 (연동되어 있으면) 유튜브에 비공개로 업로드한다.
+ * 씬 이미지(Ken Burns 줌) + 나레이션(ElevenLabs 또는 edge-tts 폴백) + 배경음악(등록돼 있으면) +
+ * 자막 번인으로 9:16 영상을 합성하고, Supabase Storage에 업로드(video_asset_url) 후
+ * (연동되어 있으면) 유튜브에 비공개로 업로드한다.
  *
- * 요구: ffmpeg/ffprobe (apt-get install ffmpeg), edge-tts (pip install edge-tts),
+ * 요구: ffmpeg/ffprobe (apt-get install ffmpeg), edge-tts (pip install edge-tts, ElevenLabs 미설정 시 폴백),
  *       fonts-noto-cjk (자막 한글 폰트)
+ * 선택 env: ELEVENLABS_API_KEY + ELEVENLABS_VOICE_ID (둘 다 있어야 사용됨)
  * Usage: node --env-file=.env.local scripts/assemble-video.mjs
  */
 import { createClient } from "@supabase/supabase-js";
@@ -26,6 +28,9 @@ const WIDTH = 1080;
 const HEIGHT = 1920;
 const CAPTION_FONT = "Noto Sans CJK KR";
 const TTS_VOICE = "ko-KR-SunHiNeural";
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY?.trim();
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID?.trim();
+const BACKGROUND_MUSIC_VOLUME = 0.12;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -120,16 +125,77 @@ function buildSegment(dir, index, scene) {
   return { imagePath, audioPath, captionPath, segmentPath };
 }
 
-async function downloadScene(scene, paths) {
-  if (!scene.imageUrl) throw new Error("씬 이미지 URL이 없습니다.");
-  await downloadToFile(scene.imageUrl, paths.imagePath);
+/**
+ * 나레이션 음성 합성 — ELEVENLABS_API_KEY/ELEVENLABS_VOICE_ID가 설정돼 있으면 자연스러운
+ * ElevenLabs 음성을 쓰고, 없으면 기존 무료 edge-tts로 폴백한다 (필수 설정이 아니게 유지).
+ */
+async function synthesizeNarration(text, destPath) {
+  if (ELEVENLABS_API_KEY && ELEVENLABS_VOICE_ID) {
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`, {
+      method: "POST",
+      headers: { "xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json", Accept: "audio/mpeg" },
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(`ElevenLabs TTS 실패 (${res.status}): ${detail.slice(0, 200)}`);
+    }
+    writeFileSync(destPath, Buffer.from(await res.arrayBuffer()));
+    return;
+  }
 
-  execFileSync("edge-tts", ["--voice", TTS_VOICE, "--text", scene.narration, "--write-media", paths.audioPath], {
+  execFileSync("edge-tts", ["--voice", TTS_VOICE, "--text", text, "--write-media", destPath], {
     stdio: "pipe",
     timeout: 60_000,
   });
+}
 
+async function downloadScene(scene, paths) {
+  if (!scene.imageUrl) throw new Error("씬 이미지 URL이 없습니다.");
+  await downloadToFile(scene.imageUrl, paths.imagePath);
+  await synthesizeNarration(scene.narration, paths.audioPath);
   writeFileSync(paths.captionPath, wrapCaption(scene.narration), "utf-8");
+}
+
+/** 배경음악 하나를 로테이션으로 선택 (use_count 가장 낮은 것 우선) — 없으면 null */
+async function pickBackgroundMusic() {
+  const { data, error } = await supabase
+    .from("content_media_library")
+    .select("*")
+    .eq("media_type", "music")
+    .order("use_count", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  await supabase.from("content_media_library").update({ use_count: (data.use_count ?? 0) + 1 }).eq("id", data.id);
+  return data.url;
+}
+
+/** 나레이션이 담긴 영상에 배경음악을 낮은 볼륨으로 루프 믹싱 (영상 길이에 맞춰 자름) */
+function mixBackgroundMusic(videoPath, musicPath, outputPath) {
+  execFileSync(
+    "ffmpeg",
+    [
+      "-y",
+      "-i", videoPath,
+      "-stream_loop", "-1",
+      "-i", musicPath,
+      "-filter_complex",
+      `[1:a]volume=${BACKGROUND_MUSIC_VOLUME}[music];[0:a][music]amix=inputs=2:duration=first:dropout_transition=2[aout]`,
+      "-map", "0:v",
+      "-map", "[aout]",
+      "-c:v", "copy",
+      "-c:a", "aac",
+      "-shortest",
+      outputPath,
+    ],
+    { stdio: "pipe" },
+  );
 }
 
 function renderSegment(paths) {
@@ -351,6 +417,8 @@ async function assembleQueueItem(queue, videoAssetUrlIn, dir) {
           } else {
             console.log(`  ✅ [OCR] 씬 ${i + 1}: 텍스트 없음 — 통과`);
           }
+        } else if (sceneType === "real_photo") {
+          console.log(`  ✅ [OCR] 씬 ${i + 1}: 실제 사진 사용 — OCR 스킵`);
         } else {
           console.log(`  ✅ [OCR] 씬 ${i + 1}: ${sceneType} 코드 생성 이미지 — OCR 스킵`);
         }
@@ -361,8 +429,25 @@ async function assembleQueueItem(queue, videoAssetUrlIn, dir) {
       }
 
       console.log("세그먼트 합치는 중...");
-      const finalPath = join(dir, "final.mp4");
-      concatSegments(dir, segmentPaths, finalPath);
+      const concatPath = join(dir, "concat_final.mp4");
+      concatSegments(dir, segmentPaths, concatPath);
+
+      let finalPath = concatPath;
+      const musicUrl = await pickBackgroundMusic().catch(() => null);
+      if (musicUrl) {
+        console.log("배경음악 믹싱 중...");
+        const musicPath = join(dir, "music.mp3");
+        try {
+          await downloadToFile(musicUrl, musicPath);
+          const withMusicPath = join(dir, "final.mp4");
+          mixBackgroundMusic(concatPath, musicPath, withMusicPath);
+          finalPath = withMusicPath;
+        } catch (err) {
+          console.warn("  배경음악 믹싱 실패 — 나레이션만 유지:", err instanceof Error ? err.message : err);
+        }
+      } else {
+        console.log("등록된 배경음악 없음 — 나레이션만 유지");
+      }
 
       const buffer = readFileSync(finalPath);
       console.log(`final.mp4 크기: ${(buffer.length / 1024 / 1024).toFixed(2)} MB`);

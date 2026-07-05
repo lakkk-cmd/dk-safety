@@ -1,5 +1,6 @@
 import { isAgentSupabaseReady, requireAgentSupabase } from "@/lib/agent-db";
 import ContentApprovalPanel from "@/components/contents/content-approval-panel";
+import MediaLibraryPanel from "@/components/contents/media-library-panel";
 import PendingApprovalBadge from "@/components/contents/pending-approval-badge";
 import YoutubeChannelAnalysisPanel from "@/components/contents/youtube-channel-analysis-panel";
 
@@ -89,6 +90,7 @@ export default async function ContentsPage() {
             </section>
           )}
           <YoutubeChannelAnalysisPanel />
+          <MediaLibraryPanel />
           <ContentApprovalPanel />
         </>
       )}
