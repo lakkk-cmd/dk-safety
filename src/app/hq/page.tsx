@@ -2,6 +2,7 @@ import Link from "next/link";
 import HqChatClient from "./chat/chat-client";
 import HqImprovementInline from "@/components/hq/hq-improvement-inline";
 import SystemHealthCard from "@/components/hq/system-health-card";
+import DailyScanCard from "@/components/hq/daily-scan-card";
 import { getHqSummary } from "@/lib/hq-summary";
 
 export const dynamic = "force-dynamic";
@@ -92,6 +93,7 @@ export default async function HqPage() {
         ) : null}
 
         <HqImprovementInline />
+        {summary.agentSupabaseReady ? <DailyScanCard /> : null}
         {summary.agentSupabaseReady ? <SystemHealthCard /> : null}
       </section>
 

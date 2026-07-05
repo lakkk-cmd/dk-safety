@@ -114,6 +114,22 @@ export async function notifyImprovementRequestCompleted(title: string, prUrl: st
   await sendKakaoMemo(`[개선요청 완료]\n${title}\n\n자동 구현 및 배포가 완료되었습니다.`, prUrl);
 }
 
+/** 매일 아침 이상신호+성장기회 스캔 알림 — daily-business-scan cron에서 호출 */
+export async function notifyDailyBusinessScan(params: {
+  summary: string;
+  anomalies: { title: string }[];
+  opportunities: { title: string }[];
+}): Promise<void> {
+  const lines = [`[아침 스캔] ${params.summary}`];
+  if (params.anomalies.length > 0) {
+    lines.push(`⚠️ 이상신호: ${params.anomalies.map((a) => a.title).join(", ")}`);
+  }
+  if (params.opportunities.length > 0) {
+    lines.push(`💡 성장기회: ${params.opportunities.map((o) => o.title).join(", ")}`);
+  }
+  await sendKakaoMemo(lines.join("\n"), "https://hq.dkansim.com");
+}
+
 /** Vercel 프로덕션 배포 완료/실패 알림 — Vercel 웹훅(deployment.succeeded/deployment.error)에서 호출 */
 export async function notifyVercelDeployment(params: {
   status: "succeeded" | "error";
