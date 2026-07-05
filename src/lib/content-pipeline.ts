@@ -375,11 +375,15 @@ export async function runContentApprovalNotify(): Promise<ContentApprovalNotifyR
 
 export async function getPendingApprovalCounts(): Promise<{ youtube: number; kakao: number; blog: number }> {
   const supabase = requireAgentSupabase();
-  const APPROVAL_STATUSES = ["draft", "pending", "pending_approval", "review_required"];
+  // content_youtube_queue는 "draft"/"pending"으로 전이·조회하는 코드 경로가 없다(둘 다 다른 파이프라인
+  // 단계에서만 쓰이던 값의 잔재) — 포함시키면 한 번도 초안 작성되지 않은 채 방치된 행까지 승인대기로
+  // 잘못 집계된다(2026-07-05 실사례: 이 값 때문에 실제 3건인 승인대기가 23건으로 표시됨).
+  const YOUTUBE_APPROVAL_STATUSES = ["pending_approval", "review_required"];
+  const KAKAO_BLOG_APPROVAL_STATUSES = ["draft", "pending", "pending_approval", "review_required"];
   const [ytRes, kkRes, blogRes] = await Promise.all([
-    supabase.from("content_youtube_queue").select("id", { count: "exact", head: true }).in("status", APPROVAL_STATUSES),
-    supabase.from("content_kakao_queue").select("id", { count: "exact", head: true }).in("status", APPROVAL_STATUSES),
-    supabase.from("blog_posts").select("id", { count: "exact", head: true }).in("status", APPROVAL_STATUSES),
+    supabase.from("content_youtube_queue").select("id", { count: "exact", head: true }).in("status", YOUTUBE_APPROVAL_STATUSES),
+    supabase.from("content_kakao_queue").select("id", { count: "exact", head: true }).in("status", KAKAO_BLOG_APPROVAL_STATUSES),
+    supabase.from("blog_posts").select("id", { count: "exact", head: true }).in("status", KAKAO_BLOG_APPROVAL_STATUSES),
   ]);
   return { youtube: ytRes.count ?? 0, kakao: kkRes.count ?? 0, blog: blogRes.count ?? 0 };
 }

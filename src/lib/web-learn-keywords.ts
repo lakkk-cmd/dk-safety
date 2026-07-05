@@ -270,8 +270,9 @@ export const SEARCH_KEYWORDS: { category: string; subcategory: string; keywords:
 ];
 
 // 크롤링 대상 사이트
-export const CRAWL_TARGETS = [
-  { url: 'https://www.kesco.or.kr', category: '전기법령', name: '한국전기안전공사' },
-  { url: 'https://www.law.go.kr', category: '전기법령', name: '국가법령정보센터' },
-  { url: 'https://www.keea.or.kr', category: '전기기술', name: '한국전기기술인협회' },
-];
+// 2026-07-05: 기존 3곳 모두 "홈페이지 루트"만 대상으로 해 실제로는 메뉴/공지사항 목록만
+// 스크랩되고 있었음(Gemini 전수검증 실패율 83%, 심지어 통과한 청크도 확인해보니 순수 네비게이션
+// 링크 목록이었음 — 법령/기술 조문 본문이 아니었음). law.go.kr/kesco.or.kr는 JS 렌더링 의존도가
+// 높아 정적 스크랩으로는 조문 본문에 도달하지 못함. 안정적으로 검증 가능한 개별 콘텐츠 URL을
+// 확보하기 전까지는 비워둔다 — 같은 카테고리는 Tavily 키워드 검색(반려율 27%로 정상)이 이미 커버.
+export const CRAWL_TARGETS: { url: string; category: string; name: string }[] = [];
