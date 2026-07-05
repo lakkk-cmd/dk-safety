@@ -37,72 +37,39 @@ export async function POST(request: Request) {
   }
 
   const supabase = requireAgentSupabase();
-  const now = new Date().toISOString();
   const applied: { key: string; prev_value: string; new_value: string; target_page: string }[] = [];
   const warnings: string[] = [];
 
   for (const decision of decisions) {
     const { decision_type, target_page, key, value, label } = decision;
 
-    // ① 현재 값 조회
-    const { data: existing } = await supabase
-      .from("site_config")
-      .select("value")
-      .eq("key", key)
-      .maybeSingle();
-    const prev_value = (existing as { value: string } | null)?.value ?? "";
+    // site_decisions INSERT + site_config UPSERT(+실패 시 롤백)를 단일 DB 함수 호출로 묶어
+    // 원자적으로 처리한다 (마이그레이션 059) — 예전에는 4개의 별도 요청으로 나뉘어 있어
+    // 롤백 단계 자체가 중간에 실패하면 두 테이블 상태가 어긋날 수 있었다.
+    const { data: rpcData, error: rpcError } = await supabase.rpc("apply_site_decision", {
+      p_session_id: session_id,
+      p_decision_type: decision_type,
+      p_target_page: target_page,
+      p_key: key,
+      p_value: value,
+      p_label: label ?? null,
+    });
 
-    // ② site_decisions INSERT
-    const { data: decRow, error: decErr } = await supabase
-      .from("site_decisions")
-      .insert({
-        session_id,
-        decision_type,
-        target_page,
-        key,
-        value,
-        prev_value,
-        label: label ?? null,
-        status: "pending",
-        boss_confirmed: false,
-      })
-      .select("id")
-      .single();
-
-    if (decErr) {
-      return NextResponse.json({ error: `결정 저장 실패: ${decErr.message}` }, { status: 500 });
+    if (rpcError) {
+      return NextResponse.json({ error: `결정 저장 실패: ${rpcError.message}` }, { status: 500 });
     }
 
-    const decisionId = (decRow as { id: number }).id;
-
-    // ③ site_config UPSERT
-    const { error: configErr } = await supabase.from("site_config").upsert(
-      { key, value, updated_at: now, updated_by: "boss" },
-      { onConflict: "key" },
-    );
-
-    if (configErr) {
-      // 롤백 — site_config 복구
-      if (prev_value) {
-        await supabase
-          .from("site_config")
-          .update({ value: prev_value, updated_at: now, updated_by: "rollback" })
-          .eq("key", key);
-      }
-      // site_decisions 상태 failed로
-      await supabase
-        .from("site_decisions")
-        .update({ status: "failed" })
-        .eq("id", decisionId);
-      return NextResponse.json({ error: `설정 저장 실패: ${configErr.message}` }, { status: 500 });
+    const result = (
+      rpcData as { id: string; prev_value: string; status: string; error_message: string | null }[]
+    )[0];
+    if (!result || result.status !== "applied") {
+      return NextResponse.json(
+        { error: `설정 저장 실패: ${result?.error_message ?? "알 수 없는 오류"}` },
+        { status: 500 },
+      );
     }
 
-    // ④ status → applied
-    await supabase
-      .from("site_decisions")
-      .update({ status: "applied", applied_at: now })
-      .eq("id", decisionId);
-
+    const prev_value = result.prev_value;
     applied.push({ key, prev_value, new_value: value, target_page });
 
     // ⑤ pricing 결정은 site_config(AI 참고용 정보)만으로는 실제 예약/결제 화면에 반영되지 않는다.

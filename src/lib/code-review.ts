@@ -39,6 +39,15 @@ function parseScore(text: string): number {
   return 50;
 }
 
+// Gemini에게 "판정: 통과/반려"를 직접 답하도록 프롬프트에서 요청해놓고, 정작 이 답을
+// 무시한 채 임의의 점수 컷오프(예: 80점)로 재판정하면 Gemini 스스로도 "통과"라고 적어놓은
+// 코드가 CI에서는 반려되는 모순이 발생한다. 점수 컷오프는 판정 줄이 없을 때의 폴백으로만 쓴다.
+function parseVerdictPass(text: string): boolean | null {
+  const m = text.match(/판정[:\s]*(통과|반려)/);
+  if (!m) return null;
+  return m[1] === "통과";
+}
+
 async function logReview(params: {
   files: string[];
   score: number;
@@ -101,6 +110,11 @@ export async function reviewCode(params: {
 6. 성능 문제 (무한루프, N+1 쿼리 등)
 7. Next.js App Router 패턴 위반
 
+🔴 심각은 실제로 크래시, 보안 침해(키/토큰 유출), 데이터 손상/불일치를 일으킬 수 있는
+문제에만 사용하세요. 합리적인 기본값이 있는 환경변수 폴백(예: \`?? "default"\`), 일반적인
+에러 메시지 처리, \`throwOnError()\`처럼 의도적인 방어 패턴은 스타일 개선 여지가 있어도
+크래시/보안/데이터손상으로 직결되지 않는 한 🟡 경고나 🟢 제안으로 분류하세요.
+
 변경된 파일:
 ${filesSummary}
 
@@ -116,7 +130,8 @@ ${filesSummary}
 
   const verdict = await callGeminiReview(prompt);
   const score = parseScore(verdict);
-  const passed = score >= 80;
+  const verdictPass = parseVerdictPass(verdict);
+  const passed = verdictPass !== null ? verdictPass : score >= 80;
 
   const issues: string[] = [];
   const red = verdict.match(/🔴 심각[:\s]*(.+)/g);
