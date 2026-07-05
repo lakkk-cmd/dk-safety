@@ -64,14 +64,28 @@ jobs:
             -d '{"mode":"both","category":"AI자동화"}' \
             --max-time 280 \
             --fail-with-body
-      - name: 사업경영
+      # "사업경영"은 세부항목이 21개(검색어 약 85개)라 한 번에 요청하면 서버
+      # maxDuration(300s)/curl --max-time(280s)을 둘 다 넘겨 실제로 타임아웃이
+      # 재현됐다 — 세부항목(subcategory) 단위로 쪼개 순차 호출한다.
+      - name: 사업경영 (세부항목별로 분할 호출)
         run: |
-          curl -X POST https://dkansim.com/api/knowledge/web-learn \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.AGENT_WRITE_SECRET }}" \
-            -d '{"mode":"both","category":"사업경영"}' \
-            --max-time 280 \
-            --fail-with-body
+          SUBCATEGORIES=(
+            "창업" "운영" "성장"
+            "세금신고" "장부관리" "절세전략" "급여"
+            "채용" "계약" "노무관리" "4대보험"
+            "창업지원" "금융지원" "기술지원" "판로지원"
+            "계약서" "분쟁" "규정준수"
+            "사업자보험" "작업자보험" "생명/건강"
+          )
+          for sub in "${SUBCATEGORIES[@]}"; do
+            echo "▶ 사업경영 - $sub"
+            curl -X POST https://dkansim.com/api/knowledge/web-learn \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${{ secrets.AGENT_WRITE_SECRET }}" \
+              -d "{\"mode\":\"both\",\"category\":\"사업경영\",\"subcategory\":\"$sub\"}" \
+              --max-time 120 \
+              --fail-with-body
+          done
 
   learn-general:
     name: 일반

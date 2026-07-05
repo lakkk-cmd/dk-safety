@@ -124,7 +124,7 @@ function chunkText(text: string, size = 500, overlap = 50): string[] {
 }
 
 // ── Tavily 키워드 검색 ────────────────────────────────────────────────────
-export async function runTavilySearch(category?: string): Promise<{
+export async function runTavilySearch(category?: string, subcategory?: string): Promise<{
   success: number;
   failed: number;
   totalChunks: number;
@@ -134,9 +134,12 @@ export async function runTavilySearch(category?: string): Promise<{
   let failed = 0;
   let totalChunks = 0;
 
-  const groups = category
-    ? SEARCH_KEYWORDS.filter((g) => g.category === category)
-    : SEARCH_KEYWORDS;
+  // "사업경영" 카테고리는 21개 세부항목(약 85개 검색어)이라 한 요청에 다 처리하기엔 너무 많아
+  // GitHub Actions curl(--max-time 280)/서버(maxDuration 300) 둘 다 넘겨 타임아웃이 실제로
+  // 재현됐다 — subcategory로 더 잘게 나눠 요청할 수 있게 한다.
+  const groups = SEARCH_KEYWORDS.filter(
+    (g) => (!category || g.category === category) && (!subcategory || g.subcategory === subcategory)
+  );
 
   for (const group of groups) {
     const trustedDomains = await getTrustedDomains(group.category);

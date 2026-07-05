@@ -14,12 +14,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const mode = body?.mode ?? 'both'; // 'tavily' | 'firecrawl' | 'both'
     const category: string | undefined = body?.category; // undefined = 전체
+    // "사업경영"처럼 세부항목이 많은 카테고리를 더 잘게 쪼개 요청할 때 사용(타임아웃 방지)
+    const subcategory: string | undefined = body?.subcategory;
 
     const results: Record<string, unknown> = {};
 
     if (mode === 'tavily' || mode === 'both') {
-      console.log(`[web-learn] Tavily 검색 시작${category ? ` (${category})` : ''}...`);
-      results.tavily = await runTavilySearch(category);
+      console.log(`[web-learn] Tavily 검색 시작${category ? ` (${category}${subcategory ? `:${subcategory}` : ''})` : ''}...`);
+      results.tavily = await runTavilySearch(category, subcategory);
     }
 
     if (mode === 'firecrawl' || mode === 'both') {
