@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Expense, CategoryStat } from "@/lib/erp-db";
 
-const CATEGORIES = ["재료비", "공구/장비", "교통비", "통신비", "광고비", "기타"] as const;
+const CATEGORIES = ["재료비", "공구/장비", "교통비", "통신비", "광고비", "인건비", "기타"] as const;
 const PAY_METHODS = ["카드", "현금", "계좌이체"] as const;
 
 function thisMonth() {

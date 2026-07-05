@@ -8,6 +8,7 @@ import {
   CreditCard,
   FileBadge,
   FileText,
+  HandCoins,
   LayoutDashboard,
   Lightbulb,
   ListOrdered,
@@ -193,6 +194,12 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "경비관리",
     description: "재료비·교통비 등 경비 입력·월별 집계",
     icon: Wallet
+  },
+  {
+    href: "/admin/erp/settlement",
+    label: "기사 수당 정산",
+    description: "완료 작업 지급액 확정 — 경비관리(인건비)에 자동 반영",
+    icon: HandCoins
   },
   {
     href: "/admin/erp/invoices",

@@ -208,6 +208,7 @@ const EXPENSE_CATEGORY_LIMITS: Record<string, number> = {
   "교통비": 500_000,
   "통신비": 200_000,
   "광고비": 1_000_000,
+  "인건비": 1_000_000,
   "기타": 500_000,
 };
 

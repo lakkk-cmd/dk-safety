@@ -129,6 +129,7 @@ Located in `supabase/migrations/` (numbered 001–033). Apply with `npm run db:a
 - `033` — `agent_chat_messages` table (9-에이전트 채팅 히스토리: `agent_id`, `role` CHECK IN ('user','assistant'), `content`, `created_at`; index on `(agent_id, created_at)`; RLS enabled)
 - `059` — `apply_site_decision()` Postgres function — atomically INSERTs `site_decisions` + UPSERTs `site_config` (previously 4 separate round-trips with manual rollback that could leave the two tables inconsistent)
 - `060` — `content_media_library` table (tagged real-photo/background-music store for the video pipeline: `media_type` CHECK IN ('photo','music'), `tag`, `url`, `source` CHECK IN ('upload','field_report'), `use_count` for rotation)
+- `061` — adds `'인건비'` to `expenses.category` CHECK constraint; `settle_worker_assignment()` Postgres function — atomically inserts into `worker_assignments` (previously unused/dead — no code called it) and `expenses` together, giving worker pay settlement (`/admin/erp/settlement`) a real, ERP-integrated implementation. `worker_assignments.reservation_id`+`worker_id` UNIQUE constraint blocks double-settling the same job.
 
 ### AI Command Center
 

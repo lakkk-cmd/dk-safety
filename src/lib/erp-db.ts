@@ -1,3 +1,4 @@
+import { pgReadReservations } from "@/lib/reservations-pg";
 import { getSupabaseAdmin } from "@/lib/supabase-pg";
 
 export type WorkerRow = {
@@ -229,6 +230,103 @@ export async function createAssignment(
     .single();
   if (error) throw new Error(error.message);
   return data as WorkerAssignment;
+}
+
+// ── Worker Settlement (기사 수당 정산) ─────────────────────────────────────────
+// 완료된 작업(reservations.status='완료')에 기사가 배정돼(tasks.worker_id) 있는데
+// 아직 worker_assignments에 정산 기록이 없는 건 = 정산 대기. rate 계산은 hours 추적이
+// 없어 일당(daily_rate)을 우선, 없으면 시급(hourly_rate)을 건당 제안값으로만 쓴다
+// (관리자가 금액을 확인/수정 후 확정).
+
+export type PendingSettlement = {
+  reservationId: string;
+  workerId: string;
+  workerName: string;
+  serviceType: string;
+  address: string;
+  completedDate: string;
+  suggestedAmount: number;
+};
+
+export type SettlementHistoryItem = {
+  id: string;
+  reservationId: string;
+  workerId: string;
+  workerName: string;
+  payAmount: number | null;
+  note: string | null;
+  completedAt: string | null;
+};
+
+export async function listPendingSettlements(): Promise<PendingSettlement[]> {
+  const [reservations, workers, { data: existing, error }] = await Promise.all([
+    pgReadReservations(),
+    listWorkers(),
+    sb().from("worker_assignments").select("reservation_id"),
+  ]);
+  if (error) throw new Error(error.message);
+
+  const settledReservationIds = new Set((existing ?? []).map((r) => r.reservation_id as string));
+  const workerById = new Map(workers.map((w) => [w.id, w] as const));
+
+  return reservations
+    .filter((r) => r.status === "완료" && r.assignedWorkerId && !settledReservationIds.has(r.id))
+    .map((r) => {
+      const worker = workerById.get(r.assignedWorkerId as string);
+      const suggestedAmount = worker?.daily_rate ?? worker?.hourly_rate ?? 0;
+      return {
+        reservationId: r.id,
+        workerId: r.assignedWorkerId as string,
+        workerName: r.assignedWorkerName ?? worker?.name ?? "알 수 없음",
+        serviceType: r.serviceType,
+        address: r.address,
+        completedDate: r.preferredDate,
+        suggestedAmount,
+      };
+    });
+}
+
+export async function listSettlementHistory(limit = 50): Promise<SettlementHistoryItem[]> {
+  const { data, error } = await sb()
+    .from("worker_assignments")
+    .select("id, reservation_id, worker_id, pay_amount, note, completed_at, workers(name)")
+    .order("completed_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => {
+    const workerJoin = row.workers as { name: string } | { name: string }[] | null;
+    const workerName = Array.isArray(workerJoin) ? workerJoin[0]?.name : workerJoin?.name;
+    return {
+      id: row.id as string,
+      reservationId: row.reservation_id as string,
+      workerId: row.worker_id as string,
+      workerName: workerName ?? "알 수 없음",
+      payAmount: row.pay_amount as number | null,
+      note: row.note as string | null,
+      completedAt: row.completed_at as string | null,
+    };
+  });
+}
+
+export async function settleWorkerAssignment(input: {
+  reservationId: string;
+  workerId: string;
+  payAmount: number;
+  note: string | null;
+  expenseDate: string;
+  expenseDescription: string;
+}): Promise<{ assignmentId: string; expenseId: string }> {
+  const { data, error } = await sb().rpc("settle_worker_assignment", {
+    p_reservation_id: input.reservationId,
+    p_worker_id: input.workerId,
+    p_pay_amount: input.payAmount,
+    p_note: input.note,
+    p_expense_date: input.expenseDate,
+    p_expense_description: input.expenseDescription,
+  });
+  if (error) throw new Error(error.message);
+  const row = (Array.isArray(data) ? data[0] : data) as { assignment_id: string; expense_id: string };
+  return { assignmentId: row.assignment_id, expenseId: row.expense_id };
 }
 
 // ── Dashboard Stats ───────────────────────────────────────────────────────────
