@@ -108,6 +108,61 @@ export const ADMIN_SHELL_CRITICAL_CSS = `
   padding: 0.5rem 0.65rem !important;
   box-sizing: border-box !important;
 }
+/* 모바일 — 사이드바가 화면 전체를 항상 차지해 실제 작업이 안 되던 문제 수정.
+   기본은 화면 밖으로 밀어두고(off-canvas), 햄버거 버튼으로 열면 오버레이로 슬라이드인. */
+.dk-admin-mobile-topbar {
+  display: none;
+}
+.dk-admin-mobile-backdrop {
+  display: none;
+}
+@media (max-width: 767px) {
+  [data-dk-admin-root] > aside {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    z-index: 50 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.2s ease !important;
+    box-shadow: 0 0 24px rgba(15, 23, 42, 0.35) !important;
+  }
+  [data-dk-admin-root][data-mobile-nav-open="true"] > aside {
+    transform: translateX(0) !important;
+  }
+  [data-dk-admin-root][data-mobile-nav-open="true"] .dk-admin-mobile-backdrop {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 40 !important;
+    background: rgba(15, 23, 42, 0.5) !important;
+  }
+  .dk-admin-mobile-topbar {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 30 !important;
+    padding: 0.75rem 1rem !important;
+    background: #0B1F3A !important;
+    color: #ffffff !important;
+    box-sizing: border-box !important;
+  }
+  .dk-admin-mobile-topbar button {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+    border-radius: 0.5rem !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+  }
+  .dk-admin-mobile-topbar span {
+    font-size: 0.85rem !important;
+    font-weight: 800 !important;
+  }
+}
 /* 로그인 전용 래퍼 */
 .dk-admin-login-shell {
   min-height: 100vh !important;

@@ -13,6 +13,7 @@ import {
   ListOrdered,
   MessageSquare,
   PieChart,
+  ShieldAlert,
   ShieldUser,
   Table2,
   UserCog,
@@ -128,6 +129,12 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "생활전기정보",
     description: "안전·절약·자가점검 콘텐츠 관리",
     icon: Lightbulb
+  },
+  {
+    href: "/admin/resident-safety",
+    label: "입주민 통합 모니터링",
+    description: "단지별 위험도 집계·고위험 입주민 확인",
+    icon: ShieldAlert
   },
   {
     href: "/admin/knowledge",

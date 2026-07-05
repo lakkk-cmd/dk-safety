@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Fragment, useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Sidebar,
@@ -22,6 +23,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const isLoginPage = pathname === "/admin/login";
   const [prepPending, setPrepPending] = useState(0);
   const [settlePending, setSettlePending] = useState(0);
+  // 모바일에서 사이드바가 화면 전체를 항상 차지해 실제 작업이 안 되던 문제 —
+  // 모바일에서는 기본 숨김(off-canvas) + 햄버거 버튼으로 열고, 경로 변경 시 자동으로 닫는다.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (isLoginPage) return;
@@ -68,12 +76,29 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <Fragment>
       <style dangerouslySetInnerHTML={{ __html: ADMIN_SHELL_CRITICAL_CSS }} />
-      <div className={cn(shellClass, "dk-admin-root")} data-dk-admin-root>
+      <div
+        className={cn(shellClass, "dk-admin-root")}
+        data-dk-admin-root
+        data-mobile-nav-open={mobileNavOpen ? "true" : undefined}
+      >
+      <div className="dk-admin-mobile-backdrop" onClick={() => setMobileNavOpen(false)} aria-hidden="true" />
       <Sidebar className="bg-gradient-to-b from-slate-100 to-slate-200 dark:from-slate-950 dark:to-slate-900">
         <SidebarHeader>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">관제 센터</p>
-          <h1 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">우리집 전기주치의(대경이엔피)</h1>
-          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">운영 관리 시스템</p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">관제 센터</p>
+              <h1 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">우리집 전기주치의(대경이엔피)</h1>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">운영 관리 시스템</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(false)}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200/70 md:hidden dark:text-slate-300 dark:hover:bg-slate-800"
+              aria-label="메뉴 닫기"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
@@ -112,6 +137,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </SidebarContent>
       </Sidebar>
       <SidebarInset>
+        <div className="dk-admin-mobile-topbar">
+          <button type="button" onClick={() => setMobileNavOpen(true)} aria-label="메뉴 열기">
+            <Menu className="h-4 w-4" />
+          </button>
+          <span>관제 센터</span>
+        </div>
         {/* 자식 페이지가 각각 <main>을 쓰므로 여기서는 래퍼만 둡니다(중첩 <main> 방지). */}
         <div className="dk-admin-main-inner min-h-screen flex-1 overflow-auto p-4 md:p-6">{children}</div>
       </SidebarInset>
