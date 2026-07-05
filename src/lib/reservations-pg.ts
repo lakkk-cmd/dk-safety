@@ -683,11 +683,46 @@ export async function pgGetReservationContact(
 
 export async function pgCreateWorker(input: { name: string; phone: string; pinHash: string }): Promise<WorkerPublic> {
   const supabase = requireSupabaseAdmin();
+  const name = input.name.trim();
+  const phone = input.phone.trim();
+
+  // workers.phone에 unique index(workers_phone_lower_idx)가 있어, ERP(/admin/erp/workers)에서
+  // PIN 없이(pin_hash="") 먼저 등록된 기사를 여기서 다시 등록하면 그냥 실패했었다(23505 unique
+  // violation을 그대로 노출) — 실제로는 "이미 있는 사람에게 PIN을 새로 발급"하려는 의도이므로,
+  // 같은 번호가 있으면 PIN/이름만 갱신(재발급)하고, 없을 때만 새로 만든다.
+  const { data: existing, error: findErr } = await supabase
+    .from("workers")
+    .select("id")
+    .ilike("phone", phone)
+    .maybeSingle();
+  if (findErr) {
+    throw new Error(`기사 조회 실패: ${findErr.message}`);
+  }
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("workers")
+      .update({ name, pin_hash: input.pinHash, active: true })
+      .eq("id", existing.id)
+      .select("id, name, phone, active, created_at")
+      .single();
+    if (error || !data) {
+      throw new Error(`기사 PIN 재발급 실패: ${error?.message ?? "unknown"}`);
+    }
+    return {
+      id: data.id,
+      name: data.name,
+      phone: data.phone,
+      active: data.active,
+      createdAt: data.created_at
+    };
+  }
+
   const { data, error } = await supabase
     .from("workers")
     .insert({
-      name: input.name.trim(),
-      phone: input.phone.trim(),
+      name,
+      phone,
       pin_hash: input.pinHash,
       active: true
     })

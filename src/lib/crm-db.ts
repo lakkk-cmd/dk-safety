@@ -140,6 +140,28 @@ export async function listCustomerSummary(search?: string): Promise<CustomerSumm
     }
   }
 
+  // 예약은 아직 없고 상담 기록(잠재고객 등록 포함)만 있는 사람도 고객 목록에 포함시킨다 —
+  // 그렇지 않으면 "명함만 등록해둔" 잠재고객이 목록에서 아예 안 보이게 된다.
+  let cq = client
+    .from("consultation_logs")
+    .select("customer_name, customer_phone")
+    .order("created_at", { ascending: false });
+  if (search) {
+    cq = cq.or(`customer_name.ilike.%${search}%,customer_phone.ilike.%${search}%`);
+  }
+  const { data: consultRows } = await cq;
+  for (const c of (consultRows ?? []) as { customer_name: string; customer_phone: string }[]) {
+    if (!c.customer_phone || map.has(c.customer_phone)) continue;
+    map.set(c.customer_phone, {
+      phone: c.customer_phone,
+      name: c.customer_name,
+      address: null,
+      serviceCount: 0,
+      lastServiceDate: null,
+      nextFollowUp: null,
+    });
+  }
+
   // Attach nearest pending follow-up
   const phones = Array.from(map.keys());
   if (phones.length > 0) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { normalizePhone } from "@/lib/reservation-validation";
-import { pgCreateWorker, pgListWorkers } from "@/lib/reservations-pg";
+import { pgCreateWorker, pgFindWorkerByPhone, pgListWorkers } from "@/lib/reservations-pg";
 import { hashWorkerPin } from "@/lib/worker-pin";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 
@@ -43,8 +43,9 @@ export async function POST(request: Request) {
   }
   try {
     const phone = normalizePhone(phoneRaw);
+    const before = await pgFindWorkerByPhone(phone);
     const worker = await pgCreateWorker({ name, phone, pinHash: hashWorkerPin(pin) });
-    return NextResponse.json({ worker }, { status: 201 });
+    return NextResponse.json({ worker, reissued: Boolean(before) }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "기사 등록에 실패했습니다.";
     return NextResponse.json({ message }, { status: 500 });
