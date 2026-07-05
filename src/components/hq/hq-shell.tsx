@@ -8,14 +8,10 @@ import BrandLockup from "@/components/brand-lockup";
 import SubdomainNav from "@/components/subdomain-nav";
 
 const TABS = [
-  { href: "/", label: "대시보드" },
-  { href: "/content", label: "콘텐츠" },
+  { href: "/", label: "홈" },
   { href: "/reservation", label: "예약" },
-  { href: "/pipeline", label: "파이프라인" },
-  { href: "/report", label: "보고서" },
   { href: "/intelligence", label: "인텔리전스" },
-  { href: "/improve", label: "개선요청" },
-  { href: "/chat", label: "AI 채팅" },
+  { href: "/report", label: "보고서" },
 ] as const;
 
 export default function HqShell({ children }: { children: React.ReactNode }) {
@@ -42,10 +38,11 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const isChat = pathname.includes("/chat");
+  // 홈(루트)이 이제 채팅을 겸하므로, 채팅에 필요했던 풀높이 레이아웃을 홈에도 적용한다.
+  const isHome = pathname === "/";
 
   return (
-    <div className={`flex flex-col bg-cc-bg text-cc-text overflow-x-hidden w-full ${isChat ? "h-dvh" : "min-h-dvh"}`}>
+    <div className={`flex flex-col bg-cc-bg text-cc-text overflow-x-hidden w-full ${isHome ? "h-dvh" : "min-h-dvh"}`}>
       <header className="flex-shrink-0 bg-cc-navy text-white w-full overflow-x-hidden">
         <div className="flex w-full items-center justify-between gap-3 px-3 py-3 md:mx-auto md:max-w-5xl md:px-6 md:py-4">
           <BrandLockup />
@@ -81,7 +78,7 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
           </ul>
         </nav>
       </header>
-      <div className={isChat ? "flex min-h-0 flex-1 flex-col overflow-hidden p-2 md:p-3" : "mx-auto w-full max-w-5xl px-4 py-3 md:px-6 md:py-6"}>{children}</div>
+      <div className={isHome ? "flex min-h-0 flex-1 flex-col overflow-hidden p-2 md:p-3" : "mx-auto w-full max-w-5xl px-4 py-3 md:px-6 md:py-6"}>{children}</div>
     </div>
   );
 }
