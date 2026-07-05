@@ -3,6 +3,7 @@ import {
   validateContent,
   validateKnowledgeChunk,
   validateRAGAnswer,
+  validateChunkRelevance,
   validateExpense,
   validateInvoice,
   validateConsultation,
@@ -33,12 +34,17 @@ export async function POST(req: NextRequest) {
     switch (type) {
       case "content":
         result = await validateContent(
-          body as { title: string; content: string; contentType: "blog" | "kakao" | "youtube"; keywords?: string[] }
+          body as { title: string; content: string; contentType: "blog" | "kakao" | "youtube" | "document"; keywords?: string[] }
         );
         break;
       case "rag_answer":
         result = await validateRAGAnswer(
           body as { question: string; answer: string; chunks: { content: string; source_file?: string }[] }
+        );
+        break;
+      case "chunk_relevance":
+        result = await validateChunkRelevance(
+          body as { question: string; chunkContent: string; sourceFile?: string }
         );
         break;
       case "knowledge_chunk":

@@ -101,8 +101,7 @@ export async function generateDocument(params: {
   const validation = await validateContent({
     title: template.title,
     content,
-    contentType: "blog",
-    keywords: ["전기안전", "대경이엔피"],
+    contentType: "document",
   }).catch(() => ({ passed: true, score: 70, reason: "검증 불가(Gemini 미설정)", verdict: "" }));
 
   const supabase = requireAgentSupabase();

@@ -61,15 +61,13 @@ export default function CrmCustomersPage() {
     setLeadSubmitting(true);
     setLeadMessage(null);
     try {
-      const res = await fetch("/api/admin/crm/consultations", {
+      const res = await fetch("/api/admin/crm/customers/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customer_name: leadName.trim(),
-          customer_phone: leadPhone.trim(),
-          channel: "visit",
-          content: leadMemo.trim() || "잠재고객 명함 등록",
-          status: "pending",
+          name: leadName.trim(),
+          phone: leadPhone.trim(),
+          memo: leadMemo.trim(),
         }),
       });
       const json = (await res.json()) as { error?: string };

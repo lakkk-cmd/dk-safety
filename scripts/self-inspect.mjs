@@ -104,8 +104,11 @@ async function checkKnowledgeQuality() {
       }
 
       // source_file에서 카테고리 추출 (예: web:tavily:전기기술:... → 전기기술)
+      // 실제 수집 카테고리(web-learn-keywords.ts SEARCH_KEYWORDS 기준, '전기안전'은 실제로 쓰이지
+      // 않는 이름이라 여기 있으면 전부 오분류돼 왔음 — 실제 7개 카테고리로 교체.
+      const KNOWN_CATEGORIES = ['전기법령', '전기기술', '유튜브', '마케팅', 'AI자동화', '사업경영', '일반'];
       const sfParts = (data.source_file ?? '').split(':');
-      const inferredCategory = sfParts.find(p => ['전기법령','전기기술','전기안전','일반'].includes(p)) ?? '전기안전';
+      const inferredCategory = sfParts.find(p => KNOWN_CATEGORIES.includes(p)) ?? '일반';
       const res = await fetch(`${BASE_URL}/api/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AGENT_SECRET}` },
@@ -129,7 +132,9 @@ async function checkKnowledgeQuality() {
 }
 
 // ── 4. RAG 검색 관련성 점검 ────────────────────────────────────────────────
-// 주의: 원본 청크는 AI 답변이 아닌 '참고 자료'이므로 검색 관련성(>= 50)으로 판단
+// 원본 청크는 AI 답변이 아닌 '참고 자료'라서, "완결된 AI 답변"을 채점하는 rag_answer 타입에
+// 넣으면 "질문에 충실히 응답하지 않는다"며 항상 낮은 점수가 나왔다(실제로 재현된 버그).
+// 원본 조각 관련성만 채점하는 전용 타입(chunk_relevance)을 사용한다.
 async function checkRAGQuality() {
   console.log('\n💬 RAG 검색 관련성 점검...');
 
@@ -153,7 +158,7 @@ async function checkRAGQuality() {
       const validateRes = await fetch(`${BASE_URL}/api/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AGENT_SECRET}` },
-        body: JSON.stringify({ type: 'rag_answer', question, answer: chunks[0].content.slice(0, 300), chunks }),
+        body: JSON.stringify({ type: 'chunk_relevance', question, chunkContent: chunks[0].content.slice(0, 500), sourceFile: chunks[0].source_file }),
       });
 
       const rawValidate = await validateRes.text();

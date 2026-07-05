@@ -49,6 +49,18 @@ function parseScore(text: string): number {
   return 50;
 }
 
+// Gemini에게 "판정: 통과/반려(또는 검토필요)" 같은 명시적 판정을 답하도록 요청해놓고 정작 그
+// 답을 무시한 채 임의의 점수 컷오프로 재판정하면, Gemini 스스로 "통과"라고 적은 것도 점수만
+// 살짝 낮으면 반려 처리되는 모순이 생긴다(실제로 재현된 사례: 콘텐츠 검증에서 점수 75 +
+// "판정: 통과"인데 컷오프 90에 걸려 반려됨). 판정 텍스트가 있으면 최우선으로 쓰고, 없을 때만
+// 점수로 폴백한다. 모든 프롬프트의 반려측 라벨("반려"/"검토필요")은 "통과"를 포함하지 않으므로
+// 이 substring 체크 하나로 공용 처리 가능하다.
+function parseVerdictPass(text: string): boolean | null {
+  const m = text.match(/판정[:\s]*([^\n]+)/);
+  if (!m) return null;
+  return m[1].includes("통과");
+}
+
 // ── 공통 로깅 ──────────────────────────────────────────────────────────────────
 
 async function logResult(params: {
@@ -84,20 +96,36 @@ async function logResult(params: {
 export async function validateContent(params: {
   title: string;
   content: string;
-  contentType: "blog" | "kakao" | "youtube";
+  contentType: "blog" | "kakao" | "youtube" | "document";
   keywords?: string[];
 }): Promise<{ passed: boolean; score: number; reason: string; verdict: string }> {
-  const typeLabel = { blog: "네이버 블로그 포스트", kakao: "카카오 채널 포스트", youtube: "유튜브 영상 스크립트" }[params.contentType];
+  const typeLabel = {
+    blog: "네이버 블로그 포스트",
+    kakao: "카카오 채널 포스트",
+    youtube: "유튜브 영상 스크립트",
+    document: "업무 문서(점검보고서/견적서/완료확인서/계약서 등 — 마케팅 콘텐츠가 아닌 실무 서류)",
+  }[params.contentType];
+
+  // "document"는 블로그/카카오/유튜브 같은 마케팅 콘텐츠가 아니라 완료확인서·견적서 같은
+  // 실무 서류라, "키워드 포함"·"광고성 표현 없음" 같은 마케팅 기준을 그대로 적용하면 Gemini가
+  // "이건 블로그 형식이 아니라서 평가가 부적절하다"며 불합리하게 감점하는 문제가 실제로 있었다.
+  const criteria =
+    params.contentType === "document"
+      ? `1. 사실 정확성 (전기안전 법령/기술 기준에 부합하는가)
+2. 업무 문서로서 형식과 어조가 전문적인가
+3. 한국어 자연스러움 및 오탈자 없음
+4. 안전 관련 오정보 없음`
+      : `1. 사실 정확성 (전기안전 법령/기술 기준에 부합하는가)
+2. 키워드 포함 여부: ${params.keywords?.join(", ") ?? "없음"}
+3. 한국어 자연스러움
+4. 광고성/과장 표현 없음
+5. 안전 관련 오정보 없음`;
 
   const prompt = `당신은 전기안전 콘텐츠 검증 전문가입니다.
 아래 ${typeLabel}의 품질을 검증하고 점수를 매겨주세요.
 
 검증 기준:
-1. 사실 정확성 (전기안전 법령/기술 기준에 부합하는가)
-2. 키워드 포함 여부: ${params.keywords?.join(", ") ?? "없음"}
-3. 한국어 자연스러움
-4. 광고성/과장 표현 없음
-5. 안전 관련 오정보 없음
+${criteria}
 
 제목: ${params.title}
 
@@ -111,7 +139,8 @@ ${params.content.slice(0, 2000)}
 
   const verdict = await callGemini(prompt);
   const score = parseScore(verdict);
-  const passed = score >= 90;
+  const verdictPass = parseVerdictPass(verdict);
+  const passed = verdictPass !== null ? verdictPass : score >= 80;
 
   await logResult({ type: "content", target: params.title, original: params.content, verdict, score, passed });
   return { passed, score, reason: verdict, verdict };
@@ -157,9 +186,53 @@ ${chunkText}
 
   const verdict = await callGemini(prompt);
   const score = parseScore(verdict);
-  const passed = score >= 80;
+  const verdictPass = parseVerdictPass(verdict);
+  const passed = verdictPass !== null ? verdictPass : score >= 80;
 
   await logResult({ type: "rag_answer", target: params.question, original: params.answer, verdict, score, passed });
+  return { passed, score, reason: verdict };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 2b. 검색 결과 원본 조각 관련성 검증 (AI의 완결된 답변이 아닌, RAG 검색이 찾아낸 원본 문서 조각용)
+// validateRAGAnswer는 "완결된 AI 답변"을 채점하는 프롬프트라 원본 청크를 넣으면 "질문에
+// 충실히 응답하지 않는다"며 항상 낮은 점수가 나온다 — self-inspect.mjs가 실제로 이 문제로
+// RAG 검색 자체는 멀쩡한데도 계속 "검토필요"로 잘못 기록하고 있었다. 원본 조각 채점 전용
+// 함수를 분리해 "이 조각이 질문과 관련 있는가"만 평가한다.
+// ══════════════════════════════════════════════════════════════════════════════
+
+export async function validateChunkRelevance(params: {
+  question: string;
+  chunkContent: string;
+  sourceFile?: string;
+}): Promise<{ passed: boolean; score: number; reason: string }> {
+  const prompt = `당신은 검색 결과 관련성 평가 전문가입니다.
+아래는 사용자 질문과, 지식베이스 검색으로 찾아낸 "원본 문서 조각"입니다. 이 조각은 AI가 작성한
+완결된 답변이 아니라 더 큰 문서에서 발췌된 일부이므로, 문장이 중간에 끊기거나 배경 설명 없이
+시작될 수 있습니다. 완결된 답변 형식을 갖췄는지는 평가 기준이 아니며, 오직 "이 조각이 질문과
+관련된 정보를 담고 있는가"만 평가하세요.
+
+질문: ${params.question}
+
+검색된 문서 조각${params.sourceFile ? ` (출처: ${params.sourceFile})` : ""}:
+${params.chunkContent.slice(0, 500)}
+
+검증 기준:
+1. 이 조각이 질문 주제와 관련된 내용을 담고 있는가
+2. 명백한 오정보가 있는가
+
+응답 형식:
+점수: [0-100]
+판정: [관련있음/관련없음]
+이유: [간단한 이유]`.trim();
+
+  const verdict = await callGemini(prompt);
+  const score = parseScore(verdict);
+  // 원본 조각은 완결된 답변이 아니므로 관련성 기준(50점)으로 판단 — self-inspect.mjs가
+  // 이미 자체적으로 써오던 기준과 동일하게 맞춘다.
+  const passed = score >= 50;
+
+  await logResult({ type: "chunk_relevance", target: params.question, original: params.chunkContent, verdict, score, passed });
   return { passed, score, reason: verdict };
 }
 
@@ -192,7 +265,8 @@ ${params.content.slice(0, 1000)}
 
   const verdict = await callGemini(prompt);
   const score = parseScore(verdict);
-  const passed = score >= 70;
+  const verdictPass = parseVerdictPass(verdict);
+  const passed = verdictPass !== null ? verdictPass : score >= 70;
 
   await logResult({ type: "knowledge_chunk", target: params.sourceFile, original: params.content, verdict, score, passed });
   return { passed, score, reason: verdict };
@@ -241,10 +315,15 @@ export async function validateExpense(params: {
   }
 
   const prompt = `당신은 1인 전기설비업체(아파트 전기안전 점검·수리 출장 서비스)의 경비 데이터 검증 전문가입니다.
-이 업체의 "재료비"는 누전차단기, 배선, 콘센트, 스위치 등 현장 전기 작업에 쓰이는 부품/자재 구매비를 뜻하고,
-"공구/장비"는 공구·측정기 구매/대여비를 뜻합니다. 이 점을 감안해 아래 경비 입력 데이터의 카테고리와 설명이
-서로 일치하는지, 스팸/테스트성 데이터가 아닌지만 검증해주세요.
-(금액 한도와 날짜는 이미 별도로 검증했으니 신경쓰지 마세요.)
+
+중요: "재료비"를 일반 회계 용어(제품 생산에 쓰이는 원재료)로 판단하지 마세요. 이 업체는 제조업이 아닌
+출장 점검·수리 서비스업이라, 이 업체에서 "재료비"는 **현장 작업에 쓰이는 소모성 부품/자재 구매비 전부**를
+뜻합니다 — 누전차단기, 배선, 콘센트, 스위치 같은 소모품/교체부품 구매도 전부 정상적인 재료비입니다.
+"공구/장비"는 공구·측정기처럼 반복 사용하는 도구의 구매/대여비를 뜻합니다.
+(예시: "누전차단기 2구 구매"를 "재료비"로 등록한 것은 이 업체 기준 정상 항목이며 감점 사유가 아닙니다.)
+
+이 점을 감안해 아래 경비 입력 데이터의 카테고리와 설명이 서로 일치하는지, 스팸/테스트성 데이터가 아닌지만
+검증해주세요. (금액 한도와 날짜는 이미 별도로 검증했으니 신경쓰지 마세요.)
 
 경비 데이터:
 - 카테고리: ${params.category}
@@ -263,7 +342,8 @@ export async function validateExpense(params: {
 
   const verdict = await callGemini(prompt);
   const score = parseScore(verdict);
-  const passed = score >= 70;
+  const verdictPass = parseVerdictPass(verdict);
+  const passed = verdictPass !== null ? verdictPass : score >= 70;
 
   await logResult({
     type: "expense",
@@ -352,7 +432,8 @@ ${params.items.map((i) => `- ${i.description}: ${i.qty}개 × ${i.unit_price.toL
 
   const verdict = await callGemini(prompt);
   const score = parseScore(verdict);
-  const passed = score >= 80;
+  const verdictPass = parseVerdictPass(verdict);
+  const passed = verdictPass !== null ? verdictPass : score >= 80;
 
   await logResult({
     type: "invoice",
@@ -406,7 +487,8 @@ export async function validateConsultation(params: {
 
   const verdict = await callGemini(prompt);
   const score = parseScore(verdict);
-  const passed = score >= 70;
+  const verdictPass = parseVerdictPass(verdict);
+  const passed = verdictPass !== null ? verdictPass : score >= 70;
 
   await logResult({
     type: "consultation",
