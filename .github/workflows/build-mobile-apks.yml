@@ -45,8 +45,24 @@ jobs:
         working-directory: mobile/${{ matrix.app }}/android
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Upload APK (workflow artifact — GitHub 로그인 필요)
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.app }}-debug-apk
           path: mobile/${{ matrix.app }}/android/app/build/outputs/apk/debug/app-debug.apk
+
+      # dkansim.com의 각 앱 화면에서 로그인 없이 바로 다운받을 수 있도록, 고정 경로로
+      # Supabase Storage(공개 버킷)에도 업로드한다. x-upsert로 매번 같은 파일을 덮어써
+      # 다운로드 링크가 새 빌드가 나와도 바뀌지 않는다.
+      - name: Upload APK to Supabase Storage (dkansim.com 직접 다운로드용)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          curl -X POST "$NEXT_PUBLIC_SUPABASE_URL/storage/v1/object/dk-safety-apks/${{ matrix.app }}.apk" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            -H "x-upsert: true" \
+            --data-binary "@mobile/${{ matrix.app }}/android/app/build/outputs/apk/debug/app-debug.apk" \
+            --fail-with-body

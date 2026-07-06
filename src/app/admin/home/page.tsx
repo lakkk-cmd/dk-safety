@@ -3,6 +3,7 @@ import AdminLogoutButton from "@/components/admin-logout-button";
 import AdminHomeMonitorDashboard from "@/components/admin/admin-home-monitor-dashboard";
 import AdminHomeQuickNavLoader from "@/components/admin/admin-home-quick-nav-loader";
 import { cn } from "@/lib/utils";
+import { ADMIN_APK_URL } from "@/lib/mobile-apps";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,14 @@ export default function AdminHomePage() {
               >
                 기사 현장 페이지
               </Link>
+              {ADMIN_APK_URL ? (
+                <a
+                  href={ADMIN_APK_URL}
+                  className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-dk-navy shadow-sm transition hover:bg-slate-100"
+                >
+                  📱 관리자 앱 다운로드(APK)
+                </a>
+              ) : null}
             </div>
           </div>
           <AdminLogoutButton />

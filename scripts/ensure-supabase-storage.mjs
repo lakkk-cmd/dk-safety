@@ -58,6 +58,7 @@ const dataId = process.env.SUPABASE_DATA_BUCKET ?? "dk-safety-data";
 const videoId = process.env.SUPABASE_VIDEO_BUCKET ?? "dk-safety-video-assets";
 const knowledgeId = process.env.SUPABASE_KNOWLEDGE_BUCKET ?? "knowledge-pdfs";
 const documentsId = process.env.SUPABASE_DOCUMENTS_BUCKET ?? "dk-safety-documents";
+const apksId = process.env.SUPABASE_APK_BUCKET ?? "dk-safety-apks";
 
 const buckets = await listBuckets();
 const ids = new Set(buckets.map((b) => b.id));
@@ -91,6 +92,12 @@ if (!ids.has(documentsId)) {
   await createBucket(documentsId, true);
 } else {
   console.log("문서 버킷 이미 있음:", documentsId);
+}
+
+if (!ids.has(apksId)) {
+  await createBucket(apksId, true);
+} else {
+  console.log("모바일 앱 APK 버킷 이미 있음:", apksId);
 }
 
 console.log("Storage 점검 완료.");

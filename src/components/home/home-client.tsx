@@ -12,6 +12,7 @@ interface Apartment {
 interface Props {
   apartments: Apartment[];
   config?: Record<string, string>;
+  apkUrl?: string | null;
 }
 
 const SYMPTOMS = [
@@ -29,7 +30,7 @@ const FLOW_STEPS = [
   { icon: "3️⃣", label: "리포트 받기" }
 ];
 
-export default function HomeClient({ apartments, config = {} }: Props) {
+export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
   const heroTitle = config.hero_title ?? "우리집 전기 걱정되시나요?";
   const heroSubtitle = config.hero_subtitle ?? "전기기사가 직접 방문해서 해결해드립니다";
   const heroCta = config.hero_cta ?? "🔴 지금 점검 예약하기";
@@ -70,6 +71,14 @@ export default function HomeClient({ apartments, config = {} }: Props) {
       </header>
 
       <div className="mx-auto max-w-lg space-y-4 px-4 pt-4">
+        {apkUrl ? (
+          <a
+            href={apkUrl}
+            className="flex items-center justify-center gap-2 rounded-2xl border border-dk-navy/15 bg-white px-4 py-3 text-center text-sm font-bold text-dk-navy"
+          >
+            📱 안드로이드 앱 다운로드(APK)
+          </a>
+        ) : null}
         {noticeActive && noticeText ? (
           <div className="rounded-2xl bg-dk-gold/20 px-4 py-3 text-center text-sm font-bold text-dk-navy">
             📢 {noticeText}

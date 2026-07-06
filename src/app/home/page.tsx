@@ -1,6 +1,7 @@
 import HomeClient from "@/components/home/home-client";
 import { pgListApartments } from "@/lib/apartments-pg";
 import { getAgentSupabase } from "@/lib/agent-db";
+import { CUSTOMER_APK_URL } from "@/lib/mobile-apps";
 
 async function getSiteConfig(): Promise<Record<string, string>> {
   try {
@@ -32,5 +33,5 @@ export default async function MainHomePage() {
     getSiteConfig(),
   ]);
 
-  return <HomeClient apartments={apartments} config={config} />;
+  return <HomeClient apartments={apartments} config={config} apkUrl={CUSTOMER_APK_URL} />;
 }

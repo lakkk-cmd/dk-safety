@@ -27,7 +27,7 @@ function todayLabel() {
   return new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" });
 }
 
-export default function WorkerDashboard() {
+export default function WorkerDashboard({ apkUrl }: { apkUrl?: string | null }) {
   const [items, setItems] = useState<Item[]>([]);
   const [workerName, setWorkerName] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -132,6 +132,15 @@ export default function WorkerDashboard() {
         </p>
         <p className="mt-0.5 text-[15px] font-medium text-slate-500">{todayLabel()}</p>
       </div>
+
+      {apkUrl ? (
+        <a
+          href={apkUrl}
+          className="flex items-center justify-center gap-2 rounded-2xl border border-dk-navy/15 bg-white px-4 py-3 text-center text-sm font-bold text-dk-navy shadow-[0_4px_16px_rgba(11,31,58,0.08)]"
+        >
+          📱 기사 앱 다운로드(APK)
+        </a>
+      ) : null}
 
       {emergencyItems.length > 0 ? (
         <div className="rounded-2xl bg-dk-red px-4 py-3 text-white shadow-[0_10px_24px_rgba(229,62,62,0.35)]">
