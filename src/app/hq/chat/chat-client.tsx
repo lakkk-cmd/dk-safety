@@ -273,7 +273,7 @@ export default function HqChatClient() {
   const [webSearchOn, setWebSearchOn] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [headerPinned, setHeaderPinned] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const sessionIdRef = useRef<string>(`${selectedAgent}-${Date.now()}`);
@@ -321,7 +321,14 @@ export default function HqChatClient() {
   }, []);
 
   useEffect(() => { void load("general"); }, [load]);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, sending]);
+  // scrollIntoView()는 중첩된 스크롤 컨테이너에서 조상 컨테이너(overflow:hidden 포함)까지
+  // 함께 스크롤시켜 화면 전체가 밀려나는 버그가 있었다(2026-07-06, 모바일에서 요약 스트립이
+  // 화면 밖으로 밀려나며 스크롤 불가 상태로 보이던 현상의 원인) — 메시지 목록 컨테이너의
+  // scrollTop을 직접 조작해 그 컨테이너 하나만 스크롤되도록 한다.
+  useEffect(() => {
+    const el = messageListRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, sending]);
 
   const handleSelectAgent = useCallback(
     (agentId: string) => {
@@ -622,7 +629,10 @@ export default function HqChatClient() {
           onDrop={handleDrop}
         >
           {/* 메시지 목록 */}
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain rounded-xl bg-cc-bg p-2 md:p-3">
+          <div
+            ref={messageListRef}
+            className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain rounded-xl bg-cc-bg p-2 md:p-3"
+          >
             {initialLoading ? (
               <p className="text-sm text-slate-500">불러오는 중…</p>
             ) : messages.length === 0 ? (
@@ -732,7 +742,6 @@ export default function HqChatClient() {
                 </div>
               </div>
             ) : null}
-            <div ref={bottomRef} />
           </div>
 
           {/* 첨부 미리보기 */}

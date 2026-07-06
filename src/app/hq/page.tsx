@@ -28,7 +28,7 @@ export default async function HqPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <section className="cc-card shrink-0 space-y-3 p-4">
+      <section className="cc-card shrink-0 space-y-3 overflow-y-auto p-4 max-h-[45vh] md:max-h-none md:overflow-visible">
         <div className="flex flex-wrap items-center gap-2">
           <a
             href="https://contents.dkansim.com"
