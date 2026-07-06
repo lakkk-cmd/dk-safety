@@ -624,7 +624,7 @@ export default function HqChatClient() {
 
         {/* 채팅 영역 */}
         <section
-          className="flex min-h-0 flex-1 flex-col cc-card p-2 md:p-4"
+          className="flex min-h-0 min-w-0 flex-1 flex-col cc-card p-2 md:p-4"
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
         >
@@ -690,14 +690,14 @@ export default function HqChatClient() {
                         </div>
                       ) : null}
                       {m.content ? (
-                        <div className="flex max-w-[85%] items-end gap-1">
+                        <div className="flex min-w-0 max-w-[85%] items-end gap-1">
                           {m.role === "user" ? (
                             <span className="mb-0.5 flex-shrink-0 text-[10px] text-slate-400">
                               {formatTime(m.created_at)}
                             </span>
                           ) : null}
                           <div
-                            className={`whitespace-pre-wrap px-3 py-2 text-sm shadow-sm ${
+                            className={`min-w-0 overflow-x-auto whitespace-pre-wrap break-words px-3 py-2 text-sm shadow-sm ${
                               m.role === "user"
                                 ? "rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl rounded-br-sm bg-[#FEE500] text-slate-900"
                                 : "rounded-tl-sm rounded-tr-2xl rounded-br-2xl rounded-bl-2xl border border-slate-200 bg-white text-cc-text"
