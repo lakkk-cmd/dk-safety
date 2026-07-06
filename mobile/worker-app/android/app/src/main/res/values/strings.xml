@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">전기주치의 기사</string>
+    <string name="title_activity_main">전기주치의 기사</string>
+    <string name="package_name">com.dkansim.worker</string>
+    <string name="custom_url_scheme">com.dkansim.worker</string>
+</resources>

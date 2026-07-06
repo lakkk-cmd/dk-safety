@@ -21,3 +21,11 @@ public/uploads/
 test-output/
 
 .env*
+
+# 모바일 앱(Capacitor) 빌드 산출물 — CI가 매번 새로 생성함
+mobile/*/android/app/build/
+mobile/*/android/.gradle/
+mobile/*/android/local.properties
+mobile/*/android/capacitor-cordova-android-plugins/
+mobile/*/android/app/src/main/assets/public/
+mobile/*/android/app/src/main/assets/capacitor.config.json

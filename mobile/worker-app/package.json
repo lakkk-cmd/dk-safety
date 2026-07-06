@@ -1,0 +1,17 @@
+{
+  "name": "dkansim-worker-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "우리집 전기주치의 기사 앱 — dkansim.com/worker 웹뷰 래퍼",
+  "scripts": {
+    "sync": "cap sync android",
+    "build:apk": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/core": "^8.4.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.1"
+  }
+}

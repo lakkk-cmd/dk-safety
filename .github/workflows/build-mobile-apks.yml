@@ -1,0 +1,52 @@
+name: Build Mobile APKs
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "mobile/**"
+      - ".github/workflows/build-mobile-apks.yml"
+
+jobs:
+  build:
+    name: Build ${{ matrix.app }} APK
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [admin-app, worker-app, customer-app]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm dependencies
+        working-directory: mobile/${{ matrix.app }}
+        run: npm install
+
+      - name: Sync Capacitor (copy www + config into native project)
+        working-directory: mobile/${{ matrix.app }}
+        run: npx cap sync android
+
+      - name: Grant execute permission for gradlew
+        working-directory: mobile/${{ matrix.app }}/android
+        run: chmod +x gradlew
+
+      # 내부 배포(사이드로드)용 — 디버그 서명은 Android SDK가 자동 생성하는 debug keystore를
+      # 사용해 별도 서명 키 없이 바로 설치 가능한 APK를 만든다. 구글 플레이 출시가 필요해지면
+      # release 서명 키를 별도로 준비해 assembleRelease로 전환해야 한다.
+      - name: Build debug APK
+        working-directory: mobile/${{ matrix.app }}/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-debug-apk
+          path: mobile/${{ matrix.app }}/android/app/build/outputs/apk/debug/app-debug.apk

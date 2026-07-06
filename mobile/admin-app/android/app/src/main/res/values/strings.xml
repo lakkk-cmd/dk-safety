@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">전기주치의 관리자</string>
+    <string name="title_activity_main">전기주치의 관리자</string>
+    <string name="package_name">com.dkansim.admin</string>
+    <string name="custom_url_scheme">com.dkansim.admin</string>
+</resources>
