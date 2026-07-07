@@ -24,6 +24,7 @@
     "setup:new-pc": "powershell -ExecutionPolicy Bypass -File scripts/setup-new-pc.ps1",
     "cron:test": "node --env-file=.env.local scripts/test-morning-cron.mjs",
     "worker": "node --env-file=.env.local worker/index.mjs",
+    "thumb:test": "node worker/scripts/thumb-test.mjs",
     "intel:test": "node --env-file=.env.local scripts/test-market-intelligence.mjs",
     "harness:api": "tsx tests/harness/api.test.ts",
     "harness:db": "tsx tests/harness/db.test.ts",
