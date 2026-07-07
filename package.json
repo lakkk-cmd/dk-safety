@@ -39,6 +39,7 @@
     "@types/pdf-parse": "^1.1.5",
     "docx": "^9.7.1",
     "exceljs": "^4.4.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.14.0",
     "next": "^15.0.0",
     "pdf-lib": "^1.17.1",
