@@ -1,0 +1,20 @@
+{
+  "name": "dk-video-factory-remotion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "dk-video-factory 모션그래픽 템플릿 — 메인 Next.js 빌드와 독립된 Remotion 패키지",
+  "scripts": {
+    "studio": "remotion studio",
+    "render:test": "remotion render HookTitle out/test.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.242",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "^4.0.242"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}
