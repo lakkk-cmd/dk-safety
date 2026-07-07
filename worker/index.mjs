@@ -25,6 +25,8 @@ import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 import { parseFile } from "music-metadata";
 import { generateScript } from "./script-gen.mjs";
 import { uploadApprovedVideo } from "./youtube-upload.mjs";
+import { uploadToStorage } from "./lib/storage.mjs";
+import { claimNextBlogJob, runBlogJob } from "./blog-worker.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REMOTION_ROOT = path.resolve(__dirname, "..", "remotion");
@@ -160,20 +162,13 @@ async function renderJob(jobId, masterScenes) {
   return outputLocation;
 }
 
-async function uploadToStorage(localPath, objectPath) {
-  const body = await readFile(localPath);
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${objectPath}`, {
-    method: "POST",
-    headers: {
-      apikey: SERVICE_KEY,
-      Authorization: `Bearer ${SERVICE_KEY}`,
-      "Content-Type": "video/mp4",
-      "x-upsert": "true",
-    },
-    body,
+async function uploadVideoToStorage(localPath, objectPath) {
+  return uploadToStorage({
+    bucket: BUCKET,
+    objectPath,
+    body: await readFile(localPath),
+    contentType: "video/mp4",
   });
-  if (!res.ok) throw new Error(`Storage 업로드 실패 ${res.status}: ${await res.text()}`);
-  return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${objectPath}`;
 }
 
 async function runJob(job) {
@@ -203,7 +198,7 @@ async function runJob(job) {
   log(`  렌더링 시작 (${totalFrames}프레임, ${(totalFrames / FPS).toFixed(1)}초)`);
   const localPath = await renderJob(job.id, masterScenes);
 
-  const videoUrl = await uploadToStorage(localPath, `video-jobs/${job.id}.mp4`);
+  const videoUrl = await uploadVideoToStorage(localPath, `video-jobs/${job.id}.mp4`);
   await sql`
     update video_jobs set
       status = 'pending_review',
@@ -295,6 +290,24 @@ async function processJob(job) {
   return false;
 }
 
+async function processBlogJob(job) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await runBlogJob(sql, job, log);
+      return true;
+    } catch (e) {
+      lastError = e;
+      log(`  시도 ${attempt}/${MAX_ATTEMPTS} 실패: ${e?.message ?? String(e)}`);
+    }
+  }
+  await sql`
+    update blog_jobs set status = 'error', error = ${String(lastError?.message ?? lastError)}
+    where id = ${job.id}`;
+  log(`  중단 → error 기록 (blog)`);
+  return false;
+}
+
 /** queued 작업 1건을 원자적으로 집어온다 (status를 scripting으로 선점) */
 async function claimNextJob() {
   const rows = await sql`
@@ -319,9 +332,11 @@ async function main() {
   for (;;) {
     let job = null;
     let uploadJob = null;
+    let blogJob = null;
     try {
       job = await claimNextJob();
       if (!job) uploadJob = await claimApprovedJob();
+      if (!job && !uploadJob) blogJob = await claimNextBlogJob(sql);
     } catch (e) {
       log(`폴링 실패 (다음 주기에 재시도): ${e.message}`);
     }
@@ -334,6 +349,12 @@ async function main() {
     if (uploadJob) {
       log(`업로드 시작: ${uploadJob.id} "${uploadJob.topic}" (approved → uploading 선점)`);
       await processUploadJob(uploadJob);
+      if (RUN_ONCE) break;
+      continue;
+    }
+    if (blogJob) {
+      log(`블로그 작업 시작: ${blogJob.id} "${blogJob.topic}" (요청: ${blogJob.requested_by})`);
+      await processBlogJob(blogJob);
       if (RUN_ONCE) break;
       continue;
     }

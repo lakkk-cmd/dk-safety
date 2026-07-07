@@ -26,7 +26,7 @@ function getSystemPrompt() {
  * src/lib/agents.ts extractJsonBlock 포팅 — 중괄호 깊이를 직접 추적해
  * JSON 문자열 값 내부의 ``` 펜스/중첩 {}에 안전하다.
  */
-function extractJsonBlock(text) {
+export function extractJsonBlock(text) {
   const fenceMatch = text.match(/```json\s*\n?/);
   const start = fenceMatch
     ? text.indexOf("{", fenceMatch.index + fenceMatch[0].length)
