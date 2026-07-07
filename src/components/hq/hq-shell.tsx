@@ -10,6 +10,7 @@ import SubdomainNav from "@/components/subdomain-nav";
 const TABS = [
   { href: "/", label: "홈" },
   { href: "/reservation", label: "예약" },
+  { href: "/videos", label: "영상" },
   { href: "/intelligence", label: "인텔리전스" },
   { href: "/report", label: "보고서" },
 ] as const;
