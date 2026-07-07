@@ -23,6 +23,7 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 import { parseFile } from "music-metadata";
+import { generateScript } from "./script-gen.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REMOTION_ROOT = path.resolve(__dirname, "..", "remotion");
@@ -64,9 +65,7 @@ function normalizeScenes(job) {
       ? job.script.scenes
       : null;
   if (!raw || raw.length === 0) {
-    throw new Error(
-      "scenes가 없습니다 — 대본 자동 생성(4단계)은 미구현이므로 scenes(또는 script.scenes)를 수동 입력해야 합니다"
-    );
+    throw new Error("scenes가 없습니다 — 대본 생성이 실패했거나 scenes/script.scenes가 비어 있습니다");
   }
   return raw.map((s, i) => {
     if (!s.compositionId) throw new Error(`scenes[${i}]에 compositionId가 없습니다`);
@@ -131,11 +130,12 @@ function getBundle() {
 async function renderJob(jobId, masterScenes) {
   const serveUrl = await getBundle();
   const inputProps = {
-    scenes: masterScenes.map(({ compositionId, props, durationInFrames, audio }) => ({
+    scenes: masterScenes.map(({ compositionId, props, durationInFrames, audio, narration }) => ({
       compositionId,
       props,
       durationInFrames,
       audio,
+      caption: narration ?? undefined, // 나레이션을 하단 고정 자막으로
     })),
   };
   const composition = await selectComposition({ serveUrl, id: "Master", inputProps });
@@ -176,10 +176,23 @@ async function uploadToStorage(localPath, objectPath) {
 }
 
 async function runJob(job) {
-  const scenes = normalizeScenes(job);
-
-  // script가 이미 있으므로 scripting 단계는 통과 표시만 (4단계에서 Claude 대본 생성이 들어올 자리)
   await sql`update video_jobs set status = 'scripting', error = null where id = ${job.id}`;
+
+  // scenes가 수동 입력돼 있으면 그대로 쓰고, 없으면 Claude로 대본 생성 (4단계)
+  const hasScenes =
+    (Array.isArray(job.scenes) && job.scenes.length > 0) ||
+    (Array.isArray(job.script?.scenes) && job.script.scenes.length > 0);
+  if (!hasScenes) {
+    log(`  대본 생성 시작 (Claude): "${job.topic}"`);
+    const script = await generateScript({ topic: job.topic, format: job.format });
+    await sql`
+      update video_jobs set script = ${sql.json(script)}, scenes = ${sql.json(script.scenes)}
+      where id = ${job.id}`;
+    job = { ...job, script, scenes: script.scenes };
+    log(`  대본 생성 완료: "${script.title}" — 씬 ${script.scenes.length}개`);
+  }
+
+  const scenes = normalizeScenes(job);
 
   log(`  씬 ${scenes.length}개 TTS 시작 (voice: ${TTS_VOICE})`);
   const masterScenes = await synthesizeScenes(job.id, scenes);
