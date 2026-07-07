@@ -1,0 +1,17 @@
+{
+  "name": "dk-video-factory-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "dk-video-factory 로컬 PC 워커 — video_jobs 폴링 → TTS → Remotion 렌더링 → Storage 업로드",
+  "scripts": {
+    "start": "node --env-file=../.env.local index.mjs"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.485",
+    "@remotion/renderer": "4.0.485",
+    "msedge-tts": "^2.0.6",
+    "music-metadata": "^11.0.0",
+    "postgres": "^3.4.5"
+  }
+}
