@@ -8,7 +8,8 @@
 #   irm https://raw.githubusercontent.com/lakkk-cmd/dk-safety/main/scripts/setup-new-pc.ps1 | iex
 #
 # 이 한 줄이 하는 일: Git/Node.js/GitHub CLI/Claude Code CLI 설치 -> 저장소 clone
-# -> npm install -> GitHub/Claude 로그인 -> claude-design MCP 등록 ->
+# -> npm install -> 영상 워커(worker/, remotion/) 의존성 설치 + pm2 상시가동/부팅자동시작 등록
+# -> GitHub/Claude 로그인 -> claude-design MCP 등록 ->
 # oh-my-claudecode 플러그인 설치 -> "setup" 명령어를 PowerShell 프로필에 영구 등록 ->
 # 마지막으로 dk-safety 폴더 안에서 Claude Code를 직접 실행(claude)까지 자동으로 이어집니다.
 #
@@ -151,6 +152,35 @@ function Start-DkSafetySetup {
         Write-Host "[경고] .env.production이 없습니다 (배포용, 로컬 개발에는 필수 아님)." -ForegroundColor Yellow
     } else {
         Write-Host ".env.production 확인됨"
+    }
+
+    # --- 8-1. 영상 워커 (dk-video-factory) 의존성 설치 ---
+    Write-Step "영상 워커 의존성 설치 (worker/, remotion/)"
+    npm --prefix worker install
+    npm --prefix remotion install
+
+    # --- 8-2. pm2 상시 가동 + Windows 로그인 시 자동시작 ---
+    Write-Step "pm2 설치 확인"
+    if (-not (Test-Cmd "pm2")) {
+        npm install -g pm2 pm2-windows-startup
+        Refresh-Path
+    } else {
+        Write-Host "pm2 이미 설치됨: $(pm2 --version)"
+        if (-not (Test-Cmd "pm2-startup")) {
+            npm install -g pm2-windows-startup
+            Refresh-Path
+        }
+    }
+    Write-Step "영상 워커(video-worker) pm2 등록"
+    if (Test-Path ".\.env.local") {
+        # startOrRestart는 이미 등록돼 있으면 재시작, 없으면 새로 시작 (재실행해도 안전)
+        pm2 startOrRestart ecosystem.config.js
+        pm2 save
+        pm2-startup install
+        Write-Host "video-worker 상시 가동 등록 완료 - 확인: pm2 status / pm2 logs video-worker"
+    } else {
+        Write-Host "[경고] .env.local이 없어 워커 시작은 건너뜁니다. 파일 복사 후 아래를 실행:" -ForegroundColor Yellow
+        Write-Host "       pm2 startOrRestart ecosystem.config.js; pm2 save; pm2-startup install" -ForegroundColor Yellow
     }
 
     # --- 9. GitHub 로그인 ---
