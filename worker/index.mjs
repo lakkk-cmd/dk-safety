@@ -24,6 +24,7 @@ import { renderMedia, selectComposition } from "@remotion/renderer";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 import { parseFile } from "music-metadata";
 import { generateScript } from "./script-gen.mjs";
+import { uploadApprovedVideo } from "./youtube-upload.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REMOTION_ROOT = path.resolve(__dirname, "..", "remotion");
@@ -212,7 +213,68 @@ async function runJob(job) {
       error = null
     where id = ${job.id}`;
   log(`  완료 → pending_review: ${videoUrl}`);
-  // TODO(6단계): Solapi 카카오 알림 "검토하기" 발송
+  await notifyReviewRequested(job.id);
+}
+
+/** 검토 요청 카카오 알림 — 프로덕션 API가 대신 발송 (실패해도 잡 처리는 성공으로 유지) */
+async function notifyReviewRequested(jobId) {
+  const secret = process.env.AGENT_WRITE_SECRET?.trim();
+  const base = (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://dkansim.com").replace(/\/$/, "");
+  if (!secret) {
+    log("  검토 알림 생략 (AGENT_WRITE_SECRET 미설정)");
+    return;
+  }
+  try {
+    const res = await fetch(`${base}/api/video-jobs/notify-review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
+      body: JSON.stringify({ jobId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) log("  검토 요청 카카오 알림 발송 완료");
+    else log(`  검토 알림 실패 (비치명): ${res.status} ${JSON.stringify(data).slice(0, 150)}`);
+  } catch (e) {
+    log(`  검토 알림 실패 (비치명): ${e?.message ?? String(e)}`);
+  }
+}
+
+/**
+ * 승인된 잡의 유튜브 업로드 — 승인 게이트의 핵심:
+ * status='approved'인 행만 원자적으로 uploading으로 선점하므로,
+ * pending_review 등 다른 상태가 업로드되는 코드 경로는 존재하지 않는다.
+ */
+async function claimApprovedJob() {
+  const rows = await sql`
+    update video_jobs set status = 'uploading'
+    where id = (
+      select id from video_jobs where status = 'approved' order by created_at asc limit 1
+    )
+    returning *`;
+  return rows[0] ?? null;
+}
+
+async function processUploadJob(job) {
+  const localPath = path.join(OUT_DIR, `${job.id}.mp4`);
+  let lastError = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const videoId = await uploadApprovedVideo(sql, job, localPath);
+      const youtubeUrl = `https://youtu.be/${videoId}`;
+      await sql`
+        update video_jobs set status = 'published', youtube_url = ${youtubeUrl}, error = null
+        where id = ${job.id}`;
+      log(`  업로드 완료 → published: ${youtubeUrl} (비공개 업로드 — 공개 전환은 유튜브 스튜디오에서)`);
+      return true;
+    } catch (e) {
+      lastError = e;
+      log(`  업로드 시도 ${attempt}/${MAX_ATTEMPTS} 실패: ${e?.message ?? String(e)}`);
+    }
+  }
+  await sql`
+    update video_jobs set status = 'error', error = ${`업로드 실패: ${String(lastError?.message ?? lastError)}`}
+    where id = ${job.id}`;
+  log(`  업로드 중단 → error 기록`);
+  return false;
 }
 
 async function processJob(job) {
@@ -256,8 +318,10 @@ async function main() {
 
   for (;;) {
     let job = null;
+    let uploadJob = null;
     try {
       job = await claimNextJob();
+      if (!job) uploadJob = await claimApprovedJob();
     } catch (e) {
       log(`폴링 실패 (다음 주기에 재시도): ${e.message}`);
     }
@@ -266,6 +330,12 @@ async function main() {
       await processJob(job);
       if (RUN_ONCE) break;
       continue; // 연속 작업이 있으면 바로 다음 건
+    }
+    if (uploadJob) {
+      log(`업로드 시작: ${uploadJob.id} "${uploadJob.topic}" (approved → uploading 선점)`);
+      await processUploadJob(uploadJob);
+      if (RUN_ONCE) break;
+      continue;
     }
     if (RUN_ONCE) {
       log("대기 중인 작업 없음 — 종료");

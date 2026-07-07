@@ -104,6 +104,19 @@ export async function sendContentApprovalNotification(summary: string): Promise<
   await sendKakaoMemo(`[콘텐츠 승인 요청]\n${summary}`);
 }
 
+/** dk-video-factory — 영상 렌더 완료(pending_review) 검토 요청 알림 (로컬 워커가 API 경유로 호출) */
+export async function notifyVideoReviewRequested(params: {
+  topic: string;
+  title?: string | null;
+  format: string;
+}): Promise<void> {
+  const label = params.format === "shorts" ? "쇼츠" : "일반";
+  await sendKakaoMemo(
+    `[영상 검토 요청] 🎬\n${params.title ?? params.topic}\n\n${label} 영상 렌더링이 완료되어 승인 대기 중입니다. 링크에서 미리보고 승인/반려해 주세요.`,
+    "https://hq.dkansim.com/videos",
+  );
+}
+
 /** 개선 요청 접수 완료 알림 — GitHub Issue 생성 시 */
 export async function notifyImprovementRequestReceived(title: string, issueUrl: string): Promise<void> {
   await sendKakaoMemo(`[개선요청 접수]\n${title}\n\nGitHub Issue가 생성되어 자동 구현이 시작됩니다.`, issueUrl);
