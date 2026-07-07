@@ -22,6 +22,7 @@ async function reviewFullAgentAnswer(
   answer: string,
   hasEvidence: boolean,
   evidenceSummary: string,
+  executedToolsContext?: string,
 ): Promise<{ reply: string; validation: ChatValidation }> {
   const fallback: ChatValidation = {
     score: 0,
@@ -33,7 +34,15 @@ async function reviewFullAgentAnswer(
   };
   if (!GEMINI_ENABLED || !question) return { reply: answer, validation: fallback };
   try {
-    const v = await validateAgentAnswer({ question, answer, hasRAGEvidence: hasEvidence, includeProjectContext: true });
+    const v = await validateAgentAnswer({
+      question,
+      answer,
+      // 에이전트가 이번 턴에 실제로 실행한 도구 내역 — "등록했습니다/조회했습니다" 같은 수행 보고를
+      // 검증 불가능한 허위 정보로 오판(차단)하지 않도록 근거로 전달한다.
+      context: executedToolsContext || undefined,
+      hasRAGEvidence: hasEvidence || Boolean(executedToolsContext),
+      includeProjectContext: true,
+    });
     let finalAnswer = answer;
     let badge: ChatBadge = hasEvidence ? "ok" : "no_evidence";
     if (v.hasFalseInfo || v.hasDangerousMisinfo) {
@@ -123,7 +132,18 @@ export async function POST(request: Request) {
         return NextResponse.json(reviewed);
       }
       const result = await chatWithFullAgent(message);
-      const reviewed = await reviewFullAgentAnswer(message, result.reply, result.hasEvidence, result.evidenceSummary);
+      const executedToolsContext = result.toolCalls.length
+        ? `이번 턴에 에이전트가 실제로 실행 완료한 도구 호출 내역 (시스템이 기록한 사실 — 답변 속 수행 보고의 근거):\n${result.toolCalls
+            .map((t) => `- ${t.name}(${JSON.stringify(t.input).slice(0, 200)})`)
+            .join("\n")}`
+        : "";
+      const reviewed = await reviewFullAgentAnswer(
+        message,
+        result.reply,
+        result.hasEvidence,
+        result.evidenceSummary,
+        executedToolsContext,
+      );
       // chatWithFullAgent는 assistant 메시지를 저장하지 않는다 — Gemini 검토를 거친 최종 답변
       // (원본/수정본/차단 메시지)을 여기서 저장해야 대화 히스토리가 실제 화면과 일치한다.
       await appendChatMessage("general", "assistant", reviewed.reply);

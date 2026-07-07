@@ -400,3 +400,81 @@ export async function toolApplySiteDecision(args: {
     return `반영 실패: ${e instanceof Error ? e.message : String(e)}`;
   }
 }
+
+// ─── dk-video-factory 영상 제작 도구 (7단계) ──────────────────────────────────
+
+const VIDEO_JOB_FORMATS = ["shorts", "standard"] as const;
+
+const VIDEO_JOB_STATUS_LABELS: Record<string, string> = {
+  queued: "대기 중 (로컬 워커가 아직 집어가지 않음)",
+  scripting: "대본 생성 중",
+  rendering: "렌더링 중",
+  pending_review: "렌더링 완료 — 대장 승인 대기 (hq.dkansim.com/videos)",
+  approved: "승인됨 — 유튜브 업로드 대기",
+  uploading: "유튜브 업로드 중",
+  published: "유튜브 업로드 완료 (비공개)",
+  rejected: "반려됨",
+  error: "오류로 중단됨",
+};
+
+/** 영상 제작 작업을 video_jobs 큐에 등록 — 로컬 워커가 대본→TTS→렌더링을 처리하고 대장 승인 후에만 업로드된다 */
+export async function toolCreateVideoJob(args: {
+  topic?: string;
+  format?: string;
+  script?: unknown;
+}): Promise<string> {
+  const topic = args.topic?.trim();
+  if (!topic) return "오류: topic(영상 주제)이 필요합니다.";
+  const format = (VIDEO_JOB_FORMATS as readonly string[]).includes(args.format ?? "")
+    ? (args.format as string)
+    : "shorts";
+
+  try {
+    const supabase = requireAgentSupabase();
+    const row: Record<string, unknown> = { requested_by: "orchestrator", topic, format };
+    if (args.script && typeof args.script === "object") row.script = args.script;
+    const { data, error } = await supabase.from("video_jobs").insert(row).select("id").single();
+    if (error) throw error;
+    const jobId = (data as { id: string }).id;
+    return (
+      `✅ 영상 제작 작업 등록됨 (job_id: ${jobId}, format: ${format})\n` +
+      `처리 흐름: 로컬 워커 PC가 켜져 있으면 60초 내에 집어가 대본 생성→TTS→렌더링을 진행하고, ` +
+      `완료되면 대장에게 카카오 검토 알림이 갑니다. 대장이 hq.dkansim.com/videos에서 승인해야만 유튜브에 업로드됩니다 (즉시 게시 아님). ` +
+      `진행 상황은 get_video_job(job_id)로 확인할 수 있습니다.`
+    );
+  } catch (e) {
+    return `영상 작업 등록 실패: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
+/** 영상 제작 작업 상태 조회 */
+export async function toolGetVideoJob(args: { job_id?: string }): Promise<string> {
+  const jobId = args.job_id?.trim();
+  if (!jobId) return "오류: job_id가 필요합니다.";
+  try {
+    const supabase = requireAgentSupabase();
+    const { data, error } = await supabase
+      .from("video_jobs")
+      .select("topic, format, status, video_path, youtube_url, review_note, error, created_at")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return `해당 job_id의 작업을 찾을 수 없습니다: ${jobId}`;
+    const job = data as {
+      topic: string; format: string; status: string; video_path: string | null;
+      youtube_url: string | null; review_note: string | null; error: string | null; created_at: string;
+    };
+    const lines = [
+      `영상 작업 상태 (${jobId})`,
+      `- 주제: ${job.topic} [${job.format}]`,
+      `- 상태: ${job.status} — ${VIDEO_JOB_STATUS_LABELS[job.status] ?? ""}`,
+    ];
+    if (job.video_path) lines.push(`- 미리보기: ${job.video_path}`);
+    if (job.youtube_url) lines.push(`- 유튜브: ${job.youtube_url}`);
+    if (job.review_note) lines.push(`- 반려 사유: ${job.review_note}`);
+    if (job.error) lines.push(`- 오류: ${job.error}`);
+    return lines.join("\n");
+  } catch (e) {
+    return `영상 작업 조회 실패: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}

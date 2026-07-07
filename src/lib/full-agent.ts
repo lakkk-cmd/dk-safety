@@ -28,6 +28,8 @@ import {
   toolSupabaseQuery,
   toolApplySiteDecision,
   toolGenerateDocument,
+  toolCreateVideoJob,
+  toolGetVideoJob,
 } from "@/lib/full-agent-tools";
 import { DOC_TEMPLATES } from "@/lib/document-generator";
 import { ALLOWED_QUERY_TABLES } from "@/lib/safe-query";
@@ -167,6 +169,30 @@ const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: "create_video_job",
+    description:
+      "전기안전 유튜브 영상 제작 작업을 등록한다 (dk-video-factory, 비용 0원 자체 파이프라인). 로컬 워커가 Claude 대본→TTS→모션그래픽 렌더링을 자동 처리하고, 렌더링이 끝나면 대장에게 카카오 검토 알림이 간다. 대장이 hq.dkansim.com/videos에서 승인해야만 유튜브(비공개)에 업로드된다 — 절대 즉시 게시되지 않으므로 안심하고 등록해도 된다. 단 로컬 워커 PC가 꺼져 있으면 켜질 때까지 대기 상태로 남는다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        topic: { type: "string", description: "영상 주제 (예: '겨울철 전기장판 안전 사용법')" },
+        format: { type: "string", enum: ["shorts", "standard"], description: "shorts=60초 세로 (기본값), standard=3~5분" },
+      },
+      required: ["topic"],
+    },
+  },
+  {
+    name: "get_video_job",
+    description: "create_video_job으로 등록한 영상 제작 작업의 진행 상태(status/미리보기/유튜브 링크/반려 사유)를 조회한다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        job_id: { type: "string", description: "create_video_job이 반환한 job_id (UUID)" },
+      },
+      required: ["job_id"],
+    },
+  },
+  {
     name: "generate_document",
     description:
       "점검보고서/견적서/완료확인서/안전안내문/계약서/제안서를 실제 업무용 문서로 작성해 PDF/Word 다운로드 링크를 만든다. 대장이 필요한 정보(고객명, 작업 내용, 금액 등)를 충분히 말하기 전까지는 먼저 되물어 정보를 모으고, 정보가 모이면 이 도구를 호출하라.",
@@ -203,7 +229,7 @@ ${SUB_AGENT_NAMES_LINE}
    (해당 태그가 답변에 없으면 그 부분은 생략)
 
 ## 작업 분류 — 매 요청마다 먼저 판단하라
-1. **디지털 작업** (코드 조회/설명, 운영 데이터 조회, 콘텐츠 기획 등록, GitHub 이슈 등록) → 도구를 직접 사용해 처리한다. 코드 변경 요청은 github_create_issue로 처리하되, auto_implement는 그 도구 설명에 적힌 위험도 기준에 따라 신중히 판단하라 — 판단이 서지 않으면 항상 false.
+1. **디지털 작업** (코드 조회/설명, 운영 데이터 조회, 콘텐츠 기획 등록, 영상 제작 등록(create_video_job — 대장 승인 게이트가 있어 즉시 게시되지 않음), GitHub 이슈 등록) → 도구를 직접 사용해 처리한다. 코드 변경 요청은 github_create_issue로 처리하되, auto_implement는 그 도구 설명에 적힌 위험도 기준에 따라 신중히 판단하라 — 판단이 서지 않으면 항상 false.
 2. **물리적 행동(촬영/현장방문/서명/통화), 외부 서비스 가입/API 키 발급, 비용이 발생하거나 법적 책임이 있는 결정** → 절대 도구로 직접 실행하지 말고, 반드시 아래 형식으로만 답변하라:
    - 왜 직접 할 수 없는지 1줄
    - 사람이 그대로 따라할 수 있는 단계별 가이드 (구체적인 클릭 경로·입력값)
@@ -303,6 +329,10 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
       return toolApplySiteDecision(input as Parameters<typeof toolApplySiteDecision>[0]);
     case "generate_document":
       return toolGenerateDocument(input);
+    case "create_video_job":
+      return toolCreateVideoJob(input);
+    case "get_video_job":
+      return toolGetVideoJob(input);
     default:
       return `알 수 없는 도구: ${name}`;
   }
