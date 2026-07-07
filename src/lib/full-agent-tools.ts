@@ -478,3 +478,82 @@ export async function toolGetVideoJob(args: { job_id?: string }): Promise<string
     return `영상 작업 조회 실패: ${e instanceof Error ? e.message : String(e)}`;
   }
 }
+
+// ─── dk-blog-factory 블로그 제작 도구 (6단계) ─────────────────────────────────
+
+const BLOG_JOB_STATUS_LABELS: Record<string, string> = {
+  queued: "대기 중 (로컬 워커가 아직 집어가지 않음)",
+  researching: "키워드 조사 중",
+  drafting: "원고 작성 중",
+  processing_images: "사진/썸네일 처리 중",
+  pending_review: "발행 패키지 완성 — 대장 수동 발행 대기 (hq.dkansim.com/blog-jobs)",
+  published: "네이버 발행 완료",
+  rejected: "반려됨",
+  error: "오류로 중단됨",
+};
+
+/** 네이버 블로그 원고 제작 작업을 blog_jobs 큐에 등록 — 발행은 반드시 대장이 수동 수행 */
+export async function toolCreateBlogJob(args: {
+  topic?: string;
+  seed_keywords?: string[];
+  raw_image_paths?: string[];
+}): Promise<string> {
+  const topic = args.topic?.trim();
+  if (!topic) return "오류: topic(글 주제)이 필요합니다.";
+
+  try {
+    const supabase = requireAgentSupabase();
+    const row: Record<string, unknown> = { requested_by: "orchestrator", topic };
+    if (Array.isArray(args.seed_keywords) && args.seed_keywords.length > 0) {
+      row.seed_keywords = args.seed_keywords.map((s) => String(s).trim()).filter(Boolean);
+    }
+    if (Array.isArray(args.raw_image_paths) && args.raw_image_paths.length > 0) {
+      row.raw_image_paths = args.raw_image_paths.map((s) => String(s).trim()).filter(Boolean);
+    }
+    const { data, error } = await supabase.from("blog_jobs").insert(row).select("id").single();
+    if (error) throw error;
+    const jobId = (data as { id: string }).id;
+    return (
+      `✅ 블로그 원고 제작 작업 등록됨 (job_id: ${jobId})\n` +
+      `처리 흐름: 로컬 워커 PC가 켜져 있으면 60초 내에 집어가 키워드 조사→원고 작성→검증→사진/썸네일까지 자동 처리하고, ` +
+      `완성되면 대장에게 카카오 알림이 갑니다. 네이버 발행은 자동화가 불가능(정책 위반)하므로 반드시 대장이 hq.dkansim.com/blog-jobs에서 패키지를 받아 직접 발행합니다. ` +
+      `진행 상황은 get_blog_job(job_id)로 확인할 수 있습니다.`
+    );
+  } catch (e) {
+    return `블로그 작업 등록 실패: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
+/** 블로그 제작 작업 상태 조회 */
+export async function toolGetBlogJob(args: { job_id?: string }): Promise<string> {
+  const jobId = args.job_id?.trim();
+  if (!jobId) return "오류: job_id가 필요합니다.";
+  try {
+    const supabase = requireAgentSupabase();
+    const { data, error } = await supabase
+      .from("blog_jobs")
+      .select("topic, status, draft, validation, published_url, review_note, error, created_at")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return `해당 job_id의 작업을 찾을 수 없습니다: ${jobId}`;
+    const job = data as {
+      topic: string; status: string; draft: { title?: string } | null;
+      validation: { score?: number } | null; published_url: string | null;
+      review_note: string | null; error: string | null; created_at: string;
+    };
+    const lines = [
+      `블로그 작업 상태 (${jobId})`,
+      `- 주제: ${job.topic}`,
+      `- 상태: ${job.status} — ${BLOG_JOB_STATUS_LABELS[job.status] ?? ""}`,
+    ];
+    if (job.draft?.title) lines.push(`- 원고 제목: ${job.draft.title}`);
+    if (typeof job.validation?.score === "number") lines.push(`- 검증 점수: ${job.validation.score}점`);
+    if (job.published_url) lines.push(`- 발행 URL: ${job.published_url}`);
+    if (job.review_note) lines.push(`- 반려 사유: ${job.review_note}`);
+    if (job.error) lines.push(`- 오류: ${job.error}`);
+    return lines.join("\n");
+  } catch (e) {
+    return `블로그 작업 조회 실패: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}

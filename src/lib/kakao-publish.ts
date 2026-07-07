@@ -117,6 +117,19 @@ export async function notifyVideoReviewRequested(params: {
   );
 }
 
+/** dk-blog-factory — 블로그 발행 패키지 완성(pending_review) 검토 요청 알림 (로컬 워커가 API 경유로 호출) */
+export async function notifyBlogReviewRequested(params: {
+  topic: string;
+  title?: string | null;
+  validationScore?: number | null;
+}): Promise<void> {
+  const scoreLine = typeof params.validationScore === "number" ? `검증 ${params.validationScore}점 · ` : "";
+  await sendKakaoMemo(
+    `[블로그 발행 요청] ✍️\n${params.title ?? params.topic}\n\n${scoreLine}원고/사진/썸네일 패키지가 준비됐습니다. 링크에서 복사해 네이버에 발행해 주세요 (약 2~3분).`,
+    "https://hq.dkansim.com/blog-jobs",
+  );
+}
+
 /** 개선 요청 접수 완료 알림 — GitHub Issue 생성 시 */
 export async function notifyImprovementRequestReceived(title: string, issueUrl: string): Promise<void> {
   await sendKakaoMemo(`[개선요청 접수]\n${title}\n\nGitHub Issue가 생성되어 자동 구현이 시작됩니다.`, issueUrl);

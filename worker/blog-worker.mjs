@@ -276,5 +276,27 @@ export async function runBlogJob(sql, job, log) {
       error = null
     where id = ${job.id}`;
   log(`  완료 → pending_review (발행 패키지 준비됨)`);
-  // TODO(6단계): 카카오 검토 알림
+  await notifyBlogReview(job.id, log);
+}
+
+/** 발행 패키지 완성 카카오 알림 — 프로덕션 API가 대신 발송 (실패해도 잡 처리는 성공 유지) */
+async function notifyBlogReview(jobId, log) {
+  const secret = process.env.AGENT_WRITE_SECRET?.trim();
+  const base = (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://dkansim.com").replace(/\/$/, "");
+  if (!secret) {
+    log("  검토 알림 생략 (AGENT_WRITE_SECRET 미설정)");
+    return;
+  }
+  try {
+    const res = await fetch(`${base}/api/blog-jobs/notify-review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
+      body: JSON.stringify({ jobId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) log("  발행 요청 카카오 알림 발송 완료");
+    else log(`  검토 알림 실패 (비치명): ${res.status} ${JSON.stringify(data).slice(0, 150)}`);
+  } catch (e) {
+    log(`  검토 알림 실패 (비치명): ${e?.message ?? String(e)}`);
+  }
 }
