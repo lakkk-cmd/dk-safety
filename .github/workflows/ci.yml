@@ -17,6 +17,7 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run lint
+      - run: npm test
       - run: npm run build
         env:
           NEXT_PUBLIC_BUSINESS_PHONE: "010-0000-0000"

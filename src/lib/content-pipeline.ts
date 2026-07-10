@@ -19,6 +19,7 @@ import {
 } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
 import { humanizeKoreanText } from "@/lib/humanizer";
+import { notifyAutoPublished } from "@/lib/kakao-publish";
 import {
   broadcastKakaoFriendTalkToCustomers,
   KAKAO_MEMO_ENABLED,
@@ -217,6 +218,9 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
         try {
           await produceVideoAssets(ytRow.id);
           await logAgentEvent("info", "content-draft", `유튜브 스크립트 자동승인 + 영상 제작 트리거: ${ytRow.title}`);
+          notifyAutoPublished({ type: "youtube", title: `${ytRow.title} (자동승인, 영상 제작 시작 — 최종 업로드는 별도 검토 필요)` }).catch(
+            (err) => logAgentEvent("warn", "content-draft", `발행 알림 실패: ${errMessage(err)}`),
+          );
         } catch (err) {
           await logAgentEvent("warn", "content-draft", `영상 자산 자동생성 실패 (건너뜀): ${errMessage(err)}`);
         }
@@ -257,6 +261,9 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
         try {
           await approveKakaoQueueItem(kkRow.id);
           await logAgentEvent("info", "content-draft", `카카오 포스트 자동발행: ${kkRow.title}`);
+          notifyAutoPublished({ type: "kakao", title: kkRow.title }).catch((err) =>
+            logAgentEvent("warn", "content-draft", `발행 알림 실패: ${errMessage(err)}`),
+          );
         } catch (err) {
           await logAgentEvent("warn", "content-draft", `카카오 자동발행 실패 (수동 승인 필요): ${errMessage(err)}`);
         }
@@ -280,7 +287,7 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
 
     const { data: blogRows } = await supabase
       .from("blog_posts")
-      .select("id, title, content, keywords")
+      .select("id, title, content, keywords, slug")
       .eq("status", "draft")
       .order("created_at", { ascending: false })
       .limit(2);
@@ -318,6 +325,11 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
         try {
           await approveBlogPost(row.id);
           await logAgentEvent("info", "content-draft", `블로그 자동발행: ${row.title}`);
+          notifyAutoPublished({
+            type: "blog",
+            title: row.title,
+            url: row.slug ? `https://dkansim.com/blog/${row.slug}` : null,
+          }).catch((err) => logAgentEvent("warn", "content-draft", `발행 알림 실패: ${errMessage(err)}`));
         } catch (err) {
           await logAgentEvent("warn", "content-draft", `블로그 자동발행 실패 (수동 승인 필요): ${errMessage(err)}`);
         }

@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { runExternalKnowledgeCollection } from "@/lib/external-knowledge";
 import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
+import { notifyPipelineFailure } from "@/lib/kakao-publish";
 
 export const maxDuration = 300;
+const PIPELINE = "external-knowledge-collect";
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -21,7 +23,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, error: "Supabase 미설정" }, { status: 500 });
   }
 
-  const runId = await startPipelineRun("external-knowledge-collect");
+  const runId = await startPipelineRun(PIPELINE);
 
   try {
     const results = await runExternalKnowledgeCollection();
@@ -32,7 +34,7 @@ export async function GET(request: Request) {
 
     await logAgentEvent(
       errors.length > 0 ? "warn" : "info",
-      "external-knowledge-collect",
+      PIPELINE,
       `7개 카테고리 외부 지식 수집 완료 (삽입 ${totalInserted}, 삭제 ${totalDeleted}, 오류 ${errors.length})`,
     );
     await finishPipelineRun(runId, "success", { totalInserted, totalDeleted, errors });
@@ -40,8 +42,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, results, totalInserted, totalDeleted, errors });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await logAgentEvent("error", "external-knowledge-collect", `수집 실패: ${msg}`);
+    await logAgentEvent("error", PIPELINE, `수집 실패: ${msg}`);
     await finishPipelineRun(runId, "failed", { error: msg });
+    await notifyPipelineFailure(PIPELINE, msg).catch(() => {});
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }

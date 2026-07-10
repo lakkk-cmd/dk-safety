@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAgentSupabaseReady, requireAgentSupabase } from "@/lib/agent-db";
 import { fetchLatestVideos } from "@/lib/youtube-pipeline";
 import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
+import { notifyPipelineFailure } from "@/lib/kakao-publish";
 
 export const maxDuration = 60;
 
@@ -80,6 +81,7 @@ export async function GET(request: Request) {
     const message = err instanceof Error ? err.message : String(err);
     await logAgentEvent("error", PIPELINE, `파이프라인 실패: ${message}`);
     await finishPipelineRun(runId, "failed", { error: message });
+    await notifyPipelineFailure(PIPELINE, message).catch(() => {});
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

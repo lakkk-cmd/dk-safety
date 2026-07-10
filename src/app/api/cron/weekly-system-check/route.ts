@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { runWeeklySystemCheck } from "@/lib/system-health";
+import { notifyPipelineFailure } from "@/lib/kakao-publish";
 
 export const maxDuration = 120;
 
@@ -26,9 +27,8 @@ export async function GET(request: Request) {
     const report = await runWeeklySystemCheck();
     return NextResponse.json({ success: true, pipeline: PIPELINE, report });
   } catch (err) {
-    return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
+    const message = err instanceof Error ? err.message : String(err);
+    await notifyPipelineFailure(PIPELINE, message).catch(() => {});
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

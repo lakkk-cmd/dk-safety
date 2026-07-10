@@ -14,6 +14,7 @@
     "build": "npm run clean && next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "tsx tests/harness/api.test.ts && tsx tests/harness/db.test.ts && tsx tests/harness/domains.test.ts",
     "sync:supabase": "node scripts/sync-local-to-supabase.mjs",
     "db:apply": "node --env-file=.env.local scripts/apply-supabase-schema.mjs",
     "db:sync-env": "node scripts/sync-db-env.mjs",

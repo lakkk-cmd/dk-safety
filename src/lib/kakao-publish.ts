@@ -104,6 +104,25 @@ export async function sendContentApprovalNotification(summary: string): Promise<
   await sendKakaoMemo(`[콘텐츠 승인 요청]\n${summary}`);
 }
 
+/** 사람 승인 없이 Gemini 게이트만으로 자동발행됐을 때 즉시 통보 — 발행 직후 대장이 바로
+ *  확인할 수 있게 한다. 실패해도 발행 자체(주 작업)를 막지 않도록 항상 호출부에서
+ *  .catch()로 감싸 쓴다. */
+export async function notifyAutoPublished(params: {
+  type: "blog" | "kakao" | "youtube";
+  title: string;
+  url?: string | null;
+}): Promise<void> {
+  const label = { blog: "블로그", kakao: "카카오", youtube: "유튜브" }[params.type];
+  const urlLine = params.url ? `\n${params.url}` : "";
+  await sendKakaoMemo(`[자동발행 완료] ${label}\n${params.title}${urlLine}`);
+}
+
+/** 크론 파이프라인 실패 시 즉시 통보 — 지금까지는 console.error로만 남아 주간 리포트 전까지
+ *  아무도 모를 수 있었다. 알림 발송 자체가 실패해도 원래 에러 응답 흐름을 막지 않는다. */
+export async function notifyPipelineFailure(pipeline: string, errorMessage: string): Promise<void> {
+  await sendKakaoMemo(`[파이프라인 실패] ⚠️\n${pipeline}\n\n${errorMessage.slice(0, 300)}`);
+}
+
 /** dk-video-factory — 영상 렌더 완료(pending_review) 검토 요청 알림 (로컬 워커가 API 경유로 호출) */
 export async function notifyVideoReviewRequested(params: {
   topic: string;

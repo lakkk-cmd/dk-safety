@@ -1,0 +1,45 @@
+name: Brain Sync (RAG embeddings)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "brain/wiki/**"
+  schedule:
+    - cron: "0 19 * * 0" # 매주 일요일 04:00 KST — 누락 방지용 안전망
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: brain:sync (knowledge_base + knowledge_chunks 임베딩)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+        run: npm run brain:sync
+
+      - name: 매니페스트 변경분 커밋
+        run: |
+          git config user.name "dk-brain-sync-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add brain/.brain-sync-manifest.json
+          git diff --cached --quiet || git commit -m "chore: brain-sync 매니페스트 갱신 [skip ci]"
+          git push

@@ -304,8 +304,8 @@
     }
   },
   "brain/wiki/systems/검증-체계.md": {
-    "hash": "e508bc67d0f805ed02ebd9e8455ce8dfdebb3d3ebcfd448a4a0fd8f8ed177e6a",
-    "syncedAt": "2026-07-10T11:52:09.698Z",
+    "hash": "d6c0eb03a3bf4268dad3c368970697ab8c6f92ad04f87921574dab3886d180b5",
+    "syncedAt": "2026-07-10T14:59:42.942Z",
     "syncedTargets": {
       "knowledgeBase": true,
       "knowledgeChunks": true
@@ -354,6 +354,14 @@
   "brain/wiki/systems/현장보고서-파이프라인.md": {
     "hash": "464985251c7daf6287a8ac2c142c8ff5c7eb6bf2273a25a2a73ef5ccfe2c8546",
     "syncedAt": "2026-07-10T11:52:17.196Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/systems/품질-안전-유틸리티.md": {
+    "hash": "1da36b8332aa90bd7873143c0ed270eed9d89a402f57ee6f29104b3dcebf580b",
+    "syncedAt": "2026-07-10T14:59:44.154Z",
     "syncedTargets": {
       "knowledgeBase": true,
       "knowledgeChunks": true

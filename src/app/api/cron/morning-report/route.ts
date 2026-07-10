@@ -102,11 +102,10 @@ export async function GET(request: Request) {
   try {
     pipeline = await runDailyAgentPipeline(topics, dateStr, { clearTopicsAfterRun: true });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("[cron] Pipeline failed:", err);
-    return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
+    await sendKakaoMe(`[파이프라인 실패] ⚠️\nmorning-report (경영진 회의)\n\n${message.slice(0, 300)}`);
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 
   if (gate.kind === "first") {
@@ -145,6 +144,7 @@ export async function GET(request: Request) {
     if (error) throw error;
   } catch (err) {
     console.error("[cron] Email send failed:", err);
+    await sendKakaoMe(`[파이프라인 실패] ⚠️\nmorning-report (이메일 발송)\n\n${String(err).slice(0, 300)}`);
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });
   }
 

@@ -1,0 +1,39 @@
+name: Brain Sync (운영 데이터 미러)
+
+on:
+  schedule:
+    - cron: "0 20 * * *" # 매일 05:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: "brain:sync:ops (Supabase → brain/ops/*.md)"
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run brain:sync:ops
+
+      - name: 변경분 커밋
+        run: |
+          git config user.name "dk-brain-sync-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add brain/ops/
+          git diff --cached --quiet || git commit -m "chore: brain/ops 운영 데이터 미러 갱신 [skip ci]"
+          git push

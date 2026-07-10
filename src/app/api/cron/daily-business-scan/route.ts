@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { runDailyBusinessScan } from "@/lib/daily-scan";
-import { KAKAO_MEMO_ENABLED, notifyDailyBusinessScan } from "@/lib/kakao-publish";
+import { KAKAO_MEMO_ENABLED, notifyDailyBusinessScan, notifyPipelineFailure } from "@/lib/kakao-publish";
 import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
 
 export const maxDuration = 120;
@@ -56,6 +56,7 @@ export async function GET(request: Request) {
     const message = err instanceof Error ? err.message : String(err);
     await logAgentEvent("error", PIPELINE, `파이프라인 실패: ${message}`);
     await finishPipelineRun(runId, "failed", { error: message });
+    await notifyPipelineFailure(PIPELINE, message).catch(() => {});
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
