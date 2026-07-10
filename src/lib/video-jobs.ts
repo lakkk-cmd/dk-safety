@@ -1,4 +1,5 @@
 import { requireAgentSupabase } from "@/lib/agent-db";
+import { appendToRaw } from "@/lib/append-to-raw";
 
 // dk-video-factory 영상 작업 큐 (video_jobs, migration 063) — 로컬 PC 워커가 생산,
 // 여기서는 hq 승인 대시보드용 조회 + 승인/반려만 다룬다.
@@ -87,5 +88,11 @@ export async function rejectVideoJob(id: string, note: string): Promise<VideoJob
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("승인 대기(pending_review) 상태의 작업이 아닙니다.");
-  return data as VideoJob;
+  const job = data as VideoJob;
+  appendToRaw(
+    "video",
+    `## 영상 반려: ${job.topic}\n\n- job id: ${job.id}\n- 반려 사유: ${trimmed}`,
+    job.topic,
+  ).catch((e) => console.error("[append-to-raw] 영상 반려 기록 실패:", e));
+  return job;
 }

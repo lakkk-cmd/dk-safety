@@ -1,0 +1,22 @@
+---
+name: project-context-gemini-learning
+description: "project_features table + Gemini context injection closes the \"company-specific false feature claim\" gap documented in full_agent_false_answer_prevention — built and production-verified 2026-07-02"
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: deeae932-e9fe-4b3f-b8fe-56d5a087cea0
+---
+
+Direct follow-up to [[full_agent_false_answer_prevention]]'s documented known limitation ("Gemini has no manifest of what's implemented, so it can't catch 'X is already implemented' claims"). This session closed that gap — but the user's original spec went through a **code-review pass before implementation** (unusual for this session's pattern — normally implement-then-fix-discovered-bugs; this time reviewed the plan itself first) and 4 real issues were caught and fixed before any code was written:
+
+1. **Found a live, unrelated production bug via investigation**: `src/lib/code-review.ts`'s `callGeminiReview()` (used by `.github/workflows/code-review.yml` on every push/PR) had the exact same missing-`thinkingConfig.thinkingBudget:0` bug as [[gemini_thinking_budget_bug]] — but that fix (commit 443b4f3) only touched `cross-validate.ts`'s `callGemini()`, a completely separate implementation. Fixed in commit ec38f99.
+2. **Scoped the injection correctly**: the original spec wanted project-context injected into the *shared* `callGemini()` used by all 8 cross-validate.ts validators — which would have risked reintroducing the "topic relevance ≠ defect" regression (hit twice already this session) for expense/invoice/consultation validators that have nothing to do with the app's feature list. Instead added an opt-in `includeProjectContext` param on `validateAgentAnswer()` only, wired `true` at exactly one call site (`route.ts`'s `reviewFullAgentAnswer`). Verified with a live regression check: expense validation still scores 100/passes after this change.
+3. **Seed data had wrong paths** (ironic for a system whose purpose is preventing false claims): `/api/warranty` doesn't exist (real path: `/api/warranties/[warrantyNumber]/pdf`), and `/api/agent/generate-document` doesn't exist either — `generate_document` is a full-agent **tool**, not a REST route (see [[trusted_domains_and_document_gen_status]]). Both corrected in migration 054 before seeding.
+4. **`scripts/analyze-codebase.mjs` rename-safe diffing**: matches "exactly one missing + exactly one new path sharing the same dirname" as a rename (UPDATE in place), falls back to safe deprecate+insert otherwise. **Caught a real bug during its own first test run**: it flagged `/` and `/reservation` as deprecated because those public pages were seeded into `project_features` but the script only scans `/admin` and `/hq` paths (matching original spec's intended scope) — the sync logic wasn't restricting its "registered rows" comparison set to the same scope as detection. Fixed by adding an `inScope` predicate to `syncCategory`; verified idempotent (second run: 0 changes) and verified the actual rename-detection path works via a synthetic test (manually renamed a real row's path, re-ran, confirmed 1 UPDATE not deprecate+insert).
+
+**Production verification** (the exact STEP 9-3/9-4 style tests from the spec, run via `/api/validate` with `type: "agent_answer", includeProjectContext: true`):
+- "AR 기능 추가할 수 있어?" + a fabricated "이미 구현되어 있어 바로 사용 가능합니다" answer → `hasFalseInfo: true`, score 0, correction generated. **This is the exact case that failed before this feature existed** (documented in [[full_agent_false_answer_prevention]]'s "known limitation").
+- "카카오 알림톡 보낼 수 있어?" (real feature) → `hasFalseInfo: false`, score 100 — no false positive on a real capability.
+- `/admin/stats` now shows a "🧠 Gemini 학습 컨텍스트 현황" card (implemented/pending/integration/deprecated counts + pending-feature chip list) — confirmed rendering in production with 222 implemented features (auto-populated by `analyze-codebase.mjs`'s first real run: 152 API routes + ~70 pages/features/integrations, only ~10 of which were hand-curated in the seed migration).
+
+**Architecture note**: `project-context.ts` deliberately has **no in-memory cache** (only the DB-backed `project_context_cache`, 1-hour TTL) — module-level state doesn't reliably survive across invocations on Vercel's serverless runtime, so the original spec's extra 30-minute in-memory cache layer would have been dead weight.

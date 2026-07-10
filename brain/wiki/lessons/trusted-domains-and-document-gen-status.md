@@ -1,0 +1,26 @@
+---
+name: trusted-domains-and-document-gen-status
+description: Web-learn trusted-domain filtering + full-agent chat Gemini review loop + AI document generation (PDF/Word) — built and production-verified 2026-07-02
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: deeae932-e9fe-4b3f-b8fe-56d5a087cea0
+---
+
+Added three features in one pass (migration 053, deployed commit cc892e6):
+
+1. **Trusted-domain web-learning**: `trusted_domains` table (32 seed domains across 전기법령/전기기술/유튜브/마케팅/AI자동화/사업경영/기타일반), CRUD at `/api/admin/trusted-domains` (isAdminAuthenticated, not AGENT_WRITE_SECRET — matches actual codebase convention for /api/admin/* browser-driven UI, deviating from the user's draft which assumed a bearer-token API), managed via new `TrustedDomainManager` component on `/admin/knowledge`. `src/lib/web-learn.ts`'s `runTavilySearch`/`runFirecrawl` now filter search results to registered active domains per category (empty list = allow all, so uncurated categories aren't blocked) and run every chunk through the *existing* `validateKnowledgeChunk` from `cross-validate.ts` before saving (reused rather than duplicating a new Gemini call, so it inherits the [[gemini_thinking_budget_bug]] fix and agent_logs recording for free).
+
+   **Verified in production**: triggering `/api/admin/knowledge/web-learn` for category 전기법령 (only 4 official-domain entries registered) blocked 19/20 keyword searches (no trusted-domain results) and saved only 1 chunk — a sharp drop vs. pre-filter runs from 2026-07-01 that saved many chunks per keyword. This is correct/expected: the filter is strict when few domains are curated for a category. Admin can loosen it by adding more trusted domains via the new UI.
+
+2. **Full-agent (총괄) chat Gemini review loop**: new `validateAgentAnswer` in `cross-validate.ts` (8th validator, type `agent_answer`). Wired *only* into the `agentId === "general"` branch of `/api/admin/chat` (both the plain and attachment paths) via `reviewFullAgentAnswer()` — synchronous, unlike the pre-existing fire-and-forget `validateRAGAnswer` used for the other 8 named agents. Score/passed/warnings returned to the client and rendered as a badge in `chat-client.tsx` (`ValidationBadge`).
+
+   **2026-07-02 correction (see [[full_agent_review_criteria_fix]])**: the original criteria included "사실 정확성 (전기안전 법령/기술 기준 준수)" and "전문적이고 신뢰할 수 있는 내용인가," which caused Gemini to score ordinary non-electrical business questions (e.g. "카카오채팅창처럼 구성할 수 있어?" — a UI request) as off-topic and low-scoring, triggering the safe-fallback substitution on completely normal answers. Fixed by narrowing criteria to 4 things only (허위/과장정보, 위험한 오정보, 욕설/비하, 명백한 사실오류) and changing the safe-message substitution trigger from `score<50` to `score<30 AND hasDangerousMisinfo` (new explicit "위험정보감지" field Gemini must output). Off-topic-but-otherwise-fine answers now correctly score ~100 and pass through untouched.
+
+3. **AI document generation (PDF + Word)**: `generated_documents` table, `src/lib/document-generator.ts` pipeline (Claude draft via `callClaudeCustom` → Gemini `validateContent` → PDF via new `src/lib/document-pdf.tsx` → DOCX via new `docx` npm dependency → upload to new public Supabase bucket `dk-safety-documents` via existing `uploadBinaryObject`). Exposed as a full-agent **tool** (`generate_document` in `full-agent.ts`/`full-agent-tools.ts`), not a standalone user-facing REST endpoint — this matters because the chat UI has no way to hand the server-only `AGENT_WRITE_SECRET` to a browser fetch, and the actual UX (agent gathers info conversationally, then decides to generate) fits the existing tool-use architecture (`call_sub_agent`, `apply_site_decision`, etc.) rather than a manual multi-step wizard. `/admin/documents` (new page, added to `adminSidebarNavItems`) lists/downloads/deletes generated docs.
+
+   `document-pdf.tsx` reuses the same technique as `src/lib/field-report-pdf.tsx` (proven Korean-font PDF path in this codebase): render one arbitrarily-tall JSX page via `next/og` `ImageResponse` → PNG → pdf-lib slices it into A4 pages (`addSlicedPages`). Kept as a **separate** file rather than exporting internals from `field-report-pdf.tsx`, since that file's helpers weren't exported and touching a validated report-generation path felt riskier than a 150-line duplicate.
+
+   **Verified in production** via a real chat request ("홍길동 고객 작업 완료 확인서 작성해줘..."): full round-trip took ~43s, produced a real 148KB PDF (`PDF document, version 1.7`) and 9.8KB DOCX (`Microsoft Word 2007+`), both downloaded and file-type-verified, `generated_documents` row confirmed with correct `validation_score`/`pdf_url`/`docx_url`. Test row deleted after verification (storage objects themselves are not auto-deleted by the DELETE API — minor known gap, not fixed).
+
+**Gotcha for future sessions**: testing any of these prod endpoints with Korean text via `curl` in Git Bash requires either `--data-binary @file` (for POST bodies) or explicit `encodeURIComponent(...)` via `node -e` (for GET query params) — inline Korean text in a bash `-d`/URL argument gets mangled by the shell before curl ever sees it. See also [[gemini_thinking_budget_bug]] and [[crm_erp_cross_validation_status]] for the same lesson learned twice before.

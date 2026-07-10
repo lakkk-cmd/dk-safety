@@ -1,4 +1,5 @@
 import { requireAgentSupabase } from "@/lib/agent-db";
+import { appendToRaw } from "@/lib/append-to-raw";
 
 // dk-blog-factory 발행 패키지 (blog_jobs, migration 064) — 워커가 생산한
 // 원고/보정사진/썸네일을 대장이 hq에서 받아 네이버 에디터에 수동 발행한다.
@@ -77,7 +78,15 @@ export async function publishBlogJob(id: string, publishedUrl: string): Promise<
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("발행 대기(pending_review) 상태의 작업이 아닙니다.");
-  return data as BlogJob;
+  const job = data as BlogJob;
+  appendToRaw(
+    "blog",
+    `## 블로그 발행: ${job.draft?.title ?? job.topic}\n\n- job id: ${job.id}\n- 키워드: ${
+      job.seed_keywords?.join(", ") ?? "(없음)"
+    }\n- 발행 URL: ${job.published_url}`,
+    job.draft?.title ?? job.topic,
+  ).catch((e) => console.error("[append-to-raw] 블로그 발행 기록 실패:", e));
+  return job;
 }
 
 /** 반려 — 사유 필수, pending_review에서만 가능 */
@@ -94,5 +103,11 @@ export async function rejectBlogJob(id: string, note: string): Promise<BlogJob> 
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("발행 대기(pending_review) 상태의 작업이 아닙니다.");
-  return data as BlogJob;
+  const job = data as BlogJob;
+  appendToRaw(
+    "blog",
+    `## 블로그 반려: ${job.draft?.title ?? job.topic}\n\n- job id: ${job.id}\n- 반려 사유: ${trimmed}`,
+    job.draft?.title ?? job.topic,
+  ).catch((e) => console.error("[append-to-raw] 블로그 반려 기록 실패:", e));
+  return job;
 }

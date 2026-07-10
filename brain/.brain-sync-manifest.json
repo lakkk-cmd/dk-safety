@@ -1,0 +1,362 @@
+{
+  "brain/wiki/lessons/anthropic-quota-pending-verification.md": {
+    "hash": "3e893ffa087fafd19ba8bce4e4641e4a5437a3bae18b175a647c807e0ee292c4",
+    "syncedAt": "2026-07-10T11:51:04.494Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/claude-design-setup.md": {
+    "hash": "9808a14b7057955ddaf99040ac867891daf3be7fe7cd809ab9aeac7ede048e64",
+    "syncedAt": "2026-07-10T11:51:06.944Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/code-review-before-implement-confirmed.md": {
+    "hash": "a46264fc5b1622ab445854c969c6afa11b064a34f9e34afb39ce65d619ba1974",
+    "syncedAt": "2026-07-10T11:51:08.961Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/collaboration-philosophy-extended-self.md": {
+    "hash": "c690b463addf9679b6e4a79b1ecec861fcbbc1c02b30cf0744a2216c8683f110",
+    "syncedAt": "2026-07-10T11:51:11.226Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/content-command-center-setup.md": {
+    "hash": "8cdf38391963ec769f5746a446d14ebbe5a7ac4733eca3cbe1610f195b915890",
+    "syncedAt": "2026-07-10T11:51:12.805Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/crm-erp-cross-validation-status.md": {
+    "hash": "e4747d50d97253a6750afe1930f48fa7c8cbab61e0a945ce1aa6f37379f4224c",
+    "syncedAt": "2026-07-10T11:51:15.239Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/deploy-workflow.md": {
+    "hash": "28c5ede365659a161f4854115a311b875b0d28968bed62ac9d7f373263e721d0",
+    "syncedAt": "2026-07-10T11:51:16.516Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/dk-blog-factory-status.md": {
+    "hash": "f00732e4a4100f68e9adb26f62fa1ccc20a990ca6d77242bbc56eadb3388afd9",
+    "syncedAt": "2026-07-10T11:51:18.224Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/dk-video-factory-status.md": {
+    "hash": "ae2f4b4d89b89696db9e0de2b72ad57a4f9b054587854d2bbe24027fb3ee04bc",
+    "syncedAt": "2026-07-10T11:51:19.957Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/extractjsonblock-fix.md": {
+    "hash": "4e9c57969123f3038f7c2ebee932242d9ea544084c1194d79e1daf146ac92693",
+    "syncedAt": "2026-07-10T11:51:21.683Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/field-report-ai-opinion-engine.md": {
+    "hash": "4aeeb94ef1f21cd09e4829f48e703c15a7036175d1987b400acd6b62b8c0d642",
+    "syncedAt": "2026-07-10T11:51:24.638Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/field-report-input-page.md": {
+    "hash": "f73d07347bcac770b8c5a01ee6b1e75f7610979154033610e8fd27c17fa5aaee",
+    "syncedAt": "2026-07-10T11:51:26.815Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/field-report-pdf-generation.md": {
+    "hash": "2da23ee48b529b4c7eedd90ff6dba60e8288e0ce9d638a9e8ba7c04ab5562906",
+    "syncedAt": "2026-07-10T11:51:28.257Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/field-report-pipeline-send.md": {
+    "hash": "1e2de635d835da79249f0493834f47e9ba1dcf662ef9e21ba3f265dc313d8ade",
+    "syncedAt": "2026-07-10T11:51:29.303Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/field-report-send-pipeline.md": {
+    "hash": "3b3b502ac4ace4db5a38d5f9461345531d9a45d8f9db47048658d21a6757e30f",
+    "syncedAt": "2026-07-10T11:51:31.488Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/five-stage-automation-status.md": {
+    "hash": "b10bc46ddd738821f9c3e26fe5caf870284fc07f181bd6c505c03c4a529c29a7",
+    "syncedAt": "2026-07-10T11:51:32.747Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/full-agent-auto-implement.md": {
+    "hash": "0c4ef04d180b43d9f5e14b3fd0b1181577af3fbb734f8978851de7cd3a24f6c5",
+    "syncedAt": "2026-07-10T11:51:34.561Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/full-agent-false-answer-prevention.md": {
+    "hash": "5b5d80ed25cdec9d6e375c45c6e0bbe5d86be153d04575e84a44e65b528341a9",
+    "syncedAt": "2026-07-10T11:51:35.816Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/full-agent-orchestrator-status.md": {
+    "hash": "20d64ceb8fccfccbcb59caeb95e4f153bf10964dcaab97f9fe6a49ece848fa35",
+    "syncedAt": "2026-07-10T11:51:38.321Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/full-agent-review-criteria-fix.md": {
+    "hash": "8246adf43de4eeec8b3b6d1705c1b20ebced13fa49909876c8b96c958bbd2e25",
+    "syncedAt": "2026-07-10T11:51:42.114Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/gemini-thinking-budget-bug.md": {
+    "hash": "7ae47bb37caa2f24f1aa7df689066358661b7759020d675ecc9df01956397a8e",
+    "syncedAt": "2026-07-10T11:51:43.300Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/hq-subdomain-consolidation.md": {
+    "hash": "ef27e5a3e73bb985cc5e255356aea15a9c1470db993269847a17acfe056136c5",
+    "syncedAt": "2026-07-10T11:51:45.518Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/improvement-request-pipeline.md": {
+    "hash": "cdc447741e226124d172c2359b192fadcf8a6d2f37fba3bf01315fef1ac3b245",
+    "syncedAt": "2026-07-10T11:51:47.190Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/missing-agent-write-secret-gh.md": {
+    "hash": "2000c9bec4f98b64a4c097dbfd0b42338bab645c6ed66656df56a5a4de9c95a4",
+    "syncedAt": "2026-07-10T11:51:49.042Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/project-context-gemini-learning.md": {
+    "hash": "53409b37d5d642dd96ec6bef806e6525765447efbf435bb3abe2e70fcf2888aa",
+    "syncedAt": "2026-07-10T11:51:50.479Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/solapi-alimtalk-status.md": {
+    "hash": "83b07b5ad52fe54d926f9d0a9fd49a7f5eef48056b2023baed38999c5e3dd4de",
+    "syncedAt": "2026-07-10T11:51:51.763Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/trusted-domains-and-document-gen-status.md": {
+    "hash": "fbc3895153bf98db7ba7c829756e5b3764c1683f4ec267dcb7b94cb07deb970d",
+    "syncedAt": "2026-07-10T11:51:53.114Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/ui-redesign-2026-06-status.md": {
+    "hash": "38fc56613ca3096ead4c0f2c27cc073d33b24904935ca9f7af180dbce93bd735",
+    "syncedAt": "2026-07-10T11:51:54.545Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/veo-flow-decision.md": {
+    "hash": "a32336301c2f8513c11ffb3645bc943ceedda117a96fe4abe0fd90d5b0ea9917",
+    "syncedAt": "2026-07-10T11:51:55.732Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/vercel-env-pull-quirk.md": {
+    "hash": "0723a5bde821ca8fe174a60e75fcbde2619aad98277937516e8b447f32c31847",
+    "syncedAt": "2026-07-10T11:51:56.898Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/web-learn-eager-supabase-bug.md": {
+    "hash": "18947bac1de91617ee78a20fc6c4e15c879f9eb66bfab3876e020cabec0cf8d1",
+    "syncedAt": "2026-07-10T11:51:58.124Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/lessons/youtube-gemini-pipeline-setup.md": {
+    "hash": "08e7445facac5b3f72b81e8b7a4ded060dabaf6c7494c7e77934aa5c3ebca9f0",
+    "syncedAt": "2026-07-10T11:51:59.320Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/playbooks/블로그-발행-절차.md": {
+    "hash": "bf0d8bf5dba2182280183258913452b1ec94353e044593ec0a667013651f75be",
+    "syncedAt": "2026-07-10T11:52:00.722Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/playbooks/영상-승인-절차.md": {
+    "hash": "5e57a63bc9bea4fdb834e7cad79a2890004b102f32d919ed5380acfb90d561d6",
+    "syncedAt": "2026-07-10T11:52:03.155Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/profile/브랜드.md": {
+    "hash": "5bbfbb7e3a51cbadf4561cd14157f9ed4b1a53b34393dec8423d7d33fde0820e",
+    "syncedAt": "2026-07-10T11:52:04.288Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/profile/회사-프로필.md": {
+    "hash": "87065d624b1604899da1c79a62cc94e94c28d202128b08f586cc0e0249d3fccb",
+    "syncedAt": "2026-07-10T11:52:05.952Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/systems/CRM-ERP.md": {
+    "hash": "d42914f94d104dab30a9469e625d252c4ec245984c8a7ba4e7261900687ce768",
+    "syncedAt": "2026-07-10T11:52:07.481Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/systems/RAG-파이프라인.md": {
+    "hash": "f5ee8ac848cb67400a26866db1dc66b45f69f0adb249c3fda6441c5d41776f12",
+    "syncedAt": "2026-07-10T11:52:08.486Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/systems/검증-체계.md": {
+    "hash": "e508bc67d0f805ed02ebd9e8455ce8dfdebb3d3ebcfd448a4a0fd8f8ed177e6a",
+    "syncedAt": "2026-07-10T11:52:09.698Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/systems/블로그-팩토리.md": {
+    "hash": "25c0aa721a4c9859a55b5b7a06b2621cab5d1fb64ab2d1de294b45e4ef5420fa",
+    "syncedAt": "2026-07-10T11:52:10.846Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/systems/알림-인프라.md": {
+    "hash": "9f5e907b736dbb89055781ee2b8283bbf55eae31f7c4e880e402f3b095e91328",
+    "syncedAt": "2026-07-10T11:52:12.446Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/systems/에이전트-시스템.md": {
+    "hash": "15cc49328eeef778d6969b3e4d101cf53e9a88f4814a4046c835835e2debb4d8",
+    "syncedAt": "2026-07-10T11:52:13.653Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/systems/영상-팩토리.md": {
+    "hash": "0470845ae1d47d9e4a5630018f9595de8bce7fbef7fd3daa0a9ea16335821923",
+    "syncedAt": "2026-07-10T11:52:14.761Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/systems/플랫폼-아키텍처.md": {
+    "hash": "3c03d2781e3f7a0a55dc7298c6aa5fc2fa28fa09f7cdfe411460781f4cb62265",
+    "syncedAt": "2026-07-10T11:52:16.074Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/systems/현장보고서-파이프라인.md": {
+    "hash": "464985251c7daf6287a8ac2c142c8ff5c7eb6bf2273a25a2a73ef5ccfe2c8546",
+    "syncedAt": "2026-07-10T11:52:17.196Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  }
+}

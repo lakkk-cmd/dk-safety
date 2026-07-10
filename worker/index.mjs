@@ -27,6 +27,7 @@ import { generateScript } from "./script-gen.mjs";
 import { uploadApprovedVideo } from "./youtube-upload.mjs";
 import { uploadToStorage } from "./lib/storage.mjs";
 import { claimNextBlogJob, runBlogJob } from "./blog-worker.mjs";
+import { appendToRaw } from "./lib/append-to-raw.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REMOTION_ROOT = path.resolve(__dirname, "..", "remotion");
@@ -259,6 +260,11 @@ async function processUploadJob(job) {
         update video_jobs set status = 'published', youtube_url = ${youtubeUrl}, error = null
         where id = ${job.id}`;
       log(`  업로드 완료 → published: ${youtubeUrl} (비공개 업로드 — 공개 전환은 유튜브 스튜디오에서)`);
+      appendToRaw(
+        "video",
+        `## 영상 발행: ${job.topic}\n\n- job id: ${job.id}\n- 형식: ${job.format}\n- 유튜브 URL: ${youtubeUrl}\n- 요청자: ${job.requested_by}`,
+        job.topic,
+      );
       return true;
     } catch (e) {
       lastError = e;
@@ -269,6 +275,11 @@ async function processUploadJob(job) {
     update video_jobs set status = 'error', error = ${`업로드 실패: ${String(lastError?.message ?? lastError)}`}
     where id = ${job.id}`;
   log(`  업로드 중단 → error 기록`);
+  appendToRaw(
+    "video",
+    `## 영상 업로드 실패: ${job.topic}\n\n- job id: ${job.id}\n- 오류: ${String(lastError?.message ?? lastError)}`,
+    job.topic,
+  );
   return false;
 }
 
@@ -287,6 +298,11 @@ async function processJob(job) {
     update video_jobs set status = 'error', error = ${String(lastError?.message ?? lastError)}
     where id = ${job.id}`;
   log(`  중단 → error 기록`);
+  appendToRaw(
+    "video",
+    `## 영상 제작 실패: ${job.topic}\n\n- job id: ${job.id}\n- 오류: ${String(lastError?.message ?? lastError)}`,
+    job.topic,
+  );
   return false;
 }
 
@@ -305,6 +321,11 @@ async function processBlogJob(job) {
     update blog_jobs set status = 'error', error = ${String(lastError?.message ?? lastError)}
     where id = ${job.id}`;
   log(`  중단 → error 기록 (blog)`);
+  appendToRaw(
+    "blog",
+    `## 블로그 제작 실패: ${job.topic}\n\n- job id: ${job.id}\n- 오류: ${String(lastError?.message ?? lastError)}`,
+    job.topic,
+  );
   return false;
 }
 

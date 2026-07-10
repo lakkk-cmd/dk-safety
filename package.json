@@ -19,6 +19,8 @@
     "db:sync-env": "node scripts/sync-db-env.mjs",
     "storage:ensure": "node --env-file=.env.local scripts/ensure-supabase-storage.mjs",
     "verify:supabase": "node --env-file=.env.local scripts/verify-supabase-connection.mjs",
+    "brain:sync:ops": "node --env-file=.env.local scripts/sync-wiki-to-git.mjs",
+    "brain:sync": "npx tsx --env-file=.env.local scripts/brain-sync.ts",
     "env:production": "node -e \"require('fs').copyFileSync('.env.example','.env.production'); console.log('Wrote .env.production from .env.example');\"",
     "setup:deploy": "node scripts/setup-github-vercel.mjs",
     "setup:new-pc": "powershell -ExecutionPolicy Bypass -File scripts/setup-new-pc.ps1",

@@ -24,7 +24,34 @@ npm run sync:supabase     # Migrate local JSON data to Supabase
 # Misc
 npm run cron:test    # Test the morning cron job locally
 npm run setup:deploy # One-shot GitHub + Vercel setup
+
+# dk-brain 지식 체계
+npm run brain:sync       # brain/wiki/**/*.md → knowledge_base + knowledge_chunks 임베딩 동기화
+npm run brain:sync:ops   # Supabase(운영 데이터) → brain/ops/*.md 마크다운 미러
 ```
+
+## 지식 체계 규칙 (dk-brain)
+
+이 저장소는 `brain/`에 3층 지식 체계를 둔다 — 자세한 구조와 층간 흐름은 `brain/README.md` 참고.
+`brain/raw/`(1층 원본) → `brain/wiki/`(2층 AI 가공 지식, `[[링크]]`로 상호연결) →
+`knowledge_base`+`knowledge_chunks`(임베딩, `npm run brain:sync`). `brain/ops/`는 고회전
+운영 데이터 미러로 임베딩 대상에서 제외된다(`brain/ops/README.md` 참고).
+
+1. **세션 시작**: `brain/wiki/systems/`의 3줄 요약들을 훑고, 작업 주제와 관련된 문서만 전체를
+   읽는다. 전부 읽지 않는다.
+2. **세션 종료(또는 중요 결정 직후)**: 이번 세션의 결정·변경·발견을
+   `brain/raw/sessions/YYYY-MM-DD-주제.md`에 기록한다. 형식: 결정사항 / 변경된 파일 /
+   알게 된 것 / 미해결. 원본이므로 이후 수정 금지(append-only).
+3. **위키 갱신 규칙**: raw에 새 기록이 들어오면, 영향받는 wiki 문서를 찾아 현행화한다. 새
+   문서를 만들기 전에 반드시 기존 문서 갱신을 먼저 검토한다. 문서가 틀린 것으로 판명되면
+   삭제하지 말고 `brain/wiki/lessons/`로 옮기고 사유를 적는다.
+4. **링크 규칙**: 모든 `brain/wiki/` 문서는 최소 1개의 `[[링크]]`를 가져야 한다. 고아 문서
+   (링크 0개)는 발견 시 연결하거나 통합한다.
+5. **경계**: `brain/raw/`는 append-only. 고객 개인정보(전화번호, 주소 상세)는 `brain/`에
+   저장하지 않는다 — CRM DB가 원본이며 위키에는 집계 수치만 담는다. API 키·시크릿은 어떤
+   층에도 저장 금지.
+6. **사실 우선순위**: 코드 > raw > wiki. 위키와 코드가 충돌하면 코드가 맞고 위키를 고친다.
+   코드로 검증 불가능한 사실(사업자등록번호 등 외부 법적 정보)은 대표님 확인 없이 단정하지 않는다.
 
 ## Architecture
 
