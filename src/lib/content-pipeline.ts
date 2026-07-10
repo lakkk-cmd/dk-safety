@@ -18,6 +18,7 @@ import {
   type ContentPlanResult,
 } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
+import { humanizeKoreanText } from "@/lib/humanizer";
 import {
   broadcastKakaoFriendTalkToCustomers,
   KAKAO_MEMO_ENABLED,
@@ -179,6 +180,7 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
         weekStatus,
         (ytRow.category as ContentCategory | null) ?? undefined,
       );
+      draft.script = await humanizeKoreanText(draft.script, 6000);
       const titleCandidatesBlock = draft.titleCandidates.length
         ? `[제목 후보]\n${draft.titleCandidates.map((t, i) => `${i + 1}. ${t}`).join("\n")}\n\n`
         : "";
@@ -230,7 +232,8 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
       .maybeSingle();
 
     if (kkRow) {
-      const draft = await draftKakaoPost(kkRow.title, kkRow.content ?? "", weekStatus);
+      const draftRaw = await draftKakaoPost(kkRow.title, kkRow.content ?? "", weekStatus);
+      const draft = await humanizeKoreanText(draftRaw, 800);
       // 사람 승인 대신 Gemini 자동검수 게이트 — 통과하면 사람 클릭 없이 즉시 카카오 채널로 발송한다.
       let validationPassed = false;
       if (GEMINI_ENABLED) {
@@ -284,6 +287,7 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
 
     for (const row of blogRows ?? []) {
       const draft = await draftBlogPost(row.title, row.content ?? "", row.keywords ?? [], weekStatus);
+      draft.content = await humanizeKoreanText(draft.content, 2500);
       // 사람 승인 대신 Gemini 자동검수 게이트 — 통과하면 사람 클릭 없이 즉시 dkansim.com/blog에 발행한다.
       let validationPassed = false;
       if (GEMINI_ENABLED) {
