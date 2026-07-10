@@ -11,6 +11,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # 로컬에 Docker가 없어 사전 검증을 못 해서, 오탐으로 빌드를 막는 걸 피하려고
+      # 우선 continue-on-error로 넣는다. 몇 번 돌려서 오탐 없는 거 확인되면
+      # continue-on-error를 지우고 진짜 게이트로 승격할 것.
+      - name: 시크릿 유출 스캔 (gitleaks) — 검증 전까지는 비차단
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source=/repo --no-git -v --exit-code 1
       - uses: actions/setup-node@v4
         with:
           node-version: "24"

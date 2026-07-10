@@ -288,8 +288,8 @@
     }
   },
   "brain/wiki/systems/CRM-ERP.md": {
-    "hash": "d42914f94d104dab30a9469e625d252c4ec245984c8a7ba4e7261900687ce768",
-    "syncedAt": "2026-07-10T11:52:07.481Z",
+    "hash": "69e981b4c9c9ee44cb8ea21603679ccaec66b2a61b437ef690f581fcf3765e72",
+    "syncedAt": "2026-07-10T22:58:50.670Z",
     "syncedTargets": {
       "knowledgeBase": true,
       "knowledgeChunks": true
@@ -362,6 +362,30 @@
   "brain/wiki/systems/품질-안전-유틸리티.md": {
     "hash": "1da36b8332aa90bd7873143c0ed270eed9d89a402f57ee6f29104b3dcebf580b",
     "syncedAt": "2026-07-10T14:59:44.154Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/playbooks/CS-재상담-절차.md": {
+    "hash": "67a1e8b0458d5e150ca033ed7a82296abf0a03cb1b2e9b969eaf63e218a8f43f",
+    "syncedAt": "2026-07-10T22:58:46.909Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/playbooks/ERP-작업자-정산-절차.md": {
+    "hash": "6743b437792777db25cbf05813318eef6cc85a4e053c108e0c93de8bf6ddee1b",
+    "syncedAt": "2026-07-10T22:58:48.129Z",
+    "syncedTargets": {
+      "knowledgeBase": true,
+      "knowledgeChunks": true
+    }
+  },
+  "brain/wiki/playbooks/예약-배정-절차.md": {
+    "hash": "3761c8fc3d403e4cf469b2747cf0dfe7c3affb696aab941a27b5ecc2b2e42d98",
+    "syncedAt": "2026-07-10T22:58:49.425Z",
     "syncedTargets": {
       "knowledgeBase": true,
       "knowledgeChunks": true
