@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Reservation } from "@/lib/reservations-store";
 import SignaturePad from "@/components/worker/signature-pad";
+import { downscaleImageFiles } from "@/lib/downscale-image";
 
 type TaskPayload = {
   id: string;
@@ -154,10 +155,10 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
     setBusy(true);
     setMessage(null);
     try {
+      const selected = Array.from(files).slice(0, 5);
+      const downscaled = await downscaleImageFiles(selected);
       const formData = new FormData();
-      Array.from(files)
-        .slice(0, 5)
-        .forEach((file) => formData.append("photos", file));
+      downscaled.forEach((file) => formData.append("photos", file));
       const response = await fetch(`/api/worker/tasks/${taskId}/photos`, { method: "POST", body: formData });
       const data = (await response.json()) as { message?: string };
       if (!response.ok) {

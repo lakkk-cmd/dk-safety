@@ -196,6 +196,9 @@ export async function pgGetFieldReportPublic(id: string): Promise<FieldReport | 
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase.from("field_reports").select("*").eq("id", id).maybeSingle();
   if (error) {
+    // 22P02 = Postgres invalid_text_representation — id가 UUID 형식이 아닐 때(오타·봇 스캔 등)
+    // 발생한다. 이런 경우도 "찾을 수 없음"으로 취급해야 공개 페이지가 500이 아니라 404를 낸다.
+    if (error.code === "22P02") return null;
     throw new Error(`현장 점검 기록 조회 실패: ${error.message}`);
   }
   if (!data) return null;

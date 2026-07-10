@@ -2,8 +2,17 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getResidentBySessionId, saveDiagnosis, type DiagnosisAnswer } from "@/lib/resident-db";
 import { RESIDENT_AUTH_COOKIE } from "@/lib/site-config";
+import { checkIpRateLimit } from "@/lib/ip-rate-limit";
 
 export async function POST(request: Request) {
+  const rateLimit = checkIpRateLimit(request, "resident-diagnosis", 30, 60 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { message: "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요." },
+      { status: 429 },
+    );
+  }
+
   const cookieStore = await cookies();
   const sessionId = cookieStore.get(RESIDENT_AUTH_COOKIE)?.value;
   const user = sessionId ? await getResidentBySessionId(sessionId) : null;

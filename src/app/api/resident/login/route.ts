@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server";
 import { createResidentSession } from "@/lib/resident-db";
 import { RESIDENT_AUTH_COOKIE } from "@/lib/site-config";
+import { checkIpRateLimit } from "@/lib/ip-rate-limit";
 
 const FIRST_VISIT_COOKIE = "dk_first_visit_checked";
 
 export async function POST(request: Request) {
+  const rateLimit = checkIpRateLimit(request, "resident-login", 20, 60 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { message: "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요." },
+      { status: 429 },
+    );
+  }
+
   let body: {
     name?: string;
     phone?: string;

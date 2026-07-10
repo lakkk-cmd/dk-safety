@@ -5,6 +5,7 @@ import { pgGetWorkerById } from "@/lib/reservations-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { StatusBadge, type RiskLevel } from "@/components/ui/status-badge";
 import { SectionCard } from "@/components/ui/section-card";
+import { CompareSlider } from "@/components/ui/compare-slider";
 
 const RISK_LEVELS: readonly string[] = ["안전", "주의", "경고", "위험"];
 
@@ -61,6 +62,21 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           ))}
         </ul>
       </SectionCard>
+
+      {report.photoUrls.length >= 2 ? (
+        <SectionCard icon="🖼️" title="현장 사진">
+          {/* 촬영 순서상 첫 사진을 점검 전, 마지막 사진을 점검 후로 보는 휴리스틱 —
+              사진에 전/후 태그를 직접 붙이는 데이터 모델은 아직 없음. 명확한 페어링이
+              필요해지면 field_reports에 별도 전/후 태그 컬럼을 추가해 대체해야 한다. */}
+          <CompareSlider
+            beforeSrc={report.photoUrls[0]}
+            afterSrc={report.photoUrls[report.photoUrls.length - 1]}
+            beforeAlt="점검 시작 시점 현장 사진"
+            afterAlt="점검 완료 시점 현장 사진"
+          />
+          <p className="mt-2 text-center text-xs text-slate-400">슬라이더를 좌우로 드래그해 비교해 보세요</p>
+        </SectionCard>
+      ) : null}
 
       <div className="flex gap-2">
         {report.pdfResidentUrl ? (

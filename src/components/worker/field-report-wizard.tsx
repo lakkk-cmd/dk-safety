@@ -8,6 +8,7 @@ import { BigButton } from "@/components/ui/big-button";
 import { SectionCard } from "@/components/ui/section-card";
 import { LoadingOverlay, type LoadingOverlayStep } from "@/components/ui/loading-overlay";
 import { EmptyState } from "@/components/ui/empty-state";
+import { downscaleImageFiles } from "@/lib/downscale-image";
 
 const BREAKER_VISUAL_STATUS_OPTIONS = ["정상", "과열흔적", "소손", "교체필요"] as const;
 const GROUNDING_STATUS_OPTIONS = ["정상", "불량", "미확인"] as const;
@@ -206,8 +207,9 @@ export default function FieldReportWizard({ presetReservationId }: { presetReser
         setMessage("사진은 최대 3장까지 첨부할 수 있습니다.");
         return;
       }
+      const downscaled = await downscaleImageFiles(selected);
       const formData = new FormData();
-      selected.forEach((file) => formData.append("photos", file));
+      downscaled.forEach((file) => formData.append("photos", file));
       const response = await fetch("/api/worker/field-reports/photos", { method: "POST", body: formData });
       const data = (await response.json()) as { urls?: string[]; message?: string };
       if (!response.ok) {
