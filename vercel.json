@@ -41,6 +41,10 @@
       "schedule": "30 22 * * 0"
     },
     {
+      "path": "/api/cron/api-cost-track",
+      "schedule": "45 21 * * 0"
+    },
+    {
       "path": "/api/agent/cron",
       "schedule": "0 23 * * *"
     }

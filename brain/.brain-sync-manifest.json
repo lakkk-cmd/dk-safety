@@ -288,8 +288,8 @@
     }
   },
   "brain/wiki/systems/CRM-ERP.md": {
-    "hash": "69e981b4c9c9ee44cb8ea21603679ccaec66b2a61b437ef690f581fcf3765e72",
-    "syncedAt": "2026-07-10T22:58:50.670Z",
+    "hash": "d6a10ed1c3108d39bbdb18c32749c0283f4e7a0326123e3891491d6ae7eee662",
+    "syncedAt": "2026-07-10T23:11:06.264Z",
     "syncedTargets": {
       "knowledgeBase": true,
       "knowledgeChunks": true
