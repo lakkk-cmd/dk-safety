@@ -28,7 +28,9 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npm run brain:sync:ops
+        # npm run brain:sync:ops는 로컬 개발용으로 --env-file=.env.local을 하드코딩하는데,
+        # CI에는 그 파일이 없어 node가 즉시 실패한다(env는 이미 위 env: 블록으로 주입됨).
+        run: node scripts/sync-wiki-to-git.mjs
 
       - name: 변경분 커밋
         run: |
