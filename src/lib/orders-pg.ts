@@ -1,6 +1,7 @@
 import { buildPatentWarrantyNumber } from "@/lib/daekyung-fee-logic";
 import { requireSupabaseAdmin } from "@/lib/supabase-pg";
 import { formatResidentDongHoDepositHolder } from "@/lib/resident-unit-label";
+import { authHeader } from "@/lib/toss-agent";
 
 type OrderResidentInfo = {
   name: string;
@@ -199,70 +200,62 @@ export async function pgListOrdersForAdmin(): Promise<AdminOrderRow[]> {
   return (data ?? []) as AdminOrderRow[];
 }
 
-function fallbackVirtualAccount(orderId: string, amount: number, displayHolder: string): VirtualAccountIssueResult {
-  const seed = `${orderId.replaceAll(/[^0-9]/g, "")}${Date.now()}`;
-  const accountNumber = seed.slice(0, 14).padEnd(14, "0");
-  const due = new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString();
-  return {
-    bankName: "기업은행",
-    accountNumber,
-    accountHolder: displayHolder,
-    dueAt: due,
-    amount
-  };
-}
+// IBK기업은행 — Toss 가상계좌 발급 API의 2자리 은행코드(https://docs.tosspayments.com/codes/org-codes).
+const TOSS_VIRTUAL_ACCOUNT_BANK_CODE = "03";
+const TOSS_VIRTUAL_ACCOUNT_BANK_NAME = "기업은행";
 
+/**
+ * Toss 가상계좌 발급: POST /v1/virtual-accounts.
+ *
+ * 2026-07-11 발견된 실제 프로덕션 버그: 예전엔 여기서 미설정 커스텀 env
+ * (TOSS_VIRTUAL_ACCOUNT_ISSUE_URL, .env.example에도 없던 변수)가 없으면 무작위로 만든
+ * 가짜 계좌번호(fallbackVirtualAccount)를 조용히 돌려줬다 — TOSS_SECRET_KEY는 실제로
+ * 설정돼 있었는데도 그걸 안 쓰고 있었다. 그 결과 모든 고객이 실제로 존재하지 않는
+ * 계좌로 입금을 시도하게 돼 "결제가 진행되지 않는" 문제가 발생했고, 매번 관리자가
+ * 수동으로 입금완료 처리를 해야 했다. 이제 이미 검증된 TOSS_SECRET_KEY(다른 Toss API
+ * 호출과 동일한 Basic 인증, src/lib/toss-agent.ts의 authHeader() 재사용)로 실제
+ * Toss API를 호출한다. 실패 시 가짜 계좌로 폴백하지 않고 명확한 에러를 던진다 —
+ * 결제 관련 코드는 조용히 틀린 데이터를 만들어내는 것보다 크게 실패하는 게 안전하다.
+ */
 async function issueVirtualAccountFromProvider(params: {
   orderId: string;
   amount: number;
   customerName: string;
   customerMobilePhone: string;
-  /** PG/API용 구분자 (영문·숫자 위주) */
-  accountHolderName: string;
   /** 고객 화면·DB `virtual_account_holder`에 저장할 예금주 표기 (동·호) */
   displayHolder: string;
 }): Promise<VirtualAccountIssueResult> {
-  const providerUrl = process.env.TOSS_VIRTUAL_ACCOUNT_ISSUE_URL?.trim() ?? "";
-  const secretKey = process.env.TOSS_SECRET_KEY?.trim() ?? "";
-  if (!providerUrl || !secretKey) {
-    return fallbackVirtualAccount(params.orderId, params.amount, params.displayHolder);
-  }
-
-  const auth = Buffer.from(`${secretKey}:`).toString("base64");
-  const response = await fetch(providerUrl, {
+  const response = await fetch("https://api.tosspayments.com/v1/virtual-accounts", {
     method: "POST",
     headers: {
-      Authorization: `Basic ${auth}`,
+      Authorization: authHeader(),
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      orderId: params.orderId,
       amount: params.amount,
-      bank: "기업은행",
-      customerName: params.customerName,
-      customerMobilePhone: params.customerMobilePhone,
-      accountHolderName: params.accountHolderName
+      orderId: params.orderId,
+      orderName: "우리집 전기주치의 예약금",
+      customerName: params.customerName || "입주민",
+      customerMobilePhone: params.customerMobilePhone || undefined,
+      bank: TOSS_VIRTUAL_ACCOUNT_BANK_CODE
     })
   });
   const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    throw new Error((data.message as string) ?? "가상계좌 발급 실패");
+    throw new Error(`Toss 가상계좌 발급 실패: ${(data.message as string) ?? response.status}`);
   }
 
   const va = (data.virtualAccount as Record<string, unknown> | undefined) ?? data;
-  const bankName = String(va.bank ?? va.bankName ?? "기업은행").trim();
-  const accountNumber = String(va.accountNumber ?? va.accountNo ?? "")
-    .replaceAll(/[^0-9]/g, "")
-    .trim();
-  const dueAt = String(va.dueDate ?? va.dueAt ?? new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString()).trim();
+  const accountNumber = String(va.accountNumber ?? "").trim();
+  const dueDate = String(va.dueDate ?? "").trim();
   if (!accountNumber) {
-    throw new Error("가상계좌 번호를 수신하지 못했습니다.");
+    throw new Error("Toss 응답에 가상계좌 번호가 없습니다.");
   }
   return {
-    bankName,
+    bankName: TOSS_VIRTUAL_ACCOUNT_BANK_NAME,
     accountNumber,
     accountHolder: params.displayHolder,
-    dueAt,
+    dueAt: dueDate || new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString(),
     amount: params.amount,
     raw: data
   };
@@ -305,7 +298,6 @@ export async function pgIssueVirtualAccount(orderId: string) {
     amount,
     customerName,
     customerMobilePhone,
-    accountHolderName,
     displayHolder
   });
 
