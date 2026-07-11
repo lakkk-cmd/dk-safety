@@ -16,7 +16,10 @@ coverage
 .vercel
 
 .vercel
-data/backups/reservations-auto-*.json
+# 백업 진짜 저장소는 Supabase Storage(2026-07-11부터) — 로컬 fs는 dev 편의용 best-effort
+# 미러일 뿐이라 git에 넣지 않는다. 예전엔 여기 일부만 gitignore돼서 나머지가 git에 박제된
+# 채로 매 배포마다 실려나갔고, 그게 "프로덕션에 2018년 타임스탬프 백업이 떠 있던" 원인이었음.
+data/backups/
 public/uploads/
 test-output/
 

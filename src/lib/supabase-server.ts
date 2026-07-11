@@ -46,7 +46,20 @@ export async function readJsonObject<T>(bucket: string, objectPath: string): Pro
     return null;
   }
   if (!response.ok) {
-    throw new Error(`Supabase JSON 읽기 실패: ${response.status}`);
+    // Supabase Storage는 존재하지 않는 오브젝트에 HTTP 404가 아니라 400을 주면서 본문에
+    // {"statusCode":"404","error":"not_found",...}를 담아 보내는 경우가 실제로 있다(직접
+    // 재현 확인함, 2026-07-11). HTTP 코드만 보고 예외를 던지면 "아직 한 번도 안 써본 키를
+    // 읽는" 정상적인 흐름까지 에러로 죽는다 — 본문의 논리적 상태도 함께 확인한다.
+    const bodyText = await response.text().catch(() => "");
+    try {
+      const body = JSON.parse(bodyText) as { statusCode?: string; error?: string };
+      if (body.statusCode === "404" || body.error === "not_found") {
+        return null;
+      }
+    } catch {
+      // 본문이 JSON이 아니면 그냥 아래에서 원래 에러로 던진다.
+    }
+    throw new Error(`Supabase JSON 읽기 실패: ${response.status} ${bodyText.slice(0, 200)}`);
   }
   return (await response.json()) as T;
 }
@@ -61,6 +74,55 @@ export async function writeJsonObject<T>(bucket: string, objectPath: string, val
   });
   if (!response.ok) {
     throw new Error(`Supabase JSON 저장 실패: ${response.status}`);
+  }
+}
+
+export type StorageObjectInfo = {
+  name: string;
+  updatedAt: string;
+  sizeBytes: number;
+};
+
+/** prefix 아래 객체 목록 — 백업 스냅샷처럼 파일시스템 readdir 대신 쓰는 용도. */
+export async function listStorageObjects(bucket: string, prefix: string): Promise<StorageObjectInfo[]> {
+  assertSupabaseConfig();
+  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${bucket}`, {
+    method: "POST",
+    headers: supabaseHeaders("application/json"),
+    body: JSON.stringify({
+      prefix,
+      limit: 1000,
+      sortBy: { column: "name", order: "desc" }
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`Supabase Storage 목록 조회 실패: ${response.status}`);
+  }
+  const items = (await response.json()) as Array<{
+    name: string;
+    updated_at?: string;
+    metadata?: { size?: number } | null;
+  }>;
+  return items
+    .filter((item) => item.name && !item.name.endsWith("/"))
+    .map((item) => ({
+      name: item.name,
+      updatedAt: item.updated_at ?? new Date().toISOString(),
+      sizeBytes: item.metadata?.size ?? 0
+    }));
+}
+
+/** 여러 객체를 한 번에 삭제 — 백업 보관 개수 제한(pruning)용. */
+export async function deleteStorageObjects(bucket: string, objectPaths: string[]): Promise<void> {
+  if (objectPaths.length === 0) return;
+  assertSupabaseConfig();
+  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}`, {
+    method: "DELETE",
+    headers: supabaseHeaders("application/json"),
+    body: JSON.stringify({ prefixes: objectPaths })
+  });
+  if (!response.ok) {
+    throw new Error(`Supabase Storage 삭제 실패: ${response.status}`);
   }
 }
 

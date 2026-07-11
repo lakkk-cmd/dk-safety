@@ -288,8 +288,8 @@
     }
   },
   "brain/wiki/systems/CRM-ERP.md": {
-    "hash": "d6a10ed1c3108d39bbdb18c32749c0283f4e7a0326123e3891491d6ae7eee662",
-    "syncedAt": "2026-07-10T23:11:06.264Z",
+    "hash": "f939cfa835d8af67a8940ebe1d67bc19f0262a6fc2f5a4dec177b25dde0cd4bb",
+    "syncedAt": "2026-07-11T01:43:04.152Z",
     "syncedTargets": {
       "knowledgeBase": true,
       "knowledgeChunks": true
@@ -344,8 +344,8 @@
     }
   },
   "brain/wiki/systems/플랫폼-아키텍처.md": {
-    "hash": "3c03d2781e3f7a0a55dc7298c6aa5fc2fa28fa09f7cdfe411460781f4cb62265",
-    "syncedAt": "2026-07-10T11:52:16.074Z",
+    "hash": "41f1cb2bcd6f81209c6786b1aa2333c3f7baa16c5337838d8d48bea90ae40d75",
+    "syncedAt": "2026-07-11T01:43:06.329Z",
     "syncedTargets": {
       "knowledgeBase": true,
       "knowledgeChunks": true

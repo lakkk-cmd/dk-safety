@@ -48,10 +48,13 @@ export async function POST(request: Request) {
       message: `백업 파일(${fileName})로 예약 데이터가 복원되었습니다. (체크포인트: ${restored.checkpointFileName})`
     });
     return NextResponse.json({
-      message: "백업 복원이 완료되었습니다.",
+      message: restored.pgRestoreNote
+        ? `백업 복원이 완료되었습니다. ${restored.pgRestoreNote}`
+        : "백업 복원이 완료되었습니다.",
       count: restored.reservations.length,
       checkpointFileName: restored.checkpointFileName,
-      diff: restored.diff
+      diff: restored.diff,
+      pgRestoreNote: restored.pgRestoreNote
     });
   } catch (error) {
     return NextResponse.json(

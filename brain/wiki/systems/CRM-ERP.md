@@ -25,5 +25,10 @@ tags: ["crm", "erp"]
   누적 사용액(USD)을 조회해 지난 실행 대비 증분만 `expenses`(category='API비용')에 남긴다
   (migration 065). Anthropic/Gemini/Voyage/Solapi는 API 키만으로 조회 가능한 사용량
   엔드포인트가 없어서 OpenRouter만 자동화됨 — 나머지는 여전히 수동 확인 필요.
+- 예약 백업/복구(`/admin/backups`): 저장소는 Supabase Storage(`SUPABASE_DATA_BUCKET`의
+  `backups/` 프리픽스) — 한때 로컬 파일시스템에 저장돼 프로덕션에서 몇 달간 실제로는
+  하나도 안 남고 있었음(2026-07-11 발견·수정, → [[플랫폼-아키텍처]] 경고 참고). 복원은
+  PG 모드에서 `reservations` 테이블 핵심 필드만 되돌리고, 기사 배정·주문/결제 상태는
+  포함 안 됨(다른 테이블이라 별도 복구 필요). 자동 백업은 매일 `/api/cron/reservations-backup`.
 
 관련: [[플랫폼-아키텍처]] [[현장보고서-파이프라인]] [[예약-배정-절차]] [[CS-재상담-절차]] [[ERP-작업자-정산-절차]]

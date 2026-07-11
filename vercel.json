@@ -45,6 +45,10 @@
       "schedule": "45 21 * * 0"
     },
     {
+      "path": "/api/cron/reservations-backup",
+      "schedule": "0 17 * * *"
+    },
+    {
       "path": "/api/agent/cron",
       "schedule": "0 23 * * *"
     }

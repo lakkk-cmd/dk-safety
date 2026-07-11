@@ -637,6 +637,76 @@ export async function pgUpdateReservation(
   return pgFindReservationById(id);
 }
 
+export type PgRestoreResult = {
+  updated: number;
+  skippedNotFound: number;
+  errors: { id: string; error: string }[];
+};
+
+/**
+ * 백업 스냅샷의 핵심 필드만 실제 reservations 테이블에 되돌린다.
+ *
+ * 되돌리지 않는 것: taskId/taskStatus/assignedWorker 관련 및 order 관련 필드 — 이건 reservations
+ * 테이블 컬럼이 아니라 tasks/orders 테이블을 join해서 만드는 값이라, 여기서 단순 UPDATE로는
+ * 복원할 수 없다(운영 공백 점검 9번 — restore가 실제로는 아무 데이터도 안 건드리던 버그를
+ * 고치며 의도적으로 스코프를 좁힘. 여러 테이블에 걸친 트랜잭션 복원은 더 큰 별도 작업).
+ *
+ * id가 지금 테이블에 없는 행(그 사이 삭제된 예약)은 되살리지 않고 skippedNotFound로만 센다 —
+ * 무작정 INSERT하면 tasks/orders 등 다른 테이블과의 관계가 깨질 수 있어서 안전하게 스킵한다.
+ */
+export async function pgBulkRestoreReservationCore(
+  snapshot: Array<Partial<Reservation> & { id: string }>,
+): Promise<PgRestoreResult> {
+  const supabase = requireSupabaseAdmin();
+  const { data: existing, error: existingError } = await supabase.from("reservations").select("id");
+  if (existingError) throw new Error(`복원 대상 조회 실패: ${existingError.message}`);
+  const existingIds = new Set((existing ?? []).map((row) => row.id as string));
+
+  let updated = 0;
+  let skippedNotFound = 0;
+  const errors: { id: string; error: string }[] = [];
+
+  for (const item of snapshot) {
+    if (!item.id || !existingIds.has(item.id)) {
+      skippedNotFound++;
+      continue;
+    }
+
+    const patch: Record<string, unknown> = {};
+    if (item.apartmentId !== undefined) patch.apartment_id = item.apartmentId;
+    if (typeof item.name === "string") patch.name = item.name;
+    if (typeof item.phone === "string") patch.phone = item.phone;
+    if (typeof item.address === "string") patch.address = item.address;
+    if (typeof item.serviceType === "string") patch.service_type = item.serviceType;
+    if (typeof item.preferredDate === "string") patch.preferred_date = item.preferredDate;
+    if (typeof item.preferredTime === "string") patch.preferred_time = item.preferredTime;
+    if (typeof item.detail === "string") patch.detail = item.detail;
+    if (Array.isArray(item.imageUrls)) patch.image_urls = item.imageUrls;
+    if (item.priority) patch.priority = item.priority;
+    if (item.status) patch.status = item.status;
+    if (typeof item.note === "string") patch.note = item.note;
+    if (item.noteUpdatedAt !== undefined) patch.note_updated_at = item.noteUpdatedAt;
+    if (typeof item.baseFee === "number") patch.base_fee = Math.max(0, Math.round(item.baseFee));
+    if (typeof item.extraFee === "number") patch.extra_fee = Math.max(0, Math.round(item.extraFee));
+    if (typeof item.totalAmount === "number") patch.total_amount = Math.max(0, Math.round(item.totalAmount));
+    if (typeof item.isPaid === "boolean") patch.is_paid = item.isPaid;
+    if (item.paidAt !== undefined) patch.paid_at = item.paidAt;
+    if (item.source) patch.source = item.source;
+    if (item.completedAt !== undefined) patch.completed_at = item.completedAt;
+
+    if (Object.keys(patch).length === 0) continue;
+
+    const { error } = await supabase.from("reservations").update(patch).eq("id", item.id);
+    if (error) {
+      errors.push({ id: item.id, error: error.message });
+      continue;
+    }
+    updated++;
+  }
+
+  return { updated, skippedNotFound, errors };
+}
+
 export type WorkerPublic = {
   id: string;
   name: string;

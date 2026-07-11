@@ -1,6 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 import {
+  deleteStorageObjects,
+  listStorageObjects,
   readJsonObject,
   SUPABASE_DATA_BUCKET,
   SUPABASE_ENABLED,
@@ -8,6 +10,7 @@ import {
 } from "@/lib/supabase-server";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import {
+  pgBulkRestoreReservationCore,
   pgCreateReservation,
   pgHasReservationTimeConflict,
   pgReadReservations,
@@ -88,12 +91,28 @@ type BackupMeta = {
 
 const dataPath = path.join(process.cwd(), "data", "reservations.json");
 const cloudDataKey = "reservations.json";
+// 백업의 진짜 저장소는 Supabase Storage다(backups/ 프리픽스) — 로컬 파일시스템은 Vercel
+// 프로덕션에서 지속되지 않아(읽기전용 배포 이미지) 백업이 사실상 하나도 안 남고 있었다
+// (운영 공백 점검 9번에서 실제 프로덕션 대상 읽기 전용 확인으로 발견). 로컬 fs 쓰기는
+// 로컬 개발 편의용으로만 best-effort로 남기고, 실패해도 무시한다.
 const backupsDir = path.join(process.cwd(), "data", "backups");
 const rollingBackupPath = path.join(backupsDir, "reservations-latest.json");
 const backupMetaPath = path.join(backupsDir, "backup-meta.json");
+const storageBackupPrefix = "backups/";
+const storageRollingKey = `${storageBackupPrefix}reservations-latest.json`;
+const storageMetaKey = `${storageBackupPrefix}backup-meta.json`;
 const MAX_BACKUP_FILES = 30;
 const snapshotPrefix = "reservations-";
 const snapshotSuffix = ".json";
+
+async function bestEffortLocalWrite(filePath: string, content: string) {
+  try {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, content, "utf-8");
+  } catch {
+    // 로컬 개발 편의용 미러일 뿐이라 실패해도 무시 — 진짜 저장소는 Supabase Storage.
+  }
+}
 
 async function ensureFile() {
   if (SUPABASE_ENABLED) {
@@ -123,7 +142,10 @@ function parseReservationsJson(raw: string): Array<Reservation | Omit<Reservatio
 }
 
 async function readBackupMetaMap(): Promise<Record<string, BackupMeta>> {
-  await fs.mkdir(backupsDir, { recursive: true });
+  if (SUPABASE_ENABLED) {
+    const cloud = await readJsonObject<Record<string, BackupMeta>>(SUPABASE_DATA_BUCKET, storageMetaKey);
+    return cloud && typeof cloud === "object" ? cloud : {};
+  }
   try {
     const raw = await fs.readFile(backupMetaPath, "utf-8");
     const parsed = JSON.parse(raw) as Record<string, BackupMeta>;
@@ -134,8 +156,11 @@ async function readBackupMetaMap(): Promise<Record<string, BackupMeta>> {
 }
 
 async function writeBackupMetaMap(meta: Record<string, BackupMeta>) {
-  await fs.mkdir(backupsDir, { recursive: true });
-  await fs.writeFile(backupMetaPath, JSON.stringify(meta, null, 2), "utf-8");
+  const raw = JSON.stringify(meta, null, 2);
+  if (SUPABASE_ENABLED) {
+    await writeJsonObject(SUPABASE_DATA_BUCKET, storageMetaKey, meta);
+  }
+  await bestEffortLocalWrite(backupMetaPath, raw);
 }
 
 async function upsertBackupMeta(fileName: string, meta: BackupMeta) {
@@ -205,28 +230,48 @@ function shouldUsePgReservations(): boolean {
   return isSupabaseReservationsDbReady();
 }
 
-async function createBackupSnapshot(type: "auto" | "manual" | "checkpoint" = "auto"): Promise<string> {
+async function listSnapshotFileNames(): Promise<string[]> {
+  if (SUPABASE_ENABLED) {
+    const objects = await listStorageObjects(SUPABASE_DATA_BUCKET, storageBackupPrefix);
+    return objects.map((o) => o.name).filter((name) => isSnapshotFile(name));
+  }
   await fs.mkdir(backupsDir, { recursive: true });
+  return (await fs.readdir(backupsDir)).filter((name) => isSnapshotFile(name));
+}
+
+async function createBackupSnapshot(type: "auto" | "manual" | "checkpoint" = "auto"): Promise<string> {
   const current = await readReservations();
   const raw = JSON.stringify(current, null, 2);
   const stamp = new Date().toISOString().replaceAll(":", "-").replace(".", "-");
   const backupFileName = `${snapshotPrefix}${type}-${stamp}${snapshotSuffix}`;
-  const backupPath = path.join(backupsDir, backupFileName);
-  await fs.writeFile(backupPath, raw, "utf-8");
+
+  if (SUPABASE_ENABLED) {
+    await writeJsonObject(SUPABASE_DATA_BUCKET, `${storageBackupPrefix}${backupFileName}`, current);
+  }
+  await bestEffortLocalWrite(path.join(backupsDir, backupFileName), raw);
   await upsertBackupMeta(backupFileName, { createdAt: new Date().toISOString() });
 
-  const allBackups = (await fs.readdir(backupsDir))
-    .filter((name) => isSnapshotFile(name))
-    .sort((a, b) => b.localeCompare(a));
+  const allBackups = (await listSnapshotFileNames()).sort((a, b) => b.localeCompare(a));
   const oldBackups = allBackups.slice(MAX_BACKUP_FILES);
-  await Promise.all(oldBackups.map((name) => fs.unlink(path.join(backupsDir, name))));
+  if (oldBackups.length > 0) {
+    if (SUPABASE_ENABLED) {
+      await deleteStorageObjects(
+        SUPABASE_DATA_BUCKET,
+        oldBackups.map((name) => `${storageBackupPrefix}${name}`),
+      );
+    }
+    await Promise.all(oldBackups.map((name) => fs.unlink(path.join(backupsDir, name)).catch(() => {})));
+  }
   await pruneBackupMeta(allBackups.slice(0, MAX_BACKUP_FILES));
   return backupFileName;
 }
 
 async function syncRollingBackup(next: Reservation[]) {
-  await fs.mkdir(backupsDir, { recursive: true });
-  await fs.writeFile(rollingBackupPath, JSON.stringify(next, null, 2), "utf-8");
+  const raw = JSON.stringify(next, null, 2);
+  if (SUPABASE_ENABLED) {
+    await writeJsonObject(SUPABASE_DATA_BUCKET, storageRollingKey, next);
+  }
+  await bestEffortLocalWrite(rollingBackupPath, raw);
 }
 
 async function writeReservations(next: Reservation[], options?: { snapshotOnWrite?: boolean }) {
@@ -341,72 +386,90 @@ export async function updateReservation(
   return current[index];
 }
 
+async function listSnapshotsWithInfo(): Promise<{ name: string; updatedAt: string; sizeBytes: number }[]> {
+  if (SUPABASE_ENABLED) {
+    const objects = await listStorageObjects(SUPABASE_DATA_BUCKET, storageBackupPrefix);
+    return objects
+      .filter((o) => isSnapshotFile(o.name))
+      .map((o) => ({ name: o.name, updatedAt: o.updatedAt, sizeBytes: o.sizeBytes }));
+  }
+  await fs.mkdir(backupsDir, { recursive: true });
+  const files = (await fs.readdir(backupsDir)).filter((name) => isSnapshotFile(name));
+  return Promise.all(
+    files.map(async (name) => {
+      const stats = await fs.stat(path.join(backupsDir, name));
+      return { name, updatedAt: stats.mtime.toISOString(), sizeBytes: stats.size };
+    }),
+  );
+}
+
 export async function readBackupStatus(): Promise<{
   snapshotCount: number;
   latestSnapshotAt: string | null;
   rollingBackupUpdatedAt: string | null;
 }> {
   await ensureFile();
-  await fs.mkdir(backupsDir, { recursive: true });
 
-  const files = (await fs.readdir(backupsDir))
-    .filter((name) => isSnapshotFile(name))
-    .sort((a, b) => b.localeCompare(a));
-
-  let latestSnapshotAt: string | null = null;
-  if (files[0]) {
-    const latestStats = await fs.stat(path.join(backupsDir, files[0]));
-    latestSnapshotAt = latestStats.mtime.toISOString();
-  }
+  const infos = (await listSnapshotsWithInfo()).sort((a, b) => b.name.localeCompare(a.name));
+  const latestSnapshotAt = infos[0]?.updatedAt ?? null;
 
   let rollingBackupUpdatedAt: string | null = null;
-  try {
-    const stats = await fs.stat(rollingBackupPath);
-    rollingBackupUpdatedAt = stats.mtime.toISOString();
-  } catch {
-    rollingBackupUpdatedAt = null;
+  if (SUPABASE_ENABLED) {
+    const objects = await listStorageObjects(SUPABASE_DATA_BUCKET, storageBackupPrefix);
+    rollingBackupUpdatedAt = objects.find((o) => o.name === "reservations-latest.json")?.updatedAt ?? null;
+  } else {
+    try {
+      const stats = await fs.stat(rollingBackupPath);
+      rollingBackupUpdatedAt = stats.mtime.toISOString();
+    } catch {
+      rollingBackupUpdatedAt = null;
+    }
   }
 
   return {
-    snapshotCount: files.length,
+    snapshotCount: infos.length,
     latestSnapshotAt,
     rollingBackupUpdatedAt
   };
 }
 
 export async function listBackupSnapshots(limit = 20): Promise<BackupSnapshot[]> {
-  await fs.mkdir(backupsDir, { recursive: true });
   const metaMap = await readBackupMetaMap();
-  const files = (await fs.readdir(backupsDir))
-    .filter((name) => isSnapshotFile(name))
-    .sort((a, b) => b.localeCompare(a))
+  const infos = (await listSnapshotsWithInfo())
+    .sort((a, b) => b.name.localeCompare(a.name))
     .slice(0, limit);
 
-  return Promise.all(
-    files.map(async (fileName) => {
-      const filePath = path.join(backupsDir, fileName);
-      const stats = await fs.stat(filePath);
-      return {
-        fileName,
-        kind: parseSnapshotKind(fileName),
-        label: metaMap[fileName]?.label ?? null,
-        updatedAt: stats.mtime.toISOString(),
-        sizeBytes: stats.size
-      };
-    })
-  );
+  return infos.map((info) => ({
+    fileName: info.name,
+    kind: parseSnapshotKind(info.name),
+    label: metaMap[info.name]?.label ?? null,
+    updatedAt: info.updatedAt,
+    sizeBytes: info.sizeBytes
+  }));
 }
 
-export async function createManualBackup() {
-  const fileName = await createBackupSnapshot("manual");
-  const stats = await fs.stat(path.join(backupsDir, fileName));
+/** fs.stat으로 로컬 미러 파일 크기를 재는 대신 생성 시각을 그대로 쓴다 — 프로덕션에서는
+ *  로컬 쓰기가 best-effort라 파일이 아예 없을 수 있고, 그러면 fs.stat이 죽는다. */
+async function backupResultFor(fileName: string): Promise<BackupSnapshot> {
   return {
     fileName,
     kind: parseSnapshotKind(fileName),
     label: null,
-    updatedAt: stats.mtime.toISOString(),
-    sizeBytes: stats.size
+    updatedAt: new Date().toISOString(),
+    sizeBytes: 0
   };
+}
+
+export async function createManualBackup(): Promise<BackupSnapshot> {
+  const fileName = await createBackupSnapshot("manual");
+  return backupResultFor(fileName);
+}
+
+/** 크론 전용 — 예약 write 시점 자동백업이 PG 모드에서는 애초에 안 불려서(운영 공백 점검
+ *  9번), 시간 기반으로 별도 트리거한다. */
+export async function createAutoBackup(): Promise<BackupSnapshot> {
+  const fileName = await createBackupSnapshot("auto");
+  return backupResultFor(fileName);
 }
 
 function summarizeDiff(before: Reservation[], after: Reservation[]): RestoreDiffSummary {
@@ -443,16 +506,34 @@ function summarizeDiff(before: Reservation[], after: Reservation[]): RestoreDiff
   };
 }
 
+async function readSnapshotRaw(fileName: string): Promise<string> {
+  if (SUPABASE_ENABLED) {
+    const cloud = await readJsonObject<unknown>(SUPABASE_DATA_BUCKET, `${storageBackupPrefix}${fileName}`);
+    if (cloud !== null) return JSON.stringify(cloud);
+  }
+  const backupPath = path.join(backupsDir, fileName);
+  return fs.readFile(backupPath, "utf-8");
+}
+
+/**
+ * PG 모드에서는 reservations 테이블 핵심 필드만 복원한다(task 배정/주문·결제 상태는 안 됨 —
+ * pgBulkRestoreReservationCore 주석 참고). PG 모드가 아니면 기존처럼 전체 스토어를 통째로
+ * 되돌린다.
+ */
 export async function restoreBackupSnapshot(
   fileName: string,
   checkpointLabel?: string
-): Promise<{ reservations: Reservation[]; diff: RestoreDiffSummary; checkpointFileName: string }> {
+): Promise<{
+  reservations: Reservation[];
+  diff: RestoreDiffSummary;
+  checkpointFileName: string;
+  pgRestoreNote: string | null;
+}> {
   if (!isSnapshotFile(fileName)) {
     throw new Error("유효하지 않은 백업 파일명입니다.");
   }
 
-  const backupPath = path.join(backupsDir, fileName);
-  const raw = await fs.readFile(backupPath, "utf-8");
+  const raw = await readSnapshotRaw(fileName);
   const parsed = JSON.parse(raw) as Array<
     Reservation | Omit<Reservation, "status" | "note" | "noteUpdatedAt" | "priority" | "preferredTime">
   >;
@@ -469,11 +550,24 @@ export async function restoreBackupSnapshot(
       createdAt: new Date().toISOString()
     });
   }
-  await writeReservations(next);
+
+  let pgRestoreNote: string | null = null;
+  if (shouldUsePgReservations()) {
+    const result = await pgBulkRestoreReservationCore(next);
+    pgRestoreNote =
+      `핵심 필드 ${result.updated}건 복원, 삭제된 예약이라 건너뜀 ${result.skippedNotFound}건` +
+      (result.errors.length > 0 ? `, 실패 ${result.errors.length}건` : "") +
+      " — 기사 배정·주문/결제 상태는 이 복원에 포함되지 않습니다(별도 테이블).";
+  } else {
+    await writeReservations(next);
+  }
+
+  const after = await readReservations();
   return {
-    reservations: next,
-    diff: summarizeDiff(before, next),
-    checkpointFileName
+    reservations: after,
+    diff: summarizeDiff(before, after),
+    checkpointFileName,
+    pgRestoreNote
   };
 }
 
@@ -481,8 +575,7 @@ export async function readBackupFile(fileName: string): Promise<string> {
   if (!isSnapshotFile(fileName)) {
     throw new Error("유효하지 않은 백업 파일명입니다.");
   }
-  const filePath = path.join(backupsDir, fileName);
-  return fs.readFile(filePath, "utf-8");
+  return readSnapshotRaw(fileName);
 }
 
 export async function previewBackupSnapshot(fileName: string): Promise<BackupPreview> {
@@ -490,8 +583,7 @@ export async function previewBackupSnapshot(fileName: string): Promise<BackupPre
     throw new Error("유효하지 않은 백업 파일명입니다.");
   }
 
-  const backupPath = path.join(backupsDir, fileName);
-  const raw = await fs.readFile(backupPath, "utf-8");
+  const raw = await readSnapshotRaw(fileName);
   const parsed = JSON.parse(raw) as Array<
     Reservation | Omit<Reservation, "status" | "note" | "noteUpdatedAt" | "priority" | "preferredTime">
   >;
