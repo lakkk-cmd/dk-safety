@@ -27,6 +27,17 @@ function statusLabel(status: Reservation["status"]) {
   return status === "waiting_payment" ? "입금대기" : status;
 }
 
+/** src/lib/refund.ts의 evaluateCancelPolicy와 동일한 로직 — 그쪽은 서버 전용 모듈(Supabase
+ *  admin client 등)을 임포트하므로 "use client" 컴포넌트에서 직접 가져올 수 없어 순수 날짜
+ *  비교 로직만 여기 그대로 복제한다. 정책이 바뀌면 두 곳을 함께 수정해야 한다. */
+function previewCancelPolicy(preferredDate: string): { fullRefundEligible: boolean; reason: string } {
+  const todayKst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  if (preferredDate > todayKst) {
+    return { fullRefundEligible: true, reason: "방문 1일 전 취소 — 전액환불 대상" };
+  }
+  return { fullRefundEligible: false, reason: "방문 당일 취소 또는 노쇼 — 환불 불가(정책상)" };
+}
+
 export default function AdminReservationsTable({
   initialReservations,
   enableDbSync = false,
@@ -50,6 +61,9 @@ export default function AdminReservationsTable({
     Object.fromEntries(initialReservations.map((item) => [item.id, item.note]))
   );
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [openCancelId, setOpenCancelId] = useState<string | null>(null);
+  const [cancelReasonInput, setCancelReasonInput] = useState("");
+  const [forceRefundInput, setForceRefundInput] = useState(false);
 
   const pageSize = 1;
 
@@ -372,6 +386,48 @@ export default function AdminReservationsTable({
     }
   };
 
+  const cancelReservation = async (id: string) => {
+    const reason = cancelReasonInput.trim();
+    if (!reason) {
+      setToast({ type: "error", message: "취소 사유를 입력해주세요." });
+      return;
+    }
+    setLoadingId(id);
+    try {
+      const response = await fetch(`/api/admin/reservations/${id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason, forceRefund: forceRefundInput })
+      });
+      const data = (await response.json()) as {
+        message?: string;
+        refunded?: boolean;
+        refundAmount?: number;
+        manualBankRefundNeeded?: boolean;
+        manualRefundAmount?: number;
+      };
+      if (!response.ok) {
+        throw new Error(data.message || "취소 처리에 실패했습니다.");
+      }
+      setReservations((prev) => prev.map((item) => (item.id === id ? { ...item, status: "취소" } : item)));
+      setToast({
+        type: "success",
+        message: data.refunded
+          ? `취소 완료 — ${(data.refundAmount ?? 0).toLocaleString("ko-KR")}원 환불 처리됨`
+          : data.manualBankRefundNeeded
+            ? `취소 완료 — 자동환불 불가, 약 ${(data.manualRefundAmount ?? 0).toLocaleString("ko-KR")}원 직접 환불 필요`
+            : "취소 완료 (환불 없음)"
+      });
+      setOpenCancelId(null);
+      setCancelReasonInput("");
+      setForceRefundInput(false);
+    } catch (error) {
+      setToast({ type: "error", message: error instanceof Error ? error.message : "취소 처리에 실패했습니다." });
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
   const applyQuickFilter = (type: "전체" | "오늘 접수" | "접수" | "진행중" | "완료" | "긴급출동") => {
     setSortBy("createdAtDesc");
     setNameFilter("전체");
@@ -642,18 +698,22 @@ export default function AdminReservationsTable({
                     {item.priority === "emergency" ? "긴급출동" : "일반"}
                   </span>
                   <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">{item.serviceType}</span>
-                  <select
-                    value={item.status}
-                    disabled={loadingId === item.id}
-                    onChange={(e) => updateStatus(item.id, e.target.value as Reservation["status"])}
-                    className="rounded-md border border-slate-200 px-2 py-1 text-xs"
-                  >
-                    {statuses.map((status) => (
-                      <option key={status} value={status}>
-                        {statusLabel(status)}
-                      </option>
-                    ))}
-                  </select>
+                  {item.status === "취소" ? (
+                    <span className="rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">취소됨</span>
+                  ) : (
+                    <select
+                      value={item.status}
+                      disabled={loadingId === item.id}
+                      onChange={(e) => updateStatus(item.id, e.target.value as Reservation["status"])}
+                      className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                    >
+                      {statuses.map((status) => (
+                        <option key={status} value={status}>
+                          {statusLabel(status)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 
@@ -798,6 +858,76 @@ export default function AdminReservationsTable({
                   </button>
                 </div>
               </div>
+
+              {item.status !== "취소" && item.status !== "완료" ? (
+                <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50/60 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-rose-900">취소/환불</p>
+                    {openCancelId !== item.id ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenCancelId(item.id);
+                          setCancelReasonInput("");
+                          setForceRefundInput(false);
+                        }}
+                        className="rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+                      >
+                        취소 처리하기
+                      </button>
+                    ) : null}
+                  </div>
+                  {openCancelId === item.id ? (
+                    (() => {
+                      const policy = previewCancelPolicy(item.preferredDate);
+                      const refundEligible = policy.fullRefundEligible || forceRefundInput;
+                      return (
+                        <div className="mt-2 space-y-2">
+                          <p className={`text-xs font-semibold ${policy.fullRefundEligible ? "text-emerald-700" : "text-amber-700"}`}>
+                            정책 판정: {policy.reason}
+                          </p>
+                          <p className="text-xs text-slate-600">
+                            예상 환불액: {refundEligible ? `${item.baseFee.toLocaleString("ko-KR")}원` : "0원 (환불 없음)"}
+                          </p>
+                          <textarea
+                            value={cancelReasonInput}
+                            onChange={(e) => setCancelReasonInput(e.target.value)}
+                            placeholder="취소 사유를 입력하세요 (필수)"
+                            className="min-h-16 w-full rounded-md border border-rose-200 px-2 py-1 text-sm"
+                          />
+                          {!policy.fullRefundEligible ? (
+                            <label className="flex items-center gap-2 text-xs text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={forceRefundInput}
+                                onChange={(e) => setForceRefundInput(e.target.checked)}
+                              />
+                              정책상 환불 불가 대상이지만 강제로 전액 환불 처리
+                            </label>
+                          ) : null}
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={loadingId === item.id}
+                              onClick={() => void cancelReservation(item.id)}
+                              className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                            >
+                              취소·환불 확정
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setOpenCancelId(null)}
+                              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                            >
+                              닫기
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="mt-3 rounded-xl border border-slate-200 p-3">
                 <p className="text-xs font-semibold text-slate-800">관리 메모</p>

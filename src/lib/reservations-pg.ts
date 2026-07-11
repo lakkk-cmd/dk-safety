@@ -302,7 +302,7 @@ export async function pgReadReservations(): Promise<Reservation[]> {
   return (data as ReservationRow[] | null)?.map(mapReservation) ?? [];
 }
 
-async function pgFindReservationById(id: string): Promise<Reservation | null> {
+export async function pgFindReservationById(id: string): Promise<Reservation | null> {
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase
     .from("reservations")

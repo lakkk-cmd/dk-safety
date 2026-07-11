@@ -1,6 +1,6 @@
 const TOSS_API_BASE = "https://api.tosspayments.com/v1";
 
-function authHeader(): string {
+export function authHeader(): string {
   const key = process.env.TOSS_SECRET_KEY?.trim();
   if (!key) throw new Error("TOSS_SECRET_KEY가 설정되지 않았습니다.");
   return `Basic ${Buffer.from(`${key}:`).toString("base64")}`;

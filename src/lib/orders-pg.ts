@@ -153,7 +153,7 @@ export async function pgFindOrderByReservationId(reservationId: string) {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, reservation_id, apt_id, apartment_id, payment_status, dispatch_status, payment_key, imp_uid, base_fee, total_final_fee, final_payment_status, extra_fee_details, warranty_issued_at, virtual_account_bank, virtual_account_number, virtual_account_holder, virtual_account_due_at, virtual_account_amount"
+      "id, reservation_id, apt_id, apartment_id, payment_status, dispatch_status, payment_key, imp_uid, pg_provider, base_fee, total_final_fee, final_payment_status, extra_fee_details, warranty_issued_at, virtual_account_bank, virtual_account_number, virtual_account_holder, virtual_account_due_at, virtual_account_amount"
     )
     .eq("reservation_id", reservationId.trim())
     .order("created_at", { ascending: false })

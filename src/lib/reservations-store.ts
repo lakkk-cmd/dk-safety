@@ -31,7 +31,7 @@ export type Reservation = {
   detail: string;
   imageUrls: string[];
   priority: "normal" | "emergency";
-  status: "waiting_payment" | "접수" | "진행중" | "완료";
+  status: "waiting_payment" | "접수" | "진행중" | "완료" | "취소";
   note: string;
   noteUpdatedAt: string | null;
   baseFee: number;
