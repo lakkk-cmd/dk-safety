@@ -3,7 +3,7 @@ title: "기능 현황 — page"
 category: features
 tags: ["project-features", "page"]
 source: "project_features"
-synced_at: "2026-07-10T22:55:59.701Z"
+synced_at: "2026-07-11T20:36:18.959Z"
 ---
 
 <!-- AUTO:START -->
@@ -53,9 +53,9 @@ synced_at: "2026-07-10T22:55:59.701Z"
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **intelligence** (`/hq/intelligence`): 자동 감지된 페이지 (/hq/intelligence) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **login** (`/admin/login`): 자동 감지된 페이지 (/admin/login) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
 - **login** (`/hq/login`): 자동 감지된 페이지 (/hq/login) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **login** (`/admin/login`): 자동 감지된 페이지 (/admin/login) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **payment-settings** (`/admin/payment-settings`): 자동 감지된 페이지 (/admin/payment-settings) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
