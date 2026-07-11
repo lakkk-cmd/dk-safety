@@ -6,10 +6,9 @@
  * 동일 카테고리의 90일 이상 된 외부 항목은 자동 삭제.
  */
 
-import { requireAgentSupabase } from "@/lib/agent-db";
 import { BUSINESS_CONTEXT, callClaudeCustom } from "@/lib/agents";
-import { embedText } from "@/lib/embeddings";
 import { collectGoogleNews, type GoogleNewsItem } from "@/lib/market-intelligence";
+import { deleteExpiredExternalKnowledge, saveKnowledgeRows } from "@/lib/knowledge-store";
 
 export type ExternalCategory =
   | "law"
@@ -99,7 +98,6 @@ export type ExternalCollectResult = {
 export async function collectExternalCategory(
   category: ExternalCategory,
 ): Promise<ExternalCollectResult> {
-  const supabase = requireAgentSupabase();
   const meta = CATEGORY_META[category];
 
   // ── 1. Google News RSS 수집 ─────────────────────────────────────────────────
@@ -158,13 +156,15 @@ ${articleList}
     };
   }
 
-  // ── 3. 임베딩 ────────────────────────────────────────────────────────────────
+  // ── 3. 저장(듀얼 임베딩) ─────────────────────────────────────────────────────
   const title = `[${meta.label}] ${new Date().toISOString().slice(0, 10)} 최신 동향`;
-  const fullText = `${title}\n${summary}`;
+  const expiresAt = new Date(Date.now() + DAYS_90).toISOString();
 
-  let embedding: number[];
+  let saveResult: Awaited<ReturnType<typeof saveKnowledgeRows>>;
   try {
-    embedding = await embedText(fullText);
+    saveResult = await saveKnowledgeRows([
+      { source: "google_news_rss", title, content: summary, category, isExternal: true, expiresAt },
+    ]);
   } catch (e) {
     return {
       category,
@@ -174,35 +174,17 @@ ${articleList}
     };
   }
 
-  // ── 4. INSERT ────────────────────────────────────────────────────────────────
-  const expiresAt = new Date(Date.now() + DAYS_90).toISOString();
-  const { error: insErr } = await supabase.from("knowledge_base").insert({
-    source: "google_news_rss",
-    title,
-    content: summary,
-    embedding,
-    category,
-    is_external: true,
-    expires_at: expiresAt,
-  });
-
-  if (insErr) {
+  if (saveResult.saved === 0) {
     return {
       category,
       inserted: 0,
       deleted: 0,
-      error: `DB 삽입 실패: ${insErr.message}`,
+      error: `DB 삽입 실패: ${saveResult.openRouterError ?? saveResult.voyageError ?? "알 수 없는 오류"}`,
     };
   }
 
-  // ── 5. 90일 초과 외부 항목 삭제 ──────────────────────────────────────────────
-  const cutoff = new Date(Date.now() - DAYS_90).toISOString();
-  const { count: deleted } = await supabase
-    .from("knowledge_base")
-    .delete({ count: "exact" })
-    .eq("category", category)
-    .eq("is_external", true)
-    .lt("created_at", cutoff);
+  // ── 4. 90일 초과 외부 항목 삭제 ──────────────────────────────────────────────
+  const deleted = await deleteExpiredExternalKnowledge(category);
 
   return { category, inserted: 1, deleted: deleted ?? 0 };
 }

@@ -4,9 +4,9 @@ import { chatWithAgentPlus, CHAT_AGENTS } from "@/lib/agent-chat";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { createBlogPost } from "@/lib/blog-store";
 import type { ContentCategory } from "@/lib/content-agents";
-import { embedText } from "@/lib/embeddings";
 import { createGithubIssue, readGithubFile } from "@/lib/github-issues";
 import { createChatImprovementRequest } from "@/lib/improvement-requests";
+import { saveKnowledgeRows } from "@/lib/knowledge-store";
 import { ALLOWED_QUERY_TABLES, runSafeQuery, type QueryFilter } from "@/lib/safe-query";
 import { DOC_TEMPLATES, generateDocument } from "@/lib/document-generator";
 
@@ -115,17 +115,12 @@ export async function toolKnowledgeBaseWrite(args: {
   if (!title || !content) return "오류: title과 content가 모두 필요합니다.";
   const category = args.category?.trim() || "chat_external";
   try {
-    const embedding = await embedText(`${title}\n${content}`);
-    const supabase = requireAgentSupabase();
-    const { error } = await supabase.from("knowledge_base").insert({
-      source: "full_agent_chat",
-      title,
-      content,
-      embedding,
-      category,
-      is_external: true,
-    });
-    if (error) return `지식베이스 저장 실패: ${error.message}`;
+    const result = await saveKnowledgeRows([
+      { source: "full_agent_chat", title, content, category, isExternal: true },
+    ]);
+    if (result.saved === 0) {
+      return `지식베이스 저장 실패: ${result.openRouterError ?? result.voyageError ?? "알 수 없는 오류"}`;
+    }
     return `지식베이스에 저장됨 (category: ${category})`;
   } catch (err) {
     return `지식베이스 저장 실패: ${err instanceof Error ? err.message : String(err)}`;

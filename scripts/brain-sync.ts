@@ -1,52 +1,48 @@
 #!/usr/bin/env node
 /**
- * brain/wiki/**\/*.md (정적 지식: systems/profile/playbooks/lessons)를 knowledge_base
- * (OpenRouter 임베딩, 9-에이전트 채팅·현장 AI 소견이 읽음)와 knowledge_chunks(Voyage AI
- * 임베딩, 풀 에이전트가 읽음) 양쪽에 동기화한다.
+ * brain/wiki/**\/*.md (정적 지식: systems/profile/playbooks/lessons)를 knowledge 테이블
+ * (듀얼 임베딩: OpenRouter — 9-에이전트 채팅·현장 AI 소견이 읽음, Voyage — 풀 에이전트가
+ * 읽음)에 동기화한다.
  *
  * brain/ops/(운영 데이터 미러)는 대상에서 제외한다 — 매일 갈아치우는 고회전 데이터를 RAG에
  * 계속 밀어넣으면 오래된 정보가 쌓여 답변 품질을 오염시키기 때문 (brain/ops/README.md 참고).
  *
  * 변경분만 처리: brain/.brain-sync-manifest.json에 파일별 해시를 기록해 비교한다.
- * 삭제/이동된 문서는 두 지식베이스 모두에서 관련 행을 제거하고 manifest에서도 뺀다.
+ * 삭제/이동된 문서는 knowledge 테이블에서 관련 행을 제거하고 manifest에서도 뺀다.
  *
- * [[링크]]는 두 테이블 모두 관련 문서를 담을 메타데이터 컬럼이 없어(스키마 변경 없이 가려고
- * 의도적으로 피함), 임베딩되는 본문 끝에 "관련 문서: ..." 텍스트로 붙여 RAG 검색 시 연관
- * 문서 힌트로 쓰이게 한다.
+ * [[링크]]는 knowledge 테이블에 관련 문서를 담을 메타데이터 컬럼이 없어(스키마 변경 없이
+ * 가려고 의도적으로 피함), 임베딩되는 본문 끝에 "관련 문서: ..." 텍스트로 붙여 RAG 검색 시
+ * 연관 문서 힌트로 쓰이게 한다.
  *
- * OPENROUTER_API_KEY 또는 VOYAGE_API_KEY 둘 중 하나가 없으면 해당 지식베이스만 건너뛰고
- * 나머지는 계속 진행한다(로컬 dev 환경에 키 하나만 있는 경우가 흔함).
+ * OPENROUTER_API_KEY 또는 VOYAGE_API_KEY 둘 중 하나가 없으면 해당 임베딩만 비워두고
+ * 나머지는 계속 진행한다(로컬 dev 환경에 키 하나만 있는 경우가 흔함) — saveKnowledgeRows가
+ * 공급자별 실패를 개별 처리하므로 여기서는 그대로 호출만 하면 된다.
  *
  * 사용: npm run brain:sync
  */
-import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 import fs from "fs/promises";
 import path from "path";
-import { embedText } from "@/lib/embeddings";
-import { chunkText, embedChunks, saveChunks } from "@/lib/knowledge-embed";
+import { chunkTextWithOverlap } from "@/lib/knowledge-pdf-pipeline";
+import { deleteKnowledgeBySource, saveKnowledgeRows } from "@/lib/knowledge-store";
 
 const ROOT = process.cwd();
 const WIKI_DIR = path.join(ROOT, "brain", "wiki");
 const MANIFEST_PATH = path.join(ROOT, "brain", ".brain-sync-manifest.json");
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!supabaseUrl || !serviceKey) {
+// knowledge-store.ts가 내부적으로 requireAgentSupabase()를 쓰므로 여기서 별도 client는
+// 필요 없다 — 자격증명 누락은 조기에 명확한 메시지로 알리기 위해 여기서 한 번 더 확인한다.
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.error("NEXT_PUBLIC_SUPABASE_URL 과 SUPABASE_SERVICE_ROLE_KEY 가 필요합니다 (.env.local 확인).");
   process.exit(1);
 }
-const supabase = createClient(supabaseUrl, serviceKey);
 
 const hasOpenRouter = Boolean(process.env.OPENROUTER_API_KEY?.trim());
 const hasVoyage = Boolean(process.env.VOYAGE_API_KEY?.trim());
-if (!hasOpenRouter) console.warn("OPENROUTER_API_KEY 미설정 — knowledge_base 동기화는 건너뜁니다.");
-if (!hasVoyage) console.warn("VOYAGE_API_KEY 미설정 — knowledge_chunks 동기화는 건너뜁니다.");
+if (!hasOpenRouter) console.warn("OPENROUTER_API_KEY 미설정 — embedding_openrouter는 비워둔 채 진행합니다.");
+if (!hasVoyage) console.warn("VOYAGE_API_KEY 미설정 — embedding_voyage는 비워둔 채 진행합니다.");
 
-type Manifest = Record<
-  string,
-  { hash: string; syncedAt: string; syncedTargets: { knowledgeBase: boolean; knowledgeChunks: boolean } }
->;
+type Manifest = Record<string, { hash: string; syncedAt: string; hasOpenRouter: boolean; hasVoyage: boolean }>;
 
 async function loadManifest(): Promise<Manifest> {
   try {
@@ -95,31 +91,45 @@ function parsePage(raw: string, relPath: string) {
   return { title, category, content: `${body}${linkLine}` };
 }
 
-async function syncToKnowledgeBase(sourceKey: string, title: string, category: string, content: string) {
-  const { error: delErr } = await supabase.from("knowledge_base").delete().eq("source", sourceKey);
-  if (delErr) throw new Error(`knowledge_base 삭제 실패(${sourceKey}): ${delErr.message}`);
+const SYNC_BATCH_SIZE = 20;
 
-  const embedding = await embedText(`${title}\n${content}`);
-  const { error: insErr } = await supabase
-    .from("knowledge_base")
-    .insert({ source: sourceKey, title, content, category, embedding });
-  if (insErr) throw new Error(`knowledge_base 삽입 실패(${sourceKey}): ${insErr.message}`);
-}
+/** wiki 문서 1건을 chunkTextWithOverlap으로 나눠 knowledge 테이블에 듀얼 임베딩으로 저장한다.
+ *  PDF와 동일한 청크 전략을 써서, 예전처럼 knowledge_base엔 전체글 1행 / knowledge_chunks엔
+ *  고정크기 청크로 이중 분할하던 불일치를 없앤다. */
+async function syncToKnowledge(
+  sourceKey: string,
+  title: string,
+  category: string,
+  content: string,
+): Promise<{ openRouterOk: boolean; voyageOk: boolean }> {
+  await deleteKnowledgeBySource(sourceKey);
+  const chunks = chunkTextWithOverlap(content);
+  if (chunks.length === 0) return { openRouterOk: false, voyageOk: false };
 
-async function syncToKnowledgeChunks(sourceKey: string, content: string) {
-  const chunks = chunkText(content);
-  if (chunks.length === 0) return;
-  const embeddings = await embedChunks(chunks);
-  await saveChunks(sourceKey, chunks, embeddings);
-}
-
-async function deleteFromBoth(sourceKey: string) {
-  if (hasOpenRouter) await supabase.from("knowledge_base").delete().eq("source", sourceKey);
-  await supabase.from("knowledge_chunks").delete().eq("source_file", sourceKey);
+  let openRouterOk = hasOpenRouter;
+  let voyageOk = hasVoyage;
+  for (let cursor = 0; cursor < chunks.length; cursor += SYNC_BATCH_SIZE) {
+    const batch = chunks.slice(cursor, cursor + SYNC_BATCH_SIZE);
+    const result = await saveKnowledgeRows(
+      batch.map((chunkContent, i) => ({
+        source: sourceKey,
+        title: chunks.length > 1 ? `${title} (${cursor + i + 1}/${chunks.length})` : title,
+        content: chunkContent,
+        category,
+        chunkIndex: cursor + i,
+      })),
+    );
+    if (result.saved === 0) {
+      throw new Error(`knowledge 삽입 실패(${sourceKey}): ${result.openRouterError ?? result.voyageError ?? "알 수 없는 오류"}`);
+    }
+    if (result.openRouterError) openRouterOk = false;
+    if (result.voyageError) voyageOk = false;
+  }
+  return { openRouterOk, voyageOk };
 }
 
 async function main() {
-  console.log("brain/wiki/ → knowledge_base + knowledge_chunks 동기화 시작...");
+  console.log("brain/wiki/ → knowledge 테이블 동기화 시작...");
   const manifest = await loadManifest();
   const files = await listWikiFiles();
   const currentKeys = new Set<string>();
@@ -136,12 +146,11 @@ async function main() {
 
     const prior = manifest[relPath];
     const unchanged = prior?.hash === hash;
-    // 내용이 같아도, 그때는 없던 키가 지금 생겨서 아직 그 타겟에 한 번도 동기화 안 된 경우엔
+    // 내용이 같아도, 그때는 없던 키가 지금 생겨서 아직 그 임베딩을 한 번도 못 받은 경우엔
     // 건너뛰지 않는다 — 그래야 나중에 키를 추가했을 때 기존 문서들이 누락되지 않는다.
-    const needsKnowledgeBase = hasOpenRouter && !(unchanged && prior?.syncedTargets?.knowledgeBase);
-    const needsKnowledgeChunks = hasVoyage && !(unchanged && prior?.syncedTargets?.knowledgeChunks);
+    const needsSync = !unchanged || (hasOpenRouter && !prior?.hasOpenRouter) || (hasVoyage && !prior?.hasVoyage);
 
-    if (unchanged && !needsKnowledgeBase && !needsKnowledgeChunks) {
+    if (!needsSync) {
       skipped++;
       continue;
     }
@@ -149,16 +158,8 @@ async function main() {
     const { title, category, content } = parsePage(raw, relPath);
     process.stdout.write(`동기화 중: ${relPath} ... `);
     try {
-      if (needsKnowledgeBase) await syncToKnowledgeBase(relPath, title, category, content);
-      if (needsKnowledgeChunks) await syncToKnowledgeChunks(relPath, content);
-      manifest[relPath] = {
-        hash,
-        syncedAt: new Date().toISOString(),
-        syncedTargets: {
-          knowledgeBase: hasOpenRouter ? true : Boolean(prior?.syncedTargets?.knowledgeBase),
-          knowledgeChunks: hasVoyage ? true : Boolean(prior?.syncedTargets?.knowledgeChunks),
-        },
-      };
+      const { openRouterOk, voyageOk } = await syncToKnowledge(relPath, title, category, content);
+      manifest[relPath] = { hash, syncedAt: new Date().toISOString(), hasOpenRouter: openRouterOk, hasVoyage: voyageOk };
       synced++;
       console.log("완료");
     } catch (e) {
@@ -173,7 +174,7 @@ async function main() {
   let removed = 0;
   for (const oldKey of Object.keys(manifest)) {
     if (!currentKeys.has(oldKey)) {
-      await deleteFromBoth(oldKey);
+      await deleteKnowledgeBySource(oldKey);
       delete manifest[oldKey];
       removed++;
       console.log(`제거됨(파일 없음): ${oldKey}`);

@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
     const supabase = requireAgentSupabase();
     const { count } = await supabase
-      .from("knowledge_base")
+      .from("knowledge")
       .select("id", { count: "exact", head: true })
       .eq("pdf_id", id);
     const resumeFrom = count ?? 0;

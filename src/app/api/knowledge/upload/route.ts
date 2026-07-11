@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAdminAuthenticated } from '@/lib/admin-auth';
-import { embedChunks, chunkText as chunkTextFixedSize, saveChunks } from '@/lib/knowledge-embed';
 import { classifyPdfCategory, chunkTextWithOverlap, embedAndSaveChunks } from '@/lib/knowledge-pdf-pipeline';
 import { downloadKnowledgePdf, moveKnowledgePdf } from '@/lib/knowledge-pdf-storage';
 import { pgCreateKnowledgePdf, pgUpdateKnowledgePdf } from '@/lib/knowledge-pdfs';
@@ -13,9 +12,10 @@ export const maxDuration = 300;
 // 임베딩 단계에 줄 시간 예산 — maxDuration(300s) 안에서 응답을 깨끗하게 마칠 여유를 둔다.
 const EMBED_DEADLINE_MS = 250_000;
 
-/** PDF 업로드 한 번으로 두 지식베이스를 동시에 채운다:
- *  1) Claude Haiku 자동분류(8개 카테고리) + OpenRouter 1536차원 임베딩 → knowledge_pdfs/knowledge_base
- *  2) Voyage AI voyage-3 1024차원 임베딩 → knowledge_chunks
+/** PDF 업로드 한 번으로 knowledge 테이블에 듀얼 임베딩(OpenRouter+Voyage)을 채운다:
+ *  Claude Haiku 자동분류(8개 카테고리) → chunkTextWithOverlap으로 청크 분할 →
+ *  embedAndSaveChunks(knowledge-pdf-pipeline.ts)가 saveKnowledgeRows를 통해 두 임베딩을
+ *  한 번에 계산·저장한다(한쪽 공급자가 실패해도 성공한 쪽은 저장됨).
  *  실제 PDF 바이트는 /api/admin/knowledge/sign-upload로 받은 서명 URL을 통해 클라이언트가
  *  Supabase Storage에 직접 PUT을 마친 뒤이므로, 여기서는 path만 받아 Vercel 함수 본문 크기
  *  제한(4.5MB)과 무관하게 동작한다. */
@@ -67,42 +67,37 @@ export async function POST(req: NextRequest) {
       status: 'processing'
     });
 
-    // 2) 두 임베딩 파이프라인을 각각 시도 — 한쪽이 실패해도 다른 쪽 학습 결과는 보존한다.
+    // 2) 청크 분할 한 번 + 듀얼 임베딩 저장 한 번 — 한쪽 공급자가 실패해도 다른 쪽 결과는 보존한다.
     let kbSaved = 0;
+    let voyageChunkCount = 0;
     let kbError: string | null = null;
+    let voyageError: string | null = null;
     try {
-      const kbChunks = chunkTextWithOverlap(text);
-      if (kbChunks.length > 0) {
-        const kbResult = await embedAndSaveChunks({
+      const chunks = chunkTextWithOverlap(text);
+      if (chunks.length > 0) {
+        const result = await embedAndSaveChunks({
           pdfId: record.id,
           fileName,
           category: classification.category,
-          chunks: kbChunks,
+          chunks,
           resumeFrom: 0,
           deadline: Date.now() + EMBED_DEADLINE_MS
         });
-        kbSaved = kbResult.saved;
-        if (kbSaved === 0 && kbResult.lastError) kbError = kbResult.lastError;
+        kbSaved = result.openRouterSaved;
+        voyageChunkCount = result.voyageSaved;
+        if (result.saved === 0 && result.lastError) {
+          kbError = result.lastError;
+          voyageError = result.lastError;
+        }
       }
     } catch (err) {
-      kbError = err instanceof Error ? err.message : 'knowledge_base 저장 실패';
-    }
-
-    let voyageChunkCount = 0;
-    let voyageError: string | null = null;
-    try {
-      const voyageChunks = chunkTextFixedSize(text, 500, 50);
-      if (voyageChunks.length > 0) {
-        const embeddings = await embedChunks(voyageChunks);
-        await saveChunks(fileName, voyageChunks, embeddings);
-        voyageChunkCount = voyageChunks.length;
-      }
-    } catch (err) {
-      voyageError = err instanceof Error ? err.message : 'knowledge_chunks 저장 실패';
+      const message = err instanceof Error ? err.message : '지식베이스 저장 실패';
+      kbError = message;
+      voyageError = message;
     }
 
     if (kbSaved === 0 && voyageChunkCount === 0) {
-      throw new Error(`두 임베딩 파이프라인 모두 실패 — knowledge_base: ${kbError}, knowledge_chunks: ${voyageError}`);
+      throw new Error(`임베딩 저장 실패 — OpenRouter: ${kbError}, Voyage: ${voyageError}`);
     }
 
     const updated = await pgUpdateKnowledgePdf(record.id, {

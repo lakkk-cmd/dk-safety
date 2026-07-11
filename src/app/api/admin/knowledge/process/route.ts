@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     // 직전 호출이 시간 예산을 넘겨 중단됐다면 이미 저장된 청크 수만큼 이어서 처리한다.
     const supabase = requireAgentSupabase();
     const { count } = await supabase
-      .from("knowledge_base")
+      .from("knowledge")
       .select("id", { count: "exact", head: true })
       .eq("pdf_id", id);
     const resumeFrom = count ?? 0;

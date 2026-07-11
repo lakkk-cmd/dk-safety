@@ -27,8 +27,9 @@ export async function GET() {
   try {
     const supabase = requireAgentSupabase();
     const { data, error } = await supabase
-      .from('knowledge_chunks')
-      .select('source_file, created_at')
+      .from('knowledge')
+      .select('source, created_at')
+      .not('embedding_voyage', 'is', null)
       .limit(50000);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -38,7 +39,7 @@ export async function GET() {
 
     const bySource = new Map<string, { count: number; lastLearned: string }>();
     for (const row of rows) {
-      const sf = row.source_file as string;
+      const sf = row.source as string;
       const ca = row.created_at as string;
       if (sf.startsWith('web:tavily:')) tavily++;
       else if (sf.startsWith('web:firecrawl:')) firecrawl++;

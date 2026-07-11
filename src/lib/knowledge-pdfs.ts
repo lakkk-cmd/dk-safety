@@ -1,6 +1,7 @@
 /** /admin/knowledge — knowledge_pdfs 테이블 CRUD (업로드 단위 처리 상태) */
 
 import { requireAgentSupabase } from "@/lib/agent-db";
+import { deleteKnowledgeByPdfId } from "@/lib/knowledge-store";
 
 export type KnowledgePdfStatus = "uploading" | "classifying" | "processing" | "completed" | "failed";
 
@@ -125,7 +126,7 @@ export async function pgUpdateKnowledgePdf(
   return mapRow(data as Row);
 }
 
-/** knowledge_base 청크는 ON DELETE CASCADE(pdf_id)로 자동 삭제됨 */
+/** knowledge 청크는 ON DELETE CASCADE(pdf_id)로 자동 삭제됨 */
 export async function pgDeleteKnowledgePdfRecord(id: string): Promise<void> {
   const supabase = requireAgentSupabase();
   const { error } = await supabase.from("knowledge_pdfs").delete().eq("id", id);
@@ -133,7 +134,5 @@ export async function pgDeleteKnowledgePdfRecord(id: string): Promise<void> {
 }
 
 export async function pgDeleteKnowledgeChunksForPdf(pdfId: string): Promise<void> {
-  const supabase = requireAgentSupabase();
-  const { error } = await supabase.from("knowledge_base").delete().eq("pdf_id", pdfId);
-  if (error) throw new Error(`기존 청크 삭제 실패: ${error.message}`);
+  await deleteKnowledgeByPdfId(pdfId);
 }

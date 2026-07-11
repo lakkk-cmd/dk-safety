@@ -1,9 +1,8 @@
 /** /admin/knowledge — PDF 카테고리 자동분류(Haiku) + 청크 분할(중복 오버랩) + 단계 실행 함수 */
 
 import { callClaudeWithTools, extractJsonBlock, type ClaudeContentBlock } from "@/lib/agents";
-import { requireAgentSupabase } from "@/lib/agent-db";
-import { embedTexts } from "@/lib/embeddings";
 import { KNOWLEDGE_CATEGORIES, type KnowledgeCategoryKey } from "@/lib/knowledge-categories";
+import { saveKnowledgeRows } from "@/lib/knowledge-store";
 import { downloadKnowledgePdf, moveKnowledgePdf } from "@/lib/knowledge-pdf-storage";
 import { pgGetKnowledgePdf, pgUpdateKnowledgePdf, type KnowledgePdf } from "@/lib/knowledge-pdfs";
 import { loadPDFParse } from "@/lib/pdf-parse-loader";
@@ -143,13 +142,15 @@ const EMBED_BATCH_SIZE = 20;
 
 export type EmbedAndSaveResult = {
   saved: number;
+  openRouterSaved: number;
+  voyageSaved: number;
   processedChunks: number;
   totalChunks: number;
   done: boolean;
   lastError: string | null;
 };
 
-/** 청크를 배치(기본 20개)로 묶어 한 번의 API 호출로 임베딩하고 한 번의 INSERT로 저장한다 —
+/** 청크를 배치(기본 20개)로 묶어 saveKnowledgeRows(OpenRouter+Voyage 듀얼 임베딩)로 저장한다 —
  *  청크 하나마다 네트워크 왕복하던 것이 대형 PDF에서 시간 초과(FUNCTION_INVOCATION_TIMEOUT)의
  *  가장 큰 원인이었다. deadline을 넘기면 중간에 멈추고 done=false를 반환하므로 호출부가
  *  resumeFrom(이미 저장된 청크 수)으로 이어서 다시 호출할 수 있다. */
@@ -162,28 +163,31 @@ export async function embedAndSaveChunks(params: {
   deadline: number;
 }): Promise<EmbedAndSaveResult> {
   const { pdfId, fileName, category, chunks, resumeFrom, deadline } = params;
-  const supabase = requireAgentSupabase();
 
   let saved = resumeFrom;
+  let openRouterSaved = 0;
+  let voyageSaved = 0;
   let cursor = resumeFrom;
   let lastError: string | null = null;
   while (cursor < chunks.length) {
     if (Date.now() >= deadline) break;
     const batch = chunks.slice(cursor, cursor + EMBED_BATCH_SIZE);
     try {
-      const embeddings = await embedTexts(batch);
-      const rows = batch.map((content, i) => ({
-        source: fileName,
-        title: `${fileName} (${cursor + i + 1}/${chunks.length})`,
-        content,
-        embedding: embeddings[i],
-        category,
-        is_external: false,
-        pdf_id: pdfId
-      }));
-      const { error } = await supabase.from("knowledge_base").insert(rows);
-      if (error) lastError = error.message;
-      else saved += rows.length;
+      const result = await saveKnowledgeRows(
+        batch.map((content, i) => ({
+          source: fileName,
+          title: `${fileName} (${cursor + i + 1}/${chunks.length})`,
+          content,
+          category,
+          chunkIndex: cursor + i,
+          isExternal: false,
+          pdfId,
+        })),
+      );
+      saved += result.saved;
+      openRouterSaved += result.openRouterSaved;
+      voyageSaved += result.voyageSaved;
+      if (result.saved === 0) lastError = result.openRouterError ?? result.voyageError;
     } catch (err) {
       // 배치 전체 실패는 건너뛰고 다음 배치로 계속 — 일부 청크 손실은 허용 가능한 트레이드오프.
       // 단, 모든 배치가 실패하면(saved===resumeFrom) 호출부가 진단할 수 있도록 마지막 에러는 보존한다.
@@ -192,7 +196,15 @@ export async function embedAndSaveChunks(params: {
     cursor += batch.length;
   }
 
-  return { saved, processedChunks: cursor, totalChunks: chunks.length, done: cursor >= chunks.length, lastError };
+  return {
+    saved,
+    openRouterSaved,
+    voyageSaved,
+    processedChunks: cursor,
+    totalChunks: chunks.length,
+    done: cursor >= chunks.length,
+    lastError,
+  };
 }
 
 /** Step 3 — 전체 텍스트 추출 → 청크 분할 → 임베딩 → knowledge_base 저장.

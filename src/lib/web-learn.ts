@@ -3,6 +3,7 @@ import FirecrawlApp from '@mendable/firecrawl-js';
 import { SEARCH_KEYWORDS, CRAWL_TARGETS } from './web-learn-keywords';
 import { validateKnowledgeChunk, GEMINI_ENABLED } from './cross-validate';
 import { requireAgentSupabase } from './agent-db';
+import { deleteKnowledgeBySource, saveKnowledgeRows } from './knowledge-store';
 
 // ── 신뢰 도메인 필터링 ────────────────────────────────────────────────────
 async function getTrustedDomains(category: string): Promise<string[]> {
@@ -51,35 +52,11 @@ async function filterValidatedChunks(
   return validated;
 }
 
-// ── Voyage AI 임베딩 ──────────────────────────────────────────────────────
-async function embedTexts(texts: string[]): Promise<number[][]> {
-  const BATCH_SIZE = 128;
-  const allEmbeddings: number[][] = [];
-
-  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
-    const batch = texts.slice(i, i + BATCH_SIZE);
-    const res = await fetch('https://api.voyageai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.VOYAGE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model: 'voyage-3', input: batch }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Voyage AI 임베딩 실패: ${err}`);
-    }
-
-    const json = await res.json();
-    allEmbeddings.push(...json.data.map((d: { embedding: number[] }) => d.embedding));
-  }
-
-  return allEmbeddings;
-}
-
 // ── 청크 저장 ─────────────────────────────────────────────────────────────
+// knowledge-store.saveKnowledgeRows가 OpenRouter+Voyage 듀얼 임베딩을 계산해 knowledge
+// 테이블에 저장한다 — 예전엔 knowledge_chunks(Voyage 전용)에만 적재돼 9-에이전트 admin
+// 채팅(knowledge_base/OpenRouter만 읽음)이 web-learn 지식을 영원히 못 봤는데, 이제는
+// category를 실제 컬럼으로도 채워서(예전엔 source_file 접두사로만 구분) 두 소비자 모두 반영.
 async function saveWebChunks(
   sourceFile: string,
   category: string,
@@ -87,28 +64,29 @@ async function saveWebChunks(
 ): Promise<number> {
   if (chunks.length === 0) return 0;
 
-  const supabase = requireAgentSupabase();
-  const embeddings = await embedTexts(chunks);
+  await deleteKnowledgeBySource(sourceFile);
 
-  await supabase.from('knowledge_chunks').delete().eq('source_file', sourceFile);
-
-  const INSERT_BATCH = 50;
+  const INSERT_BATCH = 20;
+  let saved = 0;
   for (let i = 0; i < chunks.length; i += INSERT_BATCH) {
-    const rows = chunks.slice(i, i + INSERT_BATCH).map((content, j) => ({
-      source_file: sourceFile,
-      chunk_index: i + j,
-      content,
-      embedding: embeddings[i + j],
-    }));
-
-    const { error } = await supabase.from('knowledge_chunks').insert(rows);
-    if (error) throw new Error(`저장 실패: ${error.message}`);
+    const batch = chunks.slice(i, i + INSERT_BATCH);
+    const result = await saveKnowledgeRows(
+      batch.map((content, j) => ({
+        source: sourceFile,
+        title: `${sourceFile} (${i + j + 1}/${chunks.length})`,
+        content,
+        category,
+        chunkIndex: i + j,
+        isExternal: true,
+      })),
+    );
+    if (result.saved === 0) {
+      throw new Error(`저장 실패: ${result.openRouterError ?? result.voyageError ?? "알 수 없는 오류"}`);
+    }
+    saved += result.saved;
   }
 
-  // category는 source_file 접두사로 구분되므로 별도 컬럼 불필요
-  void category;
-
-  return chunks.length;
+  return saved;
 }
 
 // ── 텍스트 청크 분할 ──────────────────────────────────────────────────────

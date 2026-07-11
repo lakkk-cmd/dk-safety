@@ -1,8 +1,7 @@
-/** PDF 첨부 자동 학습 — 텍스트 추출 → 청크 분할 → 임베딩 → knowledge_base 저장 */
+/** PDF 첨부 자동 학습 — 텍스트 추출 → 청크 분할 → knowledge 테이블 저장(듀얼 임베딩) */
 
 import { PDFParse } from "pdf-parse";
-import { embedText } from "@/lib/embeddings";
-import { requireAgentSupabase } from "@/lib/agent-db";
+import { saveKnowledgeRows } from "@/lib/knowledge-store";
 
 const CHUNK_SIZE = 700;
 
@@ -33,7 +32,7 @@ function chunkText(text: string, size = CHUNK_SIZE): string[] {
 
 export type PdfIngestResult = { chunksSaved: number; error?: string };
 
-/** PDF 버퍼를 텍스트로 추출해 knowledge_base에 청크별로 저장한다. 실패해도 throw하지 않고 결과로 보고한다. */
+/** PDF 버퍼를 텍스트로 추출해 knowledge 테이블에 청크별로 저장한다. 실패해도 throw하지 않고 결과로 보고한다. */
 export async function ingestPdfToKnowledgeBase(fileName: string, buffer: Buffer): Promise<PdfIngestResult> {
   let text: string;
   const parser = new PDFParse({ data: buffer });
@@ -49,26 +48,29 @@ export async function ingestPdfToKnowledgeBase(fileName: string, buffer: Buffer)
   const chunks = chunkText(text);
   if (chunks.length === 0) return { chunksSaved: 0, error: "PDF에서 추출된 텍스트가 없습니다." };
 
-  const supabase = requireAgentSupabase();
+  const BATCH_SIZE = 20;
   let saved = 0;
-  for (let i = 0; i < chunks.length; i++) {
-    const content = chunks[i];
+  let lastError: string | undefined;
+  for (let cursor = 0; cursor < chunks.length; cursor += BATCH_SIZE) {
+    const batch = chunks.slice(cursor, cursor + BATCH_SIZE);
     try {
-      const embedding = await embedText(content);
-      const { error } = await supabase.from("knowledge_base").insert({
-        source: fileName,
-        title: `${fileName} (${i + 1}/${chunks.length})`,
-        content,
-        embedding,
-        category: "internal",
-        is_external: false,
-      });
-      if (!error) saved += 1;
-    } catch {
-      // 청크 1개 실패는 건너뛰고 나머지는 계속 저장
+      const result = await saveKnowledgeRows(
+        batch.map((content, i) => ({
+          source: fileName,
+          title: `${fileName} (${cursor + i + 1}/${chunks.length})`,
+          content,
+          category: "internal",
+          chunkIndex: cursor + i,
+          isExternal: false,
+        })),
+      );
+      saved += result.saved;
+      if (result.saved === 0) lastError = result.openRouterError ?? result.voyageError ?? undefined;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : "지식베이스 저장 실패";
     }
   }
 
-  if (saved === 0) return { chunksSaved: 0, error: "지식베이스 저장에 모두 실패했습니다." };
+  if (saved === 0) return { chunksSaved: 0, error: lastError ?? "지식베이스 저장에 모두 실패했습니다." };
   return { chunksSaved: saved };
 }
