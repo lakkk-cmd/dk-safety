@@ -27,6 +27,21 @@ function todayLabel() {
   return new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" });
 }
 
+/** "2026-07-13" → "7/13(월)" — 목록 카드는 좁아서 짧은 표기 사용 */
+function shortDateLabel(preferredDate: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(preferredDate)) return preferredDate;
+  const [y, m, d] = preferredDate.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const weekday = ["일", "월", "화", "수", "목", "금", "토"][date.getDay()];
+  return `${m}/${d}(${weekday})`;
+}
+
+function isToday(preferredDate: string) {
+  const t = new Date();
+  const todayYmd = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+  return preferredDate === todayYmd;
+}
+
 export default function WorkerDashboard({ apkUrl }: { apkUrl?: string | null }) {
   const [items, setItems] = useState<Item[]>([]);
   const [workerName, setWorkerName] = useState<string | null>(null);
@@ -191,7 +206,16 @@ export default function WorkerDashboard({ apkUrl }: { apkUrl?: string | null }) 
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-lg font-bold text-dk-navy">{row.reservation.preferredTime}</p>
+                  <div className="flex items-center gap-1.5">
+                    {!isToday(row.reservation.preferredDate) ? (
+                      <span className="rounded-md bg-dk-red/10 px-1.5 py-0.5 text-xs font-black text-dk-red">
+                        {shortDateLabel(row.reservation.preferredDate)}
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-dk-blue/10 px-1.5 py-0.5 text-xs font-black text-dk-blue">오늘</span>
+                    )}
+                    <p className="text-lg font-bold text-dk-navy">{row.reservation.preferredTime}</p>
+                  </div>
                   <p className="mt-0.5 text-[15px] font-bold text-slate-800">{row.reservation.apartmentName ?? "미지정 아파트"}</p>
                   <p className="mt-0.5 text-sm text-slate-500">{row.reservation.address}</p>
                 </div>
