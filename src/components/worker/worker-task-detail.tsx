@@ -57,7 +57,8 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
   const [declineReason, setDeclineReason] = useState("");
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState("");
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  const cameraFileRef = useRef<HTMLInputElement | null>(null);
+  const galleryFileRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -271,7 +272,8 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
         setMessage(data.message ?? "사진 업로드에 실패했습니다.");
         return;
       }
-      if (fileRef.current) fileRef.current.value = "";
+      if (cameraFileRef.current) cameraFileRef.current.value = "";
+      if (galleryFileRef.current) galleryFileRef.current.value = "";
       await load();
     } finally {
       setBusy(false);
@@ -482,14 +484,41 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
             <div>
               <p className="text-xs font-semibold text-slate-800">현장 사진</p>
               <input
-                ref={fileRef}
+                ref={cameraFileRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
-                multiple
-                className="mt-2 block w-full text-xs"
+                className="sr-only"
+                tabIndex={-1}
                 onChange={(e) => void uploadPhotos(e.target.files)}
               />
+              <input
+                ref={galleryFileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="sr-only"
+                tabIndex={-1}
+                onChange={(e) => void uploadPhotos(e.target.files)}
+              />
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => cameraFileRef.current?.click()}
+                  className="rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-bold text-slate-700 disabled:opacity-60"
+                >
+                  📷 사진 촬영
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => galleryFileRef.current?.click()}
+                  className="rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-bold text-slate-700 disabled:opacity-60"
+                >
+                  🖼️ 사진 선택
+                </button>
+              </div>
               {task.site_photo_urls.length > 0 ? (
                 <ul className="mt-2 grid grid-cols-3 gap-2">
                   {task.site_photo_urls.map((url, idx) => (
