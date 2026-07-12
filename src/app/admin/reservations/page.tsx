@@ -2,7 +2,6 @@ import Link from "next/link";
 import AdminConsoleLinks from "@/components/admin-console-links";
 import AdminLogoutButton from "@/components/admin-logout-button";
 import AdminReservationsTable from "@/components/admin-reservations-table";
-import LiveNotificationToast from "@/components/live/live-notification-toast";
 import { readReservations } from "@/lib/reservations-store";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 
@@ -56,7 +55,6 @@ export default async function AdminReservationsPage({ searchParams }: PageProps)
           focusReservationId={focusReservationId}
         />
       </div>
-      <LiveNotificationToast role="admin" />
     </main>
   );
 }

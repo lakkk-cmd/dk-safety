@@ -43,8 +43,14 @@ export type Reservation = {
   /** Supabase DB 모드에서만 채워질 수 있습니다. */
   taskId?: string | null;
   taskStatus?: "assigned" | "in_progress" | "completed" | null;
+  /** 기사가 배정을 수락한 시각 — null이면 아직 수락/거절 결정 전(관리자가 방금 배정만 한 상태) */
+  taskAcceptedAt?: string | null;
   assignedWorkerId?: string | null;
   assignedWorkerName?: string | null;
+  /** 가장 최근 배정 거절 사유(재배정되면 초기화) — 관리자 배정 화면 긴급 재배정 배너용 */
+  lastDeclineReason?: string | null;
+  lastDeclinedWorkerName?: string | null;
+  lastDeclinedAt?: string | null;
   orderFinalPaymentStatus?: "PENDING" | "REQUESTED" | "PAID" | "FAILED" | "CANCELLED" | null;
   orderTotalFinalFee?: number | null;
   orderWarrantyIssuedAt?: string | null;

@@ -12,7 +12,10 @@ type TaskPayload = {
   reservation_id: string;
   site_photo_urls: string[];
   signature_png: string | null;
+  accepted_at: string | null;
 };
+
+const DECLINE_REASON_PRESETS = ["개인사정", "차량고장", "일정중복", "건강문제"];
 
 type Row = {
   task: TaskPayload;
@@ -39,6 +42,8 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
   const [signature, setSignature] = useState<string | null>(null);
   const [extraFee, setExtraFee] = useState("0");
   const [showCompletePanel, setShowCompletePanel] = useState(false);
+  const [declineModalOpen, setDeclineModalOpen] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
@@ -96,7 +101,8 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
                 status: hit.task.status,
                 site_photo_urls: hit.task.site_photo_urls,
                 reservation_id: hit.reservation.id,
-                signature_png: hit.task.signature_png ?? null
+                signature_png: hit.task.signature_png ?? null,
+                accepted_at: hit.task.accepted_at ?? null
               },
               reservation: hit.reservation
             };
@@ -129,6 +135,52 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
       es.close();
     };
   }, [load, taskId]);
+
+  const accept = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/worker/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "accept" })
+      });
+      const data = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        setMessage(data.message ?? "수락 처리에 실패했습니다.");
+        return;
+      }
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const decline = async () => {
+    if (declineReason.trim().length < 2) {
+      setMessage("거절 사유를 선택하거나 2자 이상 입력해주세요.");
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/worker/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "decline", reason: declineReason.trim() })
+      });
+      const data = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        setMessage(data.message ?? "거절 처리에 실패했습니다.");
+        return;
+      }
+      setDeclineModalOpen(false);
+      setMessage(data.message ?? "배정을 거절했습니다.");
+      setRow(null);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const start = async () => {
     setBusy(true);
@@ -275,15 +327,57 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
           </p>
         ) : null}
 
-        {task.status === "assigned" ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void start()}
-            className="mt-4 w-full rounded-xl bg-gradient-to-r from-dk-navy to-dk-blue py-3 text-sm font-bold text-white disabled:opacity-60"
-          >
-            작업 시작
-          </button>
+        {task.status === "assigned" && !task.accepted_at ? (
+          <div className="mt-4 space-y-2">
+            <p className="rounded-xl bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-900">
+              새 배정입니다. 방문 가능 여부를 확인해주세요.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void accept()}
+                className="rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white disabled:opacity-60"
+              >
+                수락
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setDeclineReason("");
+                  setDeclineModalOpen(true);
+                }}
+                className="rounded-xl border-2 border-rose-300 bg-rose-50 py-3 text-sm font-bold text-rose-700 disabled:opacity-60"
+              >
+                거절
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {task.status === "assigned" && task.accepted_at ? (
+          <div className="mt-4 space-y-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void start()}
+              className="w-full rounded-xl bg-gradient-to-r from-dk-navy to-dk-blue py-3 text-sm font-bold text-white disabled:opacity-60"
+            >
+              작업 시작
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setDeclineReason("");
+                setDeclineModalOpen(true);
+              }}
+              className="w-full rounded-xl border border-rose-200 py-2 text-xs font-bold text-rose-600 disabled:opacity-60"
+            >
+              현장 방문이 어려운 사정이 생겼나요? 배정 거절하기
+            </button>
+          </div>
         ) : null}
 
         {task.status === "in_progress" ? (
@@ -356,6 +450,54 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
           <div className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">이 작업은 완료되었습니다.</div>
         ) : null}
       </section>
+
+      {declineModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-3 sm:items-center">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl">
+            <p className="text-sm font-bold text-slate-500">배정 거절</p>
+            <h2 className="mt-1 text-lg font-extrabold text-slate-900">거절 사유를 알려주세요</h2>
+            <p className="mt-1 text-xs text-slate-500">거절하면 즉시 관리자에게 알림이 발송되고 다른 기사에게 재배정됩니다.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {DECLINE_REASON_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setDeclineReason(preset)}
+                  className={`rounded-xl border-2 py-2.5 text-sm font-bold transition-colors ${
+                    declineReason === preset ? "border-rose-500 bg-rose-50 text-rose-700" : "border-slate-200 text-slate-700"
+                  }`}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+            <input
+              value={DECLINE_REASON_PRESETS.includes(declineReason) ? "" : declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              placeholder="기타 사유 직접 입력"
+              className="soft-input mt-2 w-full text-sm"
+            />
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setDeclineModalOpen(false)}
+                className="h-12 rounded-xl border border-slate-300 text-sm font-bold text-slate-700"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={busy || declineReason.trim().length < 2}
+                onClick={() => void decline()}
+                className="h-12 rounded-xl bg-rose-600 text-sm font-extrabold text-white disabled:opacity-50"
+              >
+                {busy ? "처리중..." : "거절 확정"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

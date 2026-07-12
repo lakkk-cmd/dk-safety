@@ -6,18 +6,20 @@ import type { Reservation } from "@/lib/reservations-store";
 import { EmptyState } from "@/components/ui/empty-state";
 
 type Item = {
-  task: { id: string; status: string; site_photo_urls: string[] };
+  task: { id: string; status: string; site_photo_urls: string[]; accepted_at: string | null };
   reservation: Reservation;
 };
 
-function statusLabel(status: string) {
+function statusLabel(status: string, acceptedAt: string | null) {
+  if (status === "assigned" && !acceptedAt) return "🔔 확인 필요";
   if (status === "assigned") return "대기중";
   if (status === "in_progress") return "진행중";
   if (status === "completed") return "완료";
   return status;
 }
 
-function statusBadgeClass(status: string) {
+function statusBadgeClass(status: string, acceptedAt: string | null) {
+  if (status === "assigned" && !acceptedAt) return "bg-dk-red text-white";
   if (status === "completed") return "bg-dk-green text-white";
   if (status === "in_progress") return "bg-dk-amber text-white";
   return "bg-dk-blue text-white";
@@ -219,8 +221,10 @@ export default function WorkerDashboard({ apkUrl }: { apkUrl?: string | null }) 
                   <p className="mt-0.5 text-[15px] font-bold text-slate-800">{row.reservation.apartmentName ?? "미지정 아파트"}</p>
                   <p className="mt-0.5 text-sm text-slate-500">{row.reservation.address}</p>
                 </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${statusBadgeClass(row.task.status)}`}>
-                  {statusLabel(row.task.status)}
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${statusBadgeClass(row.task.status, row.task.accepted_at)}`}
+                >
+                  {statusLabel(row.task.status, row.task.accepted_at)}
                 </span>
               </div>
               <p className="mt-2 text-sm text-slate-500">{row.reservation.name} · {row.reservation.serviceType}</p>
@@ -231,19 +235,31 @@ export default function WorkerDashboard({ apkUrl }: { apkUrl?: string | null }) 
               ) : null}
 
               <div className="mt-3 flex gap-2">
-                <Link
-                  href={`/field-report?reservationId=${row.reservation.id}`}
-                  className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-dk-blue text-[15px] font-bold text-white shadow-[0_8px_20px_rgba(26,92,255,0.28)]"
-                >
-                  <span>🔧</span>
-                  <span>점검 시작</span>
-                </Link>
-                <Link
-                  href={`/worker/tasks/${row.task.id}`}
-                  className="flex min-h-12 items-center justify-center rounded-2xl border-2 border-slate-200 px-4 text-[15px] font-bold text-slate-600"
-                >
-                  작업상세
-                </Link>
+                {row.task.status === "assigned" && !row.task.accepted_at ? (
+                  <Link
+                    href={`/worker/tasks/${row.task.id}`}
+                    className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-dk-red text-[15px] font-bold text-white shadow-[0_8px_20px_rgba(229,62,62,0.28)]"
+                  >
+                    <span>🔔</span>
+                    <span>확인하기(수락/거절)</span>
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      href={`/field-report?reservationId=${row.reservation.id}`}
+                      className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-dk-blue text-[15px] font-bold text-white shadow-[0_8px_20px_rgba(26,92,255,0.28)]"
+                    >
+                      <span>🔧</span>
+                      <span>점검 시작</span>
+                    </Link>
+                    <Link
+                      href={`/worker/tasks/${row.task.id}`}
+                      className="flex min-h-12 items-center justify-center rounded-2xl border-2 border-slate-200 px-4 text-[15px] font-bold text-slate-600"
+                    >
+                      작업상세
+                    </Link>
+                  </>
+                )}
               </div>
             </li>
           ))}

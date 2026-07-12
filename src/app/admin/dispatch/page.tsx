@@ -69,7 +69,10 @@ export default async function AdminDispatchPage() {
                 ho: info.ho ?? "-",
                 dispatchStatus: order.dispatch_status,
                 taskStatus: reservation?.taskStatus ?? null,
-                assignedWorkerName: reservation?.assignedWorkerName ?? null
+                assignedWorkerName: reservation?.assignedWorkerName ?? null,
+                lastDeclineReason: reservation?.lastDeclineReason ?? null,
+                lastDeclinedWorkerName: reservation?.lastDeclinedWorkerName ?? null,
+                lastDeclinedAt: reservation?.lastDeclinedAt ?? null
               };
             })}
             workers={workers}

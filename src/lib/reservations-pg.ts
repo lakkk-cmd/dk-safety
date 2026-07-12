@@ -12,6 +12,7 @@ type TaskRow = {
   id: string;
   status: "assigned" | "in_progress" | "completed";
   worker_id: string | null;
+  accepted_at?: string | null;
   workers: { name: string } | { name: string }[] | null;
 };
 
@@ -54,6 +55,9 @@ type ReservationRow = {
   created_at: string;
   source?: string | null;
   completed_at?: string | null;
+  last_decline_reason?: string | null;
+  last_declined_worker_name?: string | null;
+  last_declined_at?: string | null;
   apartments: { name: string; code: string } | { name: string; code: string }[] | null;
   tasks: TaskRow[] | TaskRow | null;
   orders?:
@@ -233,8 +237,12 @@ function mapReservation(row: ReservationRow): Reservation {
     createdAt: row.created_at,
     taskId: t?.id ?? null,
     taskStatus: t?.status ?? null,
+    taskAcceptedAt: t?.accepted_at ?? null,
     assignedWorkerId: t?.worker_id ?? null,
     assignedWorkerName: t ? workerNameFromJoin(t.workers) : null,
+    lastDeclineReason: row.last_decline_reason ?? null,
+    lastDeclinedWorkerName: row.last_declined_worker_name ?? null,
+    lastDeclinedAt: row.last_declined_at ?? null,
     orderFinalPaymentStatus: o?.final_payment_status ?? null,
     orderTotalFinalFee: Number.isFinite(o?.total_final_fee) ? Number(o?.total_final_fee) : null,
     orderWarrantyIssuedAt: o?.warranty_issued_at ?? null,
@@ -274,6 +282,9 @@ export async function pgReadReservations(): Promise<Reservation[]> {
       created_at,
       source,
       completed_at,
+      last_decline_reason,
+      last_declined_worker_name,
+      last_declined_at,
       apartments (
         name,
         code
@@ -282,6 +293,7 @@ export async function pgReadReservations(): Promise<Reservation[]> {
         id,
         status,
         worker_id,
+        accepted_at,
         workers ( name )
       ),
       orders (
@@ -330,6 +342,9 @@ export async function pgFindReservationById(id: string): Promise<Reservation | n
       created_at,
       source,
       completed_at,
+      last_decline_reason,
+      last_declined_worker_name,
+      last_declined_at,
       apartments (
         name,
         code
@@ -338,6 +353,7 @@ export async function pgFindReservationById(id: string): Promise<Reservation | n
         id,
         status,
         worker_id,
+        accepted_at,
         workers ( name )
       ),
       orders (
@@ -394,6 +410,7 @@ export async function pgFindReservationsByPhone(phone: string): Promise<Reservat
         id,
         status,
         worker_id,
+        accepted_at,
         workers ( name )
       ),
       orders (
@@ -917,7 +934,14 @@ export async function pgAssignTask(reservationId: string, workerId: string): Pro
 
   const { error: rErr } = await supabase
     .from("reservations")
-    .update({ status: "진행중", payment_status: "ASSIGNED", technician_id: workerId })
+    .update({
+      status: "진행중",
+      payment_status: "ASSIGNED",
+      technician_id: workerId,
+      last_decline_reason: null,
+      last_declined_worker_name: null,
+      last_declined_at: null
+    })
     .eq("id", reservationId);
   if (rErr) {
     throw new Error(`예약 상태 갱신 실패: ${rErr.message}`);
@@ -937,6 +961,9 @@ export async function pgAssignTask(reservationId: string, workerId: string): Pro
     completed_at: null as string | null,
     site_photo_urls: [] as string[],
     signature_png: null as string | null,
+    accepted_at: null as string | null,
+    declined_at: null as string | null,
+    decline_reason: null as string | null,
     updated_at: nowIso
   };
 
@@ -963,7 +990,14 @@ export async function pgGetTaskForWorker(
   taskId: string,
   workerId: string
 ): Promise<{
-  task: { id: string; status: string; reservation_id: string; site_photo_urls: string[]; signature_png: string | null };
+  task: {
+    id: string;
+    status: string;
+    reservation_id: string;
+    site_photo_urls: string[];
+    signature_png: string | null;
+    accepted_at: string | null;
+  };
   reservation: Reservation;
 } | null> {
   const supabase = requireSupabaseAdmin();
@@ -977,6 +1011,7 @@ export async function pgGetTaskForWorker(
       worker_id,
       site_photo_urls,
       signature_png,
+      accepted_at,
       reservations (
         id,
         apartment_id,
@@ -1032,7 +1067,8 @@ export async function pgGetTaskForWorker(
       status: data.status,
       reservation_id: data.reservation_id,
       site_photo_urls: asStringArray(data.site_photo_urls),
-      signature_png: data.signature_png
+      signature_png: data.signature_png,
+      accepted_at: data.accepted_at ?? null
     },
     reservation
   };
@@ -1040,7 +1076,7 @@ export async function pgGetTaskForWorker(
 
 export async function pgListTasksForWorker(workerId: string): Promise<
   Array<{
-    task: { id: string; status: string; site_photo_urls: string[] };
+    task: { id: string; status: string; site_photo_urls: string[]; accepted_at: string | null };
     reservation: Reservation;
   }>
 > {
@@ -1052,6 +1088,7 @@ export async function pgListTasksForWorker(workerId: string): Promise<
       id,
       status,
       site_photo_urls,
+      accepted_at,
       reservations (
         id,
         apartment_id,
@@ -1101,7 +1138,8 @@ export async function pgListTasksForWorker(workerId: string): Promise<
         task: {
           id: row.id,
           status: row.status,
-          site_photo_urls: asStringArray(row.site_photo_urls)
+          site_photo_urls: asStringArray(row.site_photo_urls),
+          accepted_at: row.accepted_at ?? null
         },
         reservation: mapReservation({ ...res, tasks: [] })
       };
@@ -1374,6 +1412,79 @@ export async function pgUnassignTask(reservationId: string): Promise<Reservation
   return pgFindReservationById(reservationId);
 }
 
+/** 기사가 배정을 수락 — 본인 소유·아직 시작 전(assigned) 작업만 가능, 이미 수락했으면 조용히 무시(멱등) */
+export async function pgAcceptTask(taskId: string, workerId: string): Promise<void> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id, worker_id, status, accepted_at")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (error || !data || data.worker_id !== workerId) {
+    throw new Error("작업을 찾을 수 없거나 권한이 없습니다.");
+  }
+  if (data.status !== "assigned") {
+    throw new Error("이미 시작되었거나 완료된 작업입니다.");
+  }
+  if (data.accepted_at) {
+    return;
+  }
+  const { error: uErr } = await supabase
+    .from("tasks")
+    .update({ accepted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", taskId);
+  if (uErr) {
+    throw new Error(`수락 처리 실패: ${uErr.message}`);
+  }
+}
+
+/**
+ * 기사가 배정을 거절 — 본인 소유·아직 시작 전(assigned) 작업만 가능(수락 여부 무관, 현장
+ * 출발 전이면 마음이 바뀌어도 거절 가능해야 재배정이 빨라진다). pgUnassignTask와 동일하게
+ * tasks 행을 삭제하고 예약을 「접수」로 되돌린 뒤, reservations에 거절 이력(누가/언제/왜)을
+ * 남겨 관리자 배정 화면에서 즉시 눈에 띄게 한다.
+ */
+export async function pgDeclineTask(
+  taskId: string,
+  workerId: string,
+  reason: string
+): Promise<{ reservation: Reservation; workerName: string }> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id, worker_id, status, reservation_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (error || !data || data.worker_id !== workerId) {
+    throw new Error("작업을 찾을 수 없거나 권한이 없습니다.");
+  }
+  if (data.status !== "assigned") {
+    throw new Error("이미 시작되었거나 완료된 작업은 거절할 수 없습니다.");
+  }
+
+  const worker = await pgGetWorkerById(workerId);
+  const workerName = worker?.name ?? "담당 기사";
+
+  const reservation = await pgUnassignTask(data.reservation_id);
+  if (!reservation) {
+    throw new Error("거절 처리 후 예약을 찾을 수 없습니다.");
+  }
+
+  const { error: declineErr } = await supabase
+    .from("reservations")
+    .update({
+      last_decline_reason: reason,
+      last_declined_worker_name: workerName,
+      last_declined_at: new Date().toISOString()
+    })
+    .eq("id", data.reservation_id);
+  if (declineErr) {
+    throw new Error(`거절 이력 기록 실패: ${declineErr.message}`);
+  }
+
+  return { reservation: { ...reservation, lastDeclineReason: reason, lastDeclinedWorkerName: workerName }, workerName };
+}
+
 // ─── 현장 즉시접수(walk-in) ───────────────────────────────────────────────────
 
 export async function pgCreateWalkInReservation(payload: {
@@ -1414,7 +1525,7 @@ export async function pgCreateWalkInReservation(payload: {
     id, apartment_id, name, phone, address, service_type, preferred_date, preferred_time,
     detail, image_urls, priority, status, note, note_updated_at,
     base_fee, extra_fee, total_amount, is_paid, paid_at, created_at, source, completed_at,
-    apartments(name,code), tasks(id,status,worker_id,workers(name)),
+    apartments(name,code), tasks(id,status,worker_id,accepted_at,workers(name)),
     orders(payment_status,dispatch_status,prepayment_confirmed,final_payment_status,total_final_fee,warranty_issued_at)
   `).single();
   if (error || !data) throw new Error(`현장 즉시접수 생성 실패: ${error?.message ?? "unknown"}`);
@@ -1484,7 +1595,7 @@ export async function pgReadWalkInReservations(): Promise<Reservation[]> {
       id, apartment_id, name, phone, address, service_type, preferred_date, preferred_time,
       detail, image_urls, priority, status, note, note_updated_at,
       base_fee, extra_fee, total_amount, is_paid, paid_at, created_at, source, completed_at,
-      apartments(name,code), tasks(id,status,worker_id,workers(name)),
+      apartments(name,code), tasks(id,status,worker_id,accepted_at,workers(name)),
       orders(payment_status,dispatch_status,prepayment_confirmed,final_payment_status,total_final_fee,warranty_issued_at)
     `)
     .eq("source", "walk_in")

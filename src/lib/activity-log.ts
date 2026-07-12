@@ -11,7 +11,8 @@ export type ActivityLog = {
     | "backup_restored"
     | "task_assigned"
     | "task_unassigned"
-    | "task_completed";
+    | "task_completed"
+    | "task_declined";
   reservationId: string;
   message: string;
   createdAt: string;

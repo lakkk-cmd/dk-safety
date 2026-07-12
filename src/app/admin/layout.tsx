@@ -13,6 +13,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem
 } from "@/components/ui/sidebar";
+import LiveNotificationToast from "@/components/live/live-notification-toast";
 import { adminSidebarNavItems } from "@/lib/admin-nav";
 import { ADMIN_SHELL_CRITICAL_CSS } from "@/lib/admin-shell-critical-css";
 import { cn } from "@/lib/utils";
@@ -146,6 +147,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         {/* 자식 페이지가 각각 <main>을 쓰므로 여기서는 래퍼만 둡니다(중첩 <main> 방지). */}
         <div className="dk-admin-main-inner min-h-screen flex-1 overflow-auto p-4 md:p-6">{children}</div>
       </SidebarInset>
+      <LiveNotificationToast role="admin" />
     </div>
     </Fragment>
   );

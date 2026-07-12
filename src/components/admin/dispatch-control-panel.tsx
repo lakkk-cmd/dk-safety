@@ -12,6 +12,9 @@ type DispatchRow = {
   dispatchStatus: string;
   taskStatus: string | null;
   assignedWorkerName: string | null;
+  lastDeclineReason?: string | null;
+  lastDeclinedWorkerName?: string | null;
+  lastDeclinedAt?: string | null;
 };
 
 type WorkerOption = {
@@ -57,7 +60,13 @@ export default function DispatchControlPanel({
   rows: DispatchRow[];
   workers: WorkerOption[];
 }) {
-  const [items, setItems] = useState(rows);
+  const [items, setItems] = useState(() =>
+    [...rows].sort((a, b) => {
+      const aDeclined = a.lastDeclinedAt ? new Date(a.lastDeclinedAt).getTime() : 0;
+      const bDeclined = b.lastDeclinedAt ? new Date(b.lastDeclinedAt).getTime() : 0;
+      return bDeclined - aDeclined;
+    })
+  );
   const [selectedWorker, setSelectedWorker] = useState<Record<string, string>>({});
   const [loadingOrderId, setLoadingOrderId] = useState<string | null>(null);
   const [message, setMessage] = useState<string>("");
@@ -101,7 +110,10 @@ export default function DispatchControlPanel({
                 ...item,
                 dispatchStatus: "ASSIGNED",
                 taskStatus: data.reservation?.taskStatus ?? "assigned",
-                assignedWorkerName: data.reservation?.assignedWorkerName ?? worker?.name ?? item.assignedWorkerName
+                assignedWorkerName: data.reservation?.assignedWorkerName ?? worker?.name ?? item.assignedWorkerName,
+                lastDeclineReason: null,
+                lastDeclinedWorkerName: null,
+                lastDeclinedAt: null
               }
             : item
         )
@@ -165,8 +177,18 @@ export default function DispatchControlPanel({
           return (
             <li
               key={row.orderId}
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950"
+              className={`rounded-xl border p-4 shadow-sm dark:bg-slate-950 ${
+                row.lastDeclineReason && !row.taskStatus
+                  ? "border-rose-400 bg-rose-50 dark:border-rose-500"
+                  : "border-slate-200 bg-white dark:border-slate-700"
+              }`}
             >
+              {row.lastDeclineReason && !row.taskStatus ? (
+                <div className="mb-3 rounded-lg border border-rose-300 bg-rose-100 px-3 py-2 text-xs font-bold text-rose-900 dark:border-rose-500 dark:bg-rose-950/60 dark:text-rose-100">
+                  ⚠️ {row.lastDeclinedWorkerName ?? "기사"}가 방금 배정을 거절했습니다 (사유: {row.lastDeclineReason}) — 즉시 다른 기사를
+                  배정해주세요.
+                </div>
+              ) : null}
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-2 gap-y-1">

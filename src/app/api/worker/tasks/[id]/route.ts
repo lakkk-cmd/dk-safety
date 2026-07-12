@@ -3,10 +3,23 @@ import { cookies } from "next/headers";
 import { appendActivityLog } from "@/lib/activity-log";
 import { notifyCustomerWorkCompleted } from "@/lib/customer-notification";
 import { pushLiveNotification, pushReservationProgressNotifications } from "@/lib/live-notify";
-import { pgCompleteTask, pgGetTaskForWorker, pgStartTask } from "@/lib/reservations-pg";
-import { WORKER_AUTH_COOKIE } from "@/lib/site-config";
+import { pgAcceptTask, pgCompleteTask, pgDeclineTask, pgGetTaskForWorker, pgStartTask } from "@/lib/reservations-pg";
+import { sendKakaoFriendTalk, sendSMS } from "@/lib/solapi-agent";
+import { siteConfig, WORKER_AUTH_COOKIE } from "@/lib/site-config";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { verifyWorkerSessionToken } from "@/lib/worker-auth";
+
+/** 관리자(대표님) 개인 휴대폰으로 긴급 알림 발송 — 카카오 친구톡 우선, 실패 시 SMS로 폴백 */
+async function notifyAdminUrgent(message: string): Promise<void> {
+  const to = siteConfig.businessPhone;
+  try {
+    await sendKakaoFriendTalk(to, message);
+    return;
+  } catch {
+    // pfId 미설정 등으로 카카오 발송이 안 되면 SMS로 폴백
+  }
+  await sendSMS(to, message);
+}
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   if (!isSupabaseReservationsDbReady()) {
@@ -40,9 +53,43 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!session) {
     return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
   }
-  const body = (await request.json()) as { action?: string; signaturePng?: string; extraFee?: number };
+  const body = (await request.json()) as { action?: string; signaturePng?: string; extraFee?: number; reason?: string };
   const action = body.action?.trim() ?? "";
   try {
+    if (action === "accept") {
+      await pgAcceptTask(id, session.workerId);
+      return NextResponse.json({ message: "배정을 수락했습니다." });
+    }
+    if (action === "decline") {
+      const reason = body.reason?.trim() ?? "";
+      if (reason.length < 2) {
+        return NextResponse.json({ message: "거절 사유를 2자 이상 입력해주세요." }, { status: 400 });
+      }
+      const { reservation, workerName } = await pgDeclineTask(id, session.workerId, reason);
+      await appendActivityLog({
+        action: "task_declined",
+        reservationId: reservation.id,
+        message: `${workerName} 기사가 ${reservation.name} 배정을 거절했습니다. (사유: ${reason})`
+      });
+      const urgentMessage = `⚠️[긴급 재배정] ${workerName} 기사가 배정을 거절했습니다\n예약: ${reservation.apartmentName ?? reservation.address}\n일시: ${reservation.preferredDate} ${reservation.preferredTime}\n사유: ${reason}\n→ 관리자 화면에서 즉시 다른 기사를 배정해주세요.`;
+      await pushLiveNotification({
+        role: "admin",
+        reservationId: reservation.id,
+        title: "⚠️ 긴급 재배정 필요",
+        message: `${workerName} 기사가 ${reservation.name} 배정을 거절했습니다 (${reason})`
+      });
+      try {
+        await notifyAdminUrgent(urgentMessage);
+      } catch (notifyError) {
+        const notifyMessage = notifyError instanceof Error ? notifyError.message : "알 수 없는 오류";
+        await appendActivityLog({
+          action: "task_declined",
+          reservationId: reservation.id,
+          message: `관리자 긴급 알림 발송 실패: ${notifyMessage}`
+        });
+      }
+      return NextResponse.json({ message: "배정을 거절했습니다. 관리자에게 즉시 알림이 발송되었습니다." });
+    }
     if (action === "start") {
       await pgStartTask(id, session.workerId);
       const row = await pgGetTaskForWorker(id, session.workerId);

@@ -13,6 +13,7 @@ function snapshot(items: Awaited<ReturnType<typeof pgListTasksForWorker>>) {
     items.map((row) => [
       row.task.id,
       row.task.status,
+      row.task.accepted_at,
       row.task.site_photo_urls?.length ?? 0,
       row.reservation.status,
       row.reservation.name
