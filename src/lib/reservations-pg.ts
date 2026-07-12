@@ -1233,7 +1233,18 @@ export async function pgAppendTaskPhotos(taskId: string, workerId: string, urls:
   return next;
 }
 
-export async function pgCompleteTask(taskId: string, workerId: string, signaturePng: string, extraFeeInput?: number): Promise<void> {
+export type TaskCompletionBreakdown = {
+  materials?: { id: string; name: string; qty: number; unitPrice: number }[];
+  laborTier?: { label: string; amount: number } | null;
+};
+
+export async function pgCompleteTask(
+  taskId: string,
+  workerId: string,
+  signaturePng: string,
+  extraFeeInput?: number,
+  breakdownInput?: TaskCompletionBreakdown
+): Promise<void> {
   const supabase = requireSupabaseAdmin();
   if (!signaturePng || signaturePng.length < 50) {
     throw new Error("완료 서명이 필요합니다.");
@@ -1360,7 +1371,9 @@ export async function pgCompleteTask(taskId: string, workerId: string, signature
       deductibleAmount: finalFee.deductible_amount,
       bulkDiscountApplied: finalFee.bulk_discount_applied,
       bulkDiscountAmount: finalFee.bulk_discount_amount,
-      breakdown: finalFee.breakdown
+      breakdown: finalFee.breakdown,
+      materials: breakdownInput?.materials ?? [],
+      laborTier: breakdownInput?.laborTier ?? null
     },
     total_final_fee: finalFee.total_fee,
     final_payment_status: shouldAutoIssueWarranty ? "PAID" : "REQUESTED",

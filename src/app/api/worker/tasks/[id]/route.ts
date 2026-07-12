@@ -53,7 +53,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!session) {
     return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
   }
-  const body = (await request.json()) as { action?: string; signaturePng?: string; extraFee?: number; reason?: string };
+  const body = (await request.json()) as {
+    action?: string;
+    signaturePng?: string;
+    extraFee?: number;
+    reason?: string;
+    materials?: { id?: string; name?: string; qty?: number; unitPrice?: number }[];
+    laborTier?: { label?: string; amount?: number } | null;
+  };
   const action = body.action?.trim() ?? "";
   try {
     if (action === "accept") {
@@ -116,7 +123,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       const signature = typeof body.signaturePng === "string" ? body.signaturePng.trim() : "";
       const extraFee =
         typeof body.extraFee === "number" && Number.isFinite(body.extraFee) ? Math.max(0, Math.round(body.extraFee)) : 0;
-      await pgCompleteTask(id, session.workerId, signature, extraFee);
+      const materials = Array.isArray(body.materials)
+        ? body.materials
+            .filter((m): m is { id: string; name: string; qty: number; unitPrice: number } =>
+              Boolean(m && m.id && m.name && Number.isFinite(m.qty) && Number.isFinite(m.unitPrice))
+            )
+            .map((m) => ({ id: m.id, name: m.name, qty: Math.max(1, Math.round(m.qty)), unitPrice: Math.max(0, Math.round(m.unitPrice)) }))
+        : undefined;
+      const laborTierAmount = Number(body.laborTier?.amount);
+      const laborTier =
+        body.laborTier && body.laborTier.label && Number.isFinite(laborTierAmount)
+          ? { label: body.laborTier.label, amount: Math.max(0, Math.round(laborTierAmount)) }
+          : null;
+      await pgCompleteTask(id, session.workerId, signature, extraFee, { materials, laborTier });
       const row = await pgGetTaskForWorker(id, session.workerId);
       if (row) {
         await appendActivityLog({
