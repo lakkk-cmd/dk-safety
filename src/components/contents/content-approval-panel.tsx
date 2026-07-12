@@ -142,17 +142,21 @@ export default function ContentApprovalPanel() {
     void loadAll();
   }, [loadAll]);
 
-  const handleKakao = async (id: string, action: "approve" | "reject") => {
+  const handleKakao = async (id: string, action: "approve" | "reject" | "delete") => {
+    if (action === "delete" && !confirm("이 카카오 포스트를 삭제하시겠습니까?")) return;
     if (action === "reject" && !confirm("이 카카오 포스트를 반려하시겠습니까?")) return;
     const reason = action === "reject" ? window.prompt("반려 이유 (선택)") ?? "" : undefined;
     setBusyId(id);
     setMessage(null);
     try {
-      const res = await fetch("/api/admin/content/kakao", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action, reason }),
-      });
+      const res =
+        action === "delete"
+          ? await fetch(`/api/admin/content/kakao?id=${id}`, { method: "DELETE" })
+          : await fetch("/api/admin/content/kakao", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id, action, reason }),
+            });
       const json = (await res.json()) as { message?: string };
       setMessage(json.message ?? (res.ok ? "처리 완료" : "처리 실패"));
       if (res.ok) await loadAll();
@@ -199,6 +203,22 @@ export default function ContentApprovalPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, action: "reject", reason }),
       });
+      const json = (await res.json()) as { message?: string };
+      setMessage(json.message ?? (res.ok ? "처리 완료" : "처리 실패"));
+      if (res.ok) await loadAll();
+    } catch {
+      setMessage("처리 중 오류가 발생했습니다.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleYoutubeDelete = async (id: string) => {
+    if (!confirm("이 유튜브 기획을 삭제하시겠습니까?")) return;
+    setBusyId(id);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/content/youtube?id=${id}`, { method: "DELETE" });
       const json = (await res.json()) as { message?: string };
       setMessage(json.message ?? (res.ok ? "처리 완료" : "처리 실패"));
       if (res.ok) await loadAll();
@@ -534,6 +554,16 @@ export default function ContentApprovalPanel() {
                     </span>
                   </div>
                 ) : null}
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    disabled={busyId === item.id}
+                    onClick={() => void handleYoutubeDelete(item.id)}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    삭제
+                  </button>
+                </div>
               </li>
             ))
           )}
@@ -582,6 +612,16 @@ export default function ContentApprovalPanel() {
                     </button>
                   </div>
                 ) : null}
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    disabled={busyId === item.id}
+                    onClick={() => void handleKakao(item.id, "delete")}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    삭제
+                  </button>
+                </div>
               </li>
             ))
           )}

@@ -18,6 +18,7 @@ import {
   type ContentPlanResult,
 } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
+import { KAKAO_BLOG_APPROVAL_STATUSES, YOUTUBE_APPROVAL_STATUSES } from "@/lib/content-status";
 import { humanizeKoreanText } from "@/lib/humanizer";
 import { notifyAutoPublished } from "@/lib/kakao-publish";
 import { broadcastKakaoFriendTalkToCustomers, publishKakaoPost } from "@/lib/kakao-publish";
@@ -401,11 +402,6 @@ export async function runContentApprovalNotify(): Promise<ContentApprovalNotifyR
 
 export async function getPendingApprovalCounts(): Promise<{ youtube: number; kakao: number; blog: number }> {
   const supabase = requireAgentSupabase();
-  // content_youtube_queue는 "draft"/"pending"으로 전이·조회하는 코드 경로가 없다(둘 다 다른 파이프라인
-  // 단계에서만 쓰이던 값의 잔재) — 포함시키면 한 번도 초안 작성되지 않은 채 방치된 행까지 승인대기로
-  // 잘못 집계된다(2026-07-05 실사례: 이 값 때문에 실제 3건인 승인대기가 23건으로 표시됨).
-  const YOUTUBE_APPROVAL_STATUSES = ["pending_approval", "review_required"];
-  const KAKAO_BLOG_APPROVAL_STATUSES = ["draft", "pending", "pending_approval", "review_required"];
   const [ytRes, kkRes, blogRes] = await Promise.all([
     supabase.from("content_youtube_queue").select("id", { count: "exact", head: true }).in("status", YOUTUBE_APPROVAL_STATUSES),
     supabase.from("content_kakao_queue").select("id", { count: "exact", head: true }).in("status", KAKAO_BLOG_APPROVAL_STATUSES),
@@ -463,6 +459,12 @@ export async function rejectKakaoQueueItem(id: string, reason: string): Promise<
   if (error) throw error;
 }
 
+export async function deleteKakaoQueueItem(id: string): Promise<void> {
+  const supabase = requireAgentSupabase();
+  const { error } = await supabase.from("content_kakao_queue").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export type ApproveYoutubeResult = { status: "approved" | "uploaded"; videoId?: string };
 
 export async function approveYoutubeQueueItem(
@@ -509,5 +511,11 @@ export async function rejectYoutubeQueueItem(id: string, reason: string): Promis
     .from("content_youtube_queue")
     .update({ status: "rejected", reject_reason: reason, updated_at: new Date().toISOString() })
     .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteYoutubeQueueItem(id: string): Promise<void> {
+  const supabase = requireAgentSupabase();
+  const { error } = await supabase.from("content_youtube_queue").delete().eq("id", id);
   if (error) throw error;
 }

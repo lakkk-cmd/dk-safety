@@ -1,4 +1,5 @@
 import { requireAgentSupabase } from "@/lib/agent-db";
+import { KAKAO_BLOG_APPROVAL_STATUSES } from "@/lib/content-status";
 
 export type BlogPostStatus = "draft" | "pending_approval" | "published" | "rejected";
 
@@ -81,6 +82,32 @@ export async function listAllBlogPosts(limit = 50): Promise<BlogPost[]> {
     .limit(limit);
   if (error) throw error;
   return (data ?? []) as BlogPost[];
+}
+
+/**
+ * 관리 화면(contents.dkansim.com) 목록용 — "최근 N개"만 가져오면 승인대기 항목이 오래돼
+ * 그 안에 안 들어가는 경우 배지 카운트(getPendingApprovalCounts)와 실제 목록이 어긋난다
+ * (2026-07-12 실사례: 승인대기 3건 배지가 떴는데 목록엔 하나도 안 보임). 승인대기 상태는
+ * 개수 제한 없이 전부 포함하고, 나머지는 최근 것부터 채운다.
+ */
+export async function listBlogPostsForOverview(recentLimit = 10): Promise<BlogPost[]> {
+  const supabase = requireAgentSupabase();
+  const [pendingRes, recentRes] = await Promise.all([
+    supabase
+      .from("blog_posts")
+      .select(BLOG_COLUMNS)
+      .in("status", KAKAO_BLOG_APPROVAL_STATUSES)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("blog_posts")
+      .select(BLOG_COLUMNS)
+      .not("status", "in", `(${KAKAO_BLOG_APPROVAL_STATUSES.join(",")})`)
+      .order("created_at", { ascending: false })
+      .limit(recentLimit),
+  ]);
+  if (pendingRes.error) throw pendingRes.error;
+  if (recentRes.error) throw recentRes.error;
+  return [...((pendingRes.data ?? []) as BlogPost[]), ...((recentRes.data ?? []) as BlogPost[])];
 }
 
 export type CreateBlogPostInput = {

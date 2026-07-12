@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
-import { approveYoutubeQueueItem, rejectYoutubeQueueItem } from "@/lib/content-pipeline";
+import { approveYoutubeQueueItem, deleteYoutubeQueueItem, rejectYoutubeQueueItem } from "@/lib/content-pipeline";
 
 // 영상 파일 업로드(유튜브 업로드 API 호출)에 시간이 걸릴 수 있어 여유를 둠
 export const maxDuration = 300;
@@ -62,6 +62,29 @@ export async function PATCH(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "처리 실패" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ message: "권한이 없습니다." }, { status: 401 });
+  }
+  if (!isAgentSupabaseReady()) {
+    return NextResponse.json({ message: "Supabase가 설정되지 않았습니다." }, { status: 503 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id) return NextResponse.json({ message: "id 파라미터 필요" }, { status: 400 });
+
+  try {
+    await deleteYoutubeQueueItem(id);
+    return NextResponse.json({ message: "삭제되었습니다." });
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "삭제 실패" },
       { status: 500 },
     );
   }
