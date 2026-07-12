@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 
 interface Apartment {
   id: string;
@@ -31,6 +33,14 @@ const FLOW_STEPS = [
 ];
 
 export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const filteredApartments = useMemo(() => {
+    const q = search.trim();
+    if (!q) return apartments;
+    return apartments.filter((apt) => apt.name.includes(q));
+  }, [apartments, search]);
+
   const heroTitle = config.hero_title ?? "우리집 전기 걱정되시나요?";
   const heroSubtitle = config.hero_subtitle ?? "전기기사가 직접 방문해서 해결해드립니다";
   const heroCta = config.hero_cta ?? "🔴 지금 점검 예약하기";
@@ -96,12 +106,13 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
           <p className="mt-2 text-[15px] text-white/70">{heroSubtitle}</p>
 
           <div className="mt-5 space-y-2.5">
-            <a
-              href="#apartments"
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
               className="flex min-h-[60px] w-full items-center justify-center gap-2 rounded-2xl bg-dk-blue text-lg font-bold text-white shadow-[0_10px_28px_rgba(26,92,255,0.4)]"
             >
               {heroCta}
-            </a>
+            </button>
             <Link
               href="/status"
               className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border-2 border-white/70 text-base font-bold text-white"
@@ -130,12 +141,13 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
             ))}
           </div>
           <p className="mt-3 text-center text-[13px] text-slate-500">하나라도 해당되면 → 지금 바로 예약</p>
-          <a
-            href="#apartments"
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
             className="mt-2 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-dk-red text-base font-bold text-white"
           >
             지금 예약하기
-          </a>
+          </button>
         </section>
 
         <section className="rounded-2xl bg-white p-5 shadow-[0_4px_16px_rgba(11,31,58,0.08)]">
@@ -150,36 +162,6 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
           </div>
         </section>
 
-        <section id="apartments" className="rounded-2xl bg-white p-5 shadow-[0_4px_16px_rgba(11,31,58,0.08)]">
-          <h2 className="text-lg font-bold text-dk-navy">단지별 전용 홈</h2>
-          <p className="mt-1 text-[13px] text-slate-500">단지 카드를 탭하면 해당 단지 전용 서비스 화면으로 이동합니다.</p>
-          <div className="mt-3 space-y-2.5">
-            {apartments.map((apt) => (
-              <Link
-                key={apt.id}
-                href={`/apt/${apt.apt_code}`}
-                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-dk-gray p-4 transition active:scale-[0.98]"
-              >
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-dk-navy text-xl">🏢</div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-bold text-slate-800">{apt.name}</p>
-                  <p className="mt-0.5 truncate text-xs text-slate-400">dkansim.com/apt/{apt.apt_code}</p>
-                </div>
-                <span className="text-lg text-dk-gold">→</span>
-              </Link>
-            ))}
-            {apartments.length === 0 ? (
-              <div className="rounded-2xl bg-dk-gray p-4 text-center text-sm text-slate-400">등록된 단지가 없습니다</div>
-            ) : null}
-          </div>
-          <p className="mt-3 text-center text-[13px] text-slate-500">
-            우리 단지가 없으신가요?{" "}
-            <a href="tel:01094698578" className="font-bold text-dk-blue underline">
-              010-9469-8578
-            </a>
-          </p>
-        </section>
-
         <footer className="pb-2 pt-2 text-center text-xs text-slate-400">
           <p className="font-bold text-dk-gold">⚡ 우리집 전기주치의(대경이엔피)</p>
           <p className="mt-1 leading-relaxed">
@@ -190,13 +172,54 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
-        <a
-          href="#apartments"
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
           className="mx-auto flex min-h-14 max-w-lg items-center justify-center gap-2 rounded-2xl bg-dk-blue text-base font-bold text-white shadow-[0_8px_20px_rgba(26,92,255,0.28)]"
         >
           {bottomCta}
-        </a>
+        </button>
       </div>
+
+      <BottomSheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="우리 단지 찾기">
+        <p className="text-[13px] text-slate-500">
+          목록에 있는 단지는 바로 예약할 수 있어요. 안 보이셔도 광주 시내라면 대부분 방문 가능하니 아래 번호로 문의해주세요.
+        </p>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="아파트 이름으로 검색"
+          className="soft-input mt-3 w-full text-base"
+        />
+        <div className="mt-3 max-h-[50vh] space-y-2.5 overflow-y-auto">
+          {filteredApartments.map((apt) => (
+            <Link
+              key={apt.id}
+              href={`/apt/${apt.apt_code}`}
+              onClick={() => setPickerOpen(false)}
+              className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-dk-gray p-4 transition active:scale-[0.98]"
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-dk-navy text-xl">🏢</div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-bold text-slate-800">{apt.name}</p>
+                <p className="mt-0.5 truncate text-xs text-slate-400">dkansim.com/apt/{apt.apt_code}</p>
+              </div>
+              <span className="text-lg text-dk-gold">→</span>
+            </Link>
+          ))}
+          {filteredApartments.length === 0 ? (
+            <div className="rounded-2xl bg-dk-gray p-4 text-center text-sm text-slate-400">
+              {apartments.length === 0 ? "등록된 단지가 없습니다" : "검색 결과가 없어요"}
+            </div>
+          ) : null}
+        </div>
+        <p className="mt-3 text-center text-[13px] text-slate-500">
+          우리 단지가 없으신가요?{" "}
+          <a href="tel:01094698578" className="font-bold text-dk-blue underline">
+            010-9469-8578
+          </a>
+        </p>
+      </BottomSheet>
     </div>
   );
 }
