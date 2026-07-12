@@ -13,6 +13,7 @@ import {
   Lightbulb,
   ListOrdered,
   MessageSquare,
+  PackageSearch,
   PieChart,
   Printer,
   ShieldAlert,
@@ -103,6 +104,12 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "요금/단가표",
     description: "기본 출장비·항목별 금액·안내 문구",
     icon: Table2
+  },
+  {
+    href: "/admin/materials",
+    label: "재료비 카탈로그",
+    description: "현장 자재 품목·정액 자재비 관리",
+    icon: PackageSearch
   },
   {
     href: "/admin/finance",
