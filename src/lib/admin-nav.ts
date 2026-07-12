@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ChartColumn,
   ClipboardCheck,
+  Clock,
   CreditCard,
   FileBadge,
   FileText,
@@ -110,6 +111,12 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "재료비 카탈로그",
     description: "현장 자재 품목·정액 자재비 관리",
     icon: PackageSearch
+  },
+  {
+    href: "/admin/labor-tiers",
+    label: "작업비 난이도 정액표",
+    description: "하/중/상 난이도별 소요시간·정액 작업비 관리",
+    icon: Clock
   },
   {
     href: "/admin/finance",
