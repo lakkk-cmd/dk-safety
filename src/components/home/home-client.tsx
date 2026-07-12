@@ -26,12 +26,6 @@ const SYMPTOMS = [
 
 const TRUST_ITEMS = ["🏅 전기기사 자격", "⚡ 24시간 출동", "📄 디지털 보증서", "⭐ 특허 기술", "💰 150,000원~"];
 
-const FLOW_STEPS = [
-  { icon: "1️⃣", label: "예약" },
-  { icon: "2️⃣", label: "방문 점검" },
-  { icon: "3️⃣", label: "리포트 받기" }
-];
-
 export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -148,18 +142,6 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
           >
             지금 예약하기
           </button>
-        </section>
-
-        <section className="rounded-2xl bg-white p-5 shadow-[0_4px_16px_rgba(11,31,58,0.08)]">
-          <h2 className="text-lg font-bold text-dk-navy">서비스 흐름</h2>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            {FLOW_STEPS.map((step) => (
-              <div key={step.label}>
-                <p className="text-3xl">{step.icon}</p>
-                <p className="mt-1.5 text-[13px] font-bold text-slate-700">{step.label}</p>
-              </div>
-            ))}
-          </div>
         </section>
 
         <section className="rounded-2xl bg-dk-sky p-5 text-center">
