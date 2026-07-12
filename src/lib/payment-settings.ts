@@ -5,14 +5,18 @@ export type PaymentSettings = {
   bankName: string;
   accountNumber: string;
   accountHolder: string;
+  /** 온라인 예약 기본 출장비(할인가) */
   baseDispatchFee: number;
+  /** 전화예약·현장즉시접수 기본 출장비(정가) */
+  baseDispatchFeeOffline: number;
 };
 
 const fallbackSettings: PaymentSettings = {
   bankName: siteConfig.defaultBankName,
   accountNumber: siteConfig.defaultBankAccountNumber,
   accountHolder: siteConfig.defaultBankAccountHolder,
-  baseDispatchFee: Number.isFinite(siteConfig.defaultDispatchFee) ? Math.max(50000, siteConfig.defaultDispatchFee) : 50000
+  baseDispatchFee: Number.isFinite(siteConfig.defaultDispatchFee) ? Math.max(50000, siteConfig.defaultDispatchFee) : 50000,
+  baseDispatchFeeOffline: 200000
 };
 
 export async function readPaymentSettings(): Promise<PaymentSettings> {
@@ -36,12 +40,13 @@ export async function readPaymentSettings(): Promise<PaymentSettings> {
       bankName: row.bank_info?.bankName || fallbackSettings.bankName,
       accountNumber: row.bank_info?.accountNumber || fallbackSettings.accountNumber,
       accountHolder: row.bank_info?.accountHolder || fallbackSettings.accountHolder,
-      baseDispatchFee: Number.isFinite(row.base_fee) ? Math.max(50000, Number(row.base_fee)) : fallbackSettings.baseDispatchFee
+      baseDispatchFee: Number.isFinite(row.base_fee) ? Math.max(50000, Number(row.base_fee)) : fallbackSettings.baseDispatchFee,
+      baseDispatchFeeOffline: fallbackSettings.baseDispatchFeeOffline
     };
   };
   const { data, error } = await supabase
     .from("payment_settings")
-    .select("bank_name, account_number, account_holder, base_dispatch_fee")
+    .select("bank_name, account_number, account_holder, base_dispatch_fee, base_dispatch_fee_offline")
     .eq("id", 1)
     .maybeSingle();
 
@@ -54,10 +59,13 @@ export async function readPaymentSettings(): Promise<PaymentSettings> {
     bankName: data.bank_name || fallbackSettings.bankName,
     accountNumber: data.account_number || fallbackSettings.accountNumber,
     accountHolder: data.account_holder || fallbackSettings.accountHolder,
-    baseDispatchFee: Number.isFinite(data.base_dispatch_fee) ? Math.max(50000, Number(data.base_dispatch_fee)) : fallbackSettings.baseDispatchFee
+    baseDispatchFee: Number.isFinite(data.base_dispatch_fee) ? Math.max(50000, Number(data.base_dispatch_fee)) : fallbackSettings.baseDispatchFee,
+    baseDispatchFeeOffline: Number.isFinite(data.base_dispatch_fee_offline)
+      ? Math.max(50000, Number(data.base_dispatch_fee_offline))
+      : fallbackSettings.baseDispatchFeeOffline
   };
   const singleApartment = await readSingleApartmentSettings();
-  return singleApartment ?? baseSettings;
+  return singleApartment ? { ...singleApartment, baseDispatchFeeOffline: baseSettings.baseDispatchFeeOffline } : baseSettings;
 }
 
 export async function updatePaymentSettings(input: Partial<PaymentSettings>): Promise<PaymentSettings> {
@@ -73,7 +81,11 @@ export async function updatePaymentSettings(input: Partial<PaymentSettings>): Pr
     baseDispatchFee:
       typeof input.baseDispatchFee === "number" && Number.isFinite(input.baseDispatchFee)
         ? Math.max(50000, Math.round(input.baseDispatchFee))
-        : current.baseDispatchFee
+        : current.baseDispatchFee,
+    baseDispatchFeeOffline:
+      typeof input.baseDispatchFeeOffline === "number" && Number.isFinite(input.baseDispatchFeeOffline)
+        ? Math.max(50000, Math.round(input.baseDispatchFeeOffline))
+        : current.baseDispatchFeeOffline
   };
 
   const { error } = await supabase.from("payment_settings").upsert({
@@ -82,6 +94,7 @@ export async function updatePaymentSettings(input: Partial<PaymentSettings>): Pr
     account_number: next.accountNumber,
     account_holder: next.accountHolder,
     base_dispatch_fee: next.baseDispatchFee,
+    base_dispatch_fee_offline: next.baseDispatchFeeOffline,
     updated_at: new Date().toISOString()
   });
   if (error) {

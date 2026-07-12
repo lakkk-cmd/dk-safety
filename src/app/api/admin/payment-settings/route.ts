@@ -19,6 +19,7 @@ export async function PATCH(request: Request) {
     accountNumber?: string;
     accountHolder?: string;
     baseDispatchFee?: number;
+    baseDispatchFeeOffline?: number;
   };
   try {
     const settings = await updatePaymentSettings(body);

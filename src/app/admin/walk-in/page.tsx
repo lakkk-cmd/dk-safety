@@ -50,6 +50,7 @@ export default function WalkInPage() {
   const [workTime, setWorkTime] = useState(nowTimeStr());
   const [detail, setDetail] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
+  const [offlineDispatchFee, setOfflineDispatchFee] = useState(200000);
   const [photos, setPhotos] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<{ id: string; name: string } | null>(null);
@@ -80,6 +81,21 @@ export default function WalkInPage() {
   useEffect(() => {
     if (tab === "list") void loadList();
   }, [tab]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/payment-settings", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { settings?: { baseDispatchFeeOffline?: number } };
+        if (data.settings?.baseDispatchFeeOffline != null) {
+          setOfflineDispatchFee(Number(data.settings.baseDispatchFeeOffline));
+        }
+      } catch {
+        // 안내 문구용이라 실패해도 무시(기본값 200,000 유지)
+      }
+    })();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,8 +239,11 @@ export default function WalkInPage() {
                 <input
                   type="number" min="0" value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-dk-navy"
-                  placeholder="50000"
+                  placeholder={String(offlineDispatchFee)}
                 />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  참고: 현장즉시접수 정가 출장비는 {offlineDispatchFee.toLocaleString("ko-KR")}원입니다.
+                </p>
               </div>
             </div>
 

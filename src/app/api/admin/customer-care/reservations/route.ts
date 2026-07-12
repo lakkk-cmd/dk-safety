@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       detail: body.detail?.trim() || "오프라인 접수",
       imageUrls: [],
       priority: body.priority === "emergency" ? "emergency" : "normal",
-      baseFee: paymentSettings.baseDispatchFee
+      baseFee: paymentSettings.baseDispatchFeeOffline
     });
 
     await appendActivityLog({

@@ -571,7 +571,10 @@ export async function pgAdminCreateOfflineReservation(
     is_paid: false,
     paid_at: null,
     prepayment_confirmed: false,
-    prepayment_confirmed_at: null
+    prepayment_confirmed_at: null,
+    // 관리자가 전화 상담 후 등록하는 접수 — source를 안 넣으면 DB default('online')로
+    // 잘못 기록돼 채널별 출장비 구분이 무의미해진다(2026-07-12 발견한 기존 버그, 이번에 수정).
+    source: "phone" as const
   };
 
   const { data, error } = await supabase.from("reservations").insert(insert).select().single();
