@@ -162,6 +162,17 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
           </div>
         </section>
 
+        <section className="rounded-2xl bg-dk-sky p-5 text-center">
+          <p className="text-4xl">👨‍🔧</p>
+          <h2 className="mt-2 text-lg font-bold text-dk-navy">우리는 어떤 회사예요?</h2>
+          <p className="mt-2 text-[15px] leading-relaxed text-slate-700">
+            평소엔 아파트에서 전기를 관리하는 진짜 전기기사가, 저녁이나 주말에 우리 집으로
+            직접 찾아가서 위험한 전기 문제를 봐드리는 회사예요.
+            <br />
+            자격증이 있는 사람이 직접 오니까 안심하고 맡기실 수 있어요.
+          </p>
+        </section>
+
         <footer className="pb-2 pt-2 text-center text-xs text-slate-400">
           <p className="font-bold text-dk-gold">⚡ 우리집 전기주치의(대경이엔피)</p>
           <p className="mt-1 leading-relaxed">
