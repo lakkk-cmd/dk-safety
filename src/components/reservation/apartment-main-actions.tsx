@@ -3,12 +3,15 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { siteConfig } from "@/lib/site-config";
+import RepairRequestModal from "@/components/reservation/repair-request-modal";
 
 type ApartmentInfo = {
   id: string;
   code: string;
   name: string;
   logoUrl: string | null;
+  baseFee: number;
+  bankInfo?: { bankName: string; accountNumber: string; accountHolder: string };
 };
 
 export type ApartmentUrlProfile = {
@@ -74,6 +77,7 @@ function tipBadgeClass(category: string) {
 export default function ApartmentMainActions({ apartment, urlProfile, electricalTips = [] }: Props) {
   const [modalKind, setModalKind] = useState<RequestKind | null>(null);
   const [consultModalOpen, setConsultModalOpen] = useState(false);
+  const [repairModalOpen, setRepairModalOpen] = useState(false);
   const [tipDetail, setTipDetail] = useState<ElectricalTipPublic | null>(null);
   const [dong, setDong] = useState(urlProfile.dong);
   const [ho, setHo] = useState(urlProfile.ho);
@@ -172,16 +176,20 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
   }, [dong, ho, name, phone, profileStorageKey, globalProfileStorageKey]);
 
   useEffect(() => {
-    if (!tipDetail) return;
+    if (!tipDetail && !repairModalOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [tipDetail]);
+  }, [tipDetail, repairModalOpen]);
 
   const startRequest = (kind: RequestKind) => {
     setRequestMessage("");
+    if (kind === "repair") {
+      setRepairModalOpen(true);
+      return;
+    }
     if (canMove) {
       window.location.assign(moveHrefFor(kind));
       return;
@@ -217,21 +225,21 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
           <button
             type="button"
             onClick={() => startRequest("repair")}
-            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-base font-extrabold text-slate-900 shadow-sm transition hover:bg-white"
+            className="inline-flex h-16 items-center justify-center rounded-xl bg-white/95 px-1 text-center text-lg font-black leading-tight text-slate-900 shadow-sm transition hover:bg-white"
           >
             🔧 점검·수리
           </button>
           <button
             type="button"
             onClick={() => window.location.assign(`/resident/safety-check?tenant=${encodeURIComponent(apartment.code)}`)}
-            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-base font-extrabold text-slate-900 shadow-sm transition hover:bg-white"
+            className="inline-flex h-16 items-center justify-center rounded-xl bg-white/95 px-1 text-center text-lg font-black leading-tight text-slate-900 shadow-sm transition hover:bg-white"
           >
             🛡️ 자가진단
           </button>
           <button
             type="button"
             onClick={() => setConsultModalOpen(true)}
-            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-base font-extrabold text-slate-900 shadow-sm transition hover:bg-white"
+            className="inline-flex h-16 items-center justify-center rounded-xl bg-white/95 px-1 text-center text-lg font-black leading-tight text-slate-900 shadow-sm transition hover:bg-white"
           >
             💬 상담
           </button>
@@ -293,6 +301,24 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
         <span className="text-base font-bold text-slate-800">💬 전화 · 카카오톡 상담</span>
         <span className="text-lg font-bold text-slate-500">→</span>
       </button>
+
+      {repairModalOpen ? (
+        <RepairRequestModal
+          apartment={apartment}
+          initialDong={dong}
+          initialHo={ho}
+          initialName={name}
+          initialPhone={phone}
+          skipProfileStep={canMove}
+          onClose={() => setRepairModalOpen(false)}
+          onProfileConfirmed={(profile) => {
+            setDong(profile.dong);
+            setHo(profile.ho);
+            setName(profile.name);
+            setPhone(profile.phone);
+          }}
+        />
+      ) : null}
 
       {modalKind ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-3 sm:items-center">
