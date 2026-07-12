@@ -3,7 +3,14 @@ import { cookies } from "next/headers";
 import { appendActivityLog } from "@/lib/activity-log";
 import { notifyCustomerWorkCompleted } from "@/lib/customer-notification";
 import { pushLiveNotification, pushReservationProgressNotifications } from "@/lib/live-notify";
-import { pgAcceptTask, pgCompleteTask, pgDeclineTask, pgGetTaskForWorker, pgStartTask } from "@/lib/reservations-pg";
+import {
+  pgAcceptTask,
+  pgCompleteTask,
+  pgDeclineTask,
+  pgGetTaskForWorker,
+  pgStartTask,
+  pgUpgradeSimpleSwapTask
+} from "@/lib/reservations-pg";
 import { sendAdminAlertSms } from "@/lib/solapi-agent";
 import { WORKER_AUTH_COOKIE } from "@/lib/site-config";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
@@ -82,6 +89,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         });
       }
       return NextResponse.json({ message: "배정을 거절했습니다. 관리자에게 즉시 알림이 발송되었습니다." });
+    }
+    if (action === "upgrade") {
+      const reason = body.reason?.trim() ?? "";
+      if (reason.length < 2) {
+        return NextResponse.json({ message: "업그레이드 사유를 2자 이상 입력해주세요." }, { status: 400 });
+      }
+      await pgUpgradeSimpleSwapTask(id, session.workerId, reason);
+      return NextResponse.json({ message: "등급 업그레이드가 기록되었습니다." });
     }
     if (action === "start") {
       await pgStartTask(id, session.workerId);

@@ -12,8 +12,14 @@ type ApartmentInfo = {
   bankInfo?: { bankName: string; accountNumber: string; accountHolder: string };
 };
 
+type ModalRequestType = "repair" | "simple-swap";
+
 type Props = {
   apartment: ApartmentInfo;
+  /** 기본값 "repair" — "simple-swap"이면 단순 기구교체 접수 플로우로 전환 */
+  requestType?: ModalRequestType;
+  /** requestType이 "simple-swap"일 때만 사용되는 정액 공임 */
+  simpleSwapFee?: number;
   initialDong: string;
   initialHo: string;
   initialName: string;
@@ -28,8 +34,15 @@ type Props = {
 const isValidName = (value: string) => /^[\p{L}\s]+$/u.test(value.trim());
 const isValidPhone = (value: string) => /^\d{11}$/.test(value.trim());
 
+const MODAL_TITLES: Record<ModalRequestType, { emoji: string; label: string }> = {
+  repair: { emoji: "🔧", label: "점검·수리" },
+  "simple-swap": { emoji: "🔩", label: "단순 기구교체" }
+};
+
 export default function RepairRequestModal({
   apartment,
+  requestType = "repair",
+  simpleSwapFee,
   initialDong,
   initialHo,
   initialName,
@@ -38,6 +51,7 @@ export default function RepairRequestModal({
   onClose,
   onProfileConfirmed
 }: Props) {
+  const modalTitle = MODAL_TITLES[requestType];
   const [step, setStep] = useState<"profile" | "flow">(skipProfileStep ? "flow" : "profile");
   const [dong, setDong] = useState(initialDong);
   const [ho, setHo] = useState(initialHo);
@@ -86,7 +100,7 @@ export default function RepairRequestModal({
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
           <div>
             <p id="repair-modal-title" className="text-base font-black text-slate-900">
-              🔧 점검·수리 예약
+              {modalTitle.emoji} {modalTitle.label} 예약
             </p>
             <p className="mt-0.5 text-xs font-bold text-dk-blue">
               {step === "profile" ? "STEP 1 · 기본 정보 입력" : "STEP 2 · 접수 내용 · 일정 · 결제"}
@@ -150,7 +164,7 @@ export default function RepairRequestModal({
             </div>
           ) : (
             <Suspense fallback={<div className="py-10 text-center text-sm text-slate-500">불러오는 중...</div>}>
-              <ServiceRequestPage apartment={apartment} requestType="repair" />
+              <ServiceRequestPage apartment={apartment} requestType={requestType} simpleSwapFee={simpleSwapFee} />
             </Suspense>
           )}
         </div>

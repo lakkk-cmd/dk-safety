@@ -4,10 +4,12 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
 const MIN_FEE = 50000;
+const MIN_SWAP_FEE = 10000;
 
 export default function BaseDispatchFeeSettings() {
   const [baseDispatchFee, setBaseDispatchFee] = useState(MIN_FEE);
   const [baseDispatchFeeOffline, setBaseDispatchFeeOffline] = useState(200000);
+  const [simpleSwapFee, setSimpleSwapFee] = useState(70000);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -17,13 +19,16 @@ export default function BaseDispatchFeeSettings() {
         const response = await fetch("/api/admin/payment-settings", { cache: "no-store" });
         if (!response.ok) return;
         const data = (await response.json()) as {
-          settings?: { baseDispatchFee?: number; baseDispatchFeeOffline?: number };
+          settings?: { baseDispatchFee?: number; baseDispatchFeeOffline?: number; simpleSwapFee?: number };
         };
         if (data.settings?.baseDispatchFee != null) {
           setBaseDispatchFee(Math.max(MIN_FEE, Number(data.settings.baseDispatchFee)));
         }
         if (data.settings?.baseDispatchFeeOffline != null) {
           setBaseDispatchFeeOffline(Math.max(MIN_FEE, Number(data.settings.baseDispatchFeeOffline)));
+        }
+        if (data.settings?.simpleSwapFee != null) {
+          setSimpleSwapFee(Math.max(MIN_SWAP_FEE, Number(data.settings.simpleSwapFee)));
         }
       } catch {
         // ignore
@@ -43,11 +48,12 @@ export default function BaseDispatchFeeSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           baseDispatchFee: Math.max(MIN_FEE, Math.round(baseDispatchFee)),
-          baseDispatchFeeOffline: Math.max(MIN_FEE, Math.round(baseDispatchFeeOffline))
+          baseDispatchFeeOffline: Math.max(MIN_FEE, Math.round(baseDispatchFeeOffline)),
+          simpleSwapFee: Math.max(MIN_SWAP_FEE, Math.round(simpleSwapFee))
         })
       });
       const data = (await response.json()) as {
-        settings?: { baseDispatchFee?: number; baseDispatchFeeOffline?: number };
+        settings?: { baseDispatchFee?: number; baseDispatchFeeOffline?: number; simpleSwapFee?: number };
         message?: string;
       };
       if (!response.ok || !data.settings) {
@@ -56,6 +62,9 @@ export default function BaseDispatchFeeSettings() {
       setBaseDispatchFee(Math.max(MIN_FEE, Number(data.settings.baseDispatchFee)));
       if (data.settings.baseDispatchFeeOffline != null) {
         setBaseDispatchFeeOffline(Math.max(MIN_FEE, Number(data.settings.baseDispatchFeeOffline)));
+      }
+      if (data.settings.simpleSwapFee != null) {
+        setSimpleSwapFee(Math.max(MIN_SWAP_FEE, Number(data.settings.simpleSwapFee)));
       }
       setMessage("기본 출장비가 저장되었습니다.");
     } catch (error) {
@@ -103,6 +112,19 @@ export default function BaseDispatchFeeSettings() {
           </p>
         ) : null}
         <p className="text-xs text-slate-500 dark:text-slate-400">최소 {MIN_FEE.toLocaleString("ko-KR")}원 이상입니다.</p>
+        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
+          단순 기구교체 공임 (점검 없이 바로 교체 · 재료비 별도)
+          <input
+            className="soft-input mt-1 w-full text-sm dark:border-slate-600 dark:bg-slate-900"
+            type="number"
+            min={MIN_SWAP_FEE}
+            step={1000}
+            value={simpleSwapFee}
+            onChange={(e) => setSimpleSwapFee(Math.max(MIN_SWAP_FEE, Number(e.target.value || 0)))}
+            required
+          />
+        </label>
+        <p className="text-xs text-slate-500 dark:text-slate-400">최소 {MIN_SWAP_FEE.toLocaleString("ko-KR")}원 이상입니다.</p>
         {message ? (
           <p
             className={`text-sm ${message.includes("실패") || message.includes("수정할 수") ? "text-rose-700 dark:text-rose-400" : "text-emerald-800 dark:text-emerald-300"}`}

@@ -51,6 +51,9 @@ export type Reservation = {
   lastDeclineReason?: string | null;
   lastDeclinedWorkerName?: string | null;
   lastDeclinedAt?: string | null;
+  /** 단순 기구교체 현장에서 기사가 상/중/하 작업비 표로 업그레이드한 사유 — 없으면 업그레이드 안 됨 */
+  upgradeReason?: string | null;
+  upgradedAt?: string | null;
   orderFinalPaymentStatus?: "PENDING" | "REQUESTED" | "PAID" | "FAILED" | "CANCELLED" | null;
   orderTotalFinalFee?: number | null;
   orderWarrantyIssuedAt?: string | null;

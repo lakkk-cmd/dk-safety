@@ -20,6 +20,7 @@ export async function PATCH(request: Request) {
     accountHolder?: string;
     baseDispatchFee?: number;
     baseDispatchFeeOffline?: number;
+    simpleSwapFee?: number;
   };
   try {
     const settings = await updatePaymentSettings(body);

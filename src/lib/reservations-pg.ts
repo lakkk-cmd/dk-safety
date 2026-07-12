@@ -58,6 +58,8 @@ type ReservationRow = {
   last_decline_reason?: string | null;
   last_declined_worker_name?: string | null;
   last_declined_at?: string | null;
+  upgrade_reason?: string | null;
+  upgraded_at?: string | null;
   apartments: { name: string; code: string } | { name: string; code: string }[] | null;
   tasks: TaskRow[] | TaskRow | null;
   orders?:
@@ -243,6 +245,8 @@ function mapReservation(row: ReservationRow): Reservation {
     lastDeclineReason: row.last_decline_reason ?? null,
     lastDeclinedWorkerName: row.last_declined_worker_name ?? null,
     lastDeclinedAt: row.last_declined_at ?? null,
+    upgradeReason: row.upgrade_reason ?? null,
+    upgradedAt: row.upgraded_at ?? null,
     orderFinalPaymentStatus: o?.final_payment_status ?? null,
     orderTotalFinalFee: Number.isFinite(o?.total_final_fee) ? Number(o?.total_final_fee) : null,
     orderWarrantyIssuedAt: o?.warranty_issued_at ?? null,
@@ -1036,6 +1040,8 @@ export async function pgGetTaskForWorker(
         is_paid,
         paid_at,
         created_at,
+        upgrade_reason,
+        upgraded_at,
         apartments (
           name,
           code
@@ -1113,6 +1119,8 @@ export async function pgListTasksForWorker(workerId: string): Promise<
         is_paid,
         paid_at,
         created_at,
+        upgrade_reason,
+        upgraded_at,
         apartments (
           name,
           code
@@ -1176,6 +1184,34 @@ export async function pgStartTask(taskId: string, workerId: string): Promise<voi
     .eq("id", data.reservation_id);
   if (rErr) {
     throw new Error(`예약 진행 상태 반영 실패: ${rErr.message}`);
+  }
+}
+
+/**
+ * 단순 기구교체 현장에서 더 큰 문제가 발견돼 상/중/하 작업비 표로 넘어가는 업그레이드를 기록한다.
+ * 정산 시 별도 계산 로직이 필요하지 않다 — calculate_final_fee()의 기존 deductible_flag 폴백이
+ * work_proceeded && extra_fee>0일 때 이미 base_fee(단순교체 공임)를 자동 공제해주기 때문에,
+ * 기사가 완료 시 입력하는 extraFee(작업비 난이도 정액)만 정확히 반영되면 된다.
+ */
+export async function pgUpgradeSimpleSwapTask(taskId: string, workerId: string, reason: string): Promise<void> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id, worker_id, status, reservation_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (error || !data || data.worker_id !== workerId) {
+    throw new Error("작업을 찾을 수 없거나 권한이 없습니다.");
+  }
+  if (data.status === "completed") {
+    throw new Error("이미 완료된 작업은 업그레이드할 수 없습니다.");
+  }
+  const { error: rErr } = await supabase
+    .from("reservations")
+    .update({ upgrade_reason: reason, upgraded_at: new Date().toISOString() })
+    .eq("id", data.reservation_id);
+  if (rErr) {
+    throw new Error(`업그레이드 기록 실패: ${rErr.message}`);
   }
 }
 

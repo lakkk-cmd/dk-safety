@@ -16,6 +16,8 @@ type TaskPayload = {
 };
 
 const DECLINE_REASON_PRESETS = ["개인사정", "차량고장", "일정중복", "건강문제"];
+const UPGRADE_REASON_PRESETS = ["배선/회로 문제 발견", "벽체 개방 필요", "1시간 초과 예상", "기타"];
+const SIMPLE_SWAP_SERVICE_TYPE = "단순기구교체";
 
 type Row = {
   task: TaskPayload;
@@ -44,6 +46,8 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
   const [showCompletePanel, setShowCompletePanel] = useState(false);
   const [declineModalOpen, setDeclineModalOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
@@ -177,6 +181,32 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
       setDeclineModalOpen(false);
       setMessage(data.message ?? "배정을 거절했습니다.");
       setRow(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const upgrade = async () => {
+    if (upgradeReason.trim().length < 2) {
+      setMessage("업그레이드 사유를 선택하거나 2자 이상 입력해주세요.");
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/worker/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "upgrade", reason: upgradeReason.trim() })
+      });
+      const data = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        setMessage(data.message ?? "업그레이드 처리에 실패했습니다.");
+        return;
+      }
+      setUpgradeModalOpen(false);
+      setMessage(data.message ?? "등급 업그레이드가 기록되었습니다.");
+      await load();
     } finally {
       setBusy(false);
     }
@@ -380,6 +410,32 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
           </div>
         ) : null}
 
+        {task.status === "in_progress" && reservation.serviceType === SIMPLE_SWAP_SERVICE_TYPE ? (
+          <div className="mt-4">
+            {reservation.upgradedAt ? (
+              <p className="rounded-xl bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900">
+                🔺 등급 업그레이드됨 · 사유: {reservation.upgradeReason}
+                <br />
+                <span className="font-semibold">
+                  아래 &quot;현장 추가 비용&quot;에 작업비 난이도 정액(하 5만/10만·중 20만·상 30만, 3시간 초과는 재량)을 입력해주세요.
+                </span>
+              </p>
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setUpgradeReason("");
+                  setUpgradeModalOpen(true);
+                }}
+                className="w-full rounded-xl border-2 border-amber-300 bg-amber-50 py-2.5 text-xs font-bold text-amber-900 disabled:opacity-60"
+              >
+                🔺 더 큰 문제 발견 — 등급 업그레이드
+              </button>
+            )}
+          </div>
+        ) : null}
+
         {task.status === "in_progress" ? (
           <div className="mt-4 space-y-4">
             <div>
@@ -431,7 +487,9 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
                   onChange={(e) => setExtraFee(e.target.value.replaceAll(/[^0-9]/g, "") || "0")}
                   className="soft-input mt-2 w-full text-sm"
                 />
-                <p className="mt-2 text-sm font-bold text-slate-800">최종 예상: {(50000 + Number(extraFee || "0")).toLocaleString()}원</p>
+                <p className="mt-2 text-sm font-bold text-slate-800">
+                  최종 예상: {(reservation.baseFee + Number(extraFee || "0")).toLocaleString()}원
+                </p>
                 <button
                   type="button"
                   disabled={busy}
@@ -450,6 +508,57 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
           <div className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">이 작업은 완료되었습니다.</div>
         ) : null}
       </section>
+
+      {upgradeModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-3 sm:items-center">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl">
+            <p className="text-sm font-bold text-slate-500">등급 업그레이드</p>
+            <h2 className="mt-1 text-lg font-extrabold text-slate-900">더 큰 문제를 발견하셨나요?</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              단순 기구교체 공임({reservation.baseFee.toLocaleString()}원)은 완료 시 작업비에서 자동 공제됩니다. 사유를
+              선택해주세요.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {UPGRADE_REASON_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setUpgradeReason(preset)}
+                  className={`rounded-xl border-2 py-2.5 text-sm font-bold transition-colors ${
+                    upgradeReason === preset ? "border-amber-500 bg-amber-50 text-amber-800" : "border-slate-200 text-slate-700"
+                  }`}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+            <input
+              value={UPGRADE_REASON_PRESETS.includes(upgradeReason) ? "" : upgradeReason}
+              onChange={(e) => setUpgradeReason(e.target.value)}
+              placeholder="기타 사유 직접 입력"
+              className="soft-input mt-2 w-full text-sm"
+            />
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setUpgradeModalOpen(false)}
+                className="h-12 rounded-xl border border-slate-300 text-sm font-bold text-slate-700"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={busy || upgradeReason.trim().length < 2}
+                onClick={() => void upgrade()}
+                className="h-12 rounded-xl bg-amber-600 text-sm font-extrabold text-white disabled:opacity-50"
+              >
+                {busy ? "처리중..." : "업그레이드 확정"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {declineModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-3 sm:items-center">

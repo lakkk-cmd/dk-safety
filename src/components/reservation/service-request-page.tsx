@@ -31,7 +31,7 @@ type ServiceItemInfo = {
   maxFee: number | null;
 };
 
-type RequestType = "repair" | "emergency" | "etc-check";
+type RequestType = "repair" | "emergency" | "etc-check" | "simple-swap";
 type FlowStatus = "draft" | "pending_payment" | "assigned_waiting" | "assigned_done";
 type WarrantyBrief = { warrantyNumber: string; verifyUrl: string | null };
 type VirtualAccountInfo = {
@@ -45,6 +45,8 @@ type VirtualAccountInfo = {
 type Props = {
   apartment: ApartmentInfo;
   requestType: RequestType;
+  /** "simple-swap" 전용 정액 공임 — 관리자 설정(payment_settings.simple_swap_fee)에서 서버가 조회해 전달 */
+  simpleSwapFee?: number;
 };
 
 const PHOTO_SLOT_COUNT = 5;
@@ -70,10 +72,17 @@ const requestInfo: Record<RequestType, { title: string; serviceType: string; ser
     serviceItemKey: "VISIT",
     detail: "기타점검 버튼 접수",
     gatewayTitle: "기타점검 예약금 결제 게이트웨이"
+  },
+  "simple-swap": {
+    title: "단순 기구교체",
+    serviceType: "단순기구교체",
+    serviceItemKey: "OUTLET",
+    detail: "단순 기구교체 버튼 접수 (점검 없이 바로 교체)",
+    gatewayTitle: "단순 기구교체 공임 결제 게이트웨이"
   }
 };
 
-export default function ServiceRequestPage({ apartment, requestType }: Props) {
+export default function ServiceRequestPage({ apartment, requestType, simpleSwapFee }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [serviceItems, setServiceItems] = useState<ServiceItemInfo[]>([]);
@@ -96,7 +105,8 @@ export default function ServiceRequestPage({ apartment, requestType }: Props) {
   const [warranty, setWarranty] = useState<WarrantyBrief | null>(null);
   const [virtualAccount, setVirtualAccount] = useState<VirtualAccountInfo | null>(null);
   const [taskStatus, setTaskStatus] = useState<"assigned" | "in_progress" | "completed" | null>(null);
-  const prepaymentAmount = requestType === "emergency" ? 100000 : 50000;
+  const prepaymentAmount =
+    requestType === "emergency" ? 100000 : requestType === "simple-swap" ? Math.max(10000, simpleSwapFee ?? 70000) : 50000;
   const isEmergency = requestType === "emergency";
   const scheduleSelectButtonLabel = isEmergency ? "긴급출동요청" : "예약 날짜/시간 선택";
   const profileStorageKey = `dk-safety:request-profile:${apartment.code}`;

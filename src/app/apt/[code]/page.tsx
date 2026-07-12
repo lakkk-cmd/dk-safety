@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { pgFindApartmentByCode } from "@/lib/apartments-pg";
 import ApartmentMainActions, { type ElectricalTipPublic } from "@/components/reservation/apartment-main-actions";
+import { readPaymentSettings } from "@/lib/payment-settings";
 import { isSupabaseReservationsDbReady, requireSupabaseAdmin } from "@/lib/supabase-pg";
 
 function firstQuery(v: string | string[] | undefined): string {
@@ -27,6 +28,8 @@ export default async function ApartmentHomePage({
     phone: firstQuery(sp.phone).replaceAll(/[^0-9]/g, "").slice(0, 11)
   };
 
+  const paymentSettings = await readPaymentSettings();
+
   let electricalTips: ElectricalTipPublic[] = [];
   try {
     const supabase = requireSupabaseAdmin();
@@ -43,5 +46,12 @@ export default async function ApartmentHomePage({
     electricalTips = [];
   }
 
-  return <ApartmentMainActions apartment={apartment} urlProfile={urlProfile} electricalTips={electricalTips} />;
+  return (
+    <ApartmentMainActions
+      apartment={apartment}
+      urlProfile={urlProfile}
+      electricalTips={electricalTips}
+      simpleSwapFee={paymentSettings.simpleSwapFee}
+    />
+  );
 }

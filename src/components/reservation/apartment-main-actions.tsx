@@ -36,6 +36,8 @@ type Props = {
   urlProfile: ApartmentUrlProfile;
   /** 발행된 생활전기정보(아파트 홈 상단에서 서버 조회) */
   electricalTips?: ElectricalTipPublic[];
+  /** 단순 기구교체(점검 없이 바로 교체) 정액 공임 — 관리자 설정에서 서버가 조회해 전달 */
+  simpleSwapFee: number;
 };
 
 type RequestKind = "repair" | "emergency";
@@ -74,10 +76,11 @@ function tipBadgeClass(category: string) {
   }
 }
 
-export default function ApartmentMainActions({ apartment, urlProfile, electricalTips = [] }: Props) {
+export default function ApartmentMainActions({ apartment, urlProfile, electricalTips = [], simpleSwapFee }: Props) {
   const [modalKind, setModalKind] = useState<RequestKind | null>(null);
   const [consultModalOpen, setConsultModalOpen] = useState(false);
   const [repairModalOpen, setRepairModalOpen] = useState(false);
+  const [simpleSwapModalOpen, setSimpleSwapModalOpen] = useState(false);
   const [tipDetail, setTipDetail] = useState<ElectricalTipPublic | null>(null);
   const [dong, setDong] = useState(urlProfile.dong);
   const [ho, setHo] = useState(urlProfile.ho);
@@ -176,13 +179,13 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
   }, [dong, ho, name, phone, profileStorageKey, globalProfileStorageKey]);
 
   useEffect(() => {
-    if (!tipDetail && !repairModalOpen) return;
+    if (!tipDetail && !repairModalOpen && !simpleSwapModalOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [tipDetail, repairModalOpen]);
+  }, [tipDetail, repairModalOpen, simpleSwapModalOpen]);
 
   const startRequest = (kind: RequestKind) => {
     setRequestMessage("");
@@ -245,6 +248,20 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
           </button>
         </div>
       </section>
+
+      <button
+        type="button"
+        onClick={() => setSimpleSwapModalOpen(true)}
+        className="flex w-full items-center justify-between rounded-2xl border border-dk-gold/50 bg-amber-50 px-4 py-3 text-left shadow-sm transition hover:bg-amber-100"
+      >
+        <div>
+          <p className="text-base font-extrabold text-slate-900">🔩 단순 기구교체</p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-600">
+            점검 없이 바로 교체 · 공임 {simpleSwapFee.toLocaleString("ko-KR")}원부터 (재료비 별도)
+          </p>
+        </div>
+        <span className="rounded-full bg-dk-gold/20 px-3 py-1 text-xs font-bold text-slate-800">바로 접수 →</span>
+      </button>
 
       <button
         type="button"
@@ -311,6 +328,26 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
           initialPhone={phone}
           skipProfileStep={canMove}
           onClose={() => setRepairModalOpen(false)}
+          onProfileConfirmed={(profile) => {
+            setDong(profile.dong);
+            setHo(profile.ho);
+            setName(profile.name);
+            setPhone(profile.phone);
+          }}
+        />
+      ) : null}
+
+      {simpleSwapModalOpen ? (
+        <RepairRequestModal
+          apartment={apartment}
+          requestType="simple-swap"
+          simpleSwapFee={simpleSwapFee}
+          initialDong={dong}
+          initialHo={ho}
+          initialName={name}
+          initialPhone={phone}
+          skipProfileStep={canMove}
+          onClose={() => setSimpleSwapModalOpen(false)}
           onProfileConfirmed={(profile) => {
             setDong(profile.dong);
             setHo(profile.ho);
