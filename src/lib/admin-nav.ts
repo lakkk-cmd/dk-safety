@@ -14,6 +14,7 @@ import {
   ListOrdered,
   MessageSquare,
   PieChart,
+  Printer,
   ShieldAlert,
   ShieldUser,
   Table2,
@@ -25,6 +26,7 @@ import {
 
 export const ADMIN_HOME_HREF = "/admin/home";
 export const ADMIN_WORKFLOW_HREF = "/admin/workflow";
+export const ADMIN_PROCESS_GUIDE_HREF = "/admin/process-guide";
 
 /** 메인화면 빠른 이동 카드 하단 검색 → `/api/admin/quick-search` */
 export type AdminQuickSearchScope =
@@ -76,6 +78,12 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "업무 진행 흐름",
     description: "단계별 운영 순서·화면 이동",
     icon: ListOrdered
+  },
+  {
+    href: ADMIN_PROCESS_GUIDE_HREF,
+    label: "업무 흐름 안내서 (인쇄용)",
+    description: "사용자·관리자·기사앱 전체 흐름 — 인쇄/PDF 다운로드",
+    icon: Printer
   },
   {
     href: "/admin/customers",
