@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -18,7 +19,7 @@ export default function AdminLoginPage() {
       const response = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ phone, password })
       });
 
       const data = (await response.json()) as { message: string };
@@ -46,7 +47,17 @@ export default function AdminLoginPage() {
         <form onSubmit={onSubmit} className="surface-card-strong w-full rounded-2xl p-6">
           <p className="text-sm font-semibold text-primary">우리집 전기주치의(대경이엔피) 관리자</p>
           <h2 className="mt-1 text-2xl font-bold">관리자 로그인</h2>
-          <p className="mt-2 text-sm text-slate-600">설정된 관리자 비밀번호를 입력해주세요.</p>
+          <p className="mt-2 text-sm text-slate-600">
+            본인 계정의 연락처와 비밀번호를 입력하세요. 계정이 없다면 연락처는 비워두고 관리자 마스터 비밀번호로
+            로그인할 수 있습니다.
+          </p>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="연락처 (계정이 없으면 비워두세요)"
+            className="soft-input mt-4 w-full"
+          />
         <input
           type="password"
           required

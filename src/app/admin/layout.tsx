@@ -24,6 +24,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const isLoginPage = pathname === "/admin/login";
   const [prepPending, setPrepPending] = useState(0);
   const [settlePending, setSettlePending] = useState(0);
+  const [adminName, setAdminName] = useState<string | null>(null);
   // 모바일에서 사이드바가 화면 전체를 항상 차지해 실제 작업이 안 되던 문제 —
   // 모바일에서는 기본 숨김(off-canvas) + 햄버거 버튼으로 열고, 경로 변경 시 자동으로 닫는다.
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -31,6 +32,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     setMobileNavOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (isLoginPage) return;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/me", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { name?: string | null };
+        setAdminName(data.name ?? null);
+      } catch {
+        // ignore — 헤더 표시는 nice-to-have
+      }
+    })();
+  }, [isLoginPage]);
 
   useEffect(() => {
     if (isLoginPage) return;
@@ -90,6 +105,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">관제 센터</p>
               <h1 className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">우리집 전기주치의(대경이엔피)</h1>
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">운영 관리 시스템</p>
+              <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                {adminName ? `안녕하세요, ${adminName}님` : "안녕하세요, 마스터 계정님"}
+              </p>
             </div>
             <button
               type="button"

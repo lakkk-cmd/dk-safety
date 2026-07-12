@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   ShieldUser,
   Table2,
+  UserCircle,
   UserCog,
   Users,
   Wallet,
@@ -220,6 +221,14 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "경영대시보드",
     description: "매출·지출·수익 6개월 추세·미수금",
     icon: PieChart
+  },
+  // ── 시스템 설정 ──────────────────────────────────────────────────────────
+  {
+    href: "/admin/account",
+    label: "관리자 계정 관리",
+    description: "관리자 계정 등록·이름/연락처/비밀번호 관리",
+    icon: UserCircle,
+    sectionLabel: "설정"
   }
 ];
 

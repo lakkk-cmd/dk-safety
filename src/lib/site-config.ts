@@ -11,6 +11,10 @@ export const siteConfig = {
 export const ADMIN_AUTH_COOKIE = "dk_admin_auth";
 export const RESIDENT_AUTH_COOKIE = "dk_resident_auth";
 export const WORKER_AUTH_COOKIE = "dk_worker_auth";
+/** 로그인한 관리자 계정을 식별하는 보조 쿠키 — dk_admin_auth(인증 게이트)와 별개, 없어도 로그인 자체는 된다. */
+export const ADMIN_ID_COOKIE = "dk_admin_id";
 
 /** 기사 세션 서명용. 운영 환경에서 반드시 임의 문자열로 설정하세요. */
 export const WORKER_SESSION_SECRET = process.env.WORKER_SESSION_SECRET ?? "";
+/** 관리자 계정 식별 세션 서명용. 미설정 시 계정 식별 쿠키만 생략되고 로그인은 정상 동작한다. */
+export const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET ?? "";
