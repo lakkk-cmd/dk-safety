@@ -3,12 +3,14 @@ title: "기능 현황 — page"
 category: features
 tags: ["project-features", "page"]
 source: "project_features"
-synced_at: "2026-07-11T20:36:18.959Z"
+synced_at: "2026-07-12T20:33:32.076Z"
 ---
 
 <!-- AUTO:START -->
-## page (48건)
+## page (52건)
 
+- **account** (`/admin/account`): 자동 감지된 페이지 (/admin/account) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
 - **activity-logs** (`/admin/activity-logs`): 자동 감지된 페이지 (/admin/activity-logs) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **adjustment** (`/admin/adjustment`): 자동 감지된 페이지 (/admin/adjustment) — 설명을 채워주세요
@@ -53,15 +55,21 @@ synced_at: "2026-07-11T20:36:18.959Z"
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **intelligence** (`/hq/intelligence`): 자동 감지된 페이지 (/hq/intelligence) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
+- **labor-tiers** (`/admin/labor-tiers`): 자동 감지된 페이지 (/admin/labor-tiers) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
 - **login** (`/hq/login`): 자동 감지된 페이지 (/hq/login) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **login** (`/admin/login`): 자동 감지된 페이지 (/admin/login) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **materials** (`/admin/materials`): 자동 감지된 페이지 (/admin/materials) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **payment-settings** (`/admin/payment-settings`): 자동 감지된 페이지 (/admin/payment-settings) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **pipeline** `deprecated` (`/hq/pipeline`): 자동 감지된 페이지 (/hq/pipeline) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **pricing** (`/admin/pricing`): 자동 감지된 페이지 (/admin/pricing) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **process-guide** (`/admin/process-guide`): 자동 감지된 페이지 (/admin/process-guide) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **report** (`/hq/report`): 자동 감지된 페이지 (/hq/report) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
