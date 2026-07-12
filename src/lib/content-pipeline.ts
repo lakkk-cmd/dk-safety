@@ -20,14 +20,10 @@ import {
 import { loadPerformanceLessons } from "@/lib/content-performance";
 import { humanizeKoreanText } from "@/lib/humanizer";
 import { notifyAutoPublished } from "@/lib/kakao-publish";
-import {
-  broadcastKakaoFriendTalkToCustomers,
-  KAKAO_MEMO_ENABLED,
-  publishKakaoPost,
-  sendContentApprovalNotification,
-} from "@/lib/kakao-publish";
+import { broadcastKakaoFriendTalkToCustomers, publishKakaoPost } from "@/lib/kakao-publish";
 import { NAVER_ENABLED, collectNaverTrends, getRecentTrendKeywords } from "@/lib/naver-pipeline";
 import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
+import { sendAdminAlertSms } from "@/lib/solapi-agent";
 import { produceVideoAssets } from "@/lib/video-pipeline";
 import { uploadYoutubeVideo } from "@/lib/youtube-upload";
 
@@ -344,6 +340,20 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
     });
     await finishPipelineRun(runId, "success", { youtubeUpdated, kakaoUpdated, blogUpdated });
 
+    // Gemini 자동검수를 통과 못한 항목(review_required 등)만 실제 사람 승인이 필요하다 —
+    // 즉시 SMS로 알려 주간 배치(runContentApprovalNotify)까지 기다리지 않게 한다.
+    try {
+      const pending = await getPendingApprovalCounts();
+      const total = pending.youtube + pending.kakao + pending.blog;
+      if (total > 0) {
+        await sendAdminAlertSms(
+          `[승인대기] 유튜브 ${pending.youtube}건, 카카오 ${pending.kakao}건, 블로그 ${pending.blog}건\ncontents.dkansim.com`
+        );
+      }
+    } catch (err) {
+      await logAgentEvent("warn", "content-draft", `승인대기 SMS 알림 실패: ${errMessage(err)}`);
+    }
+
     return { youtubeUpdated, kakaoUpdated, blogUpdated };
   } catch (err) {
     await logAgentEvent("error", "content-draft", `콘텐츠 초안 생성 실패: ${errMessage(err)}`);
@@ -366,13 +376,13 @@ export async function runContentApprovalNotify(): Promise<ContentApprovalNotifyR
     const total = pending.youtube + pending.kakao + pending.blog;
 
     let notified = false;
-    if (total > 0 && KAKAO_MEMO_ENABLED) {
-      const summary = `유튜브 ${pending.youtube}건, 카카오 ${pending.kakao}건, 블로그 ${pending.blog}건 — contents.dkansim.com에서 승인해주세요.`;
+    if (total > 0) {
+      const summary = `[승인대기 리마인더] 유튜브 ${pending.youtube}건, 카카오 ${pending.kakao}건, 블로그 ${pending.blog}건 — contents.dkansim.com에서 승인해주세요.`;
       try {
-        await sendContentApprovalNotification(summary);
+        await sendAdminAlertSms(summary);
         notified = true;
       } catch (err) {
-        await logAgentEvent("warn", "content-approval-notify", `카카오 알림 전송 실패: ${errMessage(err)}`);
+        await logAgentEvent("warn", "content-approval-notify", `SMS 알림 전송 실패: ${errMessage(err)}`);
       }
     }
 

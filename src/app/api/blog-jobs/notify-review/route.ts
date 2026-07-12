@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { isAgentSupabaseReady, requireAgentSupabase } from "@/lib/agent-db";
-import { KAKAO_MEMO_ENABLED, notifyBlogReviewRequested } from "@/lib/kakao-publish";
+import { notifyBlogReviewRequested } from "@/lib/kakao-publish";
 
 // dk-blog-factory: 로컬 워커가 발행 패키지를 완성해 pending_review로 바꾼 뒤 호출하는
-// 검토 요청 알림 엔드포인트 — 카카오 "나에게 보내기" 메모로 대장에게 링크 발송.
-// (video-jobs/notify-review와 동일 패턴 — 로컬 워커엔 카카오 키가 없어 프로덕션이 대행)
+// 검토 요청 알림 엔드포인트 — SMS(ADMIN_ALERT_PHONE)로 대장에게 링크 발송.
+// (video-jobs/notify-review와 동일 패턴 — 로컬 워커엔 Solapi 키가 없어 프로덕션이 대행)
 
 function checkAuth(request: Request): boolean {
   const secret = process.env.AGENT_WRITE_SECRET?.trim();
@@ -18,9 +18,6 @@ export async function POST(request: Request) {
   }
   if (!isAgentSupabaseReady()) {
     return NextResponse.json({ error: "Supabase가 설정되지 않았습니다." }, { status: 503 });
-  }
-  if (!KAKAO_MEMO_ENABLED) {
-    return NextResponse.json({ skipped: true, reason: "카카오 연동이 설정되지 않았습니다." });
   }
 
   let jobId = "";

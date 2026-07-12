@@ -8,6 +8,7 @@ import { readPaymentSettings } from "@/lib/payment-settings";
 import { getResidentBySessionId } from "@/lib/resident-db";
 import { RESIDENT_AUTH_COOKIE } from "@/lib/site-config";
 import { pushReservationProgressNotifications } from "@/lib/live-notify";
+import { sendAdminAlertSms } from "@/lib/solapi-agent";
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -141,6 +142,18 @@ export async function POST(request: Request) {
     adminMessage: `${created.name}님의 예약이 접수 대기 상태로 생성되었습니다.`,
     residentMessage: `${created.name}님 예약이 접수되었습니다. 결제 완료 후 기사 배정이 시작됩니다.`
   });
+  try {
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://dkansim.com").replace(/\/$/, "");
+    await sendAdminAlertSms(
+      `[새 예약] ${created.name}님 · ${created.apartmentName ?? created.address} · ${created.serviceType}\n${created.preferredDate} ${created.preferredTime}\n${appUrl}/admin/reservations?id=${created.id}`
+    );
+  } catch (err) {
+    await appendActivityLog({
+      action: "reservation_created",
+      reservationId: created.id,
+      message: `관리자 SMS 알림 발송 실패: ${err instanceof Error ? err.message : "알 수 없는 오류"}`
+    });
+  }
 
   return NextResponse.json({ message: "접수되었습니다. 입금 확인 후 연락드립니다.", reservation: created }, { status: 201 });
 }

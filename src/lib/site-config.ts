@@ -18,3 +18,5 @@ export const ADMIN_ID_COOKIE = "dk_admin_id";
 export const WORKER_SESSION_SECRET = process.env.WORKER_SESSION_SECRET ?? "";
 /** 관리자 계정 식별 세션 서명용. 미설정 시 계정 식별 쿠키만 생략되고 로그인은 정상 동작한다. */
 export const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET ?? "";
+/** 대표님 개인 휴대폰(SMS 긴급/승인대기 알림 수신용) — NEXT_PUBLIC_BUSINESS_PHONE(공개 상담번호)과 다름, 절대 클라이언트 노출 금지. */
+export const ADMIN_ALERT_PHONE = process.env.ADMIN_ALERT_PHONE ?? "";

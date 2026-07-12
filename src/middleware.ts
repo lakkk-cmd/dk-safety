@@ -96,9 +96,16 @@ export async function middleware(request: NextRequest) {
       return withFirstVisitCookie(NextResponse.redirect(loginUrl), isFirstVisit);
     }
 
+    // SMS/카카오 알림 링크로 특정 페이지(예: /admin/reservations?id=...)에 바로 들어왔을 때,
+    // 로그인 후 그 자리로 돌아가지 못하고 항상 홈으로 튕기던 문제 — next 파라미터로 원래
+    // 목적지를 들고 가서 로그인 성공 시 되돌려준다(report/agent/contents 케이스와 동일 패턴).
+    const originalTarget = `${pathname}${request.nextUrl.search}`;
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = pathname.startsWith("/hq") ? (rewriteUrl ? "/login" : "/hq/login") : "/admin/login";
     loginUrl.search = "";
+    if (originalTarget && originalTarget !== loginUrl.pathname) {
+      loginUrl.searchParams.set("next", originalTarget);
+    }
     return withFirstVisitCookie(NextResponse.redirect(loginUrl), isFirstVisit);
   }
 

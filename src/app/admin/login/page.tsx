@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function AdminLoginPage() {
+function AdminLoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,7 +28,8 @@ export default function AdminLoginPage() {
         throw new Error(data.message || "로그인 실패");
       }
 
-      router.replace("/admin/home");
+      const next = searchParams.get("next");
+      router.replace(next && next.startsWith("/") ? next : "/admin/home");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "로그인 실패");
@@ -77,5 +79,13 @@ export default function AdminLoginPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminLoginForm />
+    </Suspense>
   );
 }

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { isAgentSupabaseReady, requireAgentSupabase } from "@/lib/agent-db";
-import { KAKAO_MEMO_ENABLED, notifyVideoReviewRequested } from "@/lib/kakao-publish";
+import { notifyVideoReviewRequested } from "@/lib/kakao-publish";
 
 // dk-video-factory: 로컬 워커가 렌더링을 마치고 pending_review로 바꾼 뒤 호출하는
-// 검토 요청 알림 엔드포인트 — 카카오 "나에게 보내기" 메모로 대장에게 링크 발송.
+// 검토 요청 알림 엔드포인트 — SMS(ADMIN_ALERT_PHONE)로 대장에게 링크 발송.
 // Solapi 키가 로컬 워커에는 없으므로, 발송은 프로덕션의 이 API가 대행한다.
 
 function checkAuth(request: Request): boolean {
@@ -18,9 +18,6 @@ export async function POST(request: Request) {
   }
   if (!isAgentSupabaseReady()) {
     return NextResponse.json({ error: "Supabase가 설정되지 않았습니다." }, { status: 503 });
-  }
-  if (!KAKAO_MEMO_ENABLED) {
-    return NextResponse.json({ skipped: true, reason: "카카오 연동이 설정되지 않았습니다." });
   }
 
   let jobId = "";

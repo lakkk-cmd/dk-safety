@@ -4,21 +4,14 @@ import { appendActivityLog } from "@/lib/activity-log";
 import { notifyCustomerWorkCompleted } from "@/lib/customer-notification";
 import { pushLiveNotification, pushReservationProgressNotifications } from "@/lib/live-notify";
 import { pgAcceptTask, pgCompleteTask, pgDeclineTask, pgGetTaskForWorker, pgStartTask } from "@/lib/reservations-pg";
-import { sendKakaoFriendTalk, sendSMS } from "@/lib/solapi-agent";
-import { siteConfig, WORKER_AUTH_COOKIE } from "@/lib/site-config";
+import { sendAdminAlertSms } from "@/lib/solapi-agent";
+import { WORKER_AUTH_COOKIE } from "@/lib/site-config";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { verifyWorkerSessionToken } from "@/lib/worker-auth";
 
-/** 관리자(대표님) 개인 휴대폰으로 긴급 알림 발송 — 카카오 친구톡 우선, 실패 시 SMS로 폴백 */
+/** 관리자(대표님) 개인 휴대폰으로 긴급 SMS 알림 발송 — 문자 팝업으로 바로 뜨도록 SMS 단일 경로 */
 async function notifyAdminUrgent(message: string): Promise<void> {
-  const to = siteConfig.businessPhone;
-  try {
-    await sendKakaoFriendTalk(to, message);
-    return;
-  } catch {
-    // pfId 미설정 등으로 카카오 발송이 안 되면 SMS로 폴백
-  }
-  await sendSMS(to, message);
+  await sendAdminAlertSms(message);
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {

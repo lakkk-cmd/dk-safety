@@ -1,6 +1,6 @@
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { getKakaoAccessToken, KAKAO_OAUTH_ENABLED } from "@/lib/kakao-oauth";
-import { sendKakaoFriendTalk } from "@/lib/solapi-agent";
+import { sendAdminAlertSms, sendKakaoFriendTalk } from "@/lib/solapi-agent";
 
 const KAKAO_MEMO_URL = "https://kapi.kakao.com/v2/api/talk/memo/default/send";
 
@@ -130,9 +130,8 @@ export async function notifyVideoReviewRequested(params: {
   format: string;
 }): Promise<void> {
   const label = params.format === "shorts" ? "쇼츠" : "일반";
-  await sendKakaoMemo(
-    `[영상 검토 요청] 🎬\n${params.title ?? params.topic}\n\n${label} 영상 렌더링이 완료되어 승인 대기 중입니다. 링크에서 미리보고 승인/반려해 주세요.`,
-    "https://hq.dkansim.com/videos",
+  await sendAdminAlertSms(
+    `[영상 검토 요청]\n${params.title ?? params.topic}\n\n${label} 영상 렌더링이 완료되어 승인 대기 중입니다. 링크에서 미리보고 승인/반려해 주세요.\nhttps://hq.dkansim.com/videos`,
   );
 }
 
@@ -143,9 +142,8 @@ export async function notifyBlogReviewRequested(params: {
   validationScore?: number | null;
 }): Promise<void> {
   const scoreLine = typeof params.validationScore === "number" ? `검증 ${params.validationScore}점 · ` : "";
-  await sendKakaoMemo(
-    `[블로그 발행 요청] ✍️\n${params.title ?? params.topic}\n\n${scoreLine}원고/사진/썸네일 패키지가 준비됐습니다. 링크에서 복사해 네이버에 발행해 주세요 (약 2~3분).`,
-    "https://hq.dkansim.com/blog-jobs",
+  await sendAdminAlertSms(
+    `[블로그 발행 요청]\n${params.title ?? params.topic}\n\n${scoreLine}원고/사진/썸네일 패키지가 준비됐습니다. 링크에서 복사해 네이버에 발행해 주세요.\nhttps://hq.dkansim.com/blog-jobs`,
   );
 }
 

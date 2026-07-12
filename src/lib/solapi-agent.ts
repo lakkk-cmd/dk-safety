@@ -2,6 +2,8 @@
 // 에이전트 직접 SMS/LMS 발송
 // 환경변수: SOLAPI_API_KEY_ID (또는 SOLAPI_API_KEY), SOLAPI_API_SECRET_KEY (또는 SOLAPI_API_SECRET), SOLAPI_SENDER_NUMBER
 
+import { ADMIN_ALERT_PHONE } from "@/lib/site-config";
+
 function getSolapiEnv(): { apiKey: string; apiSecret: string; senderNumber: string } {
   const apiKey = process.env.SOLAPI_API_KEY_ID?.trim() || process.env.SOLAPI_API_KEY?.trim();
   const apiSecret = process.env.SOLAPI_API_SECRET_KEY?.trim() || process.env.SOLAPI_API_SECRET?.trim();
@@ -107,4 +109,18 @@ export async function sendBulk(targets: BulkTarget[], text: string): Promise<Sol
     }
     return results;
   }
+}
+
+/**
+ * 대표님 개인 휴대폰(ADMIN_ALERT_PHONE)으로 SMS 발송 — 승인대기/예약접수 등 "즉시 확인이
+ * 필요한" 알림 전용. 카카오 "나에게 보내기"(kakao-publish.ts)와 달리 문자 팝업으로 바로
+ * 뜨기 때문에 즉시성이 중요한 알림에 쓴다. ADMIN_ALERT_PHONE 미설정 시 명확한 에러를
+ * 던지므로, 실패해도 호출 흐름이 막히면 안 되는 곳에서는 반드시 호출부에서 감싼다.
+ */
+export async function sendAdminAlertSms(text: string): Promise<SolapiSendResult> {
+  const to = ADMIN_ALERT_PHONE.trim();
+  if (!to) {
+    throw new Error("ADMIN_ALERT_PHONE 환경변수가 설정되지 않았습니다.");
+  }
+  return sendSMS(to, text);
 }
