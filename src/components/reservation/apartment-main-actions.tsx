@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import PartnerWorkCarousel from "@/components/reservation/partner-work-carousel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { siteConfig } from "@/lib/site-config";
 
@@ -218,21 +217,21 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
           <button
             type="button"
             onClick={() => startRequest("repair")}
-            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-900 shadow-sm transition hover:bg-white"
+            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-base font-extrabold text-slate-900 shadow-sm transition hover:bg-white"
           >
             🔧 점검·수리
           </button>
           <button
             type="button"
             onClick={() => window.location.assign(`/resident/safety-check?tenant=${encodeURIComponent(apartment.code)}`)}
-            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-900 shadow-sm transition hover:bg-white"
+            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-base font-extrabold text-slate-900 shadow-sm transition hover:bg-white"
           >
             🛡️ 자가진단
           </button>
           <button
             type="button"
             onClick={() => setConsultModalOpen(true)}
-            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-sm font-bold text-slate-900 shadow-sm transition hover:bg-white"
+            className="inline-flex h-14 items-center justify-center rounded-xl bg-white/95 px-2 text-base font-extrabold text-slate-900 shadow-sm transition hover:bg-white"
           >
             💬 상담
           </button>
@@ -256,11 +255,11 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
       {electricalTips.length > 0 ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="text-base font-extrabold tracking-tight text-slate-900">💡 생활전기정보</p>
+            <p className="text-lg font-extrabold tracking-tight text-slate-900">💡 생활전기정보</p>
             <p className="mt-1 text-sm font-medium leading-snug text-slate-600">우리집 전기주치의(대경이엔피)가 알려드리는 전기 안전</p>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            {electricalTips.slice(0, 4).map((tip) => (
+            {electricalTips.slice(0, 6).map((tip) => (
               <article
                 key={tip.id}
                 role="button"
@@ -285,8 +284,6 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
           </div>
         </section>
       ) : null}
-
-      <PartnerWorkCarousel />
 
       <button
         type="button"
