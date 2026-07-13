@@ -9,7 +9,7 @@ export type ReservationInput = {
 };
 
 const PHONE_PATTERN = /^01[0-9]-?\d{3,4}-?\d{4}$/;
-const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+export const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 export function normalizePhone(phone: string): string {
   return phone.replaceAll(/[^0-9]/g, "").replace(/(\d{3})(\d{3,4})(\d{4})/, "$1-$2-$3");

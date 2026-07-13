@@ -361,14 +361,15 @@ export async function createReservation(
   return nextItem;
 }
 
-export async function hasReservationTimeConflict(preferredDate: string, preferredTime: string) {
+export async function hasReservationTimeConflict(preferredDate: string, preferredTime: string, excludeId?: string) {
   if (shouldUsePgReservations()) {
-    return pgHasReservationTimeConflict(preferredDate, preferredTime);
+    return pgHasReservationTimeConflict(preferredDate, preferredTime, excludeId);
   }
 
   const current = await readReservations();
   return current.some(
     (item) =>
+      item.id !== excludeId &&
       item.status !== "완료" &&
       item.priority !== "emergency" &&
       item.preferredDate === preferredDate &&
@@ -378,7 +379,7 @@ export async function hasReservationTimeConflict(preferredDate: string, preferre
 
 export async function updateReservation(
   id: string,
-  update: Partial<Pick<Reservation, "status" | "note" | "noteUpdatedAt">>
+  update: Partial<Pick<Reservation, "status" | "note" | "noteUpdatedAt" | "preferredDate" | "preferredTime">>
 ): Promise<Reservation | null> {
   if (shouldUsePgReservations()) {
     return pgUpdateReservation(id, update);

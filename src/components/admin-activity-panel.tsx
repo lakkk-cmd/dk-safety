@@ -67,6 +67,7 @@ export default function AdminActivityPanel({ logs }: Props) {
           <option value="reservation_deleted">예약삭제</option>
           <option value="status_updated">상태변경</option>
           <option value="note_updated">메모변경</option>
+          <option value="schedule_changed">일정변경</option>
           <option value="backup_restored">백업복원</option>
         </select>
       </div>

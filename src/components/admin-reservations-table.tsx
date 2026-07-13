@@ -60,6 +60,11 @@ export default function AdminReservationsTable({
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>(
     Object.fromEntries(initialReservations.map((item) => [item.id, item.note]))
   );
+  const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, { date: string; time: string }>>(
+    Object.fromEntries(
+      initialReservations.map((item) => [item.id, { date: item.preferredDate, time: item.preferredTime }])
+    )
+  );
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [openCancelId, setOpenCancelId] = useState<string | null>(null);
   const [cancelReasonInput, setCancelReasonInput] = useState("");
@@ -339,6 +344,36 @@ export default function AdminReservationsTable({
       setToast({ type: "success", message: "메모가 저장되었습니다." });
     } catch {
       setToast({ type: "error", message: "메모 저장에 실패했습니다." });
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const saveSchedule = async (id: string) => {
+    const draft = scheduleDrafts[id];
+    if (!draft?.date || !draft?.time) {
+      setToast({ type: "error", message: "방문 희망일과 요청시간을 모두 입력해주세요." });
+      return;
+    }
+    setLoadingId(id);
+    try {
+      const response = await fetch(`/api/reservations/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferredDate: draft.date, preferredTime: draft.time })
+      });
+      const data = (await response.json().catch(() => ({}))) as { message?: string; reservation?: Reservation };
+      if (!response.ok || !data.reservation) {
+        throw new Error(data.message || "일정 변경에 실패했습니다.");
+      }
+      setReservations((prev) => prev.map((item) => (item.id === id ? data.reservation! : item)));
+      setScheduleDrafts((prev) => ({
+        ...prev,
+        [id]: { date: data.reservation!.preferredDate, time: data.reservation!.preferredTime }
+      }));
+      setToast({ type: "success", message: "예약 일정이 변경되었습니다." });
+    } catch (error) {
+      setToast({ type: "error", message: error instanceof Error ? error.message : "일정 변경에 실패했습니다." });
     } finally {
       setLoadingId(null);
     }
@@ -718,12 +753,51 @@ export default function AdminReservationsTable({
               </div>
 
               <div className="mt-3 grid gap-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-700 sm:grid-cols-3">
-                <p>
-                  <span className="font-semibold text-slate-900">희망일</span> {item.preferredDate}
-                </p>
-                <p>
-                  <span className="font-semibold text-slate-900">요청시간</span> {item.preferredTime || "-"}
-                </p>
+                <div className="sm:col-span-2">
+                  <span className="mb-1 block font-semibold text-slate-900">희망일시</span>
+                  {item.status === "완료" || item.status === "취소" ? (
+                    <span>
+                      {item.preferredDate} {item.preferredTime || "-"}
+                    </span>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-1">
+                      <input
+                        type="date"
+                        value={scheduleDrafts[item.id]?.date ?? item.preferredDate}
+                        onChange={(e) =>
+                          setScheduleDrafts((prev) => ({
+                            ...prev,
+                            [item.id]: { date: e.target.value, time: prev[item.id]?.time ?? item.preferredTime }
+                          }))
+                        }
+                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                      />
+                      <input
+                        type="time"
+                        value={scheduleDrafts[item.id]?.time ?? item.preferredTime}
+                        onChange={(e) =>
+                          setScheduleDrafts((prev) => ({
+                            ...prev,
+                            [item.id]: { date: prev[item.id]?.date ?? item.preferredDate, time: e.target.value }
+                          }))
+                        }
+                        className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+                      />
+                      <button
+                        type="button"
+                        disabled={
+                          loadingId === item.id ||
+                          (scheduleDrafts[item.id]?.date === item.preferredDate &&
+                            scheduleDrafts[item.id]?.time === item.preferredTime)
+                        }
+                        onClick={() => saveSchedule(item.id)}
+                        className="rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
+                      >
+                        일정 변경
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <p>
                   <span className="font-semibold text-slate-900">메모수정</span>{" "}
                   {item.noteUpdatedAt ? new Date(item.noteUpdatedAt).toLocaleString("ko-KR") : "-"}

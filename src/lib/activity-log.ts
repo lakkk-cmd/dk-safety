@@ -8,6 +8,7 @@ export type ActivityLog = {
     | "reservation_deleted"
     | "status_updated"
     | "note_updated"
+    | "schedule_changed"
     | "backup_restored"
     | "task_assigned"
     | "task_unassigned"

@@ -437,9 +437,13 @@ export async function pgFindReservationsByPhone(phone: string): Promise<Reservat
   return (data as ReservationRow[] | null)?.map(mapReservation) ?? [];
 }
 
-export async function pgHasReservationTimeConflict(preferredDate: string, preferredTime: string): Promise<boolean> {
+export async function pgHasReservationTimeConflict(
+  preferredDate: string,
+  preferredTime: string,
+  excludeId?: string
+): Promise<boolean> {
   const supabase = requireSupabaseAdmin();
-  const { data, error } = await supabase
+  let query = supabase
     .from("reservations")
     .select("id")
     .neq("status", "완료")
@@ -447,6 +451,10 @@ export async function pgHasReservationTimeConflict(preferredDate: string, prefer
     .eq("preferred_date", preferredDate)
     .eq("preferred_time", preferredTime)
     .limit(1);
+  if (excludeId) {
+    query = query.neq("id", excludeId);
+  }
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`예약 충돌 확인 실패: ${error.message}`);
@@ -637,7 +645,12 @@ export async function pgDeleteReservationById(reservationId: string): Promise<Pg
 
 export async function pgUpdateReservation(
   id: string,
-  update: Partial<Pick<Reservation, "status" | "note" | "noteUpdatedAt" | "isPaid" | "baseFee" | "extraFee" | "totalAmount" | "paidAt">>
+  update: Partial<
+    Pick<
+      Reservation,
+      "status" | "note" | "noteUpdatedAt" | "isPaid" | "baseFee" | "extraFee" | "totalAmount" | "paidAt" | "preferredDate" | "preferredTime"
+    >
+  >
 ): Promise<Reservation | null> {
   const supabase = requireSupabaseAdmin();
   const patch: Record<string, unknown> = {};
@@ -649,6 +662,8 @@ export async function pgUpdateReservation(
   if (typeof update.extraFee === "number") patch.extra_fee = Math.max(0, Math.round(update.extraFee));
   if (typeof update.totalAmount === "number") patch.total_amount = Math.max(0, Math.round(update.totalAmount));
   if (update.paidAt !== undefined) patch.paid_at = update.paidAt;
+  if (typeof update.preferredDate === "string") patch.preferred_date = update.preferredDate;
+  if (typeof update.preferredTime === "string") patch.preferred_time = update.preferredTime;
 
   if (Object.keys(patch).length === 0) {
     return null;
