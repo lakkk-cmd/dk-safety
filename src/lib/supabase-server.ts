@@ -126,6 +126,29 @@ export async function deleteStorageObjects(bucket: string, objectPaths: string[]
   }
 }
 
+/** private 버킷의 객체를 잠깐 공개 접근 가능하게 하는 서명 URL 발급 (기본 10분) — 보미 증권 문서처럼 공개 버킷에 못 올리는 민감 파일용. */
+export async function createSignedObjectUrl(
+  bucket: string,
+  objectPath: string,
+  expiresInSec = 600
+): Promise<string> {
+  assertSupabaseConfig();
+  const encodedPath = encodeObjectPath(objectPath);
+  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${bucket}/${encodedPath}`, {
+    method: "POST",
+    headers: supabaseHeaders("application/json"),
+    body: JSON.stringify({ expiresIn: expiresInSec })
+  });
+  if (!response.ok) {
+    throw new Error(`서명 URL 발급 실패: ${response.status} ${await response.text().catch(() => "")}`);
+  }
+  const data = (await response.json()) as { signedURL?: string };
+  if (!data.signedURL) {
+    throw new Error("서명 URL 응답이 비어 있습니다.");
+  }
+  return `${SUPABASE_URL}/storage/v1${data.signedURL}`;
+}
+
 export async function uploadBinaryObject(params: {
   bucket: string;
   objectPath: string;

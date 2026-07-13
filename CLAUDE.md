@@ -201,6 +201,19 @@ Once a YouTube queue item is `approved`, clicking "🎬 영상 제작 시작" on
 
 **Media library** (`content_media_library` table, migration 060) — a tagged store of real photos (e.g. actual distribution-panel photos from real job sites), background music tracks, and one reserved tag `master_character` (a single reference photo/illustration reused as an image-editing anchor on every `ai_bg` scene for cross-video character consistency), managed from `/contents` (`src/components/contents/media-library-panel.tsx`, API: `/api/admin/content/media-library`). Photos can either be uploaded directly or picked from existing `field_reports.photo_urls` (`/api/admin/content/media-library/field-report-photos`, `pgListRecentFieldReportPhotos` in `src/lib/field-reports.ts`) without re-uploading. `src/lib/media-library.ts` exposes the tag/rotation logic (`listAvailablePhotoTags`, `pickLibraryPhotoForTag`, `pickLibraryMusic`).
 
+### 보미(Bomi) — 보험설계사 CRM (dk-safety 전기안전 사업과 완전 별개 서비스)
+
+이지셀렉트 '내고객 다보여'를 벤치마킹한 보험설계사용 CRM + AI 보장분석 플랫폼. dk-safety 레포 안에 있지만
+전기안전 사업 코드/DB와는 라우트·인증·테이블·스토리지 전 층에서 격리되어 있다 — hq/agent/contents가 쓰는
+서브도메인 rewrite 패턴을 그대로 한 벌 더 만든 것.
+
+- **라우팅**: `bomi.dkansim.com` → `/bomi` (`src/middleware.ts`의 `BOMI_HOST_PREFIX`). 로컬에서는 `/bomi`로 직접 접근.
+- **인증**: `dk_bomi_auth` 쿠키(`BOMI_AUTH_COOKIE`), `BOMI_PASSWORD` env와 비교하는 단일 비밀번호 — admin/worker/resident와 완전 별도 계정 체계. `src/lib/bomi-auth.ts`(`isBomiAuthenticated`), 로그인 API `/api/bomi/auth/login`.
+- **DB**: `bomi_` 접두사 8개 테이블(마이그레이션 075) — `bomi_agents`(설계사, 현재 미사용·향후 멀티테넌시용), `bomi_customers`(고객카드), `bomi_documents`(문서함, OCR 결과 JSONB), `bomi_contracts`/`bomi_claims`/`bomi_activity_log`(Phase 2 예정, 테이블만 존재), `bomi_medical_info`(민감정보), `bomi_coverage_analysis`(보장분석 결과). `src/lib/bomi-db.ts`가 CRUD 담당 — `requireAgentSupabase()`(`agent-db.ts`) 재사용, `DK_SAFETY_USE_SUPABASE_DB` 플래그와 무관하게 항상 동작.
+- **스토리지**: `dk-bomi-documents` 버킷(`SUPABASE_BOMI_DOCUMENTS_BUCKET`) — 증권/신분증 등 민감 문서라 **private**로 생성, 열람 시마다 `createSignedObjectUrl()`(`supabase-server.ts`)로 10분짜리 서명 URL을 새로 발급한다(공개 버킷인 다른 업로드 버킷들과 다름).
+- **증권 스캔 → 보장분석**: `/bomi/customers/[id]`에서 증권 사진을 올리면 `src/lib/bomi-coverage-analysis.ts`의 `analyzeInsurancePolicyImage()`가 Claude Vision(`callClaudeRich`, `agents.ts`)으로 OCR + 표준 보장 카테고리(사망/암/뇌혈관/심혈관/실손의료비/후유장해/입원일당/수술비) 대비 과부족을 동기적으로 분석해 `bomi_coverage_analysis`에 저장한다. **특정 보험사·상품은 추천하지 않는다** — 보험업법상 모집행위 경계를 피하기 위해 "증권에 실제로 적힌 내용 정리 + 일반적 수준 안내"까지로 시스템 프롬프트에 명시적으로 제한되어 있다.
+- **Phase 1(MVP) 범위**: 고객카드, 문서 캐비닛(증권 스캔 포함), AI 보장분석, 로그인. 보무기록/영업지원(가망고객 추출·납입만기 추적)/자료실/알림 등은 Phase 2 이후 — 관련 테이블(`bomi_contracts`, `bomi_claims`, `bomi_activity_log`)은 이미 만들어져 있지만 CRUD·UI는 아직 없다.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env.local`. Key vars:
@@ -208,6 +221,8 @@ Copy `.env.example` to `.env.local`. Key vars:
 | Variable | Purpose |
 |---|---|
 | `ADMIN_PASSWORD` | Admin portal password |
+| `BOMI_PASSWORD` | 보미(보험설계사 CRM, bomi.dkansim.com) 로그인 비밀번호 — `ADMIN_PASSWORD`와 무관한 별도 값 |
+| `SUPABASE_BOMI_DOCUMENTS_BUCKET` | 보미 증권/신분증 스캔 저장 버킷 (default: `dk-bomi-documents`, private) |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only service key (never expose to client) |
 | `SUPABASE_DATA_BUCKET` | Bucket for JSON data (default: `dk-safety-data`) |

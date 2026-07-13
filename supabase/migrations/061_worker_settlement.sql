@@ -2,9 +2,11 @@
 -- worker_assignments 테이블(pay_amount 포함)은 이걸 쓰는 화면/API가 전혀 없는 죽은 코드였다.
 -- expenses에도 "인건비" 분류 자체가 없어 지급 내역을 남길 곳이 없었다.
 
+-- 065번(API비용 분류 추가)이 나중에 나왔지만 db:apply는 파일을 매번 001번부터 전부
+-- 재실행하므로, 여기서도 065번과 같은 목록으로 맞춰둬야 재실행이 065번까지 도달한다.
 ALTER TABLE public.expenses DROP CONSTRAINT IF EXISTS expenses_category_check;
 ALTER TABLE public.expenses ADD CONSTRAINT expenses_category_check
-  CHECK (category IN ('재료비','공구/장비','교통비','통신비','광고비','인건비','기타'));
+  CHECK (category IN ('재료비','공구/장비','교통비','통신비','광고비','인건비','API비용','기타'));
 
 -- 완료된 작업 1건에 대한 기사 수당 지급을 worker_assignments + expenses(인건비) 양쪽에
 -- 한 번에 원자적으로 기록한다. worker_assignments.reservation_id는 이미 UNIQUE(reservation_id,

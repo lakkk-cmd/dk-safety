@@ -11,6 +11,10 @@ export const siteConfig = {
 export const ADMIN_AUTH_COOKIE = "dk_admin_auth";
 export const RESIDENT_AUTH_COOKIE = "dk_resident_auth";
 export const WORKER_AUTH_COOKIE = "dk_worker_auth";
+/** 보미(보험설계사 CRM, bomi.dkansim.com) 전용 인증 — admin/worker/resident와 완전 별도 계정 체계. */
+export const BOMI_AUTH_COOKIE = "dk_bomi_auth";
+/** 보미 로그인 비밀번호. dk-safety의 ADMIN_PASSWORD와 무관한 별도 값. */
+export const BOMI_PASSWORD = process.env.BOMI_PASSWORD ?? "change-this-password";
 /** 로그인한 관리자 계정을 식별하는 보조 쿠키 — dk_admin_auth(인증 게이트)와 별개, 없어도 로그인 자체는 된다. */
 export const ADMIN_ID_COOKIE = "dk_admin_id";
 
