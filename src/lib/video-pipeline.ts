@@ -37,8 +37,10 @@ const MIN_SCENES = 5;
 const MAX_SCENES = 8;
 
 // Flux 폴백 이미지 생성 시 텍스트 방지 네거티브 프롬프트
+// 2026-07-13: 포토리얼리즘 강제를 해제 — 마스터 캐릭터(마스코트) 일관성 기법을 쓰기 위해
+// 플랫 일러스트 스타일을 허용한다. 텍스트/워터마크 방지 가드는 스타일과 무관하게 유지.
 const NEGATIVE_PROMPT_SUFFIX =
-  " Negative prompt: no text, no Korean characters, no Chinese characters, no Japanese characters, no signage with text, no readable characters, no captions, no subtitles, no labels, no watermarks, no logos with text, no gibberish text, no fake English text, no nonsense letters on screens or dials or buttons. Not an illustration, not a cartoon, not anime, not flat vector art, not a 3D render, not clip art, not a drawing — must be photorealistic, shot on a real camera.";
+  " Negative prompt: no text, no Korean characters, no Chinese characters, no Japanese characters, no signage with text, no readable characters, no captions, no subtitles, no labels, no watermarks, no logos with text, no gibberish text, no fake English text, no nonsense letters on screens or dials or buttons.";
 
 // ─── 예산 상수 ────────────────────────────────────────────────────────────────
 
@@ -86,7 +88,7 @@ sceneType 결정:
 6. **Action/motion**: 씬 내 동작을 시간 순서대로. 복잡한 손동작 금지 — Veo 취약점.
    수치/텍스트 표시가 필요한 정보는 프롬프트에 넣지 말고 "text overlay will be composited separately" 로 메모.
    측정기·계기판·버튼처럼 화면/라벨이 있는 소품이 등장하면, 반드시 "device screen is angled away from camera / motion-blurred / out of focus, no legible display or button labels"를 프롬프트에 명시해 Flux가 화면에 가짜 글자를 그리지 않게 한다.
-7. **Visual style**: 반드시 마지막에 → "Photorealistic documentary style, shot on a real camera (DSLR/mirrorless look, natural lens grain), 9:16 vertical, no readable text, no Korean characters, no signage, no subtitles. NOT an illustration, NOT a cartoon, NOT anime, NOT flat vector art, NOT a 3D render, NOT clip art — must look like an actual photograph."
+7. **Visual style**: 반드시 마지막에 → "Clean flat illustration style, simple bold outlines, limited flat color palette (navy/gold brand accent), friendly and approachable character design, 9:16 vertical, no readable text, no Korean characters, no signage, no subtitles. Consistent with the established mascot character design — same proportions, outfit, and palette in every scene."
 마지막에 Continuity 메모 추가: "Continuity: [인물/공간 일관성 메모]"
 
 ---
@@ -177,6 +179,16 @@ export async function planVideoScenes(title: string, script: string): Promise<Sc
   };
 }
 
+/** 미디어 보관함에 이 태그로 등록해두면(현장 실사진 1장 권장) ai_bg 씬 전체가 그 얼굴/복장을
+ *  참조 이미지로 공유해 인물 일관성이 올라간다. 등록 안 돼 있으면 undefined — 기존처럼 프롬프트
+ *  텍스트만으로 일관성을 유지하는 방식 그대로 동작(하위 호환). */
+export const MASTER_CHARACTER_TAG = "master_character";
+
+async function resolveMasterCharacterReference(): Promise<string | undefined> {
+  const photo = await pickLibraryPhotoForTag(MASTER_CHARACTER_TAG).catch(() => null);
+  return photo?.url;
+}
+
 /** photoTag가 붙은 씬을 실제 등록 사진으로 치환 (Flux/Veo 생성 스킵) — 재고가 없으면 그대로 둠(ai_bg 유지) */
 async function resolveRealPhotoScenes(scenes: VideoScene[]): Promise<VideoScene[]> {
   const resolved: VideoScene[] = [];
@@ -206,13 +218,21 @@ function imageExtensionFor(contentType: string): string {
   return CONTENT_TYPE_EXT[contentType] ?? "png";
 }
 
-/** OpenRouter Flux로 씬 이미지 생성 (Veo 폴백 또는 USE_VEO_VIDEO=false 경로) */
-export async function generateSceneImage(prompt: string): Promise<{ data: Buffer; contentType: string }> {
+/** OpenRouter Flux로 씬 이미지 생성 (Veo 폴백 또는 USE_VEO_VIDEO=false 경로)
+ *  referenceImageUrl을 주면 해당 이미지를 편집 기준(이미지-투-이미지)으로 사용해 인물/스타일
+ *  일관성을 높인다 — flux.2-pro가 image editing을 지원함을 실제 호출로 확인함(2026-07-13). */
+export async function generateSceneImage(
+  prompt: string,
+  referenceImageUrl?: string,
+): Promise<{ data: Buffer; contentType: string }> {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!apiKey) throw new Error("OPENROUTER_API_KEY가 설정되지 않았습니다.");
 
   const model = process.env.OPENROUTER_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL;
   const fullPrompt = `${prompt}${NEGATIVE_PROMPT_SUFFIX}`;
+  const content = referenceImageUrl
+    ? [{ type: "image_url", image_url: { url: referenceImageUrl } }, { type: "text", text: fullPrompt }]
+    : fullPrompt;
 
   const MAX_FLUX_RETRIES = 3;
   let lastError: Error | null = null;
@@ -231,7 +251,7 @@ export async function generateSceneImage(prompt: string): Promise<{ data: Buffer
       },
       body: JSON.stringify({
         model,
-        messages: [{ role: "user", content: fullPrompt }],
+        messages: [{ role: "user", content }],
         modalities: ["image"],
         image_config: { aspect_ratio: "9:16", image_size: "1K" },
       }),
@@ -357,6 +377,7 @@ export async function produceAiBgSceneFlux(
   queueId: string,
   sceneIndex: number,
   bucket: string,
+  referenceImageUrl?: string,
 ): Promise<{ imageUrl: string }> {
   let generated: { data: Buffer; contentType: string } | null = null;
   let hasText = false;
@@ -368,7 +389,7 @@ export async function produceAiBgSceneFlux(
   const MAX_OCR_ATTEMPTS = 2;
   for (let attempt = 0; attempt < MAX_OCR_ATTEMPTS; attempt++) {
     const seedSuffix = attempt > 0 ? ` (variation ${attempt + 1}, avoid all text)` : "";
-    const { data, contentType: ct } = await generateSceneImage(scene.imagePrompt + seedSuffix);
+    const { data, contentType: ct } = await generateSceneImage(scene.imagePrompt + seedSuffix, referenceImageUrl);
     generated = { data, contentType: ct };
 
     const tmpPath = `scenes/ocr-check/${queueId}/${sceneIndex}_attempt${attempt}.${imageExtensionFor(ct)}`;
@@ -425,6 +446,8 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
     const { scenes: rawPlanned, contiSummary, visualMotif } = await planVideoScenes(row.title, row.script);
     const planned = await resolveRealPhotoScenes(rawPlanned);
     const bucket = process.env.SUPABASE_VIDEO_BUCKET?.trim() || "dk-safety-video-assets";
+    const masterCharacterUrl = await resolveMasterCharacterReference();
+    console.log(masterCharacterUrl ? `[마스터 캐릭터] 참조 이미지 사용: ${masterCharacterUrl}` : `[마스터 캐릭터] 미등록 — 텍스트 일관성만 사용`);
 
     if (contiSummary) {
       console.log(`[콘티 요약] ${contiSummary.slice(0, 100)}...`);
@@ -460,7 +483,7 @@ export async function produceVideoAssets(queueId: string): Promise<ProduceVideoA
         } catch (err) {
           console.error(`  [Veo] LRO 제출 실패 → Flux 폴백:`, err);
           await logGeminiUsage(supabase, "veo_video_fallback", queueId, i, 0, false).catch(() => undefined);
-          const { imageUrl } = await produceAiBgSceneFlux(scene, queueId, i, bucket);
+          const { imageUrl } = await produceAiBgSceneFlux(scene, queueId, i, bucket, masterCharacterUrl);
           scenes.push({ ...scene, imageUrl });
         }
         continue;

@@ -36,4 +36,9 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          SUPERTONE_API_KEY: ${{ secrets.SUPERTONE_API_KEY }}
+          SUPERTONE_VOICE_ID: ${{ secrets.SUPERTONE_VOICE_ID }}
+          SUPERTONE_MODEL: ${{ secrets.SUPERTONE_MODEL }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
         run: node scripts/assemble-video.mjs

@@ -1,12 +1,13 @@
 /**
  * assets_ready 상태의 유튜브 큐 항목 1건을 가져와
- * 씬 이미지(Ken Burns 줌) + 나레이션(ElevenLabs 또는 edge-tts 폴백) + 배경음악(등록돼 있으면) +
+ * 씬 이미지(Ken Burns 줌) + 나레이션(슈퍼톤 → ElevenLabs → edge-tts 순 폴백) + 배경음악(등록돼 있으면) +
  * 자막 번인으로 9:16 영상을 합성하고, Supabase Storage에 업로드(video_asset_url) 후
  * (연동되어 있으면) 유튜브에 비공개로 업로드한다.
  *
- * 요구: ffmpeg/ffprobe (apt-get install ffmpeg), edge-tts (pip install edge-tts, ElevenLabs 미설정 시 폴백),
+ * 요구: ffmpeg/ffprobe (apt-get install ffmpeg), edge-tts (pip install edge-tts, 슈퍼톤/ElevenLabs 미설정 시 폴백),
  *       fonts-noto-cjk (자막 한글 폰트)
- * 선택 env: ELEVENLABS_API_KEY + ELEVENLABS_VOICE_ID (둘 다 있어야 사용됨)
+ * 선택 env: SUPERTONE_API_KEY + SUPERTONE_VOICE_ID (한국어 특화, 우선순위 1순위 — 가입: supertone.ai/en/api)
+ *          ELEVENLABS_API_KEY + ELEVENLABS_VOICE_ID (2순위, 둘 다 있어야 사용됨)
  * Usage: node --env-file=.env.local scripts/assemble-video.mjs
  */
 import { createClient } from "@supabase/supabase-js";
@@ -30,6 +31,10 @@ const CAPTION_FONT = "Noto Sans CJK KR";
 const TTS_VOICE = "ko-KR-SunHiNeural";
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY?.trim();
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID?.trim();
+const SUPERTONE_API_KEY = process.env.SUPERTONE_API_KEY?.trim();
+const SUPERTONE_VOICE_ID = process.env.SUPERTONE_VOICE_ID?.trim();
+const SUPERTONE_MODEL = process.env.SUPERTONE_MODEL?.trim() || "sona_speech_1";
+const SUPERTONE_MAX_CHARS = 300; // API 자체 제한 — 씬 하나 나레이션 분량엔 보통 충분하지만 넘으면 다음 폴백으로
 const BACKGROUND_MUSIC_VOLUME = 0.12;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
@@ -72,6 +77,54 @@ function wrapCaption(text, maxChars = 20) {
   }
   if (line) lines.push(line);
   return lines.join("\n");
+}
+
+// 전기안전 콘텐츠 특성상 위험/경고성 단어를 자막에서 빨간색으로 강조 — 시선을 붙잡아
+// 이탈률을 낮추는 목적(캡컷 등에서 흔히 쓰는 키워드 하이라이트 편집 기법).
+const HIGHLIGHT_KEYWORDS = ["위험", "화재", "감전", "누전", "경고", "즉시", "절대", "반드시", "사고", "무료", "특가"];
+
+function escapeAssText(text) {
+  return text.replaceAll("\\", "\\\\").replaceAll("{", "\\{").replaceAll("}", "\\}");
+}
+
+function highlightKeywords(line) {
+  let result = escapeAssText(line);
+  for (const kw of HIGHLIGHT_KEYWORDS) {
+    result = result.split(kw).join(`{\\c&H0000FF&}${kw}{\\c&HFFFFFF&}`);
+  }
+  return result;
+}
+
+function formatAssTime(seconds) {
+  const cs = Math.round(seconds * 100);
+  const hh = Math.floor(cs / 360000);
+  const mm = Math.floor((cs % 360000) / 6000);
+  const ss = Math.floor((cs % 6000) / 100);
+  const cc = cs % 100;
+  return `${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}.${String(cc).padStart(2, "0")}`;
+}
+
+/** drawtext 단색 자막 대신 ASS 자막(libass) 사용 — 씬 하나 전체를 덮는 자막 1개에
+ *  위험 키워드만 빨간색으로 강조한다. 박스 배경(BorderStyle=3)으로 기존 drawtext의
+ *  boxcolor=black@0.55 느낌을 유지한다. */
+function buildAssCaption(narration, duration) {
+  const lines = wrapCaption(narration).split("\n").map(highlightKeywords);
+  const text = lines.join("\\N");
+  const end = formatAssTime(duration);
+  return `[Script Info]
+ScriptType: v4.00+
+PlayResX: ${WIDTH}
+PlayResY: ${HEIGHT}
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,${CAPTION_FONT},46,&H00FFFFFF,&H000000FF,&H00000000,&H72000000,0,0,0,0,100,100,0,0,3,12,0,2,60,60,110,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,${end},Caption,,0,0,0,,${text}
+`;
 }
 
 function ffprobeDuration(filePath) {
@@ -119,33 +172,63 @@ async function uploadToStorage(objectPath, buffer, contentType) {
 function buildSegment(dir, index, scene) {
   const imagePath = join(dir, `scene_${index}.png`);
   const audioPath = join(dir, `scene_${index}.mp3`);
-  const captionPath = join(dir, `caption_${index}.txt`);
+  const captionPath = join(dir, `caption_${index}.ass`);
   const segmentPath = join(dir, `segment_${index}.mp4`);
 
   return { imagePath, audioPath, captionPath, segmentPath };
 }
 
+async function synthesizeWithSupertone(text, destPath) {
+  const res = await fetch(`https://supertoneapi.com/v1/text-to-speech/${SUPERTONE_VOICE_ID}`, {
+    method: "POST",
+    headers: { "x-sup-api-key": SUPERTONE_API_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ text, language: "ko", model: SUPERTONE_MODEL, output_format: "mp3" }),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`슈퍼톤 TTS 실패 (${res.status}): ${detail.slice(0, 200)}`);
+  }
+  writeFileSync(destPath, Buffer.from(await res.arrayBuffer()));
+}
+
+async function synthesizeWithElevenLabs(text, destPath) {
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`, {
+    method: "POST",
+    headers: { "xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json", Accept: "audio/mpeg" },
+    body: JSON.stringify({
+      text,
+      model_id: "eleven_multilingual_v2",
+      voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`ElevenLabs TTS 실패 (${res.status}): ${detail.slice(0, 200)}`);
+  }
+  writeFileSync(destPath, Buffer.from(await res.arrayBuffer()));
+}
+
 /**
- * 나레이션 음성 합성 — ELEVENLABS_API_KEY/ELEVENLABS_VOICE_ID가 설정돼 있으면 자연스러운
- * ElevenLabs 음성을 쓰고, 없으면 기존 무료 edge-tts로 폴백한다 (필수 설정이 아니게 유지).
+ * 나레이션 음성 합성 — 우선순위: 슈퍼톤(한국어 특화) → ElevenLabs → 무료 edge-tts.
+ * 각 단계는 필요한 env가 없거나 호출이 실패하면 조용히 다음 단계로 넘어간다(필수 설정 아님).
  */
 async function synthesizeNarration(text, destPath) {
-  if (ELEVENLABS_API_KEY && ELEVENLABS_VOICE_ID) {
-    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`, {
-      method: "POST",
-      headers: { "xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json", Accept: "audio/mpeg" },
-      body: JSON.stringify({
-        text,
-        model_id: "eleven_multilingual_v2",
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-      }),
-    });
-    if (!res.ok) {
-      const detail = await res.text();
-      throw new Error(`ElevenLabs TTS 실패 (${res.status}): ${detail.slice(0, 200)}`);
+  if (SUPERTONE_API_KEY && SUPERTONE_VOICE_ID && text.length <= SUPERTONE_MAX_CHARS) {
+    try {
+      await synthesizeWithSupertone(text, destPath);
+      return;
+    } catch (err) {
+      console.warn("  슈퍼톤 TTS 실패 — 다음 우선순위로 폴백:", err instanceof Error ? err.message : err);
     }
-    writeFileSync(destPath, Buffer.from(await res.arrayBuffer()));
-    return;
+  }
+
+  if (ELEVENLABS_API_KEY && ELEVENLABS_VOICE_ID) {
+    try {
+      await synthesizeWithElevenLabs(text, destPath);
+      return;
+    } catch (err) {
+      console.warn("  ElevenLabs TTS 실패 — edge-tts로 폴백:", err instanceof Error ? err.message : err);
+    }
   }
 
   execFileSync("edge-tts", ["--voice", TTS_VOICE, "--text", text, "--write-media", destPath], {
@@ -158,7 +241,7 @@ async function downloadScene(scene, paths) {
   if (!scene.imageUrl) throw new Error("씬 이미지 URL이 없습니다.");
   await downloadToFile(scene.imageUrl, paths.imagePath);
   await synthesizeNarration(scene.narration, paths.audioPath);
-  writeFileSync(paths.captionPath, wrapCaption(scene.narration), "utf-8");
+  // 자막(.ass)은 나레이션 길이(duration)가 필요해 renderSegment에서 만든다.
 }
 
 /** 배경음악 하나를 로테이션으로 선택 (use_count 가장 낮은 것 우선) — 없으면 null */
@@ -198,16 +281,28 @@ function mixBackgroundMusic(videoPath, musicPath, outputPath) {
   );
 }
 
-function renderSegment(paths) {
+// 컷마다 아주 짧은 페이드 인/아웃을 넣어 하드컷이 아닌 "확 전환되는" 느낌을 준다
+// (영상/오디오 소스가 없어 우쉬 효과음 대신 쓰는 가벼운 대안).
+const TRANSITION_FADE_SEC = 0.15;
+
+function renderSegment(paths, narration) {
   const duration = ffprobeDuration(paths.audioPath);
   const frames = Math.ceil(duration * FPS) + FPS;
+  writeFileSync(paths.captionPath, buildAssCaption(narration, duration), "utf-8");
+
+  const fadeDur = Math.min(TRANSITION_FADE_SEC, duration / 4);
+  const fadeOutStart = Math.max(0, duration - fadeDur).toFixed(3);
 
   const filter = [
     `[0:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase`,
     `crop=${WIDTH}:${HEIGHT}`,
     `zoompan=z='min(zoom+0.0015,1.2)':d=${frames}:s=${WIDTH}x${HEIGHT}:fps=${FPS}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`,
-    `drawtext=textfile='${paths.captionPath}':reload=0:font='${CAPTION_FONT}':fontcolor=white:fontsize=46:line_spacing=12:box=1:boxcolor=black@0.55:boxborderw=24:x=(w-text_w)/2:y=h-text_h-110`,
+    `subtitles='${paths.captionPath}'`,
+    `fade=t=in:st=0:d=${fadeDur.toFixed(3)}`,
+    `fade=t=out:st=${fadeOutStart}:d=${fadeDur.toFixed(3)}`,
   ].join(",");
+  const audioFilter =
+    `afade=t=in:st=0:d=${fadeDur.toFixed(3)},afade=t=out:st=${fadeOutStart}:d=${fadeDur.toFixed(3)}`;
 
   execFileSync(
     "ffmpeg",
@@ -220,11 +315,11 @@ function renderSegment(paths) {
       "-i",
       paths.audioPath,
       "-filter_complex",
-      `${filter}[v]`,
+      `${filter}[v];[1:a]${audioFilter}[a]`,
       "-map",
       "[v]",
       "-map",
-      "1:a",
+      "[a]",
       "-c:v",
       "libx264",
       "-preset",
@@ -423,7 +518,7 @@ async function assembleQueueItem(queue, videoAssetUrlIn, dir) {
           console.log(`  ✅ [OCR] 씬 ${i + 1}: ${sceneType} 코드 생성 이미지 — OCR 스킵`);
         }
         console.log(`[씬 ${i + 1}/${scenes.length}] ffmpeg 합성...`);
-        const duration = renderSegment(paths);
+        const duration = renderSegment(paths, scenes[i].narration);
         console.log(`[씬 ${i + 1}/${scenes.length}] 완료 (${duration.toFixed(1)}s)`);
         segmentPaths.push(paths.segmentPath);
       }

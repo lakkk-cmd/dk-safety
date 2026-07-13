@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAgentSupabase } from "@/lib/agent-db";
-import { produceAiBgSceneFlux, type VideoScene } from "@/lib/video-pipeline";
+import { pickLibraryPhotoForTag } from "@/lib/media-library";
+import { MASTER_CHARACTER_TAG, produceAiBgSceneFlux, type VideoScene } from "@/lib/video-pipeline";
 
 // 씬 1개만 Flux로 생성 — GitHub Actions(flux-complete.yml)가 씬별로 나눠 호출해
 // Vercel 함수 시간제한(전체 씬을 한 요청에서 순차 생성하면 504가 남)을 피한다.
@@ -46,7 +47,8 @@ export async function POST(request: Request) {
     }
 
     const bucket = process.env.SUPABASE_VIDEO_BUCKET?.trim() || "dk-safety-video-assets";
-    const { imageUrl } = await produceAiBgSceneFlux(scene, queueId, sceneIndex, bucket);
+    const masterCharacterPhoto = await pickLibraryPhotoForTag(MASTER_CHARACTER_TAG).catch(() => null);
+    const { imageUrl } = await produceAiBgSceneFlux(scene, queueId, sceneIndex, bucket, masterCharacterPhoto?.url);
 
     scenes[sceneIndex] = { ...scene, imageUrl };
     await supabase
