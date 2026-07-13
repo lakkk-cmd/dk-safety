@@ -146,7 +146,9 @@ export async function planVideoScenes(title: string, script: string): Promise<Sc
   const systemPrompt = SCENE_PLAN_SYSTEM_PROMPT.replace("{{AVAILABLE_PHOTO_TAGS_SECTION}}", tagsSection);
 
   const prompt = `영상 제목: ${title}\n\n[스크립트]\n${script}\n\n위 스크립트를 단편 영화처럼 씬으로 분해하라.`.trim();
-  const raw = await callClaudeCustom(systemPrompt, prompt, 8000, 120_000);
+  // 씬 계획 응답이 8000 토큰 가까이 차는 경우가 있어 120s로는 실제로 타임아웃남(2026-07-13 재현 확인,
+  // 정확히 120.0초에 abort). 호출부인 /api/admin/content/video-production은 maxDuration=300이라 여유를 둔다.
+  const raw = await callClaudeCustom(systemPrompt, prompt, 8000, 240_000);
   const jsonText = extractJsonBlock(raw);
   if (!jsonText) throw new Error("씬 분해 응답에서 JSON을 파싱할 수 없습니다.");
 
