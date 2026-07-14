@@ -35,7 +35,7 @@ export default function NewBomiCustomerPage() {
       if (!response.ok || !data.customer) {
         throw new Error(data.message || "등록 실패");
       }
-      router.push(`/bomi/customers/${data.customer.id}`);
+      router.push(`/customers/${data.customer.id}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "등록 실패");
     } finally {

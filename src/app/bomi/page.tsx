@@ -21,7 +21,7 @@ export default async function BomiDashboardPage() {
         <p className="mt-2 text-sm text-slate-600">
           고객카드, 문서 캐비닛(증권 스캔 포함), AI 보장분석까지 — Phase 1 MVP 기능입니다.
         </p>
-        <Link href="/bomi/customers/new" className="btn-primary mt-4 inline-block px-4 py-2 text-sm">
+        <Link href="/customers/new" className="btn-primary mt-4 inline-block px-4 py-2 text-sm">
           새 고객 등록
         </Link>
       </div>
@@ -34,7 +34,7 @@ export default async function BomiDashboardPage() {
           <ul className="mt-4 divide-y divide-slate-200">
             {customers.map((customer) => (
               <li key={customer.id} className="py-3">
-                <Link href={`/bomi/customers/${customer.id}`} className="flex items-center justify-between gap-3">
+                <Link href={`/customers/${customer.id}`} className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-semibold text-slate-900">{customer.name}</p>
                     <p className="text-xs text-slate-500">
