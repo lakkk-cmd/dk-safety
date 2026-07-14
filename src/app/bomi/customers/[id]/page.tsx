@@ -70,7 +70,7 @@ export default async function BomiCustomerDetailPage({ params }: { params: Promi
           </div>
           <div className="col-span-2 sm:col-span-3">
             <dt className="text-xs text-slate-400">주소</dt>
-            <dd>{customer.address || "-"}</dd>
+            <dd>{customer.address ? `${customer.postalCode ? `(${customer.postalCode}) ` : ""}${customer.address}` : "-"}</dd>
           </div>
         </dl>
         {customer.familyNote ? <p className="mt-3 text-sm text-slate-600">가족사항: {customer.familyNote}</p> : null}

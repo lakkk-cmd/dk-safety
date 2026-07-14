@@ -8,6 +8,7 @@ type CustomerApiShape = {
   name: string;
   phone: string;
   address: string;
+  postalCode: string;
   birthDate: string | null;
   gender: string | null;
   occupation: string;
@@ -39,6 +40,7 @@ export default function EditBomiCustomerPage() {
           name: c.name,
           phone: c.phone,
           address: c.address,
+          postalCode: c.postalCode,
           birthDate: c.birthDate ?? "",
           gender: c.gender ?? "",
           occupation: c.occupation,

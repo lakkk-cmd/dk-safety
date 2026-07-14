@@ -38,6 +38,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       name?: string;
       phone?: string;
       address?: string;
+      postalCode?: string;
       birthDate?: string | null;
       gender?: string | null;
       occupation?: string;
@@ -52,6 +53,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       name: body.name,
       phone: body.phone,
       address: body.address,
+      postalCode: body.postalCode,
       birthDate: body.birthDate === undefined ? undefined : body.birthDate || null,
       gender: body.gender === undefined ? undefined : body.gender === "남" || body.gender === "여" ? body.gender : null,
       occupation: body.occupation,

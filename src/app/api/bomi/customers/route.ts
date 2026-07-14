@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       name?: string;
       phone?: string;
       address?: string;
+      postalCode?: string;
       birthDate?: string;
       gender?: string;
       occupation?: string;
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
       name,
       phone: body.phone,
       address: body.address,
+      postalCode: body.postalCode,
       birthDate: body.birthDate || null,
       gender: body.gender === "남" || body.gender === "여" ? body.gender : null,
       occupation: body.occupation,

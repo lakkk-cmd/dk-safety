@@ -6,6 +6,7 @@ export type CustomerFormValues = {
   name: string;
   phone: string;
   address: string;
+  postalCode: string;
   birthDate: string;
   gender: string;
   occupation: string;
@@ -18,6 +19,7 @@ export const EMPTY_CUSTOMER_FORM: CustomerFormValues = {
   name: "",
   phone: "",
   address: "",
+  postalCode: "",
   birthDate: "",
   gender: "",
   occupation: "",
@@ -25,6 +27,45 @@ export const EMPTY_CUSTOMER_FORM: CustomerFormValues = {
   financialNote: "",
   memo: ""
 };
+
+// 다음(카카오) 우편번호 서비스 — 무료, API 키 불필요. 검색 버튼을 눌렀을 때만 로드한다.
+const DAUM_POSTCODE_SRC = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+
+type DaumPostcodeResult = {
+  zonecode: string;
+  roadAddress: string;
+  jibunAddress: string;
+  address: string;
+};
+
+declare global {
+  interface Window {
+    daum?: {
+      Postcode: new (options: { oncomplete: (data: DaumPostcodeResult) => void }) => { open: () => void };
+    };
+  }
+}
+
+function loadDaumPostcodeScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.daum?.Postcode) {
+      resolve();
+      return;
+    }
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${DAUM_POSTCODE_SRC}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("주소 검색 스크립트를 불러오지 못했습니다.")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = DAUM_POSTCODE_SRC;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("주소 검색 스크립트를 불러오지 못했습니다."));
+    document.head.appendChild(script);
+  });
+}
 
 export default function CustomerForm({
   initial,
@@ -44,10 +85,32 @@ export default function CustomerForm({
   const [form, setForm] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [addressSearchLoading, setAddressSearchLoading] = useState(false);
 
   const update =
     (key: keyof CustomerFormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const openAddressSearch = async () => {
+    setAddressSearchLoading(true);
+    setMessage("");
+    try {
+      await loadDaumPostcodeScript();
+      new window.daum!.Postcode({
+        oncomplete: (data) => {
+          setForm((prev) => ({
+            ...prev,
+            postalCode: data.zonecode,
+            address: data.roadAddress || data.jibunAddress || data.address
+          }));
+        }
+      }).open();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "주소 검색을 열 수 없습니다.");
+    } finally {
+      setAddressSearchLoading(false);
+    }
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -74,11 +137,27 @@ export default function CustomerForm({
       <input value={form.phone} onChange={update("phone")} placeholder="010-0000-0000" className="soft-input mt-1 w-full" />
 
       <label className="mt-4 block text-sm font-semibold text-slate-700">주소</label>
+      <div className="mt-1 flex gap-2">
+        <input
+          value={form.postalCode}
+          readOnly
+          placeholder="우편번호"
+          className="soft-input w-28 bg-slate-50 text-slate-500"
+        />
+        <button
+          type="button"
+          onClick={openAddressSearch}
+          disabled={addressSearchLoading}
+          className="btn-outline whitespace-nowrap px-3 text-sm disabled:opacity-60"
+        >
+          {addressSearchLoading ? "여는 중..." : "주소 검색"}
+        </button>
+      </div>
       <input
         value={form.address}
         onChange={update("address")}
-        placeholder="예: 광주광역시 서구 상무대로 000"
-        className="soft-input mt-1 w-full"
+        placeholder="주소 검색 버튼을 누르면 자동으로 채워집니다 (상세주소는 이어서 입력)"
+        className="soft-input mt-2 w-full"
       />
 
       <div className="mt-4 grid grid-cols-2 gap-3">

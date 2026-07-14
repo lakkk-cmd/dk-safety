@@ -8,6 +8,7 @@ export type BomiCustomer = {
   name: string;
   phone: string;
   address: string;
+  postalCode: string;
   birthDate: string | null;
   gender: "남" | "여" | null;
   occupation: string;
@@ -24,6 +25,7 @@ type BomiCustomerRow = {
   name: string;
   phone: string;
   address: string;
+  postal_code: string;
   birth_date: string | null;
   gender: "남" | "여" | null;
   occupation: string;
@@ -41,6 +43,7 @@ function mapCustomerRow(row: BomiCustomerRow): BomiCustomer {
     name: row.name,
     phone: row.phone,
     address: row.address,
+    postalCode: row.postal_code,
     birthDate: row.birth_date,
     gender: row.gender,
     occupation: row.occupation,
@@ -73,6 +76,7 @@ export async function createBomiCustomer(input: {
   name: string;
   phone?: string;
   address?: string;
+  postalCode?: string;
   birthDate?: string | null;
   gender?: "남" | "여" | null;
   occupation?: string;
@@ -87,6 +91,7 @@ export async function createBomiCustomer(input: {
       name: input.name.trim(),
       phone: input.phone?.trim() ?? "",
       address: input.address?.trim() ?? "",
+      postal_code: input.postalCode?.trim() ?? "",
       birth_date: input.birthDate ?? null,
       gender: input.gender ?? null,
       occupation: input.occupation?.trim() ?? "",
@@ -106,6 +111,7 @@ export async function updateBomiCustomer(
     name?: string;
     phone?: string;
     address?: string;
+    postalCode?: string;
     birthDate?: string | null;
     gender?: "남" | "여" | null;
     occupation?: string;
@@ -119,6 +125,7 @@ export async function updateBomiCustomer(
   if (typeof patch.name === "string") update.name = patch.name.trim();
   if (typeof patch.phone === "string") update.phone = patch.phone.trim();
   if (typeof patch.address === "string") update.address = patch.address.trim();
+  if (typeof patch.postalCode === "string") update.postal_code = patch.postalCode.trim();
   if (patch.birthDate !== undefined) update.birth_date = patch.birthDate;
   if (patch.gender !== undefined) update.gender = patch.gender;
   if (typeof patch.occupation === "string") update.occupation = patch.occupation.trim();
