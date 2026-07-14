@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
-import { getBomiCustomer, listBomiCoverageAnalyses, listBomiDocuments } from "@/lib/bomi-db";
+import { getBomiCustomer, listBomiActivityLog, listBomiCoverageAnalyses, listBomiDocuments } from "@/lib/bomi-db";
 import { createSignedObjectUrl } from "@/lib/supabase-server";
+import ActivityLogPanel from "./activity-log-panel";
 import CustomerActions from "./customer-actions";
 import DocumentUploadPanel from "./document-upload-panel";
 
@@ -29,7 +30,11 @@ export default async function BomiCustomerDetailPage({ params }: { params: Promi
     notFound();
   }
 
-  const [documents, analyses] = await Promise.all([listBomiDocuments(id), listBomiCoverageAnalyses(id)]);
+  const [documents, analyses, activityLog] = await Promise.all([
+    listBomiDocuments(id),
+    listBomiCoverageAnalyses(id),
+    listBomiActivityLog(id)
+  ]);
   const documentsWithUrls = await Promise.all(
     documents.map(async (doc) => {
       try {
@@ -163,6 +168,14 @@ export default async function BomiCustomerDetailPage({ params }: { params: Promi
             </div>
           </div>
         )}
+      </div>
+
+      <div className="surface-card rounded-2xl p-6">
+        <h2 className="text-lg font-bold text-slate-950">보무기록</h2>
+        <p className="mt-1 text-sm text-slate-500">상담 내용, 영업활동 이력을 시간순으로 기록합니다.</p>
+        <div className="mt-4">
+          <ActivityLogPanel customerId={id} initialEntries={activityLog} />
+        </div>
       </div>
     </div>
   );

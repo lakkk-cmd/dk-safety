@@ -308,3 +308,54 @@ export async function createBomiCoverageAnalysis(input: {
   if (error || !data) throw new Error(`보장분석 저장 실패: ${error?.message ?? "unknown"}`);
   return mapCoverageRow(data as BomiCoverageAnalysisRow);
 }
+
+export type BomiActivityLogEntry = {
+  id: string;
+  customerId: string;
+  agentId: string | null;
+  content: string;
+  createdAt: string;
+};
+
+type BomiActivityLogRow = {
+  id: string;
+  customer_id: string;
+  agent_id: string | null;
+  content: string;
+  created_at: string;
+};
+
+function mapActivityLogRow(row: BomiActivityLogRow): BomiActivityLogEntry {
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    agentId: row.agent_id,
+    content: row.content,
+    createdAt: row.created_at,
+  };
+}
+
+export async function listBomiActivityLog(customerId: string): Promise<BomiActivityLogEntry[]> {
+  const supabase = requireAgentSupabase();
+  const { data, error } = await supabase
+    .from("bomi_activity_log")
+    .select("*")
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`보무기록 조회 실패: ${error.message}`);
+  return (data ?? []).map((r) => mapActivityLogRow(r as BomiActivityLogRow));
+}
+
+export async function createBomiActivityLogEntry(input: {
+  customerId: string;
+  content: string;
+}): Promise<BomiActivityLogEntry> {
+  const supabase = requireAgentSupabase();
+  const { data, error } = await supabase
+    .from("bomi_activity_log")
+    .insert({ customer_id: input.customerId, content: input.content.trim() })
+    .select("*")
+    .single();
+  if (error || !data) throw new Error(`보무기록 등록 실패: ${error?.message ?? "unknown"}`);
+  return mapActivityLogRow(data as BomiActivityLogRow);
+}
