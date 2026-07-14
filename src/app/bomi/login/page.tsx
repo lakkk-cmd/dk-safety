@@ -41,7 +41,6 @@ function BomiLoginForm() {
       <form onSubmit={onSubmit} className="surface-card-strong w-full rounded-2xl p-6">
         <p className="section-kicker">보미 · 보험설계사 CRM</p>
         <h1 className="mt-3 text-2xl font-bold">보미 로그인</h1>
-        <p className="mt-2 text-sm text-slate-600">dk-safety 전기안전 사업과는 별개의 서비스입니다.</p>
         <input
           type="password"
           required
