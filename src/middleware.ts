@@ -138,7 +138,10 @@ export async function middleware(request: NextRequest) {
     const bomiAuth =
       response?.cookies.get(BOMI_AUTH_COOKIE)?.value ?? request.cookies.get(BOMI_AUTH_COOKIE)?.value;
     if (bomiAuth !== "ok") {
-      const originalTarget = `${pathname}${request.nextUrl.search}`;
+      // pathname은 rewrite 후 내부 경로(예: "/bomi")라 그대로 next로 넘기면 로그인 후
+      // 클라이언트가 다시 그 경로로 이동할 때 미들웨어가 "/bomi"를 한 번 더 붙여
+      // "/bomi/bomi"가 되어 404가 난다 — 브라우저가 실제로 보는 originalPathname을 써야 한다.
+      const originalTarget = `${originalPathname}${request.nextUrl.search}`;
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = rewriteUrl ? "/login" : "/bomi/login";
       loginUrl.search = "";

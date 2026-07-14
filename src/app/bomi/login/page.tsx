@@ -27,7 +27,7 @@ function BomiLoginForm() {
       }
 
       const next = searchParams.get("next");
-      router.replace(next && next.startsWith("/") ? next : "/bomi");
+      router.replace(next && next.startsWith("/") ? next : "/");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "로그인 실패");
