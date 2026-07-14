@@ -3,7 +3,7 @@ title: "기능 현황 — pending"
 category: features
 tags: ["project-features", "pending"]
 source: "project_features"
-synced_at: "2026-07-13T20:46:13.930Z"
+synced_at: "2026-07-14T20:47:38.837Z"
 ---
 
 <!-- AUTO:START -->
