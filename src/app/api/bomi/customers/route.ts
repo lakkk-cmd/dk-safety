@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       name?: string;
       phone?: string;
+      address?: string;
       birthDate?: string;
       gender?: string;
       occupation?: string;
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
     const customer = await createBomiCustomer({
       name,
       phone: body.phone,
+      address: body.address,
       birthDate: body.birthDate || null,
       gender: body.gender === "남" || body.gender === "여" ? body.gender : null,
       occupation: body.occupation,

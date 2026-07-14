@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { listBomiCustomers } from "@/lib/bomi-db";
+import CustomerListFilters from "./customer-list-filters";
 
 export default async function BomiDashboardPage() {
   if (!isAgentSupabaseReady()) {
@@ -31,23 +32,7 @@ export default async function BomiDashboardPage() {
         {customers.length === 0 ? (
           <p className="mt-3 text-sm text-slate-500">아직 등록된 고객이 없습니다.</p>
         ) : (
-          <ul className="mt-4 divide-y divide-slate-200">
-            {customers.map((customer) => (
-              <li key={customer.id} className="py-3">
-                <Link href={`/customers/${customer.id}`} className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-slate-900">{customer.name}</p>
-                    <p className="text-xs text-slate-500">
-                      {customer.phone || "연락처 미입력"} · {customer.occupation || "직업 미입력"}
-                    </p>
-                  </div>
-                  <span className="text-xs text-slate-400">
-                    {new Date(customer.createdAt).toLocaleDateString("ko-KR")}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <CustomerListFilters customers={customers} />
         )}
       </div>
     </div>

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { getBomiCustomer, listBomiCoverageAnalyses, listBomiDocuments } from "@/lib/bomi-db";
 import { createSignedObjectUrl } from "@/lib/supabase-server";
+import CustomerActions from "./customer-actions";
 import DocumentUploadPanel from "./document-upload-panel";
 
 const BOMI_DOCUMENTS_BUCKET = process.env.SUPABASE_BOMI_DOCUMENTS_BUCKET?.trim() || "dk-bomi-documents";
@@ -43,8 +44,13 @@ export default async function BomiCustomerDetailPage({ params }: { params: Promi
   return (
     <div className="space-y-6 py-6">
       <div className="surface-card-strong rounded-2xl p-6">
-        <p className="section-kicker">고객카드</p>
-        <h1 className="mt-3 text-2xl font-bold text-slate-950">{customer.name}</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="section-kicker">고객카드</p>
+            <h1 className="mt-3 text-2xl font-bold text-slate-950">{customer.name}</h1>
+          </div>
+          <CustomerActions customerId={id} customerName={customer.name} />
+        </div>
         <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-slate-700 sm:grid-cols-3">
           <div>
             <dt className="text-xs text-slate-400">연락처</dt>
@@ -61,6 +67,10 @@ export default async function BomiCustomerDetailPage({ params }: { params: Promi
           <div>
             <dt className="text-xs text-slate-400">직업</dt>
             <dd>{customer.occupation || "-"}</dd>
+          </div>
+          <div className="col-span-2 sm:col-span-3">
+            <dt className="text-xs text-slate-400">주소</dt>
+            <dd>{customer.address || "-"}</dd>
           </div>
         </dl>
         {customer.familyNote ? <p className="mt-3 text-sm text-slate-600">가족사항: {customer.familyNote}</p> : null}

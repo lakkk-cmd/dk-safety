@@ -7,6 +7,7 @@ export type BomiCustomer = {
   agentId: string | null;
   name: string;
   phone: string;
+  address: string;
   birthDate: string | null;
   gender: "남" | "여" | null;
   occupation: string;
@@ -22,6 +23,7 @@ type BomiCustomerRow = {
   agent_id: string | null;
   name: string;
   phone: string;
+  address: string;
   birth_date: string | null;
   gender: "남" | "여" | null;
   occupation: string;
@@ -38,6 +40,7 @@ function mapCustomerRow(row: BomiCustomerRow): BomiCustomer {
     agentId: row.agent_id,
     name: row.name,
     phone: row.phone,
+    address: row.address,
     birthDate: row.birth_date,
     gender: row.gender,
     occupation: row.occupation,
@@ -69,6 +72,7 @@ export async function getBomiCustomer(id: string): Promise<BomiCustomer | null> 
 export async function createBomiCustomer(input: {
   name: string;
   phone?: string;
+  address?: string;
   birthDate?: string | null;
   gender?: "남" | "여" | null;
   occupation?: string;
@@ -82,6 +86,7 @@ export async function createBomiCustomer(input: {
     .insert({
       name: input.name.trim(),
       phone: input.phone?.trim() ?? "",
+      address: input.address?.trim() ?? "",
       birth_date: input.birthDate ?? null,
       gender: input.gender ?? null,
       occupation: input.occupation?.trim() ?? "",
@@ -93,6 +98,49 @@ export async function createBomiCustomer(input: {
     .single();
   if (error || !data) throw new Error(`고객 등록 실패: ${error?.message ?? "unknown"}`);
   return mapCustomerRow(data as BomiCustomerRow);
+}
+
+export async function updateBomiCustomer(
+  id: string,
+  patch: {
+    name?: string;
+    phone?: string;
+    address?: string;
+    birthDate?: string | null;
+    gender?: "남" | "여" | null;
+    occupation?: string;
+    familyNote?: string;
+    financialNote?: string;
+    memo?: string;
+  }
+): Promise<BomiCustomer> {
+  const supabase = requireAgentSupabase();
+  const update: Record<string, unknown> = {};
+  if (typeof patch.name === "string") update.name = patch.name.trim();
+  if (typeof patch.phone === "string") update.phone = patch.phone.trim();
+  if (typeof patch.address === "string") update.address = patch.address.trim();
+  if (patch.birthDate !== undefined) update.birth_date = patch.birthDate;
+  if (patch.gender !== undefined) update.gender = patch.gender;
+  if (typeof patch.occupation === "string") update.occupation = patch.occupation.trim();
+  if (typeof patch.familyNote === "string") update.family_note = patch.familyNote.trim();
+  if (typeof patch.financialNote === "string") update.financial_note = patch.financialNote.trim();
+  if (typeof patch.memo === "string") update.memo = patch.memo.trim();
+  update.updated_at = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("bomi_customers")
+    .update(update)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error || !data) throw new Error(`고객 수정 실패: ${error?.message ?? "unknown"}`);
+  return mapCustomerRow(data as BomiCustomerRow);
+}
+
+export async function deleteBomiCustomer(id: string): Promise<void> {
+  const supabase = requireAgentSupabase();
+  const { error } = await supabase.from("bomi_customers").delete().eq("id", id);
+  if (error) throw new Error(`고객 삭제 실패: ${error.message}`);
 }
 
 export type BomiDocType = "신분증" | "가입설계서" | "증권" | "청약서" | "청구자료" | "기타";
