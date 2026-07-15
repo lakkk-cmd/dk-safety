@@ -3,7 +3,7 @@ title: "기능 현황 — integration"
 category: features
 tags: ["project-features", "integration"]
 source: "project_features"
-synced_at: "2026-07-14T20:47:38.836Z"
+synced_at: "2026-07-15T20:46:47.256Z"
 ---
 
 <!-- AUTO:START -->
