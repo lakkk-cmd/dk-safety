@@ -3,14 +3,15 @@ title: "기능 현황 — pending"
 category: features
 tags: ["project-features", "pending"]
 source: "project_features"
-synced_at: "2026-07-16T20:41:46.491Z"
+synced_at: "2026-07-17T20:40:55.841Z"
 ---
 
 <!-- AUTO:START -->
 ## pending (8건)
 
 - **AR 기능** `pending`: 증강현실 기반 전기점검
-- **BOMI 보험 플랫폼** `pending`: 배우자 보험 영업 CRM
+- **BOMI 보험 플랫폼** `deprecated`: 배우자 보험 영업 CRM
+  - 메모: 2026-07-17 프로젝트 전면 취소, 코드/DB/스토리지 전부 제거됨
 - **Track C 전기공사업** `pending`: 전기공사업 등록 후 직접 시공
 - **모바일 앱** `pending`: 기사용 현장 앱
 - **영상 합성 파이프라인** `pending`: Flux 씬 이미지 + edge-tts 나레이션 + ffmpeg 조립으로 유튜브 영상 자동 생성 (video-assembly.yml, 스케줄 비활성화 상태)
