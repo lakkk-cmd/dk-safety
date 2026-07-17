@@ -176,6 +176,10 @@ export async function pgCreateFieldReport(workerId: string, input: FieldReportIn
   if (error || !data) {
     throw new Error(`현장 점검 기록 저장 실패: ${error?.message ?? "unknown"}`);
   }
+  // 새로고침/네트워크 끊김에도 견적 단계로 안전하게 복귀할 수 있도록, 생성 즉시 해당 예약의
+  // task에 연결한다. 이미 연결된 task는 건드리지 않는다(멱등 — 동일 예약에 점검을 다시 만들어도
+  // 최초 링크가 유지됨).
+  await supabase.from("tasks").update({ field_report_id: data.id }).eq("reservation_id", input.reservationId).is("field_report_id", null);
   return mapFieldReport(data as FieldReportRow);
 }
 

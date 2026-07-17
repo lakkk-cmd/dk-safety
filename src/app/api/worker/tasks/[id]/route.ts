@@ -9,6 +9,7 @@ import {
   pgDeclineTask,
   pgGetTaskForWorker,
   pgStartTask,
+  pgSubmitQuote,
   pgUpgradeSimpleSwapTask
 } from "@/lib/reservations-pg";
 import { sendAdminAlertSms } from "@/lib/solapi-agent";
@@ -60,6 +61,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     reason?: string;
     materials?: { id?: string; name?: string; qty?: number; unitPrice?: number }[];
     laborTier?: { label?: string; amount?: number } | null;
+    fieldReportId?: string;
+    adjustmentReason?: string;
   };
   const action = body.action?.trim() ?? "";
   try {
@@ -105,6 +108,26 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       await pgUpgradeSimpleSwapTask(id, session.workerId, reason);
       return NextResponse.json({ message: "등급 업그레이드가 기록되었습니다." });
     }
+    if (action === "quote") {
+      const materials = Array.isArray(body.materials)
+        ? body.materials
+            .filter((m): m is { id: string; name: string; qty: number; unitPrice: number } =>
+              Boolean(m && m.id && m.name && Number.isFinite(m.qty) && Number.isFinite(m.unitPrice))
+            )
+            .map((m) => ({ id: m.id, name: m.name, qty: Math.max(1, Math.round(m.qty)), unitPrice: Math.max(0, Math.round(m.unitPrice)) }))
+        : [];
+      const laborTierAmount = Number(body.laborTier?.amount);
+      const laborTier =
+        body.laborTier && body.laborTier.label && Number.isFinite(laborTierAmount)
+          ? { label: body.laborTier.label, amount: Math.max(0, Math.round(laborTierAmount)) }
+          : null;
+      const { quoteAmount } = await pgSubmitQuote(id, session.workerId, {
+        fieldReportId: body.fieldReportId?.trim() || null,
+        materials,
+        laborTier
+      });
+      return NextResponse.json({ message: "현장 견적이 저장되었습니다.", quoteAmount });
+    }
     if (action === "start") {
       await pgStartTask(id, session.workerId);
       const row = await pgGetTaskForWorker(id, session.workerId);
@@ -135,6 +158,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         body.laborTier && body.laborTier.label && Number.isFinite(laborTierAmount)
           ? { label: body.laborTier.label, amount: Math.max(0, Math.round(laborTierAmount)) }
           : null;
+      const quotedAmountBefore = (await pgGetTaskForWorker(id, session.workerId))?.task.quote_amount ?? null;
       await pgCompleteTask(id, session.workerId, signature, extraFee, { materials, laborTier });
       const row = await pgGetTaskForWorker(id, session.workerId);
       if (row) {
@@ -143,6 +167,29 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           reservationId: row.reservation.id,
           message: `${row.reservation.name} 현장 작업이 완료 처리되었습니다.`
         });
+        const adjustmentReason = body.adjustmentReason?.trim() ?? "";
+        if (quotedAmountBefore != null && quotedAmountBefore > 0) {
+          // quotedAmountBefore(tasks.quote_amount)는 출장비를 뺀 현장 비용만이므로, 같은 기준인
+          // reservation.extraFee(= 출장비 제외 최종 현장 비용)와 비교해야 한다. totalAmount(출장비
+          // 포함 총액)와 비교하면 출장비만큼 항상 어긋나 큰 차이가 나도 알림이 누락된다.
+          const finalAmount = row.reservation.extraFee;
+          const diffRatio = Math.abs(finalAmount - quotedAmountBefore) / quotedAmountBefore;
+          if (adjustmentReason) {
+            await appendActivityLog({
+              action: "task_completed",
+              reservationId: row.reservation.id,
+              message: `${row.reservation.name} 최종금액 조정 사유: ${adjustmentReason} (견적 ${quotedAmountBefore.toLocaleString("ko-KR")}원 → 최종 ${finalAmount.toLocaleString("ko-KR")}원)`
+            });
+          }
+          if (diffRatio >= 0.2) {
+            await pushLiveNotification({
+              role: "admin",
+              reservationId: row.reservation.id,
+              title: "⚠️ 견적-최종금액 차이 큼",
+              message: `${row.reservation.name} 고객 — 견적 ${quotedAmountBefore.toLocaleString("ko-KR")}원 → 최종 ${finalAmount.toLocaleString("ko-KR")}원 (${Math.round(diffRatio * 100)}% 차이)${adjustmentReason ? ` · 사유: ${adjustmentReason}` : ""}`
+            });
+          }
+        }
         try {
           const channels = await notifyCustomerWorkCompleted({
             id: row.reservation.id,

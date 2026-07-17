@@ -1008,6 +1008,15 @@ export async function pgAssignTask(reservationId: string, workerId: string): Pro
   return found;
 }
 
+export type TaskFieldReportSummary = {
+  id: string;
+  status: string;
+  risk_level: string | null;
+  pdf_resident_url: string | null;
+  pdf_landlord_url: string | null;
+  sent_at: string | null;
+};
+
 export async function pgGetTaskForWorker(
   taskId: string,
   workerId: string
@@ -1019,7 +1028,14 @@ export async function pgGetTaskForWorker(
     site_photo_urls: string[];
     signature_png: string | null;
     accepted_at: string | null;
+    field_report_id: string | null;
+    quote_materials: { id: string; name: string; qty: number; unitPrice: number }[] | null;
+    quote_labor_tier: { label: string; amount: number } | null;
+    quote_amount: number | null;
+    quoted_at: string | null;
+    customer_approved_at: string | null;
   };
+  fieldReport: TaskFieldReportSummary | null;
   reservation: Reservation;
 } | null> {
   const supabase = requireSupabaseAdmin();
@@ -1034,6 +1050,20 @@ export async function pgGetTaskForWorker(
       site_photo_urls,
       signature_png,
       accepted_at,
+      field_report_id,
+      quote_materials,
+      quote_labor_tier,
+      quote_amount,
+      quoted_at,
+      customer_approved_at,
+      field_reports (
+        id,
+        status,
+        risk_level,
+        pdf_resident_url,
+        pdf_landlord_url,
+        sent_at
+      ),
       reservations (
         id,
         apartment_id,
@@ -1085,6 +1115,8 @@ export async function pgGetTaskForWorker(
   const res = Array.isArray(resRaw) ? resRaw[0] : resRaw;
   if (!res) return null;
   const reservation = mapReservation({ ...res, tasks: [] });
+  const fieldReportRaw = data.field_reports as unknown as TaskFieldReportSummary | TaskFieldReportSummary[] | null;
+  const fieldReport = Array.isArray(fieldReportRaw) ? (fieldReportRaw[0] ?? null) : fieldReportRaw;
   return {
     task: {
       id: data.id,
@@ -1092,8 +1124,15 @@ export async function pgGetTaskForWorker(
       reservation_id: data.reservation_id,
       site_photo_urls: asStringArray(data.site_photo_urls),
       signature_png: data.signature_png,
-      accepted_at: data.accepted_at ?? null
+      accepted_at: data.accepted_at ?? null,
+      field_report_id: data.field_report_id ?? null,
+      quote_materials: (data.quote_materials as { id: string; name: string; qty: number; unitPrice: number }[] | null) ?? null,
+      quote_labor_tier: (data.quote_labor_tier as { label: string; amount: number } | null) ?? null,
+      quote_amount: data.quote_amount ?? null,
+      quoted_at: data.quoted_at ?? null,
+      customer_approved_at: data.customer_approved_at ?? null
     },
+    fieldReport,
     reservation
   };
 }
@@ -1177,7 +1216,7 @@ export async function pgStartTask(taskId: string, workerId: string): Promise<voi
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase
     .from("tasks")
-    .select("id, worker_id, status, reservation_id")
+    .select("id, worker_id, status, reservation_id, quoted_at")
     .eq("id", taskId)
     .maybeSingle();
   if (error || !data || data.worker_id !== workerId) {
@@ -1186,9 +1225,13 @@ export async function pgStartTask(taskId: string, workerId: string): Promise<voi
   if (data.status === "completed") {
     throw new Error("이미 완료된 작업입니다.");
   }
+  if (!data.quoted_at) {
+    throw new Error("먼저 현장 점검과 견적 산출을 완료해주세요.");
+  }
+  const now = new Date().toISOString();
   const { error: uErr } = await supabase
     .from("tasks")
-    .update({ status: "in_progress", started_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({ status: "in_progress", started_at: now, customer_approved_at: now, updated_at: now })
     .eq("id", taskId);
   if (uErr) {
     throw new Error(`작업 시작 처리 실패: ${uErr.message}`);
@@ -1228,6 +1271,58 @@ export async function pgUpgradeSimpleSwapTask(taskId: string, workerId: string, 
   if (rErr) {
     throw new Error(`업그레이드 기록 실패: ${rErr.message}`);
   }
+}
+
+export type TaskQuoteInput = {
+  fieldReportId?: string | null;
+  materials?: { id: string; name: string; qty: number; unitPrice: number }[];
+  laborTier?: { label: string; amount: number } | null;
+};
+
+/**
+ * 현장 점검 직후(6번) — 재료비+작업비 난이도로 예상 비용을 산출해 저장한다. 고객에게는
+ * 기사가 구두로 이 금액을 안내·승인받는다(7번). 배정을 수락한 뒤(점검 전) 상태에서만 허용 —
+ * 이미 시작/완료된 작업은 견적 단계를 다시 거칠 필요가 없다.
+ */
+export async function pgSubmitQuote(taskId: string, workerId: string, input: TaskQuoteInput): Promise<{ quoteAmount: number }> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id, worker_id, status, accepted_at")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (error || !data || data.worker_id !== workerId) {
+    throw new Error("작업을 찾을 수 없거나 권한이 없습니다.");
+  }
+  if (data.status !== "assigned" || !data.accepted_at) {
+    throw new Error("배정을 수락한 이후에만 견적을 산출할 수 있습니다.");
+  }
+  const materials = (input.materials ?? [])
+    .filter((m) => m && m.id && m.name && Number.isFinite(m.qty) && Number.isFinite(m.unitPrice))
+    .map((m) => ({ id: m.id, name: m.name, qty: Math.max(1, Math.round(m.qty)), unitPrice: Math.max(0, Math.round(m.unitPrice)) }));
+  const materialsTotal = materials.reduce((sum, m) => sum + m.qty * m.unitPrice, 0);
+  const laborAmount = Number(input.laborTier?.amount);
+  const laborTier =
+    input.laborTier && input.laborTier.label && Number.isFinite(laborAmount)
+      ? { label: input.laborTier.label, amount: Math.max(0, Math.round(laborAmount)) }
+      : null;
+  const quoteAmount = materialsTotal + (laborTier?.amount ?? 0);
+  const now = new Date().toISOString();
+  const { error: uErr } = await supabase
+    .from("tasks")
+    .update({
+      field_report_id: input.fieldReportId ?? null,
+      quote_materials: materials,
+      quote_labor_tier: laborTier,
+      quote_amount: quoteAmount,
+      quoted_at: now,
+      updated_at: now
+    })
+    .eq("id", taskId);
+  if (uErr) {
+    throw new Error(`견적 저장 실패: ${uErr.message}`);
+  }
+  return { quoteAmount };
 }
 
 export async function pgAppendTaskPhotos(taskId: string, workerId: string, urls: string[]): Promise<string[]> {

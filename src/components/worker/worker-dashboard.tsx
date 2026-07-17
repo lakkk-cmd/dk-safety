@@ -177,14 +177,6 @@ export default function WorkerDashboard({ apkUrl }: { apkUrl?: string | null }) 
         ))}
       </div>
 
-      <Link
-        href="/field-report"
-        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dk-navy bg-white px-5 text-base font-bold text-dk-navy hover:bg-dk-sky"
-      >
-        <span className="text-xl leading-none">➕</span>
-        <span>새 점검 시작</span>
-      </Link>
-
       {message ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{message}</p> : null}
 
       <select value={apartmentFilter} onChange={(e) => setApartmentFilter(e.target.value)} className="soft-input w-full text-sm">
@@ -244,21 +236,13 @@ export default function WorkerDashboard({ apkUrl }: { apkUrl?: string | null }) 
                     <span>확인하기(수락/거절)</span>
                   </Link>
                 ) : (
-                  <>
-                    <Link
-                      href={`/field-report?reservationId=${row.reservation.id}`}
-                      className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-dk-blue text-[15px] font-bold text-white shadow-[0_8px_20px_rgba(26,92,255,0.28)]"
-                    >
-                      <span>🔧</span>
-                      <span>점검 시작</span>
-                    </Link>
-                    <Link
-                      href={`/worker/tasks/${row.task.id}`}
-                      className="flex min-h-12 items-center justify-center rounded-2xl border-2 border-slate-200 px-4 text-[15px] font-bold text-slate-600"
-                    >
-                      작업상세
-                    </Link>
-                  </>
+                  <Link
+                    href={`/worker/tasks/${row.task.id}`}
+                    className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-dk-blue text-[15px] font-bold text-white shadow-[0_8px_20px_rgba(26,92,255,0.28)]"
+                  >
+                    <span>🔧</span>
+                    <span>{row.task.status === "completed" ? "작업상세 보기" : "현장 진행하기"}</span>
+                  </Link>
                 )}
               </div>
             </li>
