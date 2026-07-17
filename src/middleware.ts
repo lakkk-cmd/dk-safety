@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ADMIN_AUTH_COOKIE, BOMI_AUTH_COOKIE, RESIDENT_AUTH_COOKIE, WORKER_AUTH_COOKIE } from "@/lib/site-config";
+import { ADMIN_AUTH_COOKIE, RESIDENT_AUTH_COOKIE, WORKER_AUTH_COOKIE } from "@/lib/site-config";
 import { residentSessionNotRequired } from "@/lib/service-journey";
 import { verifyWorkerSessionTokenEdge } from "@/lib/worker-session-verify-edge";
 
@@ -9,9 +9,6 @@ const HQ_HOST_PREFIX = "hq.";
 const REPORT_HOST_PREFIX = "report.";
 const AGENT_HOST_PREFIX = "agent.";
 const CONTENTS_HOST_PREFIX = "contents.";
-// 보미(보험설계사 CRM)는 dk-safety(전기안전) 사업과 별개 서비스 — 라우트만 같은 배포를
-// 공유하고, 인증 쿠키(BOMI_AUTH_COOKIE)는 admin/worker/resident와 절대 섞이지 않는다.
-const BOMI_HOST_PREFIX = "bomi.";
 
 function withFirstVisitCookie(res: NextResponse, isFirstVisit: boolean) {
   if (isFirstVisit) {
@@ -48,10 +45,6 @@ export async function middleware(request: NextRequest) {
     rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = `/contents${pathname === "/" ? "" : pathname}`;
     pathname = rewriteUrl.pathname;
-  } else if (host.startsWith(BOMI_HOST_PREFIX)) {
-    rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = `/bomi${pathname === "/" ? "" : pathname}`;
-    pathname = rewriteUrl.pathname;
   }
 
   const baseResponse = () => (rewriteUrl ? NextResponse.rewrite(rewriteUrl as URL) : NextResponse.next());
@@ -63,10 +56,8 @@ export async function middleware(request: NextRequest) {
     response = baseResponse();
     if (process.env.NODE_ENV === "production") {
       response.cookies.set(ADMIN_AUTH_COOKIE, "", { path: "/", maxAge: 0, domain: ".dkansim.com" });
-      response.cookies.set(BOMI_AUTH_COOKIE, "", { path: "/", maxAge: 0, domain: ".dkansim.com" });
     } else {
       response.cookies.delete(ADMIN_AUTH_COOKIE);
-      response.cookies.delete(BOMI_AUTH_COOKIE);
     }
     response.cookies.delete(RESIDENT_AUTH_COOKIE);
     response.cookies.set(FIRST_VISIT_COOKIE, "1", { path: "/", maxAge: 60 * 60 * 24 * 365 });
@@ -131,28 +122,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const isBomiRoute = pathname.startsWith("/bomi");
-  const isBomiLogin = pathname === "/bomi/login";
-
-  if (isBomiRoute && !isBomiLogin) {
-    const bomiAuth =
-      response?.cookies.get(BOMI_AUTH_COOKIE)?.value ?? request.cookies.get(BOMI_AUTH_COOKIE)?.value;
-    if (bomiAuth !== "ok") {
-      // pathname은 rewrite 후 내부 경로(예: "/bomi")라 그대로 next로 넘기면 로그인 후
-      // 클라이언트가 다시 그 경로로 이동할 때 미들웨어가 "/bomi"를 한 번 더 붙여
-      // "/bomi/bomi"가 되어 404가 난다 — 브라우저가 실제로 보는 originalPathname을 써야 한다.
-      const originalTarget = `${originalPathname}${request.nextUrl.search}`;
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = rewriteUrl ? "/login" : "/bomi/login";
-      loginUrl.search = "";
-      if (originalTarget && originalTarget !== loginUrl.pathname) {
-        loginUrl.searchParams.set("next", originalTarget);
-      }
-      return withFirstVisitCookie(NextResponse.redirect(loginUrl), isFirstVisit);
-    }
-  }
-
-  if (isWorkerRoute || isAdminRoute || isBomiRoute) {
+  if (isWorkerRoute || isAdminRoute) {
     return response ?? baseResponse();
   }
 

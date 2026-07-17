@@ -59,7 +59,6 @@ const videoId = process.env.SUPABASE_VIDEO_BUCKET ?? "dk-safety-video-assets";
 const knowledgeId = process.env.SUPABASE_KNOWLEDGE_BUCKET ?? "knowledge-pdfs";
 const documentsId = process.env.SUPABASE_DOCUMENTS_BUCKET ?? "dk-safety-documents";
 const apksId = process.env.SUPABASE_APK_BUCKET ?? "dk-safety-apks";
-const bomiDocumentsId = process.env.SUPABASE_BOMI_DOCUMENTS_BUCKET ?? "dk-bomi-documents";
 
 const buckets = await listBuckets();
 const ids = new Set(buckets.map((b) => b.id));
@@ -99,13 +98,6 @@ if (!ids.has(apksId)) {
   await createBucket(apksId, true);
 } else {
   console.log("모바일 앱 APK 버킷 이미 있음:", apksId);
-}
-
-// 보미(보험설계사 CRM) 증권/신분증 스캔 — 민감 문서라 private로 생성, 서명 URL로만 열람.
-if (!ids.has(bomiDocumentsId)) {
-  await createBucket(bomiDocumentsId, false);
-} else {
-  console.log("보미 문서 버킷 이미 있음:", bomiDocumentsId);
 }
 
 console.log("Storage 점검 완료.");
