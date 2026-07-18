@@ -3,18 +3,18 @@ title: "에이전트 메모리 — structured_v1"
 category: agent-memory
 tags: ["agent-memory", "structured_v1"]
 source: "agent_memory (key=structured_v1)"
-synced_at: "2026-07-17T20:40:57.677Z"
+synced_at: "2026-07-18T20:35:08.620Z"
 ---
 
 <!-- AUTO:START -->
 ## structured_v1
 
-마지막 갱신: 2026-07-03T23:34:20.858208+00:00
+마지막 갱신: 2026-07-17T23:44:42.436059+00:00
 
 ```json
 {
   "version": 1,
-  "updatedAt": "2026-07-03T23:34:20.446Z",
+  "updatedAt": "2026-07-17T23:44:41.484Z",
   "strategicThemes": [],
   "decisions": [],
   "openQuestions": [],
@@ -69,9 +69,19 @@ synced_at: "2026-07-17T20:40:57.677Z"
         "*회의 주제: 주간 전략 종합 + AI 영상 에셋 활용 + 첫 예약 전환*",
         "---"
       ]
+    },
+    {
+      "date": "2026. 07. 18. 오전 08:41",
+      "topic": "주간 전략 종합",
+      "chiefSummary": "# 우리집 전기주치의(대경이엔피) 경영진 회의 종합 보고서\n**1년차 6주차 | Q1 (2026 6~8월) 목표 800만원 | 주간 목표 62만원**\n*회의 주제: 주간 전략 종합 — 수익 전환 임계점*\n\n---\n\n## 1. 한 줄 핵심 결론\n\n> **\"콘텐츠 준비는 끝났다 — 이번 주 지인 3명에게 직접 카카오톡을 보내고, 겸업 금지 조항을 확인하고, SOP를 세팅하라. 첫 예약이 이번 주 안에 나오지 않으면 다음 주 전략을 전면 재조정한다.\"**\n\n---\n\n## 2. 이번 주 최우선 실행 3가지\n\n### 🥇 1순위 | 겸업 금지 조항 확인 ← 모든 행동의 전제조건\n**담당:** 대장 직접 실행\n**기한:** 월요일(7/7) 이내\n**측정 지표:** \"문제없음 / 주의필요\" 1줄 결론 도출\n**내용:**\n- 본업(아파트 전기팀장) 고용계약서 겸업 금지 조항 유무·범위 직접 확인\n- CMO의 SNS 노출 확대가 본업 직장에서 인지될 가능성이 높아지는 시점 — **이 확인이 완료되기",
+      "topActions": [
+        "**1년차 6주차 | Q1 (2026 6~8월) 목표 800만원 | 주간 목표 62만원**",
+        "*회의 주제: 주간 전략 종합 — 수익 전환 임계점*",
+        "---"
+      ]
     }
   ],
-  "feedbackNotes": "[2026. 07. 04. AM 08:30] [영상 이미지 OCR 실패] 씬 5\n큐ID: 812fc660-1706-493c-ac70-6a3eeee0d9f5\n프롬프트: A Korean male electrician in his 40s, wearing a red safety vest and white hard hat, stands inside a \n[2026. 07. 04. AM 08:30] [영상 이미지 OCR 실패] 씬 3\n큐ID: 812fc660-1706-493c-ac70-6a3eeee0d9f5\n프롬프트: The Korean male electrician in his 40s, red safety vest, white hard hat, stands in front of an open \n[2026. 07. 04. AM 08:30] [영상 이미지 OCR 실패] 씬 5\n큐ID: 812fc660-1706-493c-ac70-6a3eeee0d9f5\n프롬프트: Wide establishing shot: A Korean male electrician in his 40s, red safety vest and white hard hat, cr\n[2026. 07. 04. AM 08:30] [영상 이미지 OCR 실패] 씬 5\n큐ID: 03aec903-59a5-499c-8c40-012b7a319701\n프롬프트: Medium shot: the Korean male electrician in his 40s, red safety vest, white hard hat, stands in fron\n[2026. 07. 04. AM 08:30] [영상 이미지 OCR 실패] 씬 7\n큐ID: 03aec903-59a5-499c-8c40-012b7a319701\n프롬프트: Wide shot — a visual callback to Scene 1: the same gray apartment distribution panel, now with its d"
+  "feedbackNotes": "큐ID: 03aec903-59a5-499c-8c40-012b7a319701\n프롬프트: Wide shot — a visual callback to Scene 1: the same gray apartment distribution panel, now with its d\n[2026. 07. 18. 오전 08:41] [영상 이미지 OCR 실패] 씬 3\n큐ID: f2b46066-a5ea-4d31-8768-de2d84494b4f\n프롬프트: Korean apartment electrical distribution panel — interior panel door now open, revealing rows of cir\n[2026. 07. 18. 오전 08:41] [영상 이미지 OCR 실패] 씬 5\n큐ID: f2b46066-a5ea-4d31-8768-de2d84494b4f\n프롬프트: Korean apartment living room — same space as before, daytime. The Korean male electrician in his 40s\n[2026. 07. 18. 오전 08:41] [영상 이미지 OCR 실패] 씬 7\n큐ID: f2b46066-a5ea-4d31-8768-de2d84494b4f\n프롬프트: Korean apartment electrical distribution panel — panel door open. The Korean male electrician in his"
 }
 ```
 
