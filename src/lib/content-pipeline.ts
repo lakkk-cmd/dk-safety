@@ -154,75 +154,102 @@ export type ContentDraftRunResult = {
   blogUpdated: number;
 };
 
+export type YoutubeDraftItemResult = { id: string; title: string; status: "approved" | "review_required" };
+
+export type YoutubeDraftRunResult = {
+  processed: number;
+  approved: number;
+  reviewRequired: number;
+  items: YoutubeDraftItemResult[];
+};
+
+/**
+ * "planning" 상태 유튜브 항목 중 오래된 순으로 최대 `limit`개를 뽑아 스크립트를 작성한다.
+ * Gemini 자동검수 게이트를 통과하면 즉시 approved 처리 + 영상 제작(Flux 씬 생성)까지 자동
+ * 트리거한다. 카카오/블로그는 건드리지 않는다 — runContentDrafting()의 화/수요일 정기 배치와
+ * 별도로, 관리자가 "유튜브만 지금 N개 더" 요청할 때 재사용하기 위해 분리했다.
+ */
+export async function runYoutubeDrafting(limit = 2): Promise<YoutubeDraftRunResult> {
+  const weekStatus = getCurrentWeekStatus();
+  const supabase = requireAgentSupabase();
+  const result: YoutubeDraftRunResult = { processed: 0, approved: 0, reviewRequired: 0, items: [] };
+
+  const { data: ytRows } = await supabase
+    .from("content_youtube_queue")
+    .select("id, title, competitor_notes, category")
+    .eq("status", "planning")
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  for (const ytRow of ytRows ?? []) {
+    const draft = await draftYoutubeScript(
+      ytRow.title,
+      ytRow.competitor_notes ?? "",
+      weekStatus,
+      (ytRow.category as ContentCategory | null) ?? undefined,
+    );
+    draft.script = await humanizeKoreanText(draft.script, 6000);
+    const titleCandidatesBlock = draft.titleCandidates.length
+      ? `[제목 후보]\n${draft.titleCandidates.map((t, i) => `${i + 1}. ${t}`).join("\n")}\n\n`
+      : "";
+    // 사람 승인 대신 Gemini 자동검수 게이트 — 통과하면 즉시 approved 처리하고 영상 제작(Flux 씬
+    // 생성)까지 자동 트리거한다. 최종 합성+유튜브 업로드는 별도 워크플로우(video-assembly.yml,
+    // Veo 비용 이슈로 스케줄 비활성화·workflow_dispatch 전용)나 Google Flow 수동 작업이 필요하다.
+    let validationPassed = false;
+    if (GEMINI_ENABLED) {
+      try {
+        const validation = await validateContent({
+          title: ytRow.title,
+          content: draft.script,
+          contentType: "youtube",
+        });
+        validationPassed = validation.passed;
+      } catch (err) {
+        await logAgentEvent("warn", "content-draft", `YouTube 교차검증 실패 (건너뜀): ${errMessage(err)}`);
+      }
+    }
+    const ytStatus: "approved" | "review_required" = validationPassed ? "approved" : "review_required";
+    await supabase
+      .from("content_youtube_queue")
+      .update({
+        script: draft.script,
+        thumbnail_concept: `${titleCandidatesBlock}${draft.thumbnailConcept}`,
+        status: ytStatus,
+        approved_at: validationPassed ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", ytRow.id);
+
+    result.processed += 1;
+    if (validationPassed) {
+      result.approved += 1;
+      try {
+        await produceVideoAssets(ytRow.id);
+        await logAgentEvent("info", "content-draft", `유튜브 스크립트 자동승인 + 영상 제작 트리거: ${ytRow.title}`);
+        notifyAutoPublished({ type: "youtube", title: `${ytRow.title} (자동승인, 영상 제작 시작 — 최종 업로드는 별도 검토 필요)` }).catch(
+          (err) => logAgentEvent("warn", "content-draft", `발행 알림 실패: ${errMessage(err)}`),
+        );
+      } catch (err) {
+        await logAgentEvent("warn", "content-draft", `영상 자산 자동생성 실패 (건너뜀): ${errMessage(err)}`);
+      }
+    } else {
+      result.reviewRequired += 1;
+    }
+    result.items.push({ id: ytRow.id, title: ytRow.title, status: ytStatus });
+  }
+
+  return result;
+}
+
 export async function runContentDrafting(): Promise<ContentDraftRunResult> {
   const runId = await startPipelineRun("content-draft");
   try {
-    const weekStatus = getCurrentWeekStatus();
     const supabase = requireAgentSupabase();
-    let youtubeUpdated = false;
+    const weekStatus = getCurrentWeekStatus();
+    const ytResult = await runYoutubeDrafting(2);
+    const youtubeUpdated = ytResult.processed > 0;
     let kakaoUpdated = false;
     let blogUpdated = 0;
-
-    // 모든 planning 상태 YouTube 항목 처리 (다카테고리 지원)
-    const { data: ytRows } = await supabase
-      .from("content_youtube_queue")
-      .select("id, title, competitor_notes, category")
-      .eq("status", "planning")
-      .order("created_at", { ascending: true })
-      .limit(2);
-
-    for (const ytRow of ytRows ?? []) {
-      const draft = await draftYoutubeScript(
-        ytRow.title,
-        ytRow.competitor_notes ?? "",
-        weekStatus,
-        (ytRow.category as ContentCategory | null) ?? undefined,
-      );
-      draft.script = await humanizeKoreanText(draft.script, 6000);
-      const titleCandidatesBlock = draft.titleCandidates.length
-        ? `[제목 후보]\n${draft.titleCandidates.map((t, i) => `${i + 1}. ${t}`).join("\n")}\n\n`
-        : "";
-      // 사람 승인 대신 Gemini 자동검수 게이트 — 통과하면 즉시 approved 처리하고 영상 제작(Flux 씬
-      // 생성)까지 자동 트리거한다. 최종 합성+유튜브 업로드는 별도 워크플로우(video-assembly.yml,
-      // Veo 비용 이슈로 스케줄 비활성화·workflow_dispatch 전용)나 Google Flow 수동 작업이 필요하다.
-      let validationPassed = false;
-      if (GEMINI_ENABLED) {
-        try {
-          const validation = await validateContent({
-            title: ytRow.title,
-            content: draft.script,
-            contentType: "youtube",
-          });
-          validationPassed = validation.passed;
-        } catch (err) {
-          await logAgentEvent("warn", "content-draft", `YouTube 교차검증 실패 (건너뜀): ${errMessage(err)}`);
-        }
-      }
-      const ytStatus = validationPassed ? "approved" : "review_required";
-      await supabase
-        .from("content_youtube_queue")
-        .update({
-          script: draft.script,
-          thumbnail_concept: `${titleCandidatesBlock}${draft.thumbnailConcept}`,
-          status: ytStatus,
-          approved_at: validationPassed ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", ytRow.id);
-      youtubeUpdated = true;
-
-      if (validationPassed) {
-        try {
-          await produceVideoAssets(ytRow.id);
-          await logAgentEvent("info", "content-draft", `유튜브 스크립트 자동승인 + 영상 제작 트리거: ${ytRow.title}`);
-          notifyAutoPublished({ type: "youtube", title: `${ytRow.title} (자동승인, 영상 제작 시작 — 최종 업로드는 별도 검토 필요)` }).catch(
-            (err) => logAgentEvent("warn", "content-draft", `발행 알림 실패: ${errMessage(err)}`),
-          );
-        } catch (err) {
-          await logAgentEvent("warn", "content-draft", `영상 자산 자동생성 실패 (건너뜀): ${errMessage(err)}`);
-        }
-      }
-    }
 
     const { data: kkRow } = await supabase
       .from("content_kakao_queue")

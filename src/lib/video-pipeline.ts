@@ -138,7 +138,11 @@ sceneType 결정:
 
 /** 스크립트를 9:16 쇼츠용 씬 5~8개로 분해 (시네마틱 콘티 + Veo 프롬프트 포함) */
 export async function planVideoScenes(title: string, script: string): Promise<ScenePlanResult> {
-  const availableTags = await listAvailablePhotoTags().catch(() => []);
+  // master_character는 ai_bg 씬 전체에 걸쳐 인물 일관성을 유지하는 "스타일 참조용" 예약 태그다
+  // (resolveMasterCharacterReference 참고) — 씬 하나의 photoTag로 골라져 그 고정 사진이 그대로
+  // 노출되면 안 된다. 그런데 이 목록에 섞여 들어가 있어서 AI가 서로 다른 대사의 여러 씬에
+  // 똑같은 고정 사진을 반복해서 붙이는 문제가 있었다(2026-07-19 발견).
+  const availableTags = (await listAvailablePhotoTags().catch(() => [])).filter((tag) => tag !== MASTER_CHARACTER_TAG);
   const tagsSection = availableTags.length > 0
     ? `사용 가능한 실제 사진 태그 (분전함 등 사장님이 직접 등록한 현장 사진): ${availableTags.join(", ")}\n` +
       `씬 내용이 이 태그 중 하나와 명확히 맞으면 그 씬의 "photoTag"에 해당 태그를 넣어라 (AI 생성 대신 실제 사진을 사용한다). 애매하면 생략.`
