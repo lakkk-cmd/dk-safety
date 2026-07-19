@@ -52,6 +52,7 @@ export default async function ApartmentHomePage({
       urlProfile={urlProfile}
       electricalTips={electricalTips}
       simpleSwapFee={paymentSettings.simpleSwapFee}
+      baseDispatchFee={paymentSettings.baseDispatchFee}
     />
   );
 }

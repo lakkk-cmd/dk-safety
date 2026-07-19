@@ -1,11 +1,12 @@
 import Link from "next/link";
 import AdminLogoutButton from "@/components/admin-logout-button";
 import AdminPricingViewTabs from "@/components/admin/admin-pricing-view-tabs";
+import { pgListApartments } from "@/lib/apartments-pg";
 import { isSupabaseReservationsDbReady, requireSupabaseAdmin } from "@/lib/supabase-pg";
 
 export const dynamic = "force-dynamic";
 
-type ViewMode = "pricing" | "materials" | "labor-tiers";
+type ViewMode = "pricing" | "materials" | "labor-tiers" | "service-items";
 
 type PageProps = {
   searchParams?: Promise<{ tab?: string }>;
@@ -13,10 +14,17 @@ type PageProps = {
 
 export default async function AdminPricingPage({ searchParams }: PageProps) {
   const sp = (await searchParams) ?? {};
-  const initialView: ViewMode = sp.tab === "materials" ? "materials" : sp.tab === "labor-tiers" ? "labor-tiers" : "pricing";
+  const initialView: ViewMode =
+    sp.tab === "materials"
+      ? "materials"
+      : sp.tab === "labor-tiers"
+        ? "labor-tiers"
+        : sp.tab === "service-items"
+          ? "service-items"
+          : "pricing";
   const enableDbSync = isSupabaseReservationsDbReady();
 
-  const [materialsRes, laborTiersRes] = enableDbSync
+  const [materialsRes, laborTiersRes, apartments] = enableDbSync
     ? await Promise.all([
         requireSupabaseAdmin()
           .from("material_catalog")
@@ -25,9 +33,10 @@ export default async function AdminPricingPage({ searchParams }: PageProps) {
         requireSupabaseAdmin()
           .from("labor_tier_catalog")
           .select("id, label, max_minutes, amount, active, display_order")
-          .order("display_order", { ascending: true })
+          .order("display_order", { ascending: true }),
+        pgListApartments()
       ])
-    : [{ data: null }, { data: null }];
+    : [{ data: null }, { data: null }, []];
 
   return (
     <main className="page-fit mx-auto max-w-5xl">
@@ -37,8 +46,8 @@ export default async function AdminPricingPage({ searchParams }: PageProps) {
             <p className="warranty-badge">관리자 콘솔</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">요금/단가표</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-700">
-              출장비·서비스 요금, 재료비 카탈로그, 작업비 난이도 정액표를 탭으로 한 화면에서 관리합니다. 표시 금액은 각 DB 테이블과
-              동일하게 동기화됩니다.
+              출장비·서비스 요금, 재료비 카탈로그, 작업비 난이도 정액표, 최종정산 계산식까지 실제로 청구되는 모든 금액을 이 화면
+              하나에서 관리합니다.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link href="/admin/home" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-dk-navy shadow-sm transition hover:bg-slate-100">
@@ -57,6 +66,7 @@ export default async function AdminPricingPage({ searchParams }: PageProps) {
         <AdminPricingViewTabs
           initialMaterials={materialsRes.data ?? []}
           initialLaborTiers={laborTiersRes.data ?? []}
+          apartments={(apartments as { id: string; name: string }[]).map((a) => ({ id: a.id, name: a.name }))}
           initialView={initialView}
         />
       ) : (

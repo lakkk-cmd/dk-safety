@@ -38,6 +38,8 @@ type Props = {
   electricalTips?: ElectricalTipPublic[];
   /** 단순 기구교체(점검 없이 바로 교체) 정액 공임 — 관리자 설정에서 서버가 조회해 전달 */
   simpleSwapFee: number;
+  /** 점검/수리 예약금 — /admin/pricing(payment_settings.base_dispatch_fee)에서 서버가 조회해 전달 */
+  baseDispatchFee: number;
 };
 
 type RequestKind = "repair" | "emergency";
@@ -76,7 +78,7 @@ function tipBadgeClass(category: string) {
   }
 }
 
-export default function ApartmentMainActions({ apartment, urlProfile, electricalTips = [], simpleSwapFee }: Props) {
+export default function ApartmentMainActions({ apartment, urlProfile, electricalTips = [], simpleSwapFee, baseDispatchFee }: Props) {
   const [modalKind, setModalKind] = useState<RequestKind | null>(null);
   const [consultModalOpen, setConsultModalOpen] = useState(false);
   const [repairModalOpen, setRepairModalOpen] = useState(false);
@@ -322,6 +324,7 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
       {repairModalOpen ? (
         <RepairRequestModal
           apartment={apartment}
+          baseDispatchFee={baseDispatchFee}
           initialDong={dong}
           initialHo={ho}
           initialName={name}

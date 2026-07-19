@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { pgFindApartmentByCode } from "@/lib/apartments-pg";
+import { readPaymentSettings } from "@/lib/payment-settings";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import ServiceRequestPage from "@/components/reservation/service-request-page";
 
@@ -8,5 +9,6 @@ export default async function ApartmentEtcCheckPage({ params }: { params: Promis
   if (!isSupabaseReservationsDbReady()) notFound();
   const apartment = await pgFindApartmentByCode(code);
   if (!apartment) notFound();
-  return <ServiceRequestPage apartment={apartment} requestType="etc-check" />;
+  const paymentSettings = await readPaymentSettings();
+  return <ServiceRequestPage apartment={apartment} requestType="etc-check" baseDispatchFee={paymentSettings.baseDispatchFee} />;
 }

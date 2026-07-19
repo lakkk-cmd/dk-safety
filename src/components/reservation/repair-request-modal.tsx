@@ -20,6 +20,8 @@ type Props = {
   requestType?: ModalRequestType;
   /** requestType이 "simple-swap"일 때만 사용되는 정액 공임 */
   simpleSwapFee?: number;
+  /** requestType이 "repair"(기본값)일 때 사용되는 예약금 — /admin/pricing 기본 출장비 */
+  baseDispatchFee?: number;
   initialDong: string;
   initialHo: string;
   initialName: string;
@@ -43,6 +45,7 @@ export default function RepairRequestModal({
   apartment,
   requestType = "repair",
   simpleSwapFee,
+  baseDispatchFee,
   initialDong,
   initialHo,
   initialName,
@@ -164,7 +167,12 @@ export default function RepairRequestModal({
             </div>
           ) : (
             <Suspense fallback={<div className="py-10 text-center text-sm text-slate-500">불러오는 중...</div>}>
-              <ServiceRequestPage apartment={apartment} requestType={requestType} simpleSwapFee={simpleSwapFee} />
+              <ServiceRequestPage
+                apartment={apartment}
+                requestType={requestType}
+                simpleSwapFee={simpleSwapFee}
+                baseDispatchFee={baseDispatchFee}
+              />
             </Suspense>
           )}
         </div>

@@ -71,12 +71,14 @@ export async function POST(request: Request) {
     preferredDate?: string;
     preferredTime?: string;
     detail?: string;
+    baseFee?: number;
   };
   let imageUrls: string[] = [];
 
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("multipart/form-data")) {
     const formData = await request.formData();
+    const baseFeeRaw = formData.get("baseFee");
     body = {
       name: String(formData.get("name") ?? ""),
       apartmentId: String(formData.get("apartmentId") ?? ""),
@@ -87,7 +89,8 @@ export async function POST(request: Request) {
       serviceType: String(formData.get("serviceType") ?? ""),
       preferredDate: String(formData.get("preferredDate") ?? ""),
       preferredTime: String(formData.get("preferredTime") ?? ""),
-      detail: String(formData.get("detail") ?? "")
+      detail: String(formData.get("detail") ?? ""),
+      baseFee: baseFeeRaw != null ? Number(baseFeeRaw) : undefined
     };
     const files = formData
       .getAll("photos")
@@ -114,6 +117,10 @@ export async function POST(request: Request) {
   }
 
   const paymentSettings = await readPaymentSettings();
+  // 요청 유형(긴급/간단교체 등)에 따라 클라이언트가 실제 청구액을 함께 보내면 그 값을 쓰고,
+  // 없으면(레거시 호출부) 일반 출장비로 대체한다 — orders.base_fee와 항상 같은 값을 쓰기 위함.
+  const requestedBaseFee = Number.isFinite(body.baseFee) ? Math.round(Number(body.baseFee)) : NaN;
+  const baseFee = Number.isFinite(requestedBaseFee) && requestedBaseFee >= 10000 ? requestedBaseFee : paymentSettings.baseDispatchFee;
   const created = await createReservation({
     name: normalizedName,
     apartmentId: body.apartmentId?.trim() || undefined,
@@ -127,7 +134,7 @@ export async function POST(request: Request) {
     detail: normalizedDetail,
     imageUrls,
     priority: "normal",
-    baseFee: paymentSettings.baseDispatchFee
+    baseFee
   });
 
   await appendActivityLog({

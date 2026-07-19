@@ -20,9 +20,14 @@ type VirtualAccountIssueResult = {
   raw?: Record<string, unknown>;
 };
 
-function normalizePrepaymentAmount(value: unknown): 50000 | 100000 {
+/**
+ * 2026-07-19: 예전엔 50,000/100,000 두 단계로만 강제 고정했는데, 그러면 /admin/pricing에서
+ * 기본 출장비·긴급출동 요금을 다른 금액으로 바꿔도 실제 청구액은 그대로였다(요금 설정 무의미화).
+ * 이제 실제 입력값을 그대로 쓰고, 잘못된 값이 왔을 때만 안전한 최소값으로 보정한다.
+ */
+function normalizePrepaymentAmount(value: unknown): number {
   const amount = Number(value ?? 0);
-  return Number.isFinite(amount) && amount >= 100000 ? 100000 : 50000;
+  return Number.isFinite(amount) && amount >= 10000 ? Math.round(amount) : 50000;
 }
 
 function mapServiceTypeToPatentKey(serviceType: string): string {

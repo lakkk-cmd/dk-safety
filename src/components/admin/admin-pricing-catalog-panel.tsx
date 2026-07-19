@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { formatPricingCatalogFee, type PricingCatalogLine } from "@/lib/pricing-catalog";
 
+/** 실제 예약 청구액과 직결된 키 — 삭제/변동요금/최소금액 제한을 둔다 */
+const PROTECTED_KEYS = ["base_dispatch", "emergency_dispatch"];
+
 export default function AdminPricingCatalogPanel() {
   const [lines, setLines] = useState<PricingCatalogLine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +58,13 @@ export default function AdminPricingCatalogPanel() {
       const n = Number(draft.amount ?? 0);
       if (!Number.isFinite(n) || n < 50000) {
         setMessage("기본 출장비는 50,000원 이상이어야 합니다.");
+        return;
+      }
+      amount = Math.round(n);
+    } else if (draft.key === "emergency_dispatch") {
+      const n = Number(draft.amount ?? 0);
+      if (!Number.isFinite(n) || n < 10000) {
+        setMessage("긴급/야간 출동비는 10,000원 이상이어야 합니다.");
         return;
       }
       amount = Math.round(n);
@@ -112,7 +122,7 @@ export default function AdminPricingCatalogPanel() {
   };
 
   const removeRow = async (key: string) => {
-    if (key === "base_dispatch") return;
+    if (PROTECTED_KEYS.includes(key)) return;
     if (!window.confirm("이 항목을 요금/단가표에서 삭제할까요?")) return;
     const nextLines = lines.filter((l) => l.key !== key);
     setSaving(true);
@@ -185,7 +195,7 @@ export default function AdminPricingCatalogPanel() {
                   <td className="px-4 py-3 align-top text-slate-800 dark:text-slate-200">
                     {isEditing && draft ? (
                       <div className="flex flex-col gap-2">
-                        {draft.key !== "base_dispatch" ? (
+                        {!PROTECTED_KEYS.includes(draft.key) ? (
                           <>
                             <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                               <input
@@ -221,10 +231,10 @@ export default function AdminPricingCatalogPanel() {
                         ) : (
                           <input
                             type="number"
-                            min={50000}
+                            min={draft.key === "base_dispatch" ? 50000 : 10000}
                             step={1000}
                             className="soft-input w-full max-w-[11rem] font-mono text-sm dark:border-slate-600 dark:bg-slate-900"
-                            value={draft.amount ?? 50000}
+                            value={draft.amount ?? (draft.key === "base_dispatch" ? 50000 : 10000)}
                             onChange={(e) =>
                               setDraft((d) =>
                                 d ? { ...d, amount: Math.round(Number(e.target.value || 0)) } : d
@@ -279,7 +289,7 @@ export default function AdminPricingCatalogPanel() {
                         >
                           수정
                         </button>
-                        {row.key !== "base_dispatch" ? (
+                        {!PROTECTED_KEYS.includes(row.key) ? (
                           <button
                             type="button"
                             onClick={() => void removeRow(row.key)}
@@ -309,7 +319,8 @@ export default function AdminPricingCatalogPanel() {
           + 항목 추가
         </button>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          기본 출장비 금액은「기본 출장비 설정」과 동일한 값으로 저장됩니다.
+          기본 출장비 금액은「기본 출장비 설정」과 동일한 값으로 저장됩니다. 기본 출장비·긴급/야간 출동 금액은 실제 예약 접수 시
+          그대로 청구되므로 삭제할 수 없습니다.
         </p>
       </div>
     </div>

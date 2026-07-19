@@ -116,6 +116,18 @@ export async function readPricingCatalog(): Promise<PricingCatalogLine[]> {
   );
 }
 
+const FALLBACK_EMERGENCY = 100000;
+
+/** 긴급/야간 출동 예약금 — pricing_catalog의 `emergency_dispatch` 항목 금액을 실제 청구에 그대로 사용한다. */
+export async function readEmergencyDispatchFee(): Promise<number> {
+  const lines = await readPricingCatalog();
+  const row = lines.find((line) => line.key === "emergency_dispatch");
+  if (row && typeof row.amount === "number" && Number.isFinite(row.amount) && row.amount > 0) {
+    return Math.round(row.amount);
+  }
+  return FALLBACK_EMERGENCY;
+}
+
 export async function updatePricingCatalog(lines: PricingCatalogLine[]): Promise<PricingCatalogLine[]> {
   const supabase = usesSupabaseReservationsDb() ? getSupabaseAdmin() : null;
   if (!supabase) {

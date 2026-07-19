@@ -47,6 +47,10 @@ type Props = {
   requestType: RequestType;
   /** "simple-swap" 전용 정액 공임 — 관리자 설정(payment_settings.simple_swap_fee)에서 서버가 조회해 전달 */
   simpleSwapFee?: number;
+  /** 일반/점검/기타점검 예약금 — /admin/pricing(payment_settings.base_dispatch_fee)에서 서버가 조회해 전달 */
+  baseDispatchFee?: number;
+  /** 긴급출동 예약금 — /admin/pricing(pricing_catalog의 emergency_dispatch)에서 서버가 조회해 전달 */
+  emergencyDispatchFee?: number;
 };
 
 const PHOTO_SLOT_COUNT = 5;
@@ -82,7 +86,7 @@ const requestInfo: Record<RequestType, { title: string; serviceType: string; ser
   }
 };
 
-export default function ServiceRequestPage({ apartment, requestType, simpleSwapFee }: Props) {
+export default function ServiceRequestPage({ apartment, requestType, simpleSwapFee, baseDispatchFee, emergencyDispatchFee }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [serviceItems, setServiceItems] = useState<ServiceItemInfo[]>([]);
@@ -106,7 +110,11 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
   const [virtualAccount, setVirtualAccount] = useState<VirtualAccountInfo | null>(null);
   const [taskStatus, setTaskStatus] = useState<"assigned" | "in_progress" | "completed" | null>(null);
   const prepaymentAmount =
-    requestType === "emergency" ? 100000 : requestType === "simple-swap" ? Math.max(10000, simpleSwapFee ?? 70000) : 50000;
+    requestType === "emergency"
+      ? Math.max(10000, emergencyDispatchFee ?? 100000)
+      : requestType === "simple-swap"
+        ? Math.max(10000, simpleSwapFee ?? 70000)
+        : Math.max(10000, baseDispatchFee ?? 50000);
   const isEmergency = requestType === "emergency";
   const scheduleSelectButtonLabel = isEmergency ? "긴급출동요청" : "예약 날짜/시간 선택";
   const profileStorageKey = `dk-safety:request-profile:${apartment.code}`;
@@ -616,6 +624,7 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
         formData.append("preferredDate", preferredDate);
         formData.append("preferredTime", preferredTime);
         formData.append("detail", combinedDetail || requestInfo[requestType].detail);
+        formData.append("baseFee", String(prepaymentAmount));
         for (const file of photos) {
           formData.append("photos", file);
         }
@@ -634,7 +643,8 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
             serviceType: requestInfo[requestType].serviceType,
             preferredDate,
             preferredTime,
-            detail: combinedDetail || requestInfo[requestType].detail
+            detail: combinedDetail || requestInfo[requestType].detail,
+            baseFee: prepaymentAmount
           })
         });
       }
