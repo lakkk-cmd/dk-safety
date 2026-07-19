@@ -7,7 +7,6 @@ import {
   CalendarDays,
   ChartColumn,
   ClipboardCheck,
-  Clock,
   Cog,
   CreditCard,
   FileBadge,
@@ -17,7 +16,6 @@ import {
   Lightbulb,
   ListOrdered,
   MessageSquare,
-  PackageSearch,
   PieChart,
   Printer,
   ShieldAlert,
@@ -202,25 +200,14 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     icon: Wrench,
     moduleGroup: "core"
   },
+  // 재료비 카탈로그·작업비 난이도 정액표는 2026-07-19에 요금/단가표(/admin/pricing) 탭으로 통합됨 —
+  // 서로 다른 테이블(payment_settings/material_catalog/labor_tier_catalog)이지만 전부 가격 정책이라
+  // 화면 3개로 나뉘어 있던 것을 하나로 합침.
   {
     href: "/admin/pricing",
     label: "요금/단가표",
-    description: "기본 출장비·항목별 금액·안내 문구",
+    description: "출장비·서비스요금 / 재료비 카탈로그 / 작업비 난이도 정액표 탭 통합",
     icon: Table2,
-    moduleGroup: "ext"
-  },
-  {
-    href: "/admin/materials",
-    label: "재료비 카탈로그",
-    description: "현장 자재 품목·정액 자재비 관리",
-    icon: PackageSearch,
-    moduleGroup: "ext"
-  },
-  {
-    href: "/admin/labor-tiers",
-    label: "작업비 난이도 정액표",
-    description: "하/중/상 난이도별 소요시간·정액 작업비 관리",
-    icon: Clock,
     moduleGroup: "ext"
   },
   {
