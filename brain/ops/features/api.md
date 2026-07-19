@@ -3,37 +3,37 @@ title: "기능 현황 — api"
 category: features
 tags: ["project-features", "api"]
 source: "project_features"
-synced_at: "2026-07-18T20:35:07.001Z"
+synced_at: "2026-07-19T20:35:44.170Z"
 ---
 
 <!-- AUTO:START -->
-## api (185건)
+## api (183건)
 
 - **[code]** (`/api/apartments/by-code/[code]`): 자동 감지된 API (/api/apartments/by-code/[code]) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **[id]** (`/api/worker/tasks/[id]`): 자동 감지된 API (/api/worker/tasks/[id]) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
-- **[id]** (`/api/admin/accounts/[id]`): 자동 감지된 API (/api/admin/accounts/[id]) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
-- **[id]** (`/api/admin/erp/workers/[id]`): 자동 감지된 API (/api/admin/erp/workers/[id]) — 설명을 채워주세요
+- **[id]** (`/api/worker/field-reports/[id]`): 자동 감지된 API (/api/worker/field-reports/[id]) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **[id]** (`/api/reservations/[id]`): 자동 감지된 API (/api/reservations/[id]) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **[id]** `deprecated` (`/api/bomi/customers/[id]`): 자동 감지된 API (/api/bomi/customers/[id]) — 설명을 채워주세요
+- **[id]** (`/api/admin/erp/workers/[id]`): 자동 감지된 API (/api/admin/erp/workers/[id]) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **[id]** (`/api/admin/apartments/[id]`): 자동 감지된 API (/api/admin/apartments/[id]) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
-- **[id]** (`/api/admin/customer-care/reservations/[id]`): 자동 감지된 API (/api/admin/customer-care/reservations/[id]) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
-- **[id]** (`/api/admin/erp/invoices/[id]`): 자동 감지된 API (/api/admin/erp/invoices/[id]) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
-- **[id]** (`/api/admin/materials/[id]`): 자동 감지된 API (/api/admin/materials/[id]) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
-- **[id]** (`/api/worker/field-reports/[id]`): 자동 감지된 API (/api/worker/field-reports/[id]) — 설명을 채워주세요
+- **[id]** (`/api/admin/service-items/[id]`): 자동 감지된 API (/api/admin/service-items/[id]) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **[id]** (`/api/admin/labor-tiers/[id]`): 자동 감지된 API (/api/admin/labor-tiers/[id]) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
+- **[id]** (`/api/admin/erp/invoices/[id]`): 자동 감지된 API (/api/admin/erp/invoices/[id]) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **[id]** (`/api/admin/apartments/[id]`): 자동 감지된 API (/api/admin/apartments/[id]) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **[id]** (`/api/admin/materials/[id]`): 자동 감지된 API (/api/admin/materials/[id]) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **[id]** (`/api/worker/tasks/[id]`): 자동 감지된 API (/api/worker/tasks/[id]) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
 - **[id]** (`/api/admin/electrical-tips/[id]`): 자동 감지된 API (/api/admin/electrical-tips/[id]) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **[id]** (`/api/admin/accounts/[id]`): 자동 감지된 API (/api/admin/accounts/[id]) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **[id]** (`/api/admin/customer-care/reservations/[id]`): 자동 감지된 API (/api/admin/customer-care/reservations/[id]) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **[key]** (`/api/site-config/[key]`): 자동 감지된 API (/api/site-config/[key]) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -110,8 +110,6 @@ synced_at: "2026-07-18T20:35:07.001Z"
 - **CRM 재상담 발송** (`/api/crm/follow-up-send`): 재상담 알림톡 자동 발송 — Solapi, Supabase
 - **cron** (`/api/agent/cron`): 자동 감지된 API (/api/agent/cron) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **customers** `deprecated` (`/api/bomi/customers`): 자동 감지된 API (/api/bomi/customers) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
 - **customers** (`/api/admin/crm/customers`): 자동 감지된 API (/api/admin/crm/customers) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **daily-business-scan** (`/api/cron/daily-business-scan`): 자동 감지된 API (/api/cron/daily-business-scan) — 설명을 채워주세요
@@ -128,9 +126,9 @@ synced_at: "2026-07-18T20:35:07.001Z"
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **diagnosis** (`/api/resident/diagnosis`): 자동 감지된 API (/api/resident/diagnosis) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **documents** `deprecated` (`/api/bomi/customers/[id]/documents`): 자동 감지된 API (/api/bomi/customers/[id]/documents) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
 - **documents** (`/api/admin/documents`): 자동 감지된 API (/api/admin/documents) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **draft** (`/api/admin/content/youtube/draft`): 자동 감지된 API (/api/admin/content/youtube/draft) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **electrical-tips** (`/api/admin/electrical-tips`): 자동 감지된 API (/api/admin/electrical-tips) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -140,11 +138,11 @@ synced_at: "2026-07-18T20:35:07.001Z"
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **expenses** (`/api/admin/erp/expenses`): 자동 감지된 API (/api/admin/erp/expenses) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **export** (`/api/admin/activity-logs/export`): 자동 감지된 API (/api/admin/activity-logs/export) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
 - **export** (`/api/admin/resident-safety/export`): 자동 감지된 API (/api/admin/resident-safety/export) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **export** (`/api/admin/reservations/export`): 자동 감지된 API (/api/admin/reservations/export) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **export** (`/api/admin/activity-logs/export`): 자동 감지된 API (/api/admin/activity-logs/export) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **external-knowledge-collect** (`/api/cron/external-knowledge-collect`): 자동 감지된 API (/api/cron/external-knowledge-collect) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -189,21 +187,17 @@ synced_at: "2026-07-18T20:35:07.001Z"
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **list** (`/api/admin/knowledge/list`): 자동 감지된 API (/api/admin/knowledge/list) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **login** (`/api/resident/login`): 자동 감지된 API (/api/resident/login) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
-- **login** `deprecated` (`/api/bomi/auth/login`): 자동 감지된 API (/api/bomi/auth/login) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
-- **login** (`/api/admin/login`): 자동 감지된 API (/api/admin/login) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
 - **login** (`/api/worker/login`): 자동 감지된 API (/api/worker/login) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **logout** `deprecated` (`/api/bomi/auth/logout`): 자동 감지된 API (/api/bomi/auth/logout) — 설명을 채워주세요
+- **login** (`/api/resident/login`): 자동 감지된 API (/api/resident/login) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **logout** (`/api/admin/logout`): 자동 감지된 API (/api/admin/logout) — 설명을 채워주세요
+- **login** (`/api/admin/login`): 자동 감지된 API (/api/admin/login) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **logout** (`/api/resident/logout`): 자동 감지된 API (/api/resident/logout) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **logout** (`/api/worker/logout`): 자동 감지된 API (/api/worker/logout) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **logout** (`/api/admin/logout`): 자동 감지된 API (/api/admin/logout) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **market-intelligence** (`/api/cron/market-intelligence`): 자동 감지된 API (/api/cron/market-intelligence) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -237,14 +231,14 @@ synced_at: "2026-07-18T20:35:07.001Z"
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **payment** (`/api/webhook/payment`): 자동 감지된 API (/api/webhook/payment) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **payment-settings** (`/api/admin/payment-settings`): 자동 감지된 API (/api/admin/payment-settings) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
 - **payment-settings** (`/api/payment-settings`): 자동 감지된 API (/api/payment-settings) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **PDF 업로드** (`/api/knowledge/upload`): PDF 파싱 및 임베딩 저장 — pdf-parse, Voyage AI
-- **photos** (`/api/worker/tasks/[id]/photos`): 자동 감지된 API (/api/worker/tasks/[id]/photos) — 설명을 채워주세요
+- **payment-settings** (`/api/admin/payment-settings`): 자동 감지된 API (/api/admin/payment-settings) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
+- **PDF 업로드** (`/api/knowledge/upload`): PDF 파싱 및 임베딩 저장 — pdf-parse, Voyage AI
 - **photos** (`/api/worker/field-reports/photos`): 자동 감지된 API (/api/worker/field-reports/photos) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **photos** (`/api/worker/tasks/[id]/photos`): 자동 감지된 API (/api/worker/tasks/[id]/photos) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **pricing-catalog** (`/api/admin/pricing-catalog`): 자동 감지된 API (/api/admin/pricing-catalog) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -271,11 +265,11 @@ synced_at: "2026-07-18T20:35:07.001Z"
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **reports** (`/api/admin/agents/reports`): 자동 감지된 API (/api/admin/agents/reports) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
+- **reservations** (`/api/reservations`): 자동 감지된 API (/api/reservations) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
 - **reservations** (`/api/admin/customer-care/reservations`): 자동 감지된 API (/api/admin/customer-care/reservations) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **reservations** (`/api/worker/field-reports/reservations`): 자동 감지된 API (/api/worker/field-reports/reservations) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
-- **reservations** (`/api/reservations`): 자동 감지된 API (/api/reservations) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **reservations-backup** (`/api/cron/reservations-backup`): 자동 감지된 API (/api/cron/reservations-backup) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -283,9 +277,9 @@ synced_at: "2026-07-18T20:35:07.001Z"
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **resident-safety** (`/api/admin/resident-safety`): 자동 감지된 API (/api/admin/resident-safety) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **restore** (`/api/chat/restore`): 자동 감지된 API (/api/chat/restore) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
 - **restore** (`/api/admin/backups/restore`): 자동 감지된 API (/api/admin/backups/restore) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **restore** (`/api/chat/restore`): 자동 감지된 API (/api/chat/restore) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **revenue** (`/api/toss/revenue`): 자동 감지된 API (/api/toss/revenue) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -300,6 +294,8 @@ synced_at: "2026-07-18T20:35:07.001Z"
 - **send-report** (`/api/field-report/send-report`): 자동 감지된 API (/api/field-report/send-report) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **service-items** (`/api/public/apt/[code]/service-items`): 자동 감지된 API (/api/public/apt/[code]/service-items) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **service-items** (`/api/admin/service-items`): 자동 감지된 API (/api/admin/service-items) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **settlement** (`/api/admin/erp/settlement`): 자동 감지된 API (/api/admin/erp/settlement) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -327,11 +323,11 @@ synced_at: "2026-07-18T20:35:07.001Z"
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **unassign** (`/api/admin/tasks/unassign`): 자동 감지된 API (/api/admin/tasks/unassign) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **upload** (`/api/youtube/upload`): 자동 감지된 API (/api/youtube/upload) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
 - **upload** (`/api/admin/chat/upload`): 자동 감지된 API (/api/admin/chat/upload) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **upload** (`/api/admin/knowledge/upload`): 자동 감지된 API (/api/admin/knowledge/upload) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **upload** (`/api/youtube/upload`): 자동 감지된 API (/api/youtube/upload) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **vercel-deploy** (`/api/webhook/vercel-deploy`): 자동 감지된 API (/api/webhook/vercel-deploy) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨

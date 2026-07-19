@@ -3,7 +3,7 @@ title: "에이전트 메모리 — meeting_schedule"
 category: agent-memory
 tags: ["agent-memory", "meeting_schedule"]
 source: "agent_memory (key=meeting_schedule)"
-synced_at: "2026-07-18T20:35:08.619Z"
+synced_at: "2026-07-19T20:35:45.402Z"
 ---
 
 <!-- AUTO:START -->
