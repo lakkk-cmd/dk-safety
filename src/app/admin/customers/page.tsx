@@ -1,14 +1,21 @@
 import Link from "next/link";
 import AdminLogoutButton from "@/components/admin-logout-button";
 import AdminConsoleLinks from "@/components/admin-console-links";
-import AdminCustomerCarePanel from "@/components/admin/admin-customer-care-panel";
+import AdminCustomerViewTabs from "@/components/admin/admin-customer-view-tabs";
 import type { AdminCustomerCareRow } from "@/lib/admin-customer-care";
 import { pgListAdminCustomerCareRows } from "@/lib/admin-customer-care";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminCustomersPage() {
+type PageProps = {
+  searchParams?: Promise<{ view?: string }>;
+};
+
+export default async function AdminCustomersPage({ searchParams }: PageProps) {
+  const sp = (await searchParams) ?? {};
+  const initialView = sp.view === "crm" ? "crm" : "pipeline";
+
   if (!isSupabaseReservationsDbReady()) {
     return (
       <main className="page-fit mx-auto max-w-6xl">
@@ -42,9 +49,9 @@ export default async function AdminCustomersPage() {
             <p className="warranty-badge">관리자 콘솔</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.02em] text-slate-900 md:text-4xl">고객관리</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-700">
-              접수 시 등록한 <strong className="text-slate-900">고객·주소·일정</strong>을 기준으로, 연결된{" "}
-              <strong className="text-slate-900">주문·입금·배정·현장·보증</strong> 상태를 한 표에서 추적합니다. 하단 링크로 각 업무 화면으로
-              이동할 수 있습니다.
+              <strong className="text-slate-900">예약별 보기</strong>는 접수 시 등록한 고객·주소·일정을 기준으로 연결된{" "}
+              <strong className="text-slate-900">주문·입금·배정·현장·보증</strong> 상태를 추적하고, <strong className="text-slate-900">고객별 보기</strong>는
+              같은 전화번호로 묶어 재상담 일정·잠재고객까지 관리합니다.
             </p>
           </div>
           <AdminLogoutButton />
@@ -63,7 +70,7 @@ export default async function AdminCustomersPage() {
           <p className="mt-3 text-xs text-slate-600">Supabase 연결·마이그레이션·RLS 설정을 확인해 주세요.</p>
         </section>
       ) : (
-        <AdminCustomerCarePanel initialRows={rows} />
+        <AdminCustomerViewTabs initialRows={rows} initialView={initialView} />
       )}
 
       <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300">

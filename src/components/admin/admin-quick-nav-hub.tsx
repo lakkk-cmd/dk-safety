@@ -5,11 +5,32 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   ADMIN_HOME_HREF,
+  adminExternalHubLinks,
   adminQuickNavCards,
   adminQuickSearchScopeForHref,
+  type AdminHubLink,
+  type AdminModuleGroup,
+  type AdminNavItem,
   type AdminQuickSearchScope
 } from "@/lib/admin-nav";
 import { cn } from "@/lib/utils";
+
+const MODULE_TABS: { key: AdminModuleGroup | "all"; label: string }[] = [
+  { key: "all", label: "전체" },
+  { key: "core", label: "기본모듈 · 운영코어" },
+  { key: "ext", label: "확장모듈 · dk-safety 고유" },
+  { key: "link", label: "연동모듈 · 외부시스템" },
+  { key: "ai", label: "AI 허브" }
+];
+
+const MODULE_GROUP_HEADING: Record<AdminModuleGroup, string> = {
+  core: "기본모듈 · 운영 코어",
+  ext: "확장모듈 · dk-safety 고유",
+  link: "연동모듈 · 외부 시스템",
+  ai: "AI 허브 · ONE AI 대응"
+};
+
+type HubCard = (AdminNavItem | AdminHubLink) & { moduleGroup: AdminModuleGroup };
 
 type QuickSearchHit = {
   id: string;
@@ -107,56 +128,101 @@ function QuickSearchBlock({ scope }: { scope: AdminQuickSearchScope }) {
 }
 
 export default function AdminQuickNavHub() {
-  const menuCards = useMemo(() => adminQuickNavCards(ADMIN_HOME_HREF), []);
+  const [activeGroup, setActiveGroup] = useState<AdminModuleGroup | "all">("all");
+
+  const allCards: HubCard[] = useMemo(
+    () => [...adminQuickNavCards(ADMIN_HOME_HREF), ...adminExternalHubLinks],
+    []
+  );
+
+  const groups = useMemo(() => {
+    const byGroup: Record<AdminModuleGroup, HubCard[]> = { core: [], ext: [], link: [], ai: [] };
+    for (const card of allCards) {
+      byGroup[card.moduleGroup].push(card);
+    }
+    return byGroup;
+  }, [allCards]);
+
+  const visibleGroups: AdminModuleGroup[] =
+    activeGroup === "all" ? (["core", "ext", "link", "ai"] as const) : [activeGroup];
 
   return (
     <section className="dk-admin-hub-intro mb-10">
       <h2 className="mb-1 text-lg font-black text-slate-900 dark:text-slate-50">빠른 이동</h2>
       <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
-        사이드바 메뉴와 동일합니다. 카드 하단에서 등록·조회 항목을 바로 검색할 수 있습니다.
+        기본모듈(운영코어) · 확장모듈(dk-safety 고유) · 연동모듈(외부시스템) · AI 허브 4그룹입니다. 카드 하단에서 등록·조회 항목을 바로
+        검색할 수 있습니다.
       </p>
-      <div className={cn("dk-quick-nav-grid grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3")}>
-        {menuCards.map((menu) => {
-          const Icon = menu.icon;
-          const scope = adminQuickSearchScopeForHref(menu.href);
-          return (
-            <div
-              key={menu.href}
-              className={cn(
-                "dk-quick-nav-card flex min-h-[200px] flex-col rounded-2xl border-2 border-slate-200 bg-white shadow-sm transition",
-                "dark:border-slate-600 dark:bg-slate-950"
-              )}
-            >
-              <Link
-                href={menu.href}
-                className={cn(
-                  "group flex flex-1 flex-col p-5 pb-3 transition",
-                  "hover:border-dk-navy/45 dark:hover:border-sky-500/40"
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-dk-navy/10 text-dk-navy dark:bg-sky-500/15 dark:text-sky-300">
-                    <Icon className="h-5 w-5" aria-hidden />
-                  </span>
-                </div>
-                <span className="mt-3 text-base font-bold text-slate-900 dark:text-slate-100">{menu.label}</span>
-                <p className="mt-1 flex-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">{menu.description}</p>
-                <span className="mt-3 text-xs font-semibold text-[#0a5eb0] group-hover:underline dark:text-sky-400">화면 열기 →</span>
-              </Link>
-              {scope ? (
-                <div className="dk-quick-nav-card-footer mt-auto border-t border-slate-200 px-4 pb-4 pt-3 dark:border-slate-700">
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">바로 조회</p>
-                  <QuickSearchBlock scope={scope} />
-                </div>
-              ) : (
-                <div className="dk-quick-nav-card-footer mt-auto border-t border-slate-100 px-4 pb-3 pt-2 dark:border-slate-800">
-                  <p className="text-[10px] text-slate-500">단계 안내는 「화면 열기」에서 확인합니다.</p>
-                </div>
-              )}
-            </div>
-          );
-        })}
+
+      <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="모듈 그룹 필터">
+        {MODULE_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={activeGroup === tab.key}
+            onClick={() => setActiveGroup(tab.key)}
+            className={cn(
+              "rounded-full border-2 px-4 py-2 text-xs font-bold transition",
+              activeGroup === tab.key
+                ? "border-dk-navy bg-dk-navy text-white dark:border-sky-500 dark:bg-sky-600"
+                : "border-slate-200 bg-white text-slate-600 hover:border-dk-navy/40 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-300"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
+
+      {visibleGroups.map((groupKey) => (
+        <div key={groupKey} className="mb-8 last:mb-0">
+          <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.1em] text-dk-blue dark:text-sky-400">
+            {MODULE_GROUP_HEADING[groupKey]}
+          </p>
+          <div className={cn("dk-quick-nav-grid grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3")}>
+            {groups[groupKey].map((menu) => {
+              const Icon = menu.icon;
+              const scope = adminQuickSearchScopeForHref(menu.href);
+              return (
+                <div
+                  key={menu.href}
+                  className={cn(
+                    "dk-quick-nav-card flex min-h-[200px] flex-col rounded-2xl border-2 border-slate-200 bg-white shadow-sm transition",
+                    "dark:border-slate-600 dark:bg-slate-950"
+                  )}
+                >
+                  <Link
+                    href={menu.href}
+                    className={cn(
+                      "group flex flex-1 flex-col p-5 pb-3 transition",
+                      "hover:border-dk-navy/45 dark:hover:border-sky-500/40"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-dk-navy/10 text-dk-navy dark:bg-sky-500/15 dark:text-sky-300">
+                        <Icon className="h-5 w-5" aria-hidden />
+                      </span>
+                    </div>
+                    <span className="mt-3 text-base font-bold text-slate-900 dark:text-slate-100">{menu.label}</span>
+                    <p className="mt-1 flex-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">{menu.description}</p>
+                    <span className="mt-3 text-xs font-semibold text-[#0a5eb0] group-hover:underline dark:text-sky-400">화면 열기 →</span>
+                  </Link>
+                  {scope ? (
+                    <div className="dk-quick-nav-card-footer mt-auto border-t border-slate-200 px-4 pb-4 pt-3 dark:border-slate-700">
+                      <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">바로 조회</p>
+                      <QuickSearchBlock scope={scope} />
+                    </div>
+                  ) : (
+                    <div className="dk-quick-nav-card-footer mt-auto border-t border-slate-100 px-4 pb-3 pt-2 dark:border-slate-800">
+                      <p className="text-[10px] text-slate-500">단계 안내는 「화면 열기」에서 확인합니다.</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </section>
   );
 }
