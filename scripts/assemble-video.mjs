@@ -394,6 +394,21 @@ async function refreshYoutubeAccessToken(refreshToken) {
   return (await res.json()).access_token ?? null;
 }
 
+// 씬 계획 스크립트는 Veo/Flux 카메라 지침·씬 번호 같은 내부 제작 메모를 포함한 마크다운 원문이라,
+// 그대로 공개 유튜브 설명란에 넣으면 부적절할 뿐 아니라(2026-07-21) "#"/">" 같은 마크다운 헤더·인용
+// 구문이 섞인 스크립트에서 YouTube Data API가 "invalid video description"(400)으로 거부하는 사례를
+// 발견했다 — 같은 채널에 마크다운 헤더 없이 올라간 이전 스크립트들은 문제없이 업로드됐던 것과 대비된다.
+function sanitizeDescription(script) {
+  return script
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/\*\*/g, "")
+    .replace(/^[-─━═*_]{3,}\s*$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 4500);
+}
+
 async function uploadToYoutube(accessToken, title, description, videoBuffer) {
   const metadata = {
     snippet: { title, description, tags: [], categoryId: "26" },
@@ -448,7 +463,7 @@ async function tryUploadToYoutube(queue, videoBuffer) {
     return null;
   }
 
-  return uploadToYoutube(accessToken, queue.title, queue.script ?? "", videoBuffer);
+  return uploadToYoutube(accessToken, queue.title, sanitizeDescription(queue.script ?? ""), videoBuffer);
 }
 
 async function main() {
