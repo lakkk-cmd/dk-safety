@@ -99,7 +99,10 @@ export async function middleware(request: NextRequest) {
     // SMS/카카오 알림 링크로 특정 페이지(예: /admin/reservations?id=...)에 바로 들어왔을 때,
     // 로그인 후 그 자리로 돌아가지 못하고 항상 홈으로 튕기던 문제 — next 파라미터로 원래
     // 목적지를 들고 가서 로그인 성공 시 되돌려준다(report/agent/contents 케이스와 동일 패턴).
-    const originalTarget = `${pathname}${request.nextUrl.search}`;
+    // 반드시 rewrite 전의 원본 경로(originalPathname)를 써야 한다 — hq.dkansim.com 등에서는
+    // pathname이 이미 "/hq"가 덧붙여진 상태라, 이걸 그대로 next에 넣으면 로그인 후 같은 호스트로
+    // "/hq"를 다시 요청할 때 미들웨어가 또 "/hq"를 붙여 "/hq/hq"가 되어 404가 났다.
+    const originalTarget = `${originalPathname}${request.nextUrl.search}`;
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = pathname.startsWith("/hq") ? (rewriteUrl ? "/login" : "/hq/login") : "/admin/login";
     loginUrl.search = "";
