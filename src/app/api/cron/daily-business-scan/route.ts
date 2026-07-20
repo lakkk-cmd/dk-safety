@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { runDailyBusinessScan } from "@/lib/daily-scan";
 import { KAKAO_MEMO_ENABLED, notifyDailyBusinessScan, notifyPipelineFailure } from "@/lib/kakao-publish";
-import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
+import { cleanupStalePipelineRuns, finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
 
 export const maxDuration = 120;
 
@@ -21,6 +21,15 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { success: false, error: "Supabase URL 또는 SUPABASE_SERVICE_ROLE_KEY 미설정" },
       { status: 500 },
+    );
+  }
+
+  const staleRuns = await cleanupStalePipelineRuns();
+  if (staleRuns.length > 0) {
+    await logAgentEvent(
+      "warn",
+      PIPELINE,
+      `좀비 pipeline_logs ${staleRuns.length}건 자동 타임아웃 처리: ${staleRuns.map((r) => r.pipeline).join(", ")}`,
     );
   }
 

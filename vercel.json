@@ -13,18 +13,6 @@
       "schedule": "0 22 * * 0"
     },
     {
-      "path": "/api/cron/content-plan",
-      "schedule": "0 0 * * 1"
-    },
-    {
-      "path": "/api/cron/content-draft",
-      "schedule": "0 0 * * 2"
-    },
-    {
-      "path": "/api/cron/content-approval-notify",
-      "schedule": "0 23 * * 2"
-    },
-    {
       "path": "/api/cron/market-intelligence",
       "schedule": "0 18 * * *"
     },
