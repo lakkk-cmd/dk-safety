@@ -11,6 +11,8 @@ type Props = {
   bankInfo?: BankInfo;
   /** 접수 시 입력한 동·호 — 가상계좌 발급 전에도 예금주 표기에 사용 */
   depositHolderLabel?: string;
+  /** 실제 청구 금액(예: 기본 출장비) — 가상계좌 발급 전 표시할 금액. 발급 후에는 virtualAccount.amount 우선 */
+  expectedAmount: number;
   virtualAccount?: {
     bankName: string;
     accountNumber: string;
@@ -43,6 +45,7 @@ export default function DepositPaymentPanel({
   apartmentName,
   bankInfo,
   depositHolderLabel,
+  expectedAmount,
   virtualAccount = null,
   disabled = false,
   loading = false,
@@ -57,7 +60,7 @@ export default function DepositPaymentPanel({
   const trimmedUnit = depositHolderLabel?.trim();
   const activeHolder =
     virtualAccount?.accountHolder || (trimmedUnit ? trimmedUnit : undefined) || bankInfo?.accountHolder || apartmentName;
-  const activeAmount = virtualAccount?.amount || 50000;
+  const activeAmount = virtualAccount?.amount || expectedAmount;
   const deepLink = tossTransferDeepLink(
     { bankName: activeBank, accountNumber: activeAccount, accountHolder: activeHolder },
     activeAmount

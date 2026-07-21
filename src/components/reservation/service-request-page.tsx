@@ -1406,6 +1406,7 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
                 apartmentName={apartment.name}
                 bankInfo={apartment.bankInfo}
                 depositHolderLabel={depositHolderLabel}
+                expectedAmount={prepaymentAmount}
                 virtualAccount={virtualAccount}
                 loading={loading}
                 disabled={!reservationId || !orderId}
