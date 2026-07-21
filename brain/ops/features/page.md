@@ -3,11 +3,11 @@ title: "기능 현황 — page"
 category: features
 tags: ["project-features", "page"]
 source: "project_features"
-synced_at: "2026-07-20T20:57:40.496Z"
+synced_at: "2026-07-21T20:56:08.728Z"
 ---
 
 <!-- AUTO:START -->
-## page (52건)
+## page (51건)
 
 - **account** (`/admin/account`): 자동 감지된 페이지 (/admin/account) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -56,8 +56,6 @@ synced_at: "2026-07-20T20:57:40.496Z"
 - **intelligence** (`/hq/intelligence`): 자동 감지된 페이지 (/hq/intelligence) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **labor-tiers** (`/admin/labor-tiers`): 자동 감지된 페이지 (/admin/labor-tiers) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
-- **login** (`/hq/login`): 자동 감지된 페이지 (/hq/login) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **login** (`/admin/login`): 자동 감지된 페이지 (/admin/login) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
