@@ -7,8 +7,7 @@ import {
   match_technician,
   type ServiceItem
 } from "@/lib/daekyung-fee-logic";
-import { pgCreateOrder } from "@/lib/orders-pg";
-import { notifySettlementApproved } from "@/lib/customer-notification";
+import { pgCreateOrder, pgIssueWarrantyAndSettle } from "@/lib/orders-pg";
 
 function parseDongHoFromAddress(address: string): { dong: string; ho: string } {
   const compact = address.replaceAll(/\s/g, "");
@@ -189,11 +188,16 @@ async function findApplicableServiceItem(params: {
   return { ...mapped, required_cert: (data as ServiceItemRow).required_cert ?? null };
 }
 
+/**
+ * pgCompleteTask가 추가비용 없이(또는 이미 다 정산되어) 즉시 보증서를 발급할 때 쓰는 얇은
+ * 래퍼 — 실제 발급 로직은 orders-pg.ts의 pgIssueWarrantyAndSettle 하나로 합쳐져 있다
+ * (예전엔 이 함수·pgMarkFinalPaymentPaidAndIssueWarranty·extra-fee-confirm 라우트 3곳에
+ * 각자 따로 구현돼 있었다). reservations 갱신은 이 함수 호출 직후 pgCompleteTask 자신의
+ * update(추가비용 회계 필드 포함)가 그대로 담당하므로 skipReservationUpdate로 생략한다.
+ */
 async function issueWarrantyForReservation(params: {
   reservationId: string;
   apartmentId: string;
-  /** 없으면 apartments.apt_code 조회값 사용 */
-  aptCode?: string;
   technicianId?: string | null;
   serviceType: string;
   serviceSummary: string;
@@ -202,72 +206,20 @@ async function issueWarrantyForReservation(params: {
   /** 있으면 발급 직후 고객에게 정산 확정 알림을 보낸다(best-effort) */
   customer?: { name: string; phone: string };
 }): Promise<{ warrantyId: string; warrantyNumber: string }> {
-  const supabase = requireSupabaseAdmin();
-  const { data: apt, error: aptErr } = await supabase
-    .from("apartments")
-    .select("apt_code, name")
-    .eq("id", params.apartmentId)
-    .maybeSingle();
-  if (aptErr || !apt) {
-    throw new Error(`보증서 발급용 단지 조회 실패: ${aptErr?.message ?? "not found"}`);
-  }
-
-  const now = new Date();
-  const aptRow = apt as { apt_code?: string | null; name?: string | null };
-  const resolvedAptCode = params.aptCode?.trim() || String(aptRow.apt_code ?? "").trim() || null;
-  const warrantyNumber = buildPatentWarrantyNumber({
-    issuedAt: now,
+  const result = await pgIssueWarrantyAndSettle({
     reservationId: params.reservationId,
-    aptCode: resolvedAptCode
+    orderId: null,
+    apartmentId: params.apartmentId,
+    technicianId: params.technicianId,
+    serviceType: params.serviceType,
+    serviceSummary: params.serviceSummary,
+    finalAmount: params.finalAmount,
+    sitePhotos: params.sitePhotos,
+    skipReservationUpdate: true,
+    customer: params.customer,
+    orderLogActor: "SYSTEM_TASK_COMPLETE"
   });
-  const startDate = now.toISOString().slice(0, 10);
-  const endDate = new Date(now);
-  endDate.setFullYear(endDate.getFullYear() + 1);
-  const endDateText = endDate.toISOString().slice(0, 10);
-  const verifyBase = process.env.NEXT_PUBLIC_APP_URL?.trim() || "http://www.dkansim.com";
-  const verifyUrl = `${verifyBase.replace(/\/$/, "")}/verify/${encodeURIComponent(warrantyNumber)}`;
-
-  const { data, error } = await supabase
-    .from("warranties")
-    .upsert(
-      {
-        warranty_number: warrantyNumber,
-        reservation_id: params.reservationId,
-        apt_id: params.apartmentId,
-        technician_id: params.technicianId ?? null,
-        service_type: mapServiceTypeToPatentKey(params.serviceType),
-        service_summary: params.serviceSummary,
-        warranty_months: 12,
-        warranty_start: startDate,
-        warranty_end: endDateText,
-        final_amount: params.finalAmount,
-        site_photos: params.sitePhotos,
-        verify_url: verifyUrl,
-        status: "ISSUED"
-      },
-      { onConflict: "reservation_id" }
-    )
-    .select("id, warranty_number")
-    .single();
-  if (error || !data) {
-    throw new Error(`보증서 저장 실패: ${error?.message ?? "unknown"}`);
-  }
-  if (params.customer?.phone) {
-    try {
-      await notifySettlementApproved({
-        reservationId: params.reservationId,
-        name: params.customer.name || "고객",
-        phone: params.customer.phone,
-        apartmentName: aptRow.name ?? null,
-        finalAmount: params.finalAmount,
-        warrantyNumber: data.warranty_number,
-        verifyUrl
-      });
-    } catch (notifyError) {
-      console.error(`예약 ${params.reservationId} 정산 확정 알림 발송 실패:`, notifyError);
-    }
-  }
-  return { warrantyId: data.id, warrantyNumber: data.warranty_number };
+  return { warrantyId: result.warrantyId, warrantyNumber: result.warrantyNumber };
 }
 
 function mapReservation(row: ReservationRow): Reservation {

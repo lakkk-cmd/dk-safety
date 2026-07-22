@@ -89,7 +89,6 @@ export function calculate_final_fee(input: FeeCalculationInput): FeeCalculationR
   if (service_item.deductible_flag && work_proceeded && computed_extra > 0) {
     deductible_amount = base_fee;
     deductible_applied = true;
-    breakdown.push(`(참고) 출장비 ${deductible_amount.toLocaleString()}원은 예약 시 이미 결제되어, 추가로 받을 결제 금액에서 자동 차감됩니다`);
   }
 
   // total_fee: 이번 건의 전체 정산 총액. 이미 결제한 출장비를 여기서 다시 빼면 안 된다 —
@@ -130,7 +129,7 @@ const PATENT_SERVICE_TYPE_LABELS: Record<string, string> = {
   VISIT: "기본 출장 점검",
   DIAGNOSIS: "정밀 안전진단",
   LEAKAGE: "누전 점검/보수",
-  OUTLET: "콘센트/스위치 점검",
+  OUTLET: "화장실 차단기/콘센트/스위치 누전점검",
   LIGHT: "전등기구 교체",
   BREAKER: "차단기 교체"
 };

@@ -380,6 +380,155 @@ export async function pgRequestFinalSettlement(orderId: string) {
   };
 }
 
+/**
+ * 보증서 발급 + 정산 확정의 단일 진입점. 예전엔 이 로직(보증서 upsert, reservations/orders
+ * 정산 필드 반영, order_logs 기록, 고객 알림)이 pgMarkFinalPaymentPaidAndIssueWarranty(여기),
+ * reservations-pg.ts의 issueWarrantyForReservation(작업완료 시 추가비용 없어 즉시발급),
+ * extra-fee-confirm/route.ts(관리자 추가비용 확인승인) 3곳에 각자 따로 구현돼 있어서 —
+ * 필드 하나를 고치려면 세 곳을 다 찾아 고쳐야 했다(2026-07-22 발견). 이제 이 함수 하나로
+ * 합쳤고, 세 호출부는 자기 흐름에서만 필요한 예약/주문 자체 필드(추가비용 회계, 확인자 등)를
+ * reservationExtra/orderExtra로 넘겨 같은 UPDATE에 병합한다.
+ */
+export async function pgIssueWarrantyAndSettle(input: {
+  reservationId: string;
+  /** 있으면 orders 테이블도 함께 정산 반영(final_payment_status/total_final_fee/warranty_issued_at) */
+  orderId?: string | null;
+  apartmentId: string;
+  technicianId?: string | null;
+  serviceType: string;
+  serviceSummary: string;
+  finalAmount: number;
+  sitePhotos: string[];
+  /** 없으면 지금 시각으로 reservations.settled_at을 새로 기록한다(정산이 지금 확정되는 경우).
+   *  있으면 그 값을 보증서 발급일 계산 기준으로만 쓰고 settled_at은 다시 쓰지 않는다 —
+   *  이미 작업완료 시점에 기록된 정산 시각을 유지해야 하는 관리자 승인 흐름이 이 경우다. */
+  settledAt?: string | null;
+  /** 호출부마다 다른, 이 함수가 다루지 않는 예약 자체 필드(예: extra_fee 회계, extra_fee_confirmed_by)를 같은 UPDATE에 병합 */
+  reservationExtra?: Record<string, unknown>;
+  /** orders 테이블에 병합할 호출부 전용 필드(예: extra_fee_confirmed, extra_fee_details) */
+  orderExtra?: Record<string, unknown>;
+  /** true면 reservations 갱신을 건너뛴다 — 호출부가 같은 요청에서 이미 자체 UPDATE(status 등 포함)를 수행하는 경우 */
+  skipReservationUpdate?: boolean;
+  provider?: "TOSS" | "PORTONE" | "MANUAL" | null;
+  paymentKey?: string | null;
+  impUid?: string | null;
+  customer?: { name: string; phone: string };
+  orderLogActor?: string;
+}): Promise<{ warrantyId: string; warrantyNumber: string; verifyUrl: string }> {
+  const supabase = requireSupabaseAdmin();
+
+  const { data: apt, error: aptErr } = await supabase
+    .from("apartments")
+    .select("apt_code, name")
+    .eq("id", input.apartmentId)
+    .maybeSingle();
+  if (aptErr || !apt) {
+    throw new Error(`아파트 정보 조회 실패: ${aptErr?.message ?? "not found"}`);
+  }
+  const aptRow = apt as { apt_code?: string | null; name?: string | null };
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const issuedAt = input.settledAt ? new Date(input.settledAt) : now;
+  const warrantyNumber = buildPatentWarrantyNumber({
+    issuedAt,
+    reservationId: input.reservationId,
+    aptCode: aptRow.apt_code?.trim() || null
+  });
+  const startDate = issuedAt.toISOString().slice(0, 10);
+  const endDate = new Date(issuedAt);
+  endDate.setFullYear(endDate.getFullYear() + 1);
+  const endDateText = endDate.toISOString().slice(0, 10);
+  const verifyBase = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://dkansim.com";
+  const verifyUrl = `${verifyBase.replace(/\/$/, "")}/verify/${encodeURIComponent(warrantyNumber)}`;
+
+  const { data: warranty, error: warrantyErr } = await supabase
+    .from("warranties")
+    .upsert(
+      {
+        warranty_number: warrantyNumber,
+        reservation_id: input.reservationId,
+        apt_id: input.apartmentId,
+        technician_id: input.technicianId ?? null,
+        service_type: mapServiceTypeToPatentKey(input.serviceType),
+        service_summary: input.serviceSummary,
+        warranty_months: 12,
+        warranty_start: startDate,
+        warranty_end: endDateText,
+        final_amount: input.finalAmount,
+        site_photos: input.sitePhotos,
+        verify_url: verifyUrl,
+        status: "ISSUED"
+      },
+      { onConflict: "reservation_id" }
+    )
+    .select("id, warranty_number")
+    .single();
+  if (warrantyErr || !warranty) {
+    throw new Error(`보증서 저장 실패: ${warrantyErr?.message ?? "unknown"}`);
+  }
+
+  if (!input.skipReservationUpdate) {
+    const { error: reservationUpdateErr } = await supabase
+      .from("reservations")
+      .update({
+        payment_status: "SETTLED",
+        warranty_id: warranty.id,
+        warranty_status: "ISSUED",
+        total_amount: input.finalAmount,
+        ...(input.settledAt ? {} : { settled_at: nowIso }),
+        ...(input.reservationExtra ?? {})
+      })
+      .eq("id", input.reservationId);
+    if (reservationUpdateErr) {
+      throw new Error(`예약 정산 반영 실패: ${reservationUpdateErr.message}`);
+    }
+  }
+
+  if (input.orderId) {
+    const orderPatch: Record<string, unknown> = {
+      total_final_fee: input.finalAmount,
+      final_payment_status: "PAID",
+      warranty_issued_at: nowIso,
+      updated_at: nowIso,
+      ...(input.orderExtra ?? {})
+    };
+    if (input.provider) orderPatch.pg_provider = input.provider;
+    if (input.paymentKey) orderPatch.payment_key = input.paymentKey;
+    if (input.impUid) orderPatch.imp_uid = input.impUid;
+    const { error: orderUpdateErr } = await supabase.from("orders").update(orderPatch).eq("id", input.orderId);
+    if (orderUpdateErr) {
+      throw new Error(`주문 정산 반영 실패: ${orderUpdateErr.message}`);
+    }
+  }
+
+  await supabase.from("order_logs").insert({
+    reservation_id: input.reservationId,
+    status_from: "CONFIRMING",
+    status_to: "SETTLED",
+    actor: input.orderLogActor ?? "SYSTEM_WARRANTY_ISSUANCE",
+    note: `warranty:${warranty.warranty_number};total:${input.finalAmount}`
+  });
+
+  if (input.customer?.phone) {
+    try {
+      await notifySettlementApproved({
+        reservationId: input.reservationId,
+        name: input.customer.name || "고객",
+        phone: input.customer.phone,
+        apartmentName: aptRow.name ?? null,
+        finalAmount: input.finalAmount,
+        warrantyNumber: warranty.warranty_number,
+        verifyUrl
+      });
+    } catch (notifyError) {
+      console.error(`예약 ${input.reservationId} 정산 확정 알림 발송 실패:`, notifyError);
+    }
+  }
+
+  return { warrantyId: warranty.id, warrantyNumber: warranty.warranty_number, verifyUrl };
+}
+
 export async function pgMarkFinalPaymentPaidAndIssueWarranty(input: {
   orderId: string;
   provider?: "TOSS" | "PORTONE" | "MANUAL";
@@ -396,26 +545,9 @@ export async function pgMarkFinalPaymentPaidAndIssueWarranty(input: {
     throw new Error("연결된 예약 정보가 없어 보증서를 발급할 수 없습니다.");
   }
 
-  const now = new Date();
-  const nowIso = now.toISOString();
-  const { error: orderUpdateErr } = await supabase
-    .from("orders")
-    .update({
-      final_payment_status: "PAID",
-      pg_provider: input.provider ?? null,
-      payment_key: input.paymentKey ?? null,
-      imp_uid: input.impUid ?? null,
-      warranty_issued_at: nowIso,
-      updated_at: nowIso
-    })
-    .eq("id", normalized);
-  if (orderUpdateErr) {
-    throw new Error(`최종 결제 상태 반영 실패: ${orderUpdateErr.message}`);
-  }
-
   const { data: reservation, error: reservationErr } = await supabase
     .from("reservations")
-    .select("id, apartment_id, technician_id, service_type, detail, total_amount, settled_at, image_urls, warranty_id")
+    .select("id, apartment_id, technician_id, service_type, detail, total_amount, settled_at, image_urls")
     .eq("id", order.reservation_id)
     .maybeSingle();
   if (reservationErr || !reservation) {
@@ -425,105 +557,34 @@ export async function pgMarkFinalPaymentPaidAndIssueWarranty(input: {
     throw new Error("아파트 정보가 없어 보증서를 발급할 수 없습니다.");
   }
 
-  const { data: apt, error: aptErr } = await supabase
-    .from("apartments")
-    .select("apt_code, name")
-    .eq("id", reservation.apartment_id)
-    .maybeSingle();
-  if (aptErr || !apt) {
-    throw new Error(`아파트 코드 조회 실패: ${aptErr?.message ?? "not found"}`);
-  }
-
-  const issuedAt = reservation.settled_at ? new Date(reservation.settled_at) : now;
-  const aptCodeRaw = String((apt as { apt_code?: string | null }).apt_code ?? "").trim();
-  const warrantyNumber = buildPatentWarrantyNumber({
-    issuedAt,
-    reservationId: String(order.reservation_id),
-    aptCode: aptCodeRaw || null
-  });
-  const startDate = issuedAt.toISOString().slice(0, 10);
-  const endDate = new Date(issuedAt);
-  endDate.setFullYear(endDate.getFullYear() + 1);
-  const endDateText = endDate.toISOString().slice(0, 10);
-  const verifyBase = process.env.NEXT_PUBLIC_APP_URL?.trim() || "http://www.dkansim.com";
-  const verifyUrl = `${verifyBase.replace(/\/$/, "")}/verify/${encodeURIComponent(warrantyNumber)}`;
   const extraDetails = (order.extra_fee_details ?? {}) as Record<string, unknown>;
   const breakdown = Array.isArray(extraDetails.breakdown) ? extraDetails.breakdown.join(" | ") : "";
   const serviceSummary = `${reservation.detail ?? reservation.service_type ?? "현장 작업"}${breakdown ? ` / ${breakdown}` : ""}`;
+  const residentInfo = (order.resident_info ?? {}) as { name?: string; phone?: string };
+  const finalAmount = reservation.total_amount ?? order.total_final_fee ?? 0;
 
-  const { data: warranty, error: warrantyErr } = await supabase
-    .from("warranties")
-    .upsert(
-      {
-        warranty_number: warrantyNumber,
-        reservation_id: reservation.id,
-        apt_id: reservation.apartment_id,
-        technician_id: reservation.technician_id ?? null,
-        service_type: mapServiceTypeToPatentKey(reservation.service_type ?? "VISIT"),
-        service_summary: serviceSummary,
-        warranty_months: 12,
-        warranty_start: startDate,
-        warranty_end: endDateText,
-        final_amount: reservation.total_amount ?? order.total_final_fee ?? 0,
-        site_photos: Array.isArray(reservation.image_urls) ? (reservation.image_urls as string[]) : [],
-        verify_url: verifyUrl,
-        status: "ISSUED"
-      },
-      { onConflict: "reservation_id" }
-    )
-    .select("id, warranty_number")
-    .single();
-  if (warrantyErr || !warranty) {
-    throw new Error(`보증서 저장 실패: ${warrantyErr?.message ?? "unknown"}`);
-  }
-
-  const { error: reservationUpdateErr } = await supabase
-    .from("reservations")
-    .update({
-      payment_status: "SETTLED",
-      warranty_id: warranty.id,
-      warranty_status: "ISSUED"
-    })
-    .eq("id", reservation.id);
-  if (reservationUpdateErr) {
-    throw new Error(`예약 보증서 상태 반영 실패: ${reservationUpdateErr.message}`);
-  }
-
-  await supabase.from("order_logs").insert({
-    reservation_id: reservation.id,
-    status_from: "CONFIRMING",
-    status_to: "SETTLED",
-    actor: "SYSTEM_FINAL_PAYMENT",
-    note: `ARCHIVE:${JSON.stringify({
-      orderId: normalized,
-      warrantyNumber,
-      finalPaymentStatus: "PAID",
-      settledAt: nowIso
-    })}`
+  const result = await pgIssueWarrantyAndSettle({
+    reservationId: reservation.id,
+    orderId: normalized,
+    apartmentId: reservation.apartment_id,
+    technicianId: reservation.technician_id ?? null,
+    serviceType: reservation.service_type ?? "VISIT",
+    serviceSummary,
+    finalAmount,
+    sitePhotos: Array.isArray(reservation.image_urls) ? (reservation.image_urls as string[]) : [],
+    settledAt: reservation.settled_at ?? null,
+    provider: input.provider ?? null,
+    paymentKey: input.paymentKey,
+    impUid: input.impUid,
+    customer: residentInfo.phone ? { name: residentInfo.name?.trim() || "고객", phone: residentInfo.phone } : undefined,
+    orderLogActor: "SYSTEM_FINAL_PAYMENT"
   });
-
-  try {
-    const residentInfo = (order.resident_info ?? {}) as { name?: string; phone?: string };
-    if (residentInfo.phone) {
-      await notifySettlementApproved({
-        reservationId: reservation.id,
-        name: residentInfo.name?.trim() || "고객",
-        phone: residentInfo.phone,
-        apartmentName: (apt as { name?: string | null }).name ?? null,
-        finalAmount: reservation.total_amount ?? order.total_final_fee ?? 0,
-        warrantyNumber: warranty.warranty_number,
-        verifyUrl
-      });
-    }
-  } catch (notifyError) {
-    console.error(`예약 ${reservation.id} 정산 확정 알림 발송 실패:`, notifyError);
-  }
 
   return {
     orderId: normalized,
     reservationId: reservation.id,
-    warrantyId: warranty.id,
-    warrantyNumber: warranty.warranty_number
+    warrantyId: result.warrantyId,
+    warrantyNumber: result.warrantyNumber
   };
 }
 
