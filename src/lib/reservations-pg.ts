@@ -7,6 +7,45 @@ import {
   match_technician,
   type ServiceItem
 } from "@/lib/daekyung-fee-logic";
+import { pgCreateOrder } from "@/lib/orders-pg";
+
+function parseDongHoFromAddress(address: string): { dong: string; ho: string } {
+  const compact = address.replaceAll(/\s/g, "");
+  const match = compact.match(/(\d+)동(\d+)호/);
+  if (!match) return { dong: "", ho: "" };
+  return { dong: match[1], ho: match[2] };
+}
+
+/**
+ * 예약 생성과 함께 정산용 orders 행을 만든다(best-effort). 온라인 일반 접수(/reservation)와
+ * 관리자 오프라인 접수 둘 다 예전엔 reservations 테이블에만 넣고 orders를 만들지 않아서,
+ * 현장 작업완료 시 pgCompleteTask()가 orders를 UPDATE하려 해도 매칭되는 행이 없어 조용히
+ * 무시되고, 정산 승인/보증서 발급 화면에 해당 건이 아예 나타나지 않는 구조적 공백이 있었다
+ * (김근홍 고객 건에서 발견, 2026-07-22).
+ * orders.apartment_id는 NOT NULL이라 단지 미지정 접수는 order를 만들 수 없다 — 이 경우
+ * 예약 자체는 정상 생성되고, 나중에 단지가 배정되면 수동으로 order를 연결해야 한다.
+ */
+async function createLinkedOrderBestEffort(params: {
+  reservationId: string;
+  apartmentId: string | null | undefined;
+  name: string;
+  phone: string;
+  address: string;
+  baseFee: number;
+}): Promise<void> {
+  if (!params.apartmentId) return;
+  const { dong, ho } = parseDongHoFromAddress(params.address);
+  try {
+    await pgCreateOrder({
+      aptId: params.apartmentId,
+      reservationId: params.reservationId,
+      residentInfo: { name: params.name, phone: params.phone, dong, ho },
+      baseFee: params.baseFee
+    });
+  } catch (error) {
+    console.error(`예약 ${params.reservationId}의 정산용 order 생성 실패:`, error);
+  }
+}
 
 type TaskRow = {
   id: string;
@@ -522,6 +561,14 @@ export async function pgCreateReservation(
   if (error || !data) {
     throw new Error(`예약 생성 실패: ${error?.message ?? "unknown"}`);
   }
+  await createLinkedOrderBestEffort({
+    reservationId: data.id,
+    apartmentId: payload.apartmentId ?? null,
+    name: payload.name,
+    phone: payload.phone,
+    address: payload.address,
+    baseFee
+  });
   const found = await pgFindReservationById(data.id);
   if (!found) {
     throw new Error("예약 생성 후 조회에 실패했습니다.");
@@ -593,6 +640,14 @@ export async function pgAdminCreateOfflineReservation(
   if (error || !data) {
     throw new Error(`오프라인 예약 생성 실패: ${error?.message ?? "unknown"}`);
   }
+  await createLinkedOrderBestEffort({
+    reservationId: data.id,
+    apartmentId: payload.apartmentId ?? null,
+    name: payload.name,
+    phone: payload.phone,
+    address: payload.address,
+    baseFee
+  });
   const found = await pgFindReservationById(data.id);
   if (!found) {
     throw new Error("예약 생성 후 조회에 실패했습니다.");
@@ -1555,6 +1610,30 @@ export async function pgSetReservationPayment(
     .eq("id", id);
   if (error) {
     throw new Error(`입금 상태 수정 실패: ${error.message}`);
+  }
+  // 이 예약에 연결된 order가 있다면(있을 수도, 없을 수도) 결제 상태를 함께 맞춰둔다 — best-effort.
+  // 없으면 update가 0건에 매칭되어 조용히 끝나고, 있으면 여기서도 PAID로 동기화해줘야
+  // 현장정산승인 화면 등 orders 기준 화면이 이 예약을 제대로 인식한다. dispatch_status는
+  // BLOCKED↔READY 사이에서만 맞추고, 이미 배정·진행·완료로 넘어간 order는 건드리지 않는다.
+  try {
+    const { data: linkedOrder } = await supabase
+      .from("orders")
+      .select("id, dispatch_status")
+      .eq("reservation_id", id)
+      .maybeSingle();
+    if (linkedOrder) {
+      const dispatchStatus = String(linkedOrder.dispatch_status ?? "").toUpperCase();
+      const patch: Record<string, unknown> = {
+        payment_status: isPaid ? "PAID" : "PENDING",
+        updated_at: new Date().toISOString()
+      };
+      if (dispatchStatus === "BLOCKED" || dispatchStatus === "READY") {
+        patch.dispatch_status = isPaid ? "READY" : "BLOCKED";
+      }
+      await supabase.from("orders").update(patch).eq("id", linkedOrder.id);
+    }
+  } catch (syncError) {
+    console.error(`예약 ${id}의 order 결제 상태 동기화 실패:`, syncError);
   }
   return pgFindReservationById(id);
 }
