@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { calculate_final_fee, type ServiceItem } from "@/lib/daekyung-fee-logic";
+import { calculate_final_fee, patentServiceTypeLabel, type ServiceItem } from "@/lib/daekyung-fee-logic";
 import type { WarrantyView } from "@/lib/warranty-pg";
 
 type Props = {
@@ -147,7 +147,7 @@ export default function DigitalWarrantyArtifact({ warranty }: Props) {
           </div>
           <div className="grid gap-2 text-sm sm:grid-cols-2">
             <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">단지</p><p className="font-semibold text-slate-900">{warranty.apartmentName} ({warranty.apartmentCode})</p></div>
-            <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">서비스</p><p className="font-semibold text-slate-900">{warranty.serviceType ?? "미지정"}</p></div>
+            <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">서비스</p><p className="font-semibold text-slate-900">{patentServiceTypeLabel(warranty.serviceType)}</p></div>
             <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">담당 기사</p><p className="font-semibold text-slate-900">{warranty.technicianName ?? "미지정"}</p></div>
             <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">최종 정산금</p><p className="font-semibold text-slate-900">{currency(warranty.finalAmount ?? 0)}</p></div>
           </div>
