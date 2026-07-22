@@ -2,6 +2,7 @@ import { buildPatentWarrantyNumber } from "@/lib/daekyung-fee-logic";
 import { requireSupabaseAdmin } from "@/lib/supabase-pg";
 import { formatResidentDongHoDepositHolder } from "@/lib/resident-unit-label";
 import { authHeader } from "@/lib/toss-agent";
+import { notifySettlementApproved } from "@/lib/customer-notification";
 
 type OrderResidentInfo = {
   name: string;
@@ -426,7 +427,7 @@ export async function pgMarkFinalPaymentPaidAndIssueWarranty(input: {
 
   const { data: apt, error: aptErr } = await supabase
     .from("apartments")
-    .select("apt_code")
+    .select("apt_code, name")
     .eq("id", reservation.apartment_id)
     .maybeSingle();
   if (aptErr || !apt) {
@@ -500,6 +501,23 @@ export async function pgMarkFinalPaymentPaidAndIssueWarranty(input: {
       settledAt: nowIso
     })}`
   });
+
+  try {
+    const residentInfo = (order.resident_info ?? {}) as { name?: string; phone?: string };
+    if (residentInfo.phone) {
+      await notifySettlementApproved({
+        reservationId: reservation.id,
+        name: residentInfo.name?.trim() || "고객",
+        phone: residentInfo.phone,
+        apartmentName: (apt as { name?: string | null }).name ?? null,
+        finalAmount: reservation.total_amount ?? order.total_final_fee ?? 0,
+        warrantyNumber: warranty.warranty_number,
+        verifyUrl
+      });
+    }
+  } catch (notifyError) {
+    console.error(`예약 ${reservation.id} 정산 확정 알림 발송 실패:`, notifyError);
+  }
 
   return {
     orderId: normalized,

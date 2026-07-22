@@ -8,6 +8,7 @@ import {
   type ServiceItem
 } from "@/lib/daekyung-fee-logic";
 import { pgCreateOrder } from "@/lib/orders-pg";
+import { notifySettlementApproved } from "@/lib/customer-notification";
 
 function parseDongHoFromAddress(address: string): { dong: string; ho: string } {
   const compact = address.replaceAll(/\s/g, "");
@@ -198,15 +199,21 @@ async function issueWarrantyForReservation(params: {
   serviceSummary: string;
   finalAmount: number;
   sitePhotos: string[];
+  /** 있으면 발급 직후 고객에게 정산 확정 알림을 보낸다(best-effort) */
+  customer?: { name: string; phone: string };
 }): Promise<{ warrantyId: string; warrantyNumber: string }> {
   const supabase = requireSupabaseAdmin();
-  const { data: apt, error: aptErr } = await supabase.from("apartments").select("apt_code").eq("id", params.apartmentId).maybeSingle();
+  const { data: apt, error: aptErr } = await supabase
+    .from("apartments")
+    .select("apt_code, name")
+    .eq("id", params.apartmentId)
+    .maybeSingle();
   if (aptErr || !apt) {
     throw new Error(`보증서 발급용 단지 조회 실패: ${aptErr?.message ?? "not found"}`);
   }
 
   const now = new Date();
-  const aptRow = apt as { apt_code?: string | null };
+  const aptRow = apt as { apt_code?: string | null; name?: string | null };
   const resolvedAptCode = params.aptCode?.trim() || String(aptRow.apt_code ?? "").trim() || null;
   const warrantyNumber = buildPatentWarrantyNumber({
     issuedAt: now,
@@ -244,6 +251,21 @@ async function issueWarrantyForReservation(params: {
     .single();
   if (error || !data) {
     throw new Error(`보증서 저장 실패: ${error?.message ?? "unknown"}`);
+  }
+  if (params.customer?.phone) {
+    try {
+      await notifySettlementApproved({
+        reservationId: params.reservationId,
+        name: params.customer.name || "고객",
+        phone: params.customer.phone,
+        apartmentName: aptRow.name ?? null,
+        finalAmount: params.finalAmount,
+        warrantyNumber: data.warranty_number,
+        verifyUrl
+      });
+    } catch (notifyError) {
+      console.error(`예약 ${params.reservationId} 정산 확정 알림 발송 실패:`, notifyError);
+    }
   }
   return { warrantyId: data.id, warrantyNumber: data.warranty_number };
 }
@@ -1442,7 +1464,7 @@ export async function pgCompleteTask(
   }
   const { data: reservationRow, error: reservationReadErr } = await supabase
     .from("reservations")
-    .select("base_fee, apartment_id, service_item_id, service_type, detail, image_urls")
+    .select("name, phone, base_fee, apartment_id, service_item_id, service_type, detail, image_urls")
     .eq("id", data.reservation_id)
     .maybeSingle();
   if (reservationReadErr || !reservationRow) {
@@ -1503,7 +1525,8 @@ export async function pgCompleteTask(
       serviceType: reservationRow.service_type ?? "VISIT",
       serviceSummary: warrantySummary,
       finalAmount: finalFee.total_fee,
-      sitePhotos
+      sitePhotos,
+      customer: { name: reservationRow.name ?? "고객", phone: reservationRow.phone ?? "" }
     });
     warrantyId = issued.warrantyId;
   }

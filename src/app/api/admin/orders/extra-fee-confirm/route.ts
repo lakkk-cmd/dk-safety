@@ -4,6 +4,7 @@ import { buildPatentWarrantyNumber, calculate_final_fee, type ServiceItem } from
 import { pgFindOrderByReservationId } from "@/lib/orders-pg";
 import { isSupabaseReservationsDbReady, requireSupabaseAdmin } from "@/lib/supabase-pg";
 import { pushReservationProgressNotifications } from "@/lib/live-notify";
+import { notifySettlementApproved } from "@/lib/customer-notification";
 
 type ServiceItemRow = {
   id: string;
@@ -296,7 +297,7 @@ export async function PATCH(request: Request) {
     const { data: reservation, error: resErr } = await supabase
       .from("reservations")
       .select(
-        "id, apartment_id, technician_id, service_item_id, service_type, detail, image_urls, base_fee, extra_fee, extra_fee_note, apartments(apt_code)"
+        "id, name, phone, apartment_id, technician_id, service_item_id, service_type, detail, image_urls, base_fee, extra_fee, extra_fee_note, apartments(apt_code, name)"
       )
       .eq("id", reservationId)
       .maybeSingle();
@@ -307,7 +308,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ message: "아파트 정보가 없어 정산·보증서를 처리할 수 없습니다." }, { status: 400 });
     }
 
-    const aptJoin = reservation.apartments as { apt_code?: string } | { apt_code?: string }[] | null;
+    const aptJoin = reservation.apartments as { apt_code?: string; name?: string } | { apt_code?: string; name?: string }[] | null;
     const aptOne = Array.isArray(aptJoin) ? aptJoin[0] : aptJoin;
     const aptCode = String(aptOne?.apt_code ?? "").trim();
     if (!aptCode) {
@@ -455,6 +456,23 @@ export async function PATCH(request: Request) {
       actor: `EXTRA_FEE_CONFIRM:${confirmedByRaw}`,
       note: `warranty:${warranty.warranty_number};total:${calc.total_fee}`
     });
+
+    try {
+      const phone = String(reservation.phone ?? "").trim();
+      if (phone) {
+        await notifySettlementApproved({
+          reservationId,
+          name: String(reservation.name ?? "").trim() || "고객",
+          phone,
+          apartmentName: aptOne?.name ?? null,
+          finalAmount: calc.total_fee,
+          warrantyNumber: warranty.warranty_number,
+          verifyUrl
+        });
+      }
+    } catch (notifyError) {
+      console.error(`예약 ${reservationId} 정산 확정 알림 발송 실패:`, notifyError);
+    }
 
     return NextResponse.json({
       message: "추가비용 확인이 완료되어 정산·보증서가 반영되었습니다.",

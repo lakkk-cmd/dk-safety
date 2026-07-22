@@ -126,6 +126,42 @@ export function calculate_final_fee(input: FeeCalculationInput): FeeCalculationR
   };
 }
 
+const PATENT_SERVICE_TYPE_LABELS: Record<string, string> = {
+  VISIT: "기본 출장 점검",
+  DIAGNOSIS: "정밀 안전진단",
+  LEAKAGE: "누전 점검/보수",
+  OUTLET: "콘센트/스위치 점검",
+  LIGHT: "전등기구 교체",
+  BREAKER: "차단기 교체"
+};
+
+/** warranties.service_type(내부 patent 키: VISIT/OUTLET 등)을 고객이 보는 보증서에 실제로 표시할 한글 라벨로 변환 */
+export function patentServiceTypeLabel(key: string | null | undefined): string {
+  const normalized = key?.trim().toUpperCase();
+  if (!normalized) return "현장 점검";
+  return PATENT_SERVICE_TYPE_LABELS[normalized] ?? key!;
+}
+
+const PATENT_SERVICE_TYPE_LABELS_EN: Record<string, string> = {
+  VISIT: "General Visit Inspection",
+  DIAGNOSIS: "Precision Safety Diagnosis",
+  LEAKAGE: "Earth Leakage Inspection/Repair",
+  OUTLET: "Outlet/Switch Inspection",
+  LIGHT: "Light Fixture Replacement",
+  BREAKER: "Breaker Replacement"
+};
+
+/**
+ * PDF 보증서(pdf-lib StandardFonts.Helvetica, 한글 미지원 — 한글 문자를 넣으면
+ * "WinAnsi cannot encode" 런타임 에러로 PDF 생성 자체가 실패한다)용 영문 라벨.
+ * 다른 필드가 전부 영문인 이 PDF의 기존 관례에 맞춘다.
+ */
+export function patentServiceTypeLabelEn(key: string | null | undefined): string {
+  const normalized = key?.trim().toUpperCase();
+  if (!normalized) return "Field Inspection";
+  return PATENT_SERVICE_TYPE_LABELS_EN[normalized] ?? key!;
+}
+
 /** 특허 청구항 8: 예약 식별자 기반 고유 보증 번호 — WST-YYYY-APTCODE-SEQ */
 export function buildPatentWarrantyNumber(params: {
   issuedAt: Date;

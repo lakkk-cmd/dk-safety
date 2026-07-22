@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { pgFindWarrantyByNumber } from "@/lib/warranty-pg";
+import { patentServiceTypeLabelEn } from "@/lib/daekyung-fee-logic";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {
@@ -34,7 +35,7 @@ export async function GET(_: Request, context: { params: Promise<{ warrantyNumbe
   page.drawText("Digital Warranty Certificate", { x: 48, y: 785, size: 20, font: bold, color: rgb(1, 1, 1) });
   page.drawText(warranty.warrantyNumber, { x: 48, y: 742, size: 18, font: bold, color: rgb(0.1, 0.1, 0.1) });
   page.drawText(`Apartment: ${warranty.apartmentName} (${warranty.apartmentCode})`, { x: 48, y: 710, size: 12, font, color: rgb(0.2, 0.2, 0.2) });
-  page.drawText(`Service: ${warranty.serviceType ?? "-"}`, { x: 48, y: 690, size: 12, font, color: rgb(0.2, 0.2, 0.2) });
+  page.drawText(`Service: ${patentServiceTypeLabelEn(warranty.serviceType)}`, { x: 48, y: 690, size: 12, font, color: rgb(0.2, 0.2, 0.2) });
   page.drawText(`Technician: ${warranty.technicianName ?? "-"}`, { x: 48, y: 670, size: 12, font, color: rgb(0.2, 0.2, 0.2) });
   page.drawText(`Warranty: ${warranty.warrantyStart ?? "-"} ~ ${warranty.warrantyEnd ?? "-"}`, { x: 48, y: 650, size: 12, font, color: rgb(0.2, 0.2, 0.2) });
   page.drawText(`Final Amount: ${(warranty.finalAmount ?? 0).toLocaleString("ko-KR")} KRW`, { x: 48, y: 630, size: 12, font: bold, color: rgb(0.05, 0.2, 0.45) });

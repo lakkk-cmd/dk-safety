@@ -42,9 +42,18 @@ function buildCompletionMessage(reservation: ReservationForNotification): string
 
 // ─── Solapi 알림톡 ───────────────────────────────────────────────────────────
 
-function buildReportUrl(reservationId: string): string {
+/**
+ * 예전엔 여기서 `/verify/${reservationId}`(예약 UUID)를 링크로 보냈는데,
+ * `/verify/[warranty_number]`는 보증번호로만 조회하기 때문에 그 링크는 항상
+ * "보증서를 찾을 수 없습니다"로 끝났다 — 게다가 추가비용이 있는 건은 작업완료
+ * 시점에 보증서가 아직 발급되지도 않은 상태였다(2026-07-22 발견).
+ * 작업완료 알림은 예약 진행상황을 늘 조회 가능한 /status(전화번호 조회)로
+ * 안내하고, 보증서 링크는 실제로 발급되는 시점(정산 확정)에 별도로 보낸다
+ * (notifySettlementApproved 참고).
+ */
+function buildStatusUrl(): string {
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "https://dkansim.com").replace(/\/$/, "");
-  return `${base}/verify/${reservationId}`;
+  return `${base}/status`;
 }
 
 /**
@@ -73,7 +82,7 @@ async function sendSolapiAlimtalk(reservation: ReservationForNotification): Prom
 
   const to = normalizePhoneDigits(reservation.phone);
   const reviewUrl = process.env.NAVER_REVIEW_URL?.trim() ?? "https://dkansim.com";
-  const reportUrl = buildReportUrl(reservation.id);
+  const reportUrl = buildStatusUrl();
   const dateTime = `${reservation.preferredDate} ${reservation.preferredTime}`;
   const fallbackText = buildCompletionMessage(reservation);
 
@@ -165,6 +174,92 @@ export async function notifyCustomerWorkCompleted(reservation: ReservationForNot
   const smsWebhook = process.env.SMS_WEBHOOK_URL?.trim() ?? "";
   if (smsWebhook) {
     await sendSmsWebhook(smsWebhook, reservation, message);
+    sentChannels.push("sms");
+  }
+
+  return sentChannels;
+}
+
+// ─── 정산 확정(보증서 발급) 알림 ───────────────────────────────────────────────
+// 작업완료 알림과 별개 이벤트 — "정산 승인"을 눌러 보증서가 실제로 발급되는
+// 시점에만 보내므로, 여기서 안내하는 /verify/{보증번호} 링크는 항상 유효하다.
+// Kakao 알림톡은 사전 승인된 템플릿 문구만 보낼 수 있어서(work_completed용
+// 템플릿 1개만 등록되어 있음), 새 문구를 그 템플릿으로 보내면 안 된다 —
+// 그래서 Solapi도 알림톡(kakaoOptions) 대신 일반 SMS로만 보낸다.
+
+export type SettlementNotification = {
+  reservationId: string;
+  name: string;
+  phone: string;
+  apartmentName?: string | null;
+  finalAmount: number;
+  warrantyNumber: string;
+  verifyUrl: string;
+};
+
+function buildSettlementMessage(input: SettlementNotification): string {
+  const apartmentText = input.apartmentName?.trim() ? `${input.apartmentName} ` : "";
+  return [
+    `${input.name} 고객님, ${apartmentText}현장 작업 정산이 확정되어 디지털 보증서가 발급되었습니다.`,
+    `최종 정산 금액: ${input.finalAmount.toLocaleString("ko-KR")}원`,
+    `보증서 확인: ${input.verifyUrl}`,
+    "이용해 주셔서 감사합니다.",
+  ].join("\n");
+}
+
+async function sendSolapiSms(phone: string, message: string): Promise<boolean> {
+  const apiKey = process.env.SOLAPI_API_KEY?.trim();
+  const apiSecret = process.env.SOLAPI_API_SECRET?.trim();
+  const senderNumber = process.env.SOLAPI_SENDER_NUMBER?.trim();
+  if (!apiKey || !apiSecret || !senderNumber) return false;
+
+  const { SolapiMessageService } = await import("solapi");
+  const client = new SolapiMessageService(apiKey, apiSecret);
+  await client.send({
+    to: normalizePhoneDigits(phone),
+    from: senderNumber,
+    text: message,
+  });
+  return true;
+}
+
+export async function notifySettlementApproved(input: SettlementNotification): Promise<string[]> {
+  const message = buildSettlementMessage(input);
+  const sentChannels: string[] = [];
+
+  // 1순위: Solapi 일반 SMS (알림톡 템플릿 불필요)
+  try {
+    const sent = await sendSolapiSms(input.phone, message);
+    if (sent) sentChannels.push("sms_solapi");
+  } catch (err) {
+    console.error("[solapi] 정산 확정 SMS 발송 실패:", err instanceof Error ? err.message : err);
+  }
+
+  // 2순위: 레거시 카카오 webhook (Solapi 미사용 시에만)
+  const kakaoWebhook = process.env.KAKAO_ALIMTALK_WEBHOOK_URL?.trim() ?? "";
+  if (kakaoWebhook && !sentChannels.length) {
+    await postJson(kakaoWebhook, {
+      channel: "kakao_alimtalk",
+      event: "settlement_approved",
+      reservationId: input.reservationId,
+      to: normalizePhoneDigits(input.phone),
+      customerName: input.name,
+      message,
+    });
+    sentChannels.push("kakao_alimtalk");
+  }
+
+  // 3순위: SMS webhook
+  const smsWebhook = process.env.SMS_WEBHOOK_URL?.trim() ?? "";
+  if (smsWebhook) {
+    await postJson(smsWebhook, {
+      channel: "sms",
+      event: "settlement_approved",
+      reservationId: input.reservationId,
+      to: normalizePhoneDigits(input.phone),
+      customerName: input.name,
+      message,
+    });
     sentChannels.push("sms");
   }
 

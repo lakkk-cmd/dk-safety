@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { pgFindWarrantyByNumber } from "@/lib/warranty-pg";
+import { patentServiceTypeLabel } from "@/lib/daekyung-fee-logic";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 
 export async function GET(_: Request, context: { params: Promise<{ warrantyNumber: string }> }) {
@@ -24,7 +25,7 @@ export async function GET(_: Request, context: { params: Promise<{ warrantyNumbe
   <text x="110" y="182" font-size="22" fill="#cbd5e1" font-family="Arial">DIGITAL WARRANTY CERTIFICATE</text>
   <text x="110" y="260" font-size="34" fill="#0f172a" font-family="Arial" font-weight="700">${warranty.warrantyNumber}</text>
   <text x="110" y="320" font-size="26" fill="#334155" font-family="Arial">단지: ${warranty.apartmentName} (${warranty.apartmentCode})</text>
-  <text x="110" y="365" font-size="26" fill="#334155" font-family="Arial">서비스: ${warranty.serviceType ?? "-"}</text>
+  <text x="110" y="365" font-size="26" fill="#334155" font-family="Arial">서비스: ${patentServiceTypeLabel(warranty.serviceType)}</text>
   <text x="110" y="410" font-size="26" fill="#334155" font-family="Arial">담당 기사: ${warranty.technicianName ?? "-"}</text>
   <text x="110" y="455" font-size="26" fill="#334155" font-family="Arial">보증 기간: ${warranty.warrantyStart ?? "-"} ~ ${warranty.warrantyEnd ?? "-"}</text>
   <text x="110" y="500" font-size="26" fill="#334155" font-family="Arial">최종 정산 금액: ${amountText}</text>
