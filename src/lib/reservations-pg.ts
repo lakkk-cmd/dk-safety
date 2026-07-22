@@ -2,7 +2,6 @@ import type { Reservation } from "@/lib/reservations-store";
 import { requireSupabaseAdmin } from "@/lib/supabase-pg";
 import {
   activate_assignment,
-  buildPatentWarrantyNumber,
   calculate_final_fee,
   match_technician,
   type ServiceItem
@@ -1749,50 +1748,33 @@ export async function pgCreateWalkInReservation(payload: {
   return mapReservation(data as ReservationRow);
 }
 
+/**
+ * 도보/워크인(단지 미지정) 접수 완료 시 보증서 발급 — pgIssueWarrantyAndSettle 위임(2026-07-23
+ * 통합). 예전엔 여기서 warranties만 upsert하고 reservations.payment_status/warranty_id/
+ * total_amount는 전혀 갱신하지 않아서, 워크인 건은 보증서는 있어도 예약 자체는 "정산 완료"로
+ * 기록되지 않았다 — 공용 함수로 옮기며 같이 고쳐졌다. apartmentId가 없는 케이스라
+ * aptCodeFallback: "WALK"로 기존 보증번호 형식을 유지한다.
+ */
 export async function issueWalkInWarranty(params: {
   reservationId: string;
   serviceType: string;
   serviceSummary: string;
   finalAmount: number;
   sitePhotos: string[];
-}): Promise<{ warrantyId: string; warrantyNumber: string; verifyUrl: string }> {
-  const supabase = requireSupabaseAdmin();
-  const now = new Date();
-  const warrantyNumber = buildPatentWarrantyNumber({
-    issuedAt: now,
+  customer?: { name: string; phone: string };
+}): Promise<{ warrantyId: string; warrantyNumber: string; verifyUrl: string; notifiedChannels: string[] }> {
+  return pgIssueWarrantyAndSettle({
     reservationId: params.reservationId,
-    aptCode: "WALK"
+    orderId: null,
+    apartmentId: null,
+    aptCodeFallback: "WALK",
+    serviceType: params.serviceType,
+    serviceSummary: params.serviceSummary,
+    finalAmount: params.finalAmount,
+    sitePhotos: params.sitePhotos,
+    customer: params.customer,
+    orderLogActor: "SYSTEM_WALKIN_COMPLETE"
   });
-  const startDate = now.toISOString().slice(0, 10);
-  const endDate = new Date(now);
-  endDate.setFullYear(endDate.getFullYear() + 1);
-  const verifyBase = (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://dkansim.com").replace(/\/$/, "");
-  const verifyUrl = `${verifyBase}/verify/${encodeURIComponent(warrantyNumber)}`;
-
-  const { data, error } = await supabase
-    .from("warranties")
-    .upsert(
-      {
-        warranty_number: warrantyNumber,
-        reservation_id: params.reservationId,
-        apt_id: null,
-        technician_id: null,
-        service_type: mapServiceTypeToPatentKey(params.serviceType),
-        service_summary: params.serviceSummary,
-        warranty_months: 12,
-        warranty_start: startDate,
-        warranty_end: endDate.toISOString().slice(0, 10),
-        final_amount: params.finalAmount,
-        site_photos: params.sitePhotos,
-        verify_url: verifyUrl,
-        status: "ISSUED"
-      },
-      { onConflict: "reservation_id" }
-    )
-    .select("id, warranty_number")
-    .single();
-  if (error || !data) throw new Error(`보증서 저장 실패: ${error?.message ?? "unknown"}`);
-  return { warrantyId: data.id, warrantyNumber: data.warranty_number, verifyUrl };
 }
 
 export async function pgCompleteWalkInReservation(reservationId: string): Promise<void> {

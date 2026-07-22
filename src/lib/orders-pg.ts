@@ -393,7 +393,10 @@ export async function pgIssueWarrantyAndSettle(input: {
   reservationId: string;
   /** 있으면 orders 테이블도 함께 정산 반영(final_payment_status/total_final_fee/warranty_issued_at) */
   orderId?: string | null;
-  apartmentId: string;
+  /** null이면 단지 미지정(도보/워크인 등) — apartments 조회를 생략하고 aptCodeFallback을 쓴다 */
+  apartmentId: string | null;
+  /** apartmentId가 null일 때만 쓰는 보증번호 코드(기본값 "WALK") */
+  aptCodeFallback?: string;
   technicianId?: string | null;
   serviceType: string;
   serviceSummary: string;
@@ -414,18 +417,26 @@ export async function pgIssueWarrantyAndSettle(input: {
   impUid?: string | null;
   customer?: { name: string; phone: string };
   orderLogActor?: string;
-}): Promise<{ warrantyId: string; warrantyNumber: string; verifyUrl: string }> {
+}): Promise<{ warrantyId: string; warrantyNumber: string; verifyUrl: string; notifiedChannels: string[] }> {
   const supabase = requireSupabaseAdmin();
 
-  const { data: apt, error: aptErr } = await supabase
-    .from("apartments")
-    .select("apt_code, name")
-    .eq("id", input.apartmentId)
-    .maybeSingle();
-  if (aptErr || !apt) {
-    throw new Error(`아파트 정보 조회 실패: ${aptErr?.message ?? "not found"}`);
+  let aptCode: string | null = null;
+  let apartmentName: string | null = null;
+  if (input.apartmentId) {
+    const { data: apt, error: aptErr } = await supabase
+      .from("apartments")
+      .select("apt_code, name")
+      .eq("id", input.apartmentId)
+      .maybeSingle();
+    if (aptErr || !apt) {
+      throw new Error(`아파트 정보 조회 실패: ${aptErr?.message ?? "not found"}`);
+    }
+    const aptRow = apt as { apt_code?: string | null; name?: string | null };
+    aptCode = aptRow.apt_code?.trim() || null;
+    apartmentName = aptRow.name ?? null;
+  } else {
+    aptCode = input.aptCodeFallback?.trim() || "WALK";
   }
-  const aptRow = apt as { apt_code?: string | null; name?: string | null };
 
   const now = new Date();
   const nowIso = now.toISOString();
@@ -433,7 +444,7 @@ export async function pgIssueWarrantyAndSettle(input: {
   const warrantyNumber = buildPatentWarrantyNumber({
     issuedAt,
     reservationId: input.reservationId,
-    aptCode: aptRow.apt_code?.trim() || null
+    aptCode
   });
   const startDate = issuedAt.toISOString().slice(0, 10);
   const endDate = new Date(issuedAt);
@@ -510,13 +521,14 @@ export async function pgIssueWarrantyAndSettle(input: {
     note: `warranty:${warranty.warranty_number};total:${input.finalAmount}`
   });
 
+  let notifiedChannels: string[] = [];
   if (input.customer?.phone) {
     try {
-      await notifySettlementApproved({
+      notifiedChannels = await notifySettlementApproved({
         reservationId: input.reservationId,
         name: input.customer.name || "고객",
         phone: input.customer.phone,
-        apartmentName: aptRow.name ?? null,
+        apartmentName,
         finalAmount: input.finalAmount,
         warrantyNumber: warranty.warranty_number,
         verifyUrl
@@ -526,7 +538,7 @@ export async function pgIssueWarrantyAndSettle(input: {
     }
   }
 
-  return { warrantyId: warranty.id, warrantyNumber: warranty.warranty_number, verifyUrl };
+  return { warrantyId: warranty.id, warrantyNumber: warranty.warranty_number, verifyUrl, notifiedChannels };
 }
 
 export async function pgMarkFinalPaymentPaidAndIssueWarranty(input: {
