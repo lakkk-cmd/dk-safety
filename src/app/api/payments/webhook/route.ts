@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
-import { pgFindOrderById, pgMarkPaidAndActivate } from "@/lib/orders-pg";
+import { normalizePrepaymentAmount, pgFindOrderById, pgMarkPaidAndActivate } from "@/lib/orders-pg";
 import { pgSetReservationPayment } from "@/lib/reservations-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
-
-function expectedPrepaymentAmount(baseFee: unknown): 50000 | 100000 {
-  const amount = Number(baseFee ?? 0);
-  return Number.isFinite(amount) && amount >= 100000 ? 100000 : 50000;
-}
 
 export async function POST(request: Request) {
   if (!isSupabaseReservationsDbReady()) {
@@ -99,7 +94,7 @@ export async function POST(request: Request) {
       if (!existing) {
         return NextResponse.json({ message: "주문을 찾지 못했습니다." }, { status: 404 });
       }
-      const expected = expectedPrepaymentAmount(existing.base_fee);
+      const expected = normalizePrepaymentAmount(existing.base_fee);
       if (paidAmount > 0 && paidAmount !== expected) {
         // 금액 불일치 시 4xx 반환 금지 — PG사가 무한 재시도함
         return NextResponse.json(
@@ -125,7 +120,7 @@ export async function POST(request: Request) {
       if (!existing) {
         return NextResponse.json({ message: "주문을 찾지 못했습니다." }, { status: 404 });
       }
-      const expected = expectedPrepaymentAmount(existing.base_fee);
+      const expected = normalizePrepaymentAmount(existing.base_fee);
       if (paidAmount > 0 && paidAmount !== expected) {
         // 금액 불일치 시 4xx 반환 금지 — PG사가 무한 재시도함
         return NextResponse.json(

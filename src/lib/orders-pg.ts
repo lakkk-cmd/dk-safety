@@ -26,7 +26,7 @@ type VirtualAccountIssueResult = {
  * 기본 출장비·긴급출동 요금을 다른 금액으로 바꿔도 실제 청구액은 그대로였다(요금 설정 무의미화).
  * 이제 실제 입력값을 그대로 쓰고, 잘못된 값이 왔을 때만 안전한 최소값으로 보정한다.
  */
-function normalizePrepaymentAmount(value: unknown): number {
+export function normalizePrepaymentAmount(value: unknown): number {
   const amount = Number(value ?? 0);
   return Number.isFinite(amount) && amount >= 10000 ? Math.round(amount) : 50000;
 }
@@ -190,6 +190,9 @@ export type AdminOrderRow = {
   virtual_account_due_at: string | null;
   virtual_account_amount: number | null;
   warranty_issued_at: string | null;
+  cancelled_at: string | null;
+  manual_refund_amount: number | null;
+  manual_refund_completed_at: string | null;
   paid_at: string | null;
   created_at: string;
 };
@@ -217,7 +220,7 @@ export async function pgListOrdersForAdmin(): Promise<AdminOrderRow[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, apt_id, reservation_id, resident_info, base_fee, payment_status, dispatch_status, final_payment_status, total_final_fee, extra_fee_details, virtual_account_bank, virtual_account_number, virtual_account_holder, virtual_account_due_at, virtual_account_amount, warranty_issued_at, paid_at, created_at"
+      "id, apt_id, reservation_id, resident_info, base_fee, payment_status, dispatch_status, final_payment_status, total_final_fee, extra_fee_details, virtual_account_bank, virtual_account_number, virtual_account_holder, virtual_account_due_at, virtual_account_amount, warranty_issued_at, cancelled_at, manual_refund_amount, manual_refund_completed_at, paid_at, created_at"
     )
     .order("created_at", { ascending: false });
   if (error) {
@@ -227,6 +230,18 @@ export async function pgListOrdersForAdmin(): Promise<AdminOrderRow[]> {
     ...row,
     additional_due_amount: computeAdditionalDueAmount(row)
   }));
+}
+
+/** 관리자가 계좌이체 등 수동환불을 실제로 보낸 뒤 완료 처리 — 금융/가상계좌 관리 화면 전용 */
+export async function pgMarkManualRefundCompleted(orderId: string): Promise<void> {
+  const supabase = requireSupabaseAdmin();
+  const { error } = await supabase
+    .from("orders")
+    .update({ manual_refund_completed_at: new Date().toISOString() })
+    .eq("id", orderId.trim());
+  if (error) {
+    throw new Error(`수동환불 완료 처리 실패: ${error.message}`);
+  }
 }
 
 // IBK기업은행 — Toss 가상계좌 발급 API의 2자리 은행코드(https://docs.tosspayments.com/codes/org-codes).
