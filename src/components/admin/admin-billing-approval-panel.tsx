@@ -27,10 +27,11 @@ export default function AdminBillingApprovalPanel({ initialOrders, apartments }:
 
   const approve = async (order: AdminOrderRow) => {
     const name = order.resident_info?.name ?? "고객";
-    const amount = (order.total_final_fee ?? order.base_fee ?? 0).toLocaleString("ko-KR");
+    const totalAmount = (order.total_final_fee ?? order.base_fee ?? 0).toLocaleString("ko-KR");
+    const dueAmount = order.additional_due_amount.toLocaleString("ko-KR");
     if (
       !confirm(
-        `${name}님 정산을 승인할까요?\n\n최종 정산액: ${amount}원\n승인하면 디지털 보증서가 즉시 발급되고 되돌릴 수 없습니다.`
+        `${name}님 정산을 승인할까요?\n\n이번에 추가로 받을 금액: ${dueAmount}원\n(전체 정산 총액 ${totalAmount}원 = 출장비 + 추가비용)\n\n승인하면 디지털 보증서가 즉시 발급되고 되돌릴 수 없습니다.`
       )
     ) {
       return;
@@ -79,8 +80,8 @@ export default function AdminBillingApprovalPanel({ initialOrders, apartments }:
               <th className="px-3 py-2">단지명</th>
               <th className="px-3 py-2">동/호수</th>
               <th className="px-3 py-2">기본료</th>
-              <th className="px-3 py-2">최종정산</th>
-              <th className="px-3 py-2">차액</th>
+              <th className="px-3 py-2">정산 총액</th>
+              <th className="px-3 py-2">추가로 받을 금액</th>
               <th className="px-3 py-2">정산상태</th>
               <th className="px-3 py-2">승인</th>
             </tr>
@@ -90,7 +91,6 @@ export default function AdminBillingApprovalPanel({ initialOrders, apartments }:
               const apt = apartmentById.get(order.apt_id ?? "");
               const info = order.resident_info ?? {};
               const finalFee = order.total_final_fee ?? order.base_fee ?? 0;
-              const delta = Math.max(0, finalFee - (order.base_fee ?? 0));
               const status = String(order.final_payment_status ?? "").toUpperCase();
               return (
                 <tr key={order.id} className="border-t border-slate-200 dark:border-slate-700">
@@ -100,7 +100,9 @@ export default function AdminBillingApprovalPanel({ initialOrders, apartments }:
                   </td>
                   <td className="px-3 py-2">{(order.base_fee ?? 0).toLocaleString("ko-KR")}원</td>
                   <td className="px-3 py-2">{finalFee.toLocaleString("ko-KR")}원</td>
-                  <td className="px-3 py-2 font-semibold text-amber-700 dark:text-amber-300">{delta.toLocaleString("ko-KR")}원</td>
+                  <td className="px-3 py-2 font-semibold text-amber-700 dark:text-amber-300">
+                    {order.additional_due_amount.toLocaleString("ko-KR")}원
+                  </td>
                   <td className="px-3 py-2">{finalPaymentStatusKo(order.final_payment_status)}</td>
                   <td className="px-3 py-2">
                     {status === "REQUESTED" ? (

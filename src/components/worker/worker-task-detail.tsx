@@ -826,8 +826,8 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
             <p className="text-sm font-bold text-slate-500">등급 업그레이드</p>
             <h2 className="mt-1 text-lg font-extrabold text-slate-900">더 큰 문제를 발견하셨나요?</h2>
             <p className="mt-1 text-xs text-slate-500">
-              단순 기구교체 공임({reservation.baseFee.toLocaleString()}원)은 완료 시 작업비에서 자동 공제됩니다. 사유를
-              선택해주세요.
+              단순 기구교체 공임({reservation.baseFee.toLocaleString()}원)은 이미 예약금으로 결제되어, 완료 시 추가로
+              받으실 작업비 결제 금액에서만 자동 차감됩니다(총 정산 금액에는 그대로 포함). 사유를 선택해주세요.
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {UPGRADE_REASON_PRESETS.map((preset) => (

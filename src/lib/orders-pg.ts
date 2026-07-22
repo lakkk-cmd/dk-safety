@@ -181,6 +181,8 @@ export type AdminOrderRow = {
   dispatch_status: string;
   final_payment_status: FinalPaymentStatus;
   total_final_fee: number | null;
+  /** 이미 결제된 출장비를 제외하고 이번 정산에서 추가로 받아야 할 금액 (승인 확인용 — total_final_fee는 전체 총액) */
+  additional_due_amount: number;
   virtual_account_bank: string | null;
   virtual_account_number: string | null;
   virtual_account_holder: string | null;
@@ -191,18 +193,39 @@ export type AdminOrderRow = {
   created_at: string;
 };
 
+/**
+ * 정산 승인 화면에서 확정해야 할 금액은 total_final_fee(출장비 포함 전체 총액)가 아니라
+ * 이미 결제된 출장비를 제외한 "이번에 추가로 받을 금액"이다. 작업완료 시 pgCompleteTask가
+ * 남긴 extra_fee_details.additionalDueAmount를 우선 쓰고, 없으면 total_final_fee - base_fee로
+ * 단 한 번만 계산한다(daekyung-fee-logic.ts의 amount_due_now와 동일한 단일 차감 원칙).
+ */
+export function computeAdditionalDueAmount(order: {
+  total_final_fee?: number | null;
+  base_fee?: number | null;
+  extra_fee_details?: unknown;
+}): number {
+  const extraDetails = (order.extra_fee_details ?? {}) as Record<string, unknown>;
+  if (typeof extraDetails.additionalDueAmount === "number" && Number.isFinite(extraDetails.additionalDueAmount)) {
+    return Math.max(0, Math.round(extraDetails.additionalDueAmount));
+  }
+  return Math.max(0, Math.round((order.total_final_fee ?? 0) - (order.base_fee ?? 0)));
+}
+
 export async function pgListOrdersForAdmin(): Promise<AdminOrderRow[]> {
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, apt_id, reservation_id, resident_info, base_fee, payment_status, dispatch_status, final_payment_status, total_final_fee, virtual_account_bank, virtual_account_number, virtual_account_holder, virtual_account_due_at, virtual_account_amount, warranty_issued_at, paid_at, created_at"
+      "id, apt_id, reservation_id, resident_info, base_fee, payment_status, dispatch_status, final_payment_status, total_final_fee, extra_fee_details, virtual_account_bank, virtual_account_number, virtual_account_holder, virtual_account_due_at, virtual_account_amount, warranty_issued_at, paid_at, created_at"
     )
     .order("created_at", { ascending: false });
   if (error) {
     throw new Error(`주문 목록 조회 실패: ${error.message}`);
   }
-  return (data ?? []) as AdminOrderRow[];
+  return ((data ?? []) as Array<AdminOrderRow & { extra_fee_details?: unknown }>).map((row) => ({
+    ...row,
+    additional_due_amount: computeAdditionalDueAmount(row)
+  }));
 }
 
 // IBK기업은행 — Toss 가상계좌 발급 API의 2자리 은행코드(https://docs.tosspayments.com/codes/org-codes).
@@ -336,11 +359,7 @@ export async function pgRequestFinalSettlement(orderId: string) {
   if (!order) {
     throw new Error("주문 정보를 찾을 수 없습니다.");
   }
-  const extraDetails = (order.extra_fee_details ?? {}) as Record<string, unknown>;
-  const additionalDueAmount =
-    typeof extraDetails.additionalDueAmount === "number"
-      ? Math.max(0, Math.round(extraDetails.additionalDueAmount))
-      : Math.max(0, Math.round((order.total_final_fee ?? 0) - (order.base_fee ?? 0)));
+  const additionalDueAmount = computeAdditionalDueAmount(order);
   const status: FinalPaymentStatus = additionalDueAmount > 0 ? "REQUESTED" : "PAID";
   const { data, error } = await supabase
     .from("orders")

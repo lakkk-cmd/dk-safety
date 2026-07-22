@@ -121,6 +121,7 @@ export default function AdminCustomerCarePanel({ initialRows }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
+  const [settleBusyId, setSettleBusyId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [apartments, setApartments] = useState<ApartmentOption[]>([]);
   const [form, setForm] = useState({
@@ -246,6 +247,35 @@ export default function AdminCustomerCarePanel({ initialRows }: Props) {
       setSelected({});
     } finally {
       setBatchBusy(false);
+    }
+  };
+
+  const approveSettlement = async (r: EnrichedRow) => {
+    if (!r.orderId) return;
+    const totalAmount = (r.orderTotalFinalFee ?? 0).toLocaleString("ko-KR");
+    const dueAmount = r.orderAdditionalDueAmount.toLocaleString("ko-KR");
+    if (
+      !confirm(
+        `${r.name}님 정산을 승인할까요?\n\n이번에 추가로 받을 금액: ${dueAmount}원\n(전체 정산 총액 ${totalAmount}원 = 출장비 + 추가비용)\n\n승인하면 디지털 보증서가 즉시 발급되고 되돌릴 수 없습니다.`
+      )
+    ) {
+      return;
+    }
+    setSettleBusyId(r.orderId);
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(r.orderId)}/final-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "MANUAL" })
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        alert(`승인 실패: ${data.message ?? res.status}`);
+        return;
+      }
+      router.refresh();
+    } finally {
+      setSettleBusyId(null);
     }
   };
 
@@ -462,13 +492,28 @@ export default function AdminCustomerCarePanel({ initialRows }: Props) {
                     <td>
                       <div>{finalPaymentStatusKo(r.orderFinalPaymentStatus)}</div>
                       <div className="dk-muted-xs">
-                        {r.orderTotalFinalFee != null ? `${r.orderTotalFinalFee.toLocaleString("ko-KR")}원` : "—"}
+                        총액 {r.orderTotalFinalFee != null ? `${r.orderTotalFinalFee.toLocaleString("ko-KR")}원` : "—"}
                       </div>
+                      {String(r.orderFinalPaymentStatus ?? "").toUpperCase() === "REQUESTED" ? (
+                        <div className="dk-muted-xs font-bold text-amber-700">
+                          추가로 받을 금액 {r.orderAdditionalDueAmount.toLocaleString("ko-KR")}원
+                        </div>
+                      ) : null}
                       <div className="dk-muted-xs">
                         {r.orderWarrantyIssuedAt
                           ? `보증 ${new Date(r.orderWarrantyIssuedAt).toLocaleDateString("ko-KR")}`
                           : "보증 미발급"}
                       </div>
+                      {r.orderId && String(r.orderFinalPaymentStatus ?? "").toUpperCase() === "REQUESTED" ? (
+                        <button
+                          type="button"
+                          disabled={settleBusyId === r.orderId}
+                          onClick={() => void approveSettlement(r)}
+                          className="mt-1 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {settleBusyId === r.orderId ? "처리 중…" : "정산 승인"}
+                        </button>
+                      ) : null}
                     </td>
                     <td>
                       <div>{r.assignedWorkerName ?? "—"}</div>

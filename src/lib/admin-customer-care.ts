@@ -1,4 +1,5 @@
 import { requireSupabaseAdmin } from "@/lib/supabase-pg";
+import { computeAdditionalDueAmount } from "@/lib/orders-pg";
 
 /** RSC → 클라이언트 전달 시 Flight/JSON에서 깨질 수 있는 문자 제거·치환 */
 function safeClientText(value: string | null | undefined, maxLen: number): string {
@@ -78,6 +79,8 @@ export type AdminCustomerCareRow = {
   orderDispatchStatus: string | null;
   orderFinalPaymentStatus: string | null;
   orderTotalFinalFee: number | null;
+  /** 이미 결제된 출장비를 제외하고 이번에 추가로 받아야 할 금액 */
+  orderAdditionalDueAmount: number;
   orderWarrantyIssuedAt: string | null;
   virtualAccountNumber: string | null;
   virtualAccountHolder: string | null;
@@ -95,7 +98,9 @@ type OrderJoin = {
   payment_status: string | null;
   dispatch_status: string | null;
   final_payment_status: string | null;
+  base_fee: number | null;
   total_final_fee: number | null;
+  extra_fee_details: unknown;
   warranty_issued_at: string | null;
   virtual_account_number: string | null;
   virtual_account_holder: string | null;
@@ -169,6 +174,13 @@ function mapCareRow(row: CareRow): AdminCustomerCareRow {
     orderDispatchStatus: safeClientTextOrNull(ord?.dispatch_status ?? null, 64),
     orderFinalPaymentStatus: safeClientTextOrNull(ord?.final_payment_status ?? null, 64),
     orderTotalFinalFee: safeFee(ord?.total_final_fee),
+    orderAdditionalDueAmount: ord
+      ? computeAdditionalDueAmount({
+          total_final_fee: ord.total_final_fee,
+          base_fee: ord.base_fee,
+          extra_fee_details: ord.extra_fee_details
+        })
+      : 0,
     orderWarrantyIssuedAt: ord?.warranty_issued_at ? safeClientText(ord.warranty_issued_at, 48) : null,
     virtualAccountNumber: safeClientTextOrNull(ord?.virtual_account_number ?? null, 80),
     virtualAccountHolder: virtualAccountHolderForDisplay(ord?.virtual_account_holder ?? null, addressText, apartmentNameForHolder)
@@ -202,7 +214,9 @@ export async function pgListAdminCustomerCareRows(): Promise<AdminCustomerCareRo
         payment_status,
         dispatch_status,
         final_payment_status,
+        base_fee,
         total_final_fee,
+        extra_fee_details,
         warranty_issued_at,
         virtual_account_number,
         virtual_account_holder,

@@ -169,9 +169,10 @@ export default function DigitalWarrantyArtifact({ warranty }: Props) {
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={workProceeded} onChange={(e) => setWorkProceeded(e.target.checked)} />출장비 공제 적용 (본 작업 진행)</label>
           <div className="rounded-xl bg-slate-50 p-3 text-sm">
             <p>소계: <strong>{currency(calcResult.subtotal)}</strong></p>
-            <p>출장비 공제: <strong>{currency(calcResult.deductible_amount)}</strong></p>
+            <p>출장비 기결제분(추가 결제 시 차감): <strong>{currency(calcResult.deductible_amount)}</strong></p>
             <p>묶음 할인: <strong>{currency(calcResult.bulk_discount_amount)}</strong></p>
-            <p className="mt-1 text-base">최종 정산: <strong className="text-blue-700">{currency(calcResult.total_fee)}</strong></p>
+            <p className="mt-1 text-base">최종 정산 총액: <strong className="text-blue-700">{currency(calcResult.total_fee)}</strong></p>
+            <p className="text-sm">이번에 추가로 결제할 금액: <strong className="text-emerald-700">{currency(calcResult.amount_due_now)}</strong></p>
             {calcResult.validation.requires_confirmation ? <p className="mt-2 text-xs text-amber-700">확인 요청 필요 상태입니다.</p> : null}
           </div>
         </section>

@@ -38,7 +38,10 @@ export interface FeeCalculationResult {
   deductible_amount: number;
   bulk_discount_applied: boolean;
   bulk_discount_amount: number;
+  /** 이번 건 전체 정산 총액 (출장비 + 추가비용, 묶음할인만 반영 — 이미 결제한 출장비를 다시 빼지 않는다) */
   total_fee: number;
+  /** 이미 결제된 출장비를 제외하고 이번에 추가로 받아야 할 금액 (total_fee에서 단 한 번만 차감) */
+  amount_due_now: number;
   validation: FeeValidation;
   breakdown: string[];
 }
@@ -86,12 +89,19 @@ export function calculate_final_fee(input: FeeCalculationInput): FeeCalculationR
   if (service_item.deductible_flag && work_proceeded && computed_extra > 0) {
     deductible_amount = base_fee;
     deductible_applied = true;
-    breakdown.push(`출장비 공제 (작업 진행): -${deductible_amount.toLocaleString()}원`);
+    breakdown.push(`(참고) 출장비 ${deductible_amount.toLocaleString()}원은 예약 시 이미 결제되어, 추가로 받을 결제 금액에서 자동 차감됩니다`);
   }
 
-  const total_fee = Math.max(0, subtotal - deductible_amount);
+  // total_fee: 이번 건의 전체 정산 총액. 이미 결제한 출장비를 여기서 다시 빼면 안 된다 —
+  // 그러면 "출장비 공제"가 amount_due_now 계산과 이중으로 적용되어 총액·추가청구액이 모두
+  // 출장비만큼 실제보다 낮게 잡힌다(과거 버그).
+  const total_fee = subtotal;
+  const amount_due_now = Math.max(0, total_fee - deductible_amount);
   breakdown.push("───────────────────────────");
-  breakdown.push(`최종 정산 금액: ${total_fee.toLocaleString()}원`);
+  breakdown.push(`최종 정산 총액: ${total_fee.toLocaleString()}원`);
+  if (deductible_amount > 0) {
+    breakdown.push(`이번에 추가로 결제할 금액(출장비 기결제분 제외): ${amount_due_now.toLocaleString()}원`);
+  }
 
   const requires_confirmation = computed_extra > 0 || bulk_discount_applied || deductible_applied || !surcharge_within_range;
 
@@ -104,6 +114,7 @@ export function calculate_final_fee(input: FeeCalculationInput): FeeCalculationR
     bulk_discount_applied,
     bulk_discount_amount,
     total_fee,
+    amount_due_now,
     validation: {
       is_valid: errors.length === 0,
       warnings,

@@ -1247,8 +1247,9 @@ export async function pgStartTask(taskId: string, workerId: string): Promise<voi
 
 /**
  * 단순 기구교체 현장에서 더 큰 문제가 발견돼 상/중/하 작업비 표로 넘어가는 업그레이드를 기록한다.
- * 정산 시 별도 계산 로직이 필요하지 않다 — calculate_final_fee()의 기존 deductible_flag 폴백이
- * work_proceeded && extra_fee>0일 때 이미 base_fee(단순교체 공임)를 자동 공제해주기 때문에,
+ * 정산 시 별도 계산 로직이 필요하지 않다 — calculate_final_fee()의 deductible_flag 처리가
+ * work_proceeded && extra_fee>0일 때 이미 결제된 base_fee(단순교체 공임)를 amount_due_now
+ * 계산에서 자동 차감해주기 때문에(총 정산액인 total_fee에는 base_fee가 그대로 포함된다),
  * 기사가 완료 시 입력하는 extraFee(작업비 난이도 정액)만 정확히 반영되면 된다.
  */
 export async function pgUpgradeSimpleSwapTask(taskId: string, workerId: string, reason: string): Promise<void> {
@@ -1436,7 +1437,7 @@ export async function pgCompleteTask(
   });
   const warrantySummary = `${reservationRow.detail ?? reservationRow.service_type ?? "현장 작업"} / ${finalFee.breakdown.join(" | ")}`;
   const sitePhotos = asStringArray(reservationRow.image_urls);
-  const additionalDueAmount = Math.max(0, finalFee.total_fee - baseFee);
+  const additionalDueAmount = finalFee.amount_due_now;
   const shouldAutoIssueWarranty = additionalDueAmount === 0;
   let warrantyId: string | null = null;
   if (reservationRow.apartment_id && shouldAutoIssueWarranty) {
