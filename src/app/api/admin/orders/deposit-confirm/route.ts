@@ -39,9 +39,13 @@ export async function PATCH(request: Request) {
       impUid: order.imp_uid ?? undefined
     });
 
+    // paidAmount를 명시하지 않으면 pgSetReservationPayment가 예약(reservations.base_fee, 요금의
+    // 단일 출처)을 그대로 써서 activate_assignment 검증(paid_amount>=base_fee)이 항상 통과한다.
+    // orders.base_fee는 요금 변경 전에 생성된 오래된 주문에서 값이 갱신되지 않고 남아있을 수 있어
+    // 이를 기준으로 삼으면(과거엔 50k/100k로 하드코딩까지 되어 있었다) 실제 예약금보다 낮게 잡혀
+    // "결제 금액이 기본 출장비에 미달합니다" 오류로 관리자의 계좌입금 확인 자체가 막힌다.
     const reservation = await pgSetReservationPayment(reservationId, true, {
-      prepaymentTxId: `BANK-${Date.now()}`,
-      paidAmount: Number(order.base_fee ?? 50000) >= 100000 ? 100000 : 50000
+      prepaymentTxId: `BANK-${Date.now()}`
     });
     if (!reservation) {
       return NextResponse.json({ message: "예약을 찾지 못했습니다." }, { status: 404 });
