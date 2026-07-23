@@ -5,10 +5,12 @@ import type { AdminOrderRow } from "@/lib/orders-pg";
 import { finalPaymentStatusKo } from "@/lib/admin-customer-care-display";
 
 type ApartmentRow = { id: string; name: string };
+type JobProfitability = { reservationId: string; revenue: number; expenses: number; profit: number };
 
 type Props = {
   initialOrders: AdminOrderRow[];
   apartments: ApartmentRow[];
+  profitByReservation?: Record<string, JobProfitability>;
 };
 
 /**
@@ -18,7 +20,7 @@ type Props = {
  * 낼 때(Toss) 자동으로 호출되는 것과 같은 경로 — 계좌이체/현장 현금 등 오프라인으로 받은
  * 경우에 관리자가 수동으로 같은 처리를 트리거하는 용도.
  */
-export default function AdminBillingApprovalPanel({ initialOrders, apartments }: Props) {
+export default function AdminBillingApprovalPanel({ initialOrders, apartments, profitByReservation = {} }: Props) {
   const [orders, setOrders] = useState(initialOrders);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -83,6 +85,7 @@ export default function AdminBillingApprovalPanel({ initialOrders, apartments }:
               <th className="px-3 py-2">정산 총액</th>
               <th className="px-3 py-2">추가로 받을 금액</th>
               <th className="px-3 py-2">정산상태</th>
+              <th className="px-3 py-2">작업 손익</th>
               <th className="px-3 py-2">승인</th>
             </tr>
           </thead>
@@ -92,6 +95,7 @@ export default function AdminBillingApprovalPanel({ initialOrders, apartments }:
               const info = order.resident_info ?? {};
               const finalFee = order.total_final_fee ?? order.base_fee ?? 0;
               const status = String(order.final_payment_status ?? "").toUpperCase();
+              const profit = order.reservation_id ? profitByReservation[order.reservation_id] : undefined;
               return (
                 <tr key={order.id} className="border-t border-slate-200 dark:border-slate-700">
                   <td className="px-3 py-2">{apt?.name ?? "미지정"}</td>
@@ -104,6 +108,18 @@ export default function AdminBillingApprovalPanel({ initialOrders, apartments }:
                     {order.additional_due_amount.toLocaleString("ko-KR")}원
                   </td>
                   <td className="px-3 py-2">{finalPaymentStatusKo(order.final_payment_status)}</td>
+                  <td className="px-3 py-2">
+                    {profit ? (
+                      <span
+                        className={`font-semibold ${profit.profit >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600"}`}
+                        title={`매출 ${profit.revenue.toLocaleString("ko-KR")}원 - 연결된 경비 ${profit.expenses.toLocaleString("ko-KR")}원 (이 예약에 연결된 경비만 반영됨)`}
+                      >
+                        {profit.profit.toLocaleString("ko-KR")}원
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     {status === "REQUESTED" ? (
                       <button

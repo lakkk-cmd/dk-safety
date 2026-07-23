@@ -1,5 +1,6 @@
 import { pgReadReservations } from "@/lib/reservations-pg";
 import { getSupabaseAdmin } from "@/lib/supabase-pg";
+import { getReceivables } from "@/lib/financial-ledger";
 
 export type WorkerRow = {
   id: string;
@@ -52,6 +53,7 @@ export type Expense = {
   expense_date: string;
   payment_method: string;
   reservation_id: string | null;
+  vendor_id: string | null;
   created_at: string;
 };
 
@@ -330,6 +332,10 @@ export async function settleWorkerAssignment(input: {
 }
 
 // ── Dashboard Stats ───────────────────────────────────────────────────────────
+// 2026-07-23: 이 함수는 원래 invoices(견적/영수증) 테이블 기준으로 매출을 집계했으나,
+// invoices는 실제 결제 파이프라인(orders)과 분리된 수기 발행 문서일 뿐이라 프로덕션에
+// 0건 상태로 남아 있었고 그 결과 "총 매출"이 계속 0원으로 표시되어 왔다. 실제 자금 흐름을
+// 자동 기록하는 financial_ledger(migration 085)로 소스를 교체해 이 연동 문제를 고친다.
 
 export type DashboardStats = {
   revenue: number;
@@ -337,7 +343,7 @@ export type DashboardStats = {
   profit: number;
   jobCount: number;
   monthly: { month: string; revenue: number; expenses: number }[];
-  unpaidInvoices: Invoice[];
+  receivablesTotal: number;
 };
 
 export async function getDashboardStats(months: number = 6): Promise<DashboardStats> {
@@ -347,28 +353,24 @@ export async function getDashboardStats(months: number = 6): Promise<DashboardSt
   from.setDate(1);
   const fromStr = from.toISOString().slice(0, 10);
 
-  const [invoicesRes, expensesRes, reservationsRes] = await Promise.all([
-    client.from("invoices").select("total, status, issued_at").gte("issued_at", fromStr),
-    client.from("expenses").select("amount, expense_date").gte("expense_date", fromStr),
+  const [ledgerRes, reservationsRes, receivables] = await Promise.all([
+    client.from("financial_ledger").select("amount, entry_date").gte("entry_date", fromStr),
     client.from("reservations").select("id, preferred_date").gte("preferred_date", fromStr),
+    getReceivables()
   ]);
 
-  const invoices = (invoicesRes.data ?? []) as { total: number; status: string; issued_at: string }[];
-  const exps = (expensesRes.data ?? []) as { amount: number; expense_date: string }[];
+  const ledgerRows = (ledgerRes.data ?? []) as { amount: number; entry_date: string }[];
   const jobs = (reservationsRes.data ?? []) as { id: string; preferred_date: string }[];
 
-  const revenue = invoices.filter((i) => i.status === "paid").reduce((s, i) => s + i.total, 0);
-  const expenses = exps.reduce((s, e) => s + e.amount, 0);
+  const revenue = ledgerRows.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0);
+  const expenses = ledgerRows.filter((r) => r.amount < 0).reduce((s, r) => s - r.amount, 0);
 
   const revMap = new Map<string, number>();
   const expMap = new Map<string, number>();
-  for (const i of invoices.filter((i) => i.status === "paid")) {
-    const m = i.issued_at.slice(0, 7);
-    revMap.set(m, (revMap.get(m) ?? 0) + i.total);
-  }
-  for (const e of exps) {
-    const m = e.expense_date.slice(0, 7);
-    expMap.set(m, (expMap.get(m) ?? 0) + e.amount);
+  for (const r of ledgerRows) {
+    const m = r.entry_date.slice(0, 7);
+    if (r.amount > 0) revMap.set(m, (revMap.get(m) ?? 0) + r.amount);
+    else expMap.set(m, (expMap.get(m) ?? 0) + -r.amount);
   }
 
   // Build last N months
@@ -380,19 +382,12 @@ export async function getDashboardStats(months: number = 6): Promise<DashboardSt
     months6.push({ month: m, revenue: revMap.get(m) ?? 0, expenses: expMap.get(m) ?? 0 });
   }
 
-  const { data: unpaid } = await client
-    .from("invoices")
-    .select("*")
-    .in("status", ["draft", "sent"])
-    .order("due_at", { ascending: true })
-    .limit(10);
-
   return {
     revenue,
     expenses,
     profit: revenue - expenses,
     jobCount: jobs.length,
     monthly: months6,
-    unpaidInvoices: (unpaid ?? []) as Invoice[],
+    receivablesTotal: receivables.reduce((s, r) => s + r.amountDue, 0)
   };
 }

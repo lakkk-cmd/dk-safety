@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
       expense_date: body.expense_date,
       payment_method: body.payment_method ?? "카드",
       reservation_id: body.reservation_id ?? null,
+      vendor_id: body.vendor_id ?? null,
     });
     return NextResponse.json({ expense });
   } catch (e) {

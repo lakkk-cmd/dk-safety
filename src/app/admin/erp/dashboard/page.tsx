@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { DashboardStats, Invoice } from "@/lib/erp-db";
+import type { DashboardStats } from "@/lib/erp-db";
 
 function formatKRW(n: number) {
   if (Math.abs(n) >= 100_000_000) return (n / 100_000_000).toFixed(1) + "억원";
@@ -11,12 +11,6 @@ function formatKRW(n: number) {
 }
 
 function formatKRWFull(n: number) { return n.toLocaleString("ko-KR") + "원"; }
-
-const STATUS_LABEL: Record<string, string> = { draft: "초안", sent: "발송" };
-const STATUS_COLOR: Record<string, string> = {
-  draft: "bg-slate-100 text-slate-600",
-  sent: "bg-blue-100 text-blue-700",
-};
 
 export default function ErpDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -89,64 +83,24 @@ export default function ErpDashboardPage() {
         </div>
       </div>
 
-      {/* 미수금 목록 */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="border-b border-slate-200 px-5 py-4">
+      {/* 미수금 요약 */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between">
           <h2 className="font-bold text-slate-900">
-            ⚠️ 미수금 목록
-            {stats.unpaidInvoices.length > 0 && (
+            ⚠️ 미수금
+            {stats.receivablesTotal > 0 && (
               <span className="ml-2 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">
-                {stats.unpaidInvoices.length}건
+                {formatKRW(stats.receivablesTotal)}
               </span>
             )}
           </h2>
+          <Link href="/admin/erp/receivables" className="text-xs font-bold text-blue-600 hover:underline">전체보기 →</Link>
         </div>
-        {stats.unpaidInvoices.length === 0 ? (
-          <p className="py-8 text-center text-slate-400">미수금이 없습니다 ✅</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 text-left">
-                  <th className="px-4 py-3 font-semibold text-slate-600">번호</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">고객</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">상태</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600 text-right">금액</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">납부기한</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.unpaidInvoices.map((inv: Invoice) => {
-                  const overdue = inv.due_at && new Date(inv.due_at) < new Date();
-                  return (
-                    <tr key={inv.id} className={`border-t border-slate-100 ${overdue ? "bg-red-50/50" : "hover:bg-slate-50"}`}>
-                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{inv.invoice_number}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-900">{inv.customer_name}</td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_COLOR[inv.status]}`}>
-                          {STATUS_LABEL[inv.status]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-900">{formatKRWFull(inv.total)}</td>
-                      <td className="px-4 py-3 text-xs">
-                        {inv.due_at ? (
-                          <span className={overdue ? "font-bold text-red-600" : "text-slate-600"}>
-                            {new Date(inv.due_at).toLocaleDateString("ko-KR")}
-                            {overdue && " ⚠️"}
-                          </span>
-                        ) : "-"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link href="/admin/erp/invoices" className="text-xs font-bold text-blue-600 hover:underline">관리 →</Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <p className="mt-1 text-sm text-slate-600">
+          {stats.receivablesTotal === 0
+            ? "현장 정산 요청 후 입금 확인이 안 된 건이 없습니다 ✅"
+            : `현장 정산 요청은 됐지만 아직 입금 확인이 안 된 금액 ${formatKRWFull(stats.receivablesTotal)}이 있습니다.`}
+        </p>
       </div>
     </main>
   );

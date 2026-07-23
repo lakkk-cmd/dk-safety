@@ -2,10 +2,12 @@ import type { LucideIcon } from "lucide-react";
 import {
   Archive,
   BookOpen,
+  BookOpenCheck,
   Bot,
   Building2,
   CalendarDays,
   ChartColumn,
+  CircleDollarSign,
   ClipboardCheck,
   Cog,
   CreditCard,
@@ -17,11 +19,14 @@ import {
   ListOrdered,
   MessageSquare,
   PieChart,
+  PiggyBank,
   Printer,
+  Scale,
   ShieldAlert,
   ShieldUser,
   Table2,
   TrendingUp,
+  Truck,
   UserCircle,
   UserCog,
   Users,
@@ -236,6 +241,41 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "경영대시보드",
     description: "매출·지출·수익 6개월 추세·미수금",
     icon: PieChart,
+    moduleGroup: "core"
+  },
+  {
+    href: "/admin/erp/ledger",
+    label: "총계정원장",
+    description: "예약금·정산·경비·환불이 자동 기장되는 원장, 수기 전표 입력",
+    icon: BookOpenCheck,
+    moduleGroup: "core"
+  },
+  {
+    href: "/admin/erp/income-statement",
+    label: "손익계산서",
+    description: "매출액-매출원가-판매관리비 = 영업이익 (기간별)",
+    icon: Scale,
+    moduleGroup: "core"
+  },
+  {
+    href: "/admin/erp/receivables",
+    label: "미수금 관리",
+    description: "현장 정산 요청 후 입금 미확인 건, 경과일수",
+    icon: CircleDollarSign,
+    moduleGroup: "core"
+  },
+  {
+    href: "/admin/erp/vendors",
+    label: "매입/거래처 관리",
+    description: "자재상·장비업체 거래처 등록, 거래처별 누적 매입액",
+    icon: Truck,
+    moduleGroup: "core"
+  },
+  {
+    href: "/admin/erp/budget",
+    label: "예산관리",
+    description: "카테고리별 월 예산 대비 실제 지출 진행률",
+    icon: PiggyBank,
     moduleGroup: "core"
   },
   // ── 설정 (고객도 돈도 아닌 시스템/콘텐츠 관리) ────────────────────────────

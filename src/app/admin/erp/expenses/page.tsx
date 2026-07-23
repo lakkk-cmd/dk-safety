@@ -2,9 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import type { Expense, CategoryStat } from "@/lib/erp-db";
+import type { Vendor } from "@/lib/financial-ledger";
 
 const CATEGORIES = ["재료비", "공구/장비", "교통비", "통신비", "광고비", "인건비", "기타"] as const;
 const PAY_METHODS = ["카드", "현금", "계좌이체"] as const;
+
+type ReservationOption = { id: string; name: string; address: string; preferredDate: string };
 
 function thisMonth() {
   const now = new Date();
@@ -28,8 +31,23 @@ export default function ErpExpensesPage() {
   const [description, setDescription] = useState("");
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().slice(0, 10));
   const [payMethod, setPayMethod] = useState<typeof PAY_METHODS[number]>("카드");
+  const [reservationId, setReservationId] = useState("");
+  const [vendorId, setVendorId] = useState("");
+  const [reservationOptions, setReservationOptions] = useState<ReservationOption[]>([]);
+  const [vendorOptions, setVendorOptions] = useState<Vendor[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/reservations-data", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((json: { reservations?: ReservationOption[] }) => setReservationOptions((json.reservations ?? []).slice(0, 100)))
+      .catch(() => undefined);
+    fetch("/api/admin/erp/vendors", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((json: { vendors?: Vendor[] }) => setVendorOptions((json.vendors ?? []).filter((v) => v.active)))
+      .catch(() => undefined);
+  }, []);
 
   const load = useCallback(async (m: string) => {
     setLoading(true);
@@ -61,10 +79,19 @@ export default function ErpExpensesPage() {
       const res = await fetch("/api/admin/erp/expenses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, subcategory: subcategory || null, amount: Number(amount), description: description || null, expense_date: expenseDate, payment_method: payMethod }),
+        body: JSON.stringify({
+          category,
+          subcategory: subcategory || null,
+          amount: Number(amount),
+          description: description || null,
+          expense_date: expenseDate,
+          payment_method: payMethod,
+          reservation_id: reservationId || null,
+          vendor_id: vendorId || null
+        }),
       });
       if (!res.ok) throw new Error(await res.text());
-      setAmount(""); setSubcategory(""); setDescription("");
+      setAmount(""); setSubcategory(""); setDescription(""); setReservationId(""); setVendorId("");
       setSubmitMsg("✅ 경비가 등록되었습니다.");
       void load(month);
     } catch (err) {
@@ -120,6 +147,27 @@ export default function ErpExpensesPage() {
               <label className="mb-1 block text-xs font-semibold text-slate-600">설명</label>
               <input value={description} onChange={(e) => setDescription(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">관련 예약 (선택)</label>
+              <select value={reservationId} onChange={(e) => setReservationId(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">연결 안 함</option>
+                {reservationOptions.map((r) => (
+                  <option key={r.id} value={r.id}>{r.preferredDate} · {r.name} · {r.address}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-400">특정 작업의 재료비를 이 예약에 연결하면 작업별 손익에 반영됩니다.</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">거래처 (선택)</label>
+              <select value={vendorId} onChange={(e) => setVendorId(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">연결 안 함</option>
+                {vendorOptions.map((v) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
             </div>
             {submitMsg && <p className={`text-xs font-semibold ${submitMsg.startsWith("오류") ? "text-red-600" : "text-green-600"}`}>{submitMsg}</p>}
             <button type="submit" disabled={submitting}
