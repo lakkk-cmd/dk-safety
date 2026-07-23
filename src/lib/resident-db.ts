@@ -24,6 +24,8 @@ export type Apartment = {
   name: string;
   address?: string;
   addressType?: "road" | "jibun";
+  /** 실제 Postgres `apartments.apt_code`와의 연결고리. 매칭되면 이후 로그인/자가진단은 이름이 아닌 이 코드로 식별해 중복 생성을 막는다. */
+  code?: string;
   city: string;
   yearsOld: number;
   createdAt: string;
@@ -334,6 +336,68 @@ export async function addApartment(name: string, address?: string, addressType?:
   return next;
 }
 
+/**
+ * apt_code로 실제 Postgres `apartments` 테이블과 연결한다. 이름이 조금씩 다르게 입력되어도
+ * (오타/공백/구분자 표기 차이) 같은 단지가 계속 새로 생성되던 문제의 구조적 해결책 —
+ * 코드가 있으면 이름 대신 코드로만 동일 단지를 식별한다. db는 in-place로 변경되므로
+ * 호출자가 이후 writeDb(db)를 책임진다.
+ */
+async function resolveApartmentByCode(db: ResidentDb, code: string): Promise<Apartment | null> {
+  const normalized = code.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const existing = db.apartments.find((item) => item.code === normalized);
+  if (existing) return existing;
+
+  try {
+    const { pgFindApartmentByCode } = await import("@/lib/apartments-pg");
+    const real = await pgFindApartmentByCode(normalized);
+    if (!real) return null;
+
+    const byName = db.apartments.find((item) => item.name === real.name);
+    if (byName) {
+      byName.code = normalized;
+      return byName;
+    }
+
+    const created: Apartment = {
+      id: `apt-${crypto.randomUUID()}`,
+      name: real.name,
+      code: normalized,
+      city: "광주",
+      yearsOld: 0,
+      createdAt: new Date().toISOString()
+    };
+    db.apartments.push(created);
+    db.activities.unshift({
+      id: `act-${crypto.randomUUID()}`,
+      userId: "system",
+      action: "apartment_added",
+      message: `apt_code(${normalized}) 매칭으로 단지 연결: ${created.name}`,
+      createdAt: new Date().toISOString()
+    });
+    db.activities = db.activities.slice(0, 1000);
+    return created;
+  } catch (error) {
+    console.error("[resident-db] resolveApartmentByCode:", error);
+    return null;
+  }
+}
+
+/**
+ * 익명(비로그인) 자가진단 제출 시 `?tenant=` 코드로 실제 단지를 알아내기 위한 공개 헬퍼.
+ * 세션이 없는 요청 경로에서 db를 새로 읽고 필요 시 새 단지를 저장한다.
+ */
+export async function resolveApartmentInfoByCode(code: string): Promise<{ id: string; name: string; code: string } | null> {
+  const trimmed = code.trim();
+  if (!trimmed) return null;
+  const db = await readDb();
+  const apartment = await resolveApartmentByCode(db, trimmed);
+  if (!apartment) return null;
+  await writeDb(db);
+  return { id: apartment.id, name: apartment.name, code: apartment.code ?? trimmed.toLowerCase() };
+}
+
 export async function createResidentSession(payload: {
   name: string;
   phone: string;
@@ -343,7 +407,12 @@ export async function createResidentSession(payload: {
   unitNumber: string;
 }) {
   const db = await readDb();
-  let apartment =
+  let apartment: Apartment | null = payload.apartmentCode?.trim()
+    ? await resolveApartmentByCode(db, payload.apartmentCode)
+    : null;
+
+  apartment =
+    apartment ??
     (payload.apartmentId ? db.apartments.find((item) => item.id === payload.apartmentId) : null) ??
     (payload.apartmentName ? db.apartments.find((item) => item.name === payload.apartmentName) : null) ??
     null;
@@ -503,25 +572,37 @@ export async function listDiagnosesByUser(userId: string, limit = 20) {
   return db.diagnoses.filter((item) => item.userId === userId).slice(0, limit);
 }
 
+/** 비로그인(게스트) 자가진단 제출자 — id가 saveDiagnosis의 fallbackUser 패턴(`guest-<uuid>`)을 따른다. */
+function isGuestUserId(userId: string): boolean {
+  return userId.startsWith("guest-");
+}
+
 export async function getResidentSafetyAnalytics() {
   const db = await readDb();
   const usersById = new Map(db.users.map((user) => [user.id, user]));
+  const realUsers = db.users.filter((user) => !isGuestUserId(user.id));
+  const realDiagnoses = db.diagnoses.filter((item) => !isGuestUserId(item.userId));
+  const guestDiagnoses = db.diagnoses.filter((item) => isGuestUserId(item.userId));
 
-  const riskSummary = {
-    high: db.diagnoses.filter((item) => diagnosisRiskScoreOn100(item) >= DIAGNOSIS_HIGH_RISK_MIN).length,
-    caution: db.diagnoses.filter(
+  const summarize = (items: DiagnosisRecord[]) => ({
+    high: items.filter((item) => diagnosisRiskScoreOn100(item) >= DIAGNOSIS_HIGH_RISK_MIN).length,
+    caution: items.filter(
       (item) =>
         diagnosisRiskScoreOn100(item) >= DIAGNOSIS_CAUTION_MIN &&
         diagnosisRiskScoreOn100(item) < DIAGNOSIS_HIGH_RISK_MIN
     ).length,
-    normal: db.diagnoses.filter((item) => diagnosisRiskScoreOn100(item) < DIAGNOSIS_CAUTION_MIN).length
-  };
+    normal: items.filter((item) => diagnosisRiskScoreOn100(item) < DIAGNOSIS_CAUTION_MIN).length
+  });
+
+  // 입주민 통계(riskSummary)는 실명 입주민 응답만 반영한다 — 비로그인 제출은 별도 guestSummary로 분리.
+  const riskSummary = summarize(realDiagnoses);
+  const guestSummary = { count: guestDiagnoses.length, ...summarize(guestDiagnoses) };
 
   const apartmentStats = db.apartments
     .map((apartment) => {
-      const residents = db.users.filter((user) => user.apartmentId === apartment.id);
+      const residents = realUsers.filter((user) => user.apartmentId === apartment.id);
       const residentIds = new Set(residents.map((user) => user.id));
-      const diagnoses = db.diagnoses.filter((diag) => residentIds.has(diag.userId));
+      const diagnoses = realDiagnoses.filter((diag) => residentIds.has(diag.userId));
       const avgScore = diagnoses.length
         ? Math.round(
             (diagnoses.reduce((sum, diag) => sum + diagnosisRiskScoreOn100(diag), 0) / diagnoses.length) * 10
@@ -539,7 +620,7 @@ export async function getResidentSafetyAnalytics() {
     })
     .sort((a, b) => b.avgScore - a.avgScore);
 
-  const highRiskCases = db.diagnoses
+  const highRiskCases = realDiagnoses
     .filter((diag) => diagnosisRiskScoreOn100(diag) >= DIAGNOSIS_HIGH_RISK_MIN)
     .map((diag) => {
       const user = usersById.get(diag.userId);
@@ -557,7 +638,7 @@ export async function getResidentSafetyAnalytics() {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 100);
 
-  const recentLogins = [...db.users]
+  const recentLogins = [...realUsers]
     .sort((a, b) => b.lastLoginAt.localeCompare(a.lastLoginAt))
     .slice(0, 12)
     .map((user) => ({
@@ -572,10 +653,11 @@ export async function getResidentSafetyAnalytics() {
   return {
     totals: {
       apartmentCount: db.apartments.length,
-      residentCount: db.users.length,
-      diagnosisCount: db.diagnoses.length
+      residentCount: realUsers.length,
+      diagnosisCount: realDiagnoses.length
     },
     riskSummary,
+    guestSummary,
     apartmentStats,
     highRiskCases,
     recentLogins

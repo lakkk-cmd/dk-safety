@@ -105,10 +105,11 @@ export default function SafetyDiagnosisForm() {
         questionId: idx + 1,
         answer: answers[idx + 1]
       }));
+      const tenant = searchParams.get("tenant")?.trim();
       const response = await fetch("/api/resident/diagnosis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers: payload })
+        body: JSON.stringify({ answers: payload, tenant: tenant || undefined })
       });
       const data = (await response.json()) as {
         message: string;
@@ -118,7 +119,6 @@ export default function SafetyDiagnosisForm() {
         throw new Error(data.message || "저장 실패");
       }
       if (data.result) {
-        const tenant = searchParams.get("tenant")?.trim();
         const resultHref = tenant ? `/resident/safety-check/result?tenant=${encodeURIComponent(tenant)}` : "/resident/safety-check/result";
         window.sessionStorage.setItem(
           resultStorageKey,

@@ -7,6 +7,7 @@ import { BoltIcon, ShieldIcon } from "@/components/ui/icons";
 type Analytics = {
   totals: { apartmentCount: number; residentCount: number; diagnosisCount: number };
   riskSummary: { high: number; caution: number; normal: number };
+  guestSummary: { count: number; high: number; caution: number; normal: number };
   apartmentStats: Array<{
     apartmentId: string;
     apartmentName: string;
@@ -98,8 +99,33 @@ export default function ResidentSafetyDashboard() {
         </div>
       </div>
       <p className="text-xs text-slate-500">
-        위험지수는 자가진단 응답을 100점 만점으로 환산한 값입니다. 고위험 ≥73점, 주의 ≥40점 기준입니다.
+        위험지수는 자가진단 응답을 100점 만점으로 환산한 값입니다. 고위험 ≥73점, 주의 ≥40점 기준입니다. 위 통계는
+        로그인 후 응답한 실명 입주민만 집계합니다.
       </p>
+
+      {analytics.guestSummary.count > 0 ? (
+        <div className="surface-card rounded-2xl p-4">
+          <p className="text-sm font-bold text-slate-800">비로그인(익명) 자가진단</p>
+          <p className="mt-1 text-xs text-slate-500">
+            로그인 없이 제출된 응답이라 이름/연락처로 연락할 수 없어 위 입주민 통계와 분리했습니다. QR/링크에 단지
+            코드가 있었다면 단지명이 함께 표시됩니다.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2 text-sm">
+            <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-700">
+              총 {analytics.guestSummary.count}건
+            </span>
+            <span className="rounded-full bg-rose-100 px-3 py-1 font-semibold text-rose-700">
+              고위험 {analytics.guestSummary.high}
+            </span>
+            <span className="rounded-full bg-amber-100 px-3 py-1 font-semibold text-amber-700">
+              주의 {analytics.guestSummary.caution}
+            </span>
+            <span className="rounded-full bg-emerald-100 px-3 py-1 font-semibold text-emerald-700">
+              양호 {analytics.guestSummary.normal}
+            </span>
+          </div>
+        </div>
+      ) : null}
 
       <div className="surface-card rounded-2xl p-5">
         <h2 className="text-xl font-bold">단지별 위험도 현황</h2>
