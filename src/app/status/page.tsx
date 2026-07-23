@@ -17,6 +17,8 @@ function buildTimeline(item: Item): TimelineRow[] {
   const fieldReport = item.fieldReport;
   const reportInProgress = fieldReport && fieldReport.status !== "completed";
   const reportDone = fieldReport?.status === "completed";
+  const settlementRequested = item.reservation.orderFinalPaymentStatus === "REQUESTED";
+  const settlementDone = item.reservation.orderFinalPaymentStatus === "PAID";
 
   return [
     { icon: "✅", label: "예약 완료", done: true, active: step === 0 },
@@ -28,6 +30,12 @@ function buildTimeline(item: Item): TimelineRow[] {
       active: step === 2
     },
     { icon: step >= 3 ? "✅" : "⏳", label: "점검 진행 중", done: step >= 3, active: step === 3 },
+    {
+      icon: settlementDone ? "✅" : settlementRequested ? "🔄" : "⏳",
+      label: "정산 확정",
+      done: settlementDone,
+      active: settlementRequested
+    },
     { icon: reportDone ? "✅" : reportInProgress ? "🔄" : "⏳", label: "리포트 생성 중", done: Boolean(fieldReport), active: Boolean(reportInProgress) },
     { icon: reportDone ? "✅" : "⏳", label: "발송 완료", done: Boolean(reportDone), active: false }
   ];
