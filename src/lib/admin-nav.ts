@@ -166,8 +166,8 @@ export const adminSidebarNavItems: AdminNavItem[] = [
   // 같은 workers 테이블을 두 화면에서 따로 관리하다 PIN 미발급 상태로 등록되는 문제가 있었음.
   {
     href: "/admin/finance",
-    label: "금융/가상계좌 관리",
-    description: "입금·가상계좌 모니터링",
+    label: "금융/계좌 관리",
+    description: "입금·계좌 모니터링",
     icon: CreditCard,
     sectionLabel: "ERP",
     moduleGroup: "core"
@@ -355,8 +355,8 @@ export const adminWorkflowSteps: AdminWorkflowStep[] = [
   {
     step: 4,
     href: "/admin/finance",
-    label: "금융/가상계좌 관리",
-    flowRole: "가상계좌·실입금을 확인해 결제를 확정합니다.",
+    label: "금융/계좌 관리",
+    flowRole: "계좌 입금을 확인해 결제를 확정합니다.",
     icon: CreditCard
   },
   {

@@ -199,7 +199,7 @@ export default function AdminFinancePanel({ initialOrders, apartments }: Props) 
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
-            <Building2 className="h-5 w-5" /> 가상계좌 입금 현황
+            <Building2 className="h-5 w-5" /> 계좌 입금 현황
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -209,7 +209,8 @@ export default function AdminFinancePanel({ initialOrders, apartments }: Props) 
                 <tr>
                   <th className="px-3 py-2">단지명</th>
                   <th className="px-3 py-2">동/호수</th>
-                  <th className="px-3 py-2">발급 가상계좌</th>
+                  <th className="px-3 py-2">고객명</th>
+                  <th className="px-3 py-2">입금 계좌</th>
                   <th className="px-3 py-2">입금액</th>
                   <th className="px-3 py-2">상태</th>
                   <th className="px-3 py-2">마감시각</th>
@@ -219,7 +220,7 @@ export default function AdminFinancePanel({ initialOrders, apartments }: Props) 
               <tbody>
                 {depositRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-slate-400">
+                    <td colSpan={8} className="px-3 py-6 text-center text-slate-400">
                       해당하는 건이 없습니다.
                     </td>
                   </tr>
@@ -234,6 +235,7 @@ export default function AdminFinancePanel({ initialOrders, apartments }: Props) 
                         <td className="px-3 py-2">
                           {info.dong ?? "-"}-{info.ho ?? "-"}
                         </td>
+                        <td className="px-3 py-2">{info.name ?? "-"}</td>
                         <td className="px-3 py-2 font-mono text-blue-600 dark:text-blue-400">
                           {order.virtual_account_bank ?? "-"} {maskAccount(order.virtual_account_number)}
                         </td>

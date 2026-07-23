@@ -232,7 +232,7 @@ export async function pgListOrdersForAdmin(): Promise<AdminOrderRow[]> {
   }));
 }
 
-/** 관리자가 계좌이체 등 수동환불을 실제로 보낸 뒤 완료 처리 — 금융/가상계좌 관리 화면 전용 */
+/** 관리자가 계좌이체 등 수동환불을 실제로 보낸 뒤 완료 처리 — 금융/계좌 관리 화면 전용 */
 export async function pgMarkManualRefundCompleted(orderId: string): Promise<void> {
   const supabase = requireSupabaseAdmin();
   const { error } = await supabase

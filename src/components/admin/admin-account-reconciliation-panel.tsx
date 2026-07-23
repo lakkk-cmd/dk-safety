@@ -172,7 +172,7 @@ export default function AdminAccountReconciliationPanel() {
           <CardTitle className="text-lg">장부 ↔ 실제 계좌잔액 대사</CardTitle>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             은행 API 연동이 없어 실시간 조회는 안 되지만, 실제 통장 잔액을 주기적으로 입력해두면 그 시점 이후 시스템에 기록된
-            입출금(가상계좌 입금·환불·경비)과 수기 기록을 합산해 &quot;지금쯤 이 정도여야 한다&quot;는 예상 잔액을 계산해 비교할 수 있습니다.
+            입출금(계좌 입금·환불·경비)과 수기 기록을 합산해 &quot;지금쯤 이 정도여야 한다&quot;는 예상 잔액을 계산해 비교할 수 있습니다.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -243,7 +243,7 @@ export default function AdminAccountReconciliationPanel() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">계좌 수기 입출금 기록</CardTitle>
-          <p className="text-xs text-slate-500 dark:text-slate-400">가상계좌 입금·환불·경비 외에 은행수수료·이자 등 시스템에 자동으로 안 잡히는 항목을 직접 기록합니다.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">계좌 입금·환불·경비 외에 은행수수료·이자 등 시스템에 자동으로 안 잡히는 항목을 직접 기록합니다.</p>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={submitEntry} className="flex flex-wrap items-end gap-2">

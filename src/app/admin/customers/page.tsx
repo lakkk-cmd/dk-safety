@@ -80,7 +80,7 @@ export default async function AdminCustomersPage({ searchParams }: PageProps) {
             예약/정산
           </Link>
           <Link href="/admin/finance" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-950 dark:hover:bg-slate-800">
-            금융·가상계좌
+            금융·계좌
           </Link>
           <Link href="/admin/dispatch" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-950 dark:hover:bg-slate-800">
             배정 관제

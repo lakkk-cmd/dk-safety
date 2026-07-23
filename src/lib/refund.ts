@@ -137,7 +137,7 @@ export async function pgCancelReservationAndRefund(
         cancel_reason: params.reason,
         refund_amount: refundAmount,
         // 수동환불 필요 금액을 여기서도 기록해둬야, 취소 순간의 토스트 메시지를 놓쳐도
-        // 나중에 금융/가상계좌 관리 화면에서 "아직 환불 안 보낸 건" 목록으로 추적할 수 있다
+        // 나중에 금융/계좌 관리 화면에서 "아직 환불 안 보낸 건" 목록으로 추적할 수 있다
         // (2026-07-23 발견 — 예전엔 이 순간 안내만 하고 어디에도 남기지 않았다).
         manual_refund_amount: manualBankRefundNeeded ? manualRefundAmount : null,
         updated_at: nowIso,

@@ -363,7 +363,7 @@ export default function AdminHomeMonitorDashboard() {
               <CardTitle className="text-lg">3. 입금·정산 현황</CardTitle>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <Link href="/admin/finance" className="text-xs font-bold text-dk-navy underline-offset-2 hover:underline">
-                  금융/가상계좌 →
+                  금융/계좌 →
                 </Link>
                 <Link href="/admin/billing" className="text-xs font-bold text-slate-600 underline-offset-2 hover:underline">
                   현장 정산 →
