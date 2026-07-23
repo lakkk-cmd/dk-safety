@@ -197,12 +197,15 @@ export type SettlementNotification = {
   verifyUrl: string;
 };
 
+// 2026-07-23: 대표님 지시로 정산 확정 SMS에서 보증서 관련 문구(발급 안내/확인 링크)를
+// 전부 제거 — 보증서 발송 자체를 당분간 보류하기로 한 것과 별개로, 문자 내용 자체에도
+// 보증서를 언급하지 않는다. 재개 시에도 이 문구를 그대로 쓰면 된다.
 function buildSettlementMessage(input: SettlementNotification): string {
   const apartmentText = input.apartmentName?.trim() ? `${input.apartmentName} ` : "";
   return [
-    `${input.name} 고객님, ${apartmentText}현장 작업 정산이 확정되어 디지털 보증서가 발급되었습니다.`,
+    `${input.name} 고객님, ${apartmentText}현장 작업 정산이 확정되었습니다.`,
     `최종 정산 금액: ${input.finalAmount.toLocaleString("ko-KR")}원`,
-    `보증서 확인: ${input.verifyUrl}`,
+    `진행상황 확인: ${buildStatusUrl()}`,
     "이용해 주셔서 감사합니다.",
   ].join("\n");
 }
@@ -223,7 +226,17 @@ async function sendSolapiSms(phone: string, message: string): Promise<boolean> {
   return true;
 }
 
+// 2026-07-23: 대표님 지시로 "정산 후 보증서 발송"을 당분간 보류. 정산 확정(결제 확인,
+// warranty_issued_at 반영 등)은 그대로 진행하되, 고객에게 나가는 알림만 막는다.
+// 재개하려면 이 상수를 false로 되돌리면 된다 — 명시적인 재개 요청 없이 임의로 되돌리지 말 것.
+const SETTLEMENT_NOTIFICATION_PAUSED = true;
+
 export async function notifySettlementApproved(input: SettlementNotification): Promise<string[]> {
+  if (SETTLEMENT_NOTIFICATION_PAUSED) {
+    console.log(`[customer-notification] 정산 확정 알림 보류 중(대표님 지시) — 예약 ${input.reservationId} 발송 건너뜀`);
+    return [];
+  }
+
   const message = buildSettlementMessage(input);
   const sentChannels: string[] = [];
 
