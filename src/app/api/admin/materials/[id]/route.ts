@@ -39,6 +39,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
     patch.unit_price = Math.round(unitPrice);
   }
+  if (body.cost_price !== undefined) {
+    if (body.cost_price === null || body.cost_price === "") {
+      patch.cost_price = null;
+    } else {
+      const costPrice = Number(body.cost_price);
+      if (!Number.isFinite(costPrice) || costPrice < 0) {
+        return NextResponse.json({ message: "원가는 0 이상의 숫자여야 합니다." }, { status: 400 });
+      }
+      patch.cost_price = Math.round(costPrice);
+    }
+  }
   if (body.display_order !== undefined) {
     const n = Number(body.display_order);
     if (!Number.isFinite(n)) {
@@ -60,7 +71,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       .from("material_catalog")
       .update(patch)
       .eq("id", materialId)
-      .select("id, name, unit_price, active, display_order, created_at, updated_at")
+      .select("id, name, unit_price, cost_price, active, display_order, created_at, updated_at")
       .maybeSingle();
     if (error) {
       return NextResponse.json({ message: error.message }, { status: 500 });

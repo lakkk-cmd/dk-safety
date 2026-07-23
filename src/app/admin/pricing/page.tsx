@@ -28,7 +28,7 @@ export default async function AdminPricingPage({ searchParams }: PageProps) {
     ? await Promise.all([
         requireSupabaseAdmin()
           .from("material_catalog")
-          .select("id, name, unit_price, active, display_order")
+          .select("id, name, unit_price, cost_price, active, display_order")
           .order("display_order", { ascending: true }),
         requireSupabaseAdmin()
           .from("labor_tier_catalog")

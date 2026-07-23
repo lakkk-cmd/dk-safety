@@ -6,6 +6,7 @@ type Material = {
   id: string;
   name: string;
   unit_price: number;
+  cost_price: number | null;
   active: boolean;
   display_order: number;
 };
@@ -14,10 +15,19 @@ type Props = {
   initialMaterials: Material[];
 };
 
+/** 원가가 없으면(모르면) 마진을 계산하지 않고 "-"로 표시한다. */
+function computeMargin(unitPrice: number, costPrice: number | null): { amount: number; rate: number } | null {
+  if (costPrice == null) return null;
+  const amount = unitPrice - costPrice;
+  const rate = unitPrice > 0 ? (amount / unitPrice) * 100 : 0;
+  return { amount, rate };
+}
+
 function EditRow({ material, onUpdated }: { material: Material; onUpdated: (m: Material) => void }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(material.name);
   const [unitPrice, setUnitPrice] = useState(String(material.unit_price));
+  const [costPrice, setCostPrice] = useState(material.cost_price != null ? String(material.cost_price) : "");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -28,7 +38,11 @@ function EditRow({ material, onUpdated }: { material: Material; onUpdated: (m: M
       const response = await fetch(`/api/admin/materials/${material.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, unit_price: Number(unitPrice) })
+        body: JSON.stringify({
+          name,
+          unit_price: Number(unitPrice),
+          cost_price: costPrice.trim() === "" ? null : Number(costPrice)
+        })
       });
       const data = (await response.json()) as { message?: string; material?: Material };
       if (!response.ok || !data.material) {
@@ -80,10 +94,20 @@ function EditRow({ material, onUpdated }: { material: Material; onUpdated: (m: M
   };
 
   if (!editing) {
+    const margin = computeMargin(material.unit_price, material.cost_price);
     return (
       <tr className="border-t border-slate-200 dark:border-slate-700">
         <td className="px-3 py-2 font-semibold">{material.name}</td>
         <td className="px-3 py-2">{material.unit_price.toLocaleString("ko-KR")}원</td>
+        <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
+          {material.cost_price != null ? `${material.cost_price.toLocaleString("ko-KR")}원` : "-"}
+        </td>
+        <td className={`px-3 py-2 font-semibold ${margin && margin.amount < 0 ? "text-rose-600" : "text-emerald-700 dark:text-emerald-400"}`}>
+          {margin ? `${margin.amount.toLocaleString("ko-KR")}원` : "-"}
+        </td>
+        <td className={`px-3 py-2 ${margin && margin.rate < 0 ? "text-rose-600" : "text-slate-600 dark:text-slate-400"}`}>
+          {margin ? `${margin.rate.toFixed(0)}%` : "-"}
+        </td>
         <td className="px-3 py-2">{material.active ? "사용중" : "비활성"}</td>
         <td className="px-3 py-2">
           <div className="flex gap-2">
@@ -131,7 +155,17 @@ function EditRow({ material, onUpdated }: { material: Material; onUpdated: (m: M
           onChange={(e) => setUnitPrice(e.target.value)}
         />
       </td>
-      <td className="px-3 py-2" colSpan={2}>
+      <td className="px-3 py-2">
+        <input
+          className="soft-input w-full text-sm"
+          type="number"
+          min={0}
+          placeholder="모르면 비움"
+          value={costPrice}
+          onChange={(e) => setCostPrice(e.target.value)}
+        />
+      </td>
+      <td className="px-3 py-2" colSpan={3}>
         <div className="flex gap-2">
           <button
             type="button"
@@ -147,6 +181,7 @@ function EditRow({ material, onUpdated }: { material: Material; onUpdated: (m: M
               setEditing(false);
               setName(material.name);
               setUnitPrice(String(material.unit_price));
+              setCostPrice(material.cost_price != null ? String(material.cost_price) : "");
             }}
             className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold dark:border-slate-600"
           >
@@ -163,6 +198,7 @@ export default function AdminMaterialCatalogPanel({ initialMaterials }: Props) {
   const [materials, setMaterials] = useState(initialMaterials);
   const [name, setName] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
+  const [costPrice, setCostPrice] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -174,7 +210,12 @@ export default function AdminMaterialCatalogPanel({ initialMaterials }: Props) {
       const response = await fetch("/api/admin/materials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, unit_price: Number(unitPrice), display_order: materials.length + 1 })
+        body: JSON.stringify({
+          name,
+          unit_price: Number(unitPrice),
+          cost_price: costPrice.trim() === "" ? null : Number(costPrice),
+          display_order: materials.length + 1
+        })
       });
       const data = (await response.json()) as { message?: string; material?: Material };
       if (!response.ok || !data.material) {
@@ -184,6 +225,7 @@ export default function AdminMaterialCatalogPanel({ initialMaterials }: Props) {
       setMaterials((prev) => [...prev, data.material as Material]);
       setName("");
       setUnitPrice("");
+      setCostPrice("");
       setMessage("품목이 등록되었습니다.");
     } catch {
       setMessage("네트워크 오류가 발생했습니다.");
@@ -199,7 +241,8 @@ export default function AdminMaterialCatalogPanel({ initialMaterials }: Props) {
       <section className="surface-card rounded-2xl border border-slate-200 p-5">
         <h2 className="text-lg font-black text-slate-950">새 품목 추가</h2>
         <p className="mt-1 text-xs text-slate-600">
-          품목명과 자재비(정액)를 등록하면 현장 정산 시 재료비 항목으로 선택할 수 있습니다.
+          품목명과 자재비(청구가, 정액)를 등록하면 현장 정산 시 재료비 항목으로 선택할 수 있습니다. 원가를 함께 입력하면
+          부품별 마진을 바로 확인할 수 있습니다(모르면 비워두세요).
         </p>
         <form className="mt-4 flex flex-wrap gap-2" onSubmit={addMaterial}>
           <input
@@ -211,12 +254,20 @@ export default function AdminMaterialCatalogPanel({ initialMaterials }: Props) {
           />
           <input
             className="soft-input w-32 text-sm"
-            placeholder="자재비(원)"
+            placeholder="청구가(원)"
             type="number"
             min={0}
             value={unitPrice}
             onChange={(e) => setUnitPrice(e.target.value)}
             required
+          />
+          <input
+            className="soft-input w-32 text-sm"
+            placeholder="원가(원, 선택)"
+            type="number"
+            min={0}
+            value={costPrice}
+            onChange={(e) => setCostPrice(e.target.value)}
           />
           <button type="submit" disabled={loading} className="btn-primary px-4 py-2 text-sm disabled:opacity-60">
             {loading ? "등록 중..." : "추가"}
@@ -232,7 +283,10 @@ export default function AdminMaterialCatalogPanel({ initialMaterials }: Props) {
             <thead className="bg-slate-200/70 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
               <tr>
                 <th className="px-3 py-2">품목명</th>
-                <th className="px-3 py-2">자재비</th>
+                <th className="px-3 py-2">청구가</th>
+                <th className="px-3 py-2">원가</th>
+                <th className="px-3 py-2">마진</th>
+                <th className="px-3 py-2">마진율</th>
                 <th className="px-3 py-2">상태</th>
                 <th className="px-3 py-2">관리</th>
               </tr>
@@ -249,7 +303,7 @@ export default function AdminMaterialCatalogPanel({ initialMaterials }: Props) {
               ))}
               {visibleMaterials.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-3 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-500">
                     등록된 자재 품목이 없습니다. 위 폼에서 첫 품목을 추가하세요.
                   </td>
                 </tr>

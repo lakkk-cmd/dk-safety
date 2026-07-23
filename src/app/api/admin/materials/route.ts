@@ -15,7 +15,7 @@ export async function GET() {
     const supabase = requireSupabaseAdmin();
     const { data, error } = await supabase
       .from("material_catalog")
-      .select("id, name, unit_price, active, display_order, created_at, updated_at")
+      .select("id, name, unit_price, cost_price, active, display_order, created_at, updated_at")
       .order("display_order", { ascending: true });
     if (error) {
       return NextResponse.json({ message: error.message }, { status: 500 });
@@ -47,6 +47,14 @@ export async function POST(request: Request) {
   if (!Number.isFinite(unitPrice) || unitPrice < 0) {
     return NextResponse.json({ message: "자재비는 0 이상의 숫자여야 합니다." }, { status: 400 });
   }
+  const costPriceRaw = body.cost_price;
+  const costPrice =
+    costPriceRaw === undefined || costPriceRaw === null || costPriceRaw === ""
+      ? null
+      : Number(costPriceRaw);
+  if (costPrice !== null && (!Number.isFinite(costPrice) || costPrice < 0)) {
+    return NextResponse.json({ message: "원가는 0 이상의 숫자여야 합니다." }, { status: 400 });
+  }
   const displayOrder = Number.isFinite(Number(body.display_order)) ? Math.round(Number(body.display_order)) : 0;
   const active = body.active === undefined ? true : Boolean(body.active);
 
@@ -54,8 +62,14 @@ export async function POST(request: Request) {
     const supabase = requireSupabaseAdmin();
     const { data, error } = await supabase
       .from("material_catalog")
-      .insert({ name, unit_price: Math.round(unitPrice), active, display_order: displayOrder })
-      .select("id, name, unit_price, active, display_order, created_at, updated_at")
+      .insert({
+        name,
+        unit_price: Math.round(unitPrice),
+        cost_price: costPrice === null ? null : Math.round(costPrice),
+        active,
+        display_order: displayOrder
+      })
+      .select("id, name, unit_price, cost_price, active, display_order, created_at, updated_at")
       .single();
     if (error || !data) {
       return NextResponse.json({ message: error?.message ?? "생성 실패" }, { status: 500 });

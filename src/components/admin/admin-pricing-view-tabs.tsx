@@ -7,7 +7,14 @@ import AdminLaborTierPanel from "@/components/admin/admin-labor-tier-panel";
 import AdminServiceItemPanel from "@/components/admin/admin-service-item-panel";
 import { cn } from "@/lib/utils";
 
-type MaterialRow = { id: string; name: string; unit_price: number; active: boolean; display_order: number };
+type MaterialRow = {
+  id: string;
+  name: string;
+  unit_price: number;
+  cost_price: number | null;
+  active: boolean;
+  display_order: number;
+};
 type LaborTierRow = { id: string; label: string; max_minutes: number; amount: number; active: boolean; display_order: number };
 type ApartmentOption = { id: string; name: string };
 
