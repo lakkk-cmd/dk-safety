@@ -3,18 +3,18 @@ title: "에이전트 메모리 — structured_v1"
 category: agent-memory
 tags: ["agent-memory", "structured_v1"]
 source: "agent_memory (key=structured_v1)"
-synced_at: "2026-07-24T20:53:31.759Z"
+synced_at: "2026-07-25T20:38:36.370Z"
 ---
 
 <!-- AUTO:START -->
 ## structured_v1
 
-마지막 갱신: 2026-07-17T23:44:42.436059+00:00
+마지막 갱신: 2026-07-24T23:53:22.614467+00:00
 
 ```json
 {
   "version": 1,
-  "updatedAt": "2026-07-17T23:44:41.484Z",
+  "updatedAt": "2026-07-24T23:53:21.654Z",
   "strategicThemes": [],
   "decisions": [],
   "openQuestions": [],
@@ -79,9 +79,19 @@ synced_at: "2026-07-24T20:53:31.759Z"
         "*회의 주제: 주간 전략 종합 — 수익 전환 임계점*",
         "---"
       ]
+    },
+    {
+      "date": "2026. 07. 25. 오전 08:50",
+      "topic": "주간 전략 종합",
+      "chiefSummary": "# 우리집 전기주치의(대경이엔피) 경영진 회의 종합 보고서\n**1년차 7주차 | Q1 (2026 6~8월) 목표 800만원 | 주간 목표 62만원**\n*회의 주제: 주간 전략 종합 — AI 영상 에셋 완성 → 수익 전환 실행*\n\n---\n\n## 1. 한 줄 핵심 결론\n\n> **\"이번 주 수요일까지 겸업 조항 확인하고, 금요일까지 첫 예약 1건 잡아라 — 7주 동안 쌓은 에셋은 이미 충분하다.\"**\n\n---\n\n## 2. 이번 주 최우선 실행 3가지\n\n### 🥇 1순위 | 겸업 금지 조항 확인 ← **모든 공개 마케팅의 선행 조건**\n- **담당**: 대장 직접\n- **기한**: 수요일까지 (48시간 내)\n- **내용**: 본업 고용계약서·취업규칙에서 겸업 조항 원문 확인\n  - 조항 없음 → 공개 마케팅 전면 허용\n  - 신고 의무 → 사전 신고 후 진행\n  - 금지 명시 → 전략 재조정 (지인·내부 채널만 운영)\n- **측정 지표**: 수요일 저녁까지 결과 1줄 메모 작성 완료 여부",
+      "topActions": [
+        "**1년차 7주차 | Q1 (2026 6~8월) 목표 800만원 | 주간 목표 62만원**",
+        "*회의 주제: 주간 전략 종합 — AI 영상 에셋 완성 → 수익 전환 실행*",
+        "---"
+      ]
     }
   ],
-  "feedbackNotes": "큐ID: 03aec903-59a5-499c-8c40-012b7a319701\n프롬프트: Wide shot — a visual callback to Scene 1: the same gray apartment distribution panel, now with its d\n[2026. 07. 18. 오전 08:41] [영상 이미지 OCR 실패] 씬 3\n큐ID: f2b46066-a5ea-4d31-8768-de2d84494b4f\n프롬프트: Korean apartment electrical distribution panel — interior panel door now open, revealing rows of cir\n[2026. 07. 18. 오전 08:41] [영상 이미지 OCR 실패] 씬 5\n큐ID: f2b46066-a5ea-4d31-8768-de2d84494b4f\n프롬프트: Korean apartment living room — same space as before, daytime. The Korean male electrician in his 40s\n[2026. 07. 18. 오전 08:41] [영상 이미지 OCR 실패] 씬 7\n큐ID: f2b46066-a5ea-4d31-8768-de2d84494b4f\n프롬프트: Korean apartment electrical distribution panel — panel door open. The Korean male electrician in his"
+  "feedbackNotes": "[2026. 07. 25. 오전 08:50] [영상 이미지 OCR 실패] 씬 2\n큐ID: 22aad9e3-3569-4338-85af-7f9e8f15b000\n프롬프트: Extreme close-up shot of the open interior of a Korean apartment electrical panel (distribution boar\n[2026. 07. 25. 오전 08:50] [영상 이미지 OCR 실패] 씬 3\n큐ID: 22aad9e3-3569-4338-85af-7f9e8f15b000\n프롬프트: A Korean male electrician in his 40s, wearing a navy-blue work uniform with an embroidered chest pat\n[2026. 07. 25. 오전 08:50] [영상 이미지 OCR 실패] 씬 5\n큐ID: 22aad9e3-3569-4338-85af-7f9e8f15b000\n프롬프트: Wide establishing shot: A Korean male electrician in his 40s, wearing a navy-blue work uniform with \n[2026. 07. 25. 오전 08:50] [영상 이미지 OCR 실패] 씬 6\n큐ID: 22aad9e3-3569-4338-85af-7f9e8f15b000\n프롬프트: Wide establishing shot: A clean wooden table surface in a bright apartment room. A Korean male elect\n[2026. 07. 25. 오전 08:50] [영상 이미지 OCR 실패] 씬 7\n큐ID: 22aad9e3-3569-4338-85af-7f9e8f15b000\n프롬프트: Medium shot: A Korean male electrician in his 40s, wearing a navy-blue work uniform with an embroide"
 }
 ```
 
