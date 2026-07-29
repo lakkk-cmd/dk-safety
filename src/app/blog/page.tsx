@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { listPublishedBlogPosts } from "@/lib/blog-store";
+import SiteFooter from "@/components/site-footer";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,8 @@ export default async function BlogIndexPage() {
           전기 점검 예약하기
         </Link>
       </div>
+
+      <SiteFooter />
     </main>
   );
 }

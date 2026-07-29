@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { isAgentSupabaseReady } from "@/lib/agent-db";
 import { getBlogPostBySlug, incrementBlogPostViewCount } from "@/lib/blog-store";
 import { renderMarkdown } from "@/lib/markdown";
+import SiteFooter from "@/components/site-footer";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,8 @@ export default async function BlogPostPage({ params }: Props) {
           지금 예약하기
         </Link>
       </div>
+
+      <SiteFooter />
     </main>
   );
 }

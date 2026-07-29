@@ -4,6 +4,7 @@ import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { MobileNavProvider } from "@/components/mobile/mobile-nav-provider";
 import TenantPageHeader from "@/components/mobile/tenant-page-header";
 import ReservationStatusBar from "@/components/reservation/reservation-status-bar";
+import SiteFooter from "@/components/site-footer";
 
 export default async function ApartmentLayout({
   children,
@@ -33,7 +34,10 @@ export default async function ApartmentLayout({
         <TenantPageHeader title={headerTitle} />
         {/* 헤더 바로 아래 (클라이언트 컴포넌트; 서버 layout에서 import 가능) */}
         <ReservationStatusBar aptCode={code} />
-        <div className="mx-auto w-full max-w-3xl px-4 py-4">{children}</div>
+        <div className="mx-auto w-full max-w-3xl px-4 py-4">
+          {children}
+          <SiteFooter />
+        </div>
       </div>
     </MobileNavProvider>
   );

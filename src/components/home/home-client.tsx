@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import SiteFooter from "@/components/site-footer";
 
 interface Apartment {
   id: string;
@@ -155,13 +156,7 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
           </p>
         </section>
 
-        <footer className="pb-2 pt-2 text-center text-xs text-slate-400">
-          <p className="font-bold text-dk-gold">⚡ 우리집 전기주치의(대경이엔피)</p>
-          <p className="mt-1 leading-relaxed">
-            광주광역시 · 대표: 나경문 · 010-9469-8578
-            <br />© 2026 우리집 전기주치의(대경이엔피). 특허 출원 완료
-          </p>
-        </footer>
+        <SiteFooter />
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">

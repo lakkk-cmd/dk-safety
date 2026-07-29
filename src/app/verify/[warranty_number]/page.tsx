@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { pgFindWarrantyByNumber } from "@/lib/warranty-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import DigitalWarrantyArtifact from "@/components/warranty/digital-warranty-artifact";
+import SiteFooter from "@/components/site-footer";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,8 @@ export default async function WarrantyVerifyPage({
           홈으로 이동
         </Link>
       </div>
+
+      <SiteFooter />
     </main>
   );
 }

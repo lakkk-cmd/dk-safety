@@ -6,6 +6,7 @@ import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { StatusBadge, type RiskLevel } from "@/components/ui/status-badge";
 import { SectionCard } from "@/components/ui/section-card";
 import { CompareSlider } from "@/components/ui/compare-slider";
+import SiteFooter from "@/components/site-footer";
 
 const RISK_LEVELS: readonly string[] = ["안전", "주의", "경고", "위험"];
 
@@ -119,6 +120,8 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       >
         📅 다음 점검 예약하기
       </Link>
+
+      <SiteFooter />
     </main>
   );
 }
