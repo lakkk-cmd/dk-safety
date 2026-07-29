@@ -6,6 +6,7 @@ import type { Reservation } from "@/lib/reservations-store";
 import { resolveReservationProgressStep } from "@/components/reservation/reservation-status-bar";
 import { SectionCard } from "@/components/ui/section-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import SiteFooter from "@/components/site-footer";
 
 type FieldReportLink = { id: string; status: string } | null;
 type Item = { reservation: Reservation; fieldReport: FieldReportLink };
@@ -130,6 +131,8 @@ export default function StatusPage() {
           ))}
         </div>
       )}
+
+      <SiteFooter />
     </main>
   );
 }
