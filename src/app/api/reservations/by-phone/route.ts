@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { normalizePhone } from "@/lib/reservation-validation";
 import { pgFindReservationsByPhone } from "@/lib/reservations-pg";
 import { pgFindFieldReportByReservationId } from "@/lib/field-reports";
+import { computeAdditionalDueAmount, pgFindOrderByReservationId } from "@/lib/orders-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 
 export async function GET(request: Request) {
@@ -16,10 +17,15 @@ export async function GET(request: Request) {
     const phone = normalizePhone(phoneRaw);
     const reservations = await pgFindReservationsByPhone(phone);
     const items = await Promise.all(
-      reservations.map(async (reservation) => ({
-        reservation,
-        fieldReport: await pgFindFieldReportByReservationId(reservation.id)
-      }))
+      reservations.map(async (reservation) => {
+        const order = await pgFindOrderByReservationId(reservation.id);
+        return {
+          reservation,
+          fieldReport: await pgFindFieldReportByReservationId(reservation.id),
+          // 최종정산 카드결제 버튼용 — payment_key/imp_uid 등 민감 필드는 넘기지 않는다.
+          order: order ? { id: order.id, additionalDueAmount: computeAdditionalDueAmount(order) } : null
+        };
+      })
     );
     return NextResponse.json({ items });
   } catch (error) {

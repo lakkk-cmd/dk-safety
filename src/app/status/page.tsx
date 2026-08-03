@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { Reservation } from "@/lib/reservations-store";
 import { resolveReservationProgressStep } from "@/components/reservation/reservation-status-bar";
@@ -9,7 +10,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import SiteFooter from "@/components/site-footer";
 
 type FieldReportLink = { id: string; status: string } | null;
-type Item = { reservation: Reservation; fieldReport: FieldReportLink };
+type OrderLink = { id: string; additionalDueAmount: number } | null;
+type Item = { reservation: Reservation; fieldReport: FieldReportLink; order: OrderLink };
+
+declare global {
+  interface Window {
+    TossPayments?: (clientKey: string) => { requestPayment: (method: string, payload: Record<string, unknown>) => Promise<void> };
+  }
+}
 
 type TimelineRow = { icon: string; label: string; done: boolean; active: boolean };
 
@@ -43,16 +51,27 @@ function buildTimeline(item: Item): TimelineRow[] {
 }
 
 export default function StatusPage() {
+  return (
+    <Suspense>
+      <StatusPageContent />
+    </Suspense>
+  );
+}
+
+function StatusPageContent() {
+  const searchParams = useSearchParams();
   const [phone, setPhone] = useState("");
   const [items, setItems] = useState<Item[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
 
-  const search = async () => {
+  const search = async (phoneOverride?: string) => {
+    const target = (phoneOverride ?? phone).trim();
     setMessage(null);
     setLoading(true);
     try {
-      const response = await fetch(`/api/reservations/by-phone?phone=${encodeURIComponent(phone)}`, { cache: "no-store" });
+      const response = await fetch(`/api/reservations/by-phone?phone=${encodeURIComponent(target)}`, { cache: "no-store" });
       const data = (await response.json()) as { items?: Item[]; message?: string };
       if (!response.ok) {
         setMessage(data.message ?? "조회에 실패했습니다.");
@@ -64,6 +83,58 @@ export default function StatusPage() {
       setMessage("네트워크 오류가 발생했습니다.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 결제안내 SMS/알림톡 링크(/status?phone=01012345678)로 들어오면 자동 조회
+  useEffect(() => {
+    const qPhone = searchParams.get("phone")?.trim() ?? "";
+    if (!qPhone) return;
+    setPhone(qPhone);
+    void search(qPhone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const payFinal = async (item: Item) => {
+    if (!item.order || item.order.additionalDueAmount <= 0) return;
+    const tossClientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY?.trim() ?? "";
+    if (!tossClientKey) {
+      setMessage("Toss 결제 키가 설정되지 않았습니다.");
+      return;
+    }
+    setPayingOrderId(item.order.id);
+    try {
+      const scriptId = "toss-payments-sdk";
+      if (!document.getElementById(scriptId)) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.id = scriptId;
+          script.src = "https://js.tosspayments.com/v1/payment";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("결제 SDK 로드 실패"));
+          document.body.appendChild(script);
+        });
+      }
+      const tossFactory = window.TossPayments;
+      if (!tossFactory) throw new Error("Toss SDK를 불러오지 못했습니다.");
+      const toss = tossFactory(tossClientKey);
+      const origin = window.location.origin;
+      const aptCode = item.reservation.apartmentCode ?? "";
+      const successUrl = `${origin}/payment/success?flow=final&reservationId=${encodeURIComponent(item.reservation.id)}&aptCode=${encodeURIComponent(aptCode)}`;
+      const failUrl = `${origin}/payment/fail?flow=final&reservationId=${encodeURIComponent(item.reservation.id)}&aptCode=${encodeURIComponent(aptCode)}`;
+      await toss.requestPayment("카드", {
+        amount: item.order.additionalDueAmount,
+        orderId: item.order.id,
+        orderName: `최종 정산 ${item.order.additionalDueAmount.toLocaleString("ko-KR")}원`,
+        customerName: item.reservation.name,
+        customerMobilePhone: item.reservation.phone,
+        successUrl,
+        failUrl
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "결제 호출 실패");
+    } finally {
+      setPayingOrderId(null);
     }
   };
 
@@ -118,6 +189,21 @@ export default function StatusPage() {
                   </li>
                 ))}
               </ul>
+              {item.reservation.orderFinalPaymentStatus === "REQUESTED" && item.order && item.order.additionalDueAmount > 0 ? (
+                <div className="mt-3 rounded-xl border border-dk-blue bg-[#eef4ff] p-3">
+                  <p className="text-sm font-bold text-dk-navy">
+                    추가 결제 금액: {item.order.additionalDueAmount.toLocaleString("ko-KR")}원
+                  </p>
+                  <button
+                    type="button"
+                    disabled={payingOrderId === item.order.id}
+                    onClick={() => void payFinal(item)}
+                    className="mt-2 flex min-h-12 w-full items-center justify-center rounded-2xl bg-dk-blue px-5 text-base font-bold text-white disabled:opacity-60"
+                  >
+                    {payingOrderId === item.order.id ? "결제 진행 중..." : "카드로 결제하기"}
+                  </button>
+                </div>
+              ) : null}
               {item.fieldReport?.status === "completed" ? (
                 <Link
                   href={`/diagnosis/${item.fieldReport.id}`}

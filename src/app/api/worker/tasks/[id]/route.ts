@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { appendActivityLog } from "@/lib/activity-log";
-import { notifyCustomerWorkCompleted } from "@/lib/customer-notification";
+import { notifyCustomerWorkCompleted, notifyExtraFeePaymentRequired } from "@/lib/customer-notification";
 import { pushLiveNotification, pushReservationProgressNotifications } from "@/lib/live-notify";
+import { computeAdditionalDueAmount, pgFindOrderByReservationId } from "@/lib/orders-pg";
 import {
   pgAcceptTask,
   pgCompleteTask,
@@ -227,6 +228,34 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
               ? `${row.reservation.name}님 작업이 완료되었습니다. 최종 정산을 결제하면 보증서가 즉시 발급됩니다.`
               : `${row.reservation.name}님 작업이 완료되었습니다. 보증서를 확인해주세요.`
         });
+        if (row.reservation.orderFinalPaymentStatus === "REQUESTED") {
+          try {
+            const order = await pgFindOrderByReservationId(row.reservation.id);
+            const additionalDueAmount = order ? computeAdditionalDueAmount(order) : 0;
+            if (additionalDueAmount > 0) {
+              const channels = await notifyExtraFeePaymentRequired({
+                reservationId: row.reservation.id,
+                name: row.reservation.name,
+                phone: row.reservation.phone,
+                additionalDueAmount
+              });
+              await appendActivityLog({
+                action: "task_completed",
+                reservationId: row.reservation.id,
+                message:
+                  channels.length > 0
+                    ? `${row.reservation.name} 고객에게 추가비용 결제안내 알림이 발송되었습니다. (${channels.join(", ")})`
+                    : `${row.reservation.name} 고객 알림 채널 설정이 없어 결제안내 발송은 생략되었습니다.`
+              });
+            }
+          } catch (notifyError) {
+            await appendActivityLog({
+              action: "task_completed",
+              reservationId: row.reservation.id,
+              message: `${row.reservation.name} 추가비용 결제안내 발송 실패: ${notifyError instanceof Error ? notifyError.message : "알 수 없는 오류"}`
+            });
+          }
+        }
         await pushLiveNotification({
           role: "worker",
           targetWorkerId: session.workerId,

@@ -278,3 +278,81 @@ export async function notifySettlementApproved(input: SettlementNotification): P
 
   return sentChannels;
 }
+
+// ─── 추가작업비 결제안내 알림 ─────────────────────────────────────────────────
+// 작업완료 시 추가로 받을 금액(additionalDueAmount)이 있을 때만 발송. 지금은 아직
+// 이 용도의 카카오 알림톡 템플릿이 심사 승인되지 않아 일반 SMS로 먼저 나가고,
+// SOLAPI_TEMPLATE_ID_EXTRA_FEE가 채워지면 코드 변경 없이 알림톡으로 자동 전환된다.
+
+export type ExtraFeePaymentNotification = {
+  reservationId: string;
+  name: string;
+  phone: string;
+  additionalDueAmount: number;
+};
+
+function buildExtraFeePaymentMessage(input: ExtraFeePaymentNotification): string {
+  return [
+    `${input.name} 고객님, 현장 작업이 완료되어 추가 결제가 필요합니다.`,
+    `추가 결제 금액: ${input.additionalDueAmount.toLocaleString("ko-KR")}원`,
+    "아래 링크에서 예약하신 휴대폰 번호로 조회 후 카드로 결제해주세요.",
+    buildStatusUrl(),
+  ].join("\n");
+}
+
+/** SOLAPI_TEMPLATE_ID_EXTRA_FEE 승인 후 사용할 알림톡 발송 — sendSolapiAlimtalk와 동일 구조 */
+async function sendExtraFeeAlimtalk(input: ExtraFeePaymentNotification, templateId: string): Promise<boolean> {
+  const apiKey = process.env.SOLAPI_API_KEY?.trim();
+  const apiSecret = process.env.SOLAPI_API_SECRET?.trim();
+  const pfId = process.env.SOLAPI_PFID?.trim();
+  const senderNumber = process.env.SOLAPI_SENDER_NUMBER?.trim();
+  if (!apiKey || !apiSecret || !pfId || !senderNumber) return false;
+
+  const { SolapiMessageService } = await import("solapi");
+  const client = new SolapiMessageService(apiKey, apiSecret);
+  const fallbackText = buildExtraFeePaymentMessage(input);
+
+  await client.send({
+    to: normalizePhoneDigits(input.phone),
+    from: senderNumber,
+    text: fallbackText,
+    kakaoOptions: {
+      pfId,
+      templateId,
+      variables: {
+        고객명: input.name,
+        추가금액: input.additionalDueAmount.toLocaleString("ko-KR"),
+        결제링크: buildStatusUrl(),
+      },
+    },
+  });
+  return true;
+}
+
+export async function notifyExtraFeePaymentRequired(input: ExtraFeePaymentNotification): Promise<string[]> {
+  const sentChannels: string[] = [];
+  const message = buildExtraFeePaymentMessage(input);
+
+  // 1순위: 전용 알림톡 템플릿(승인 전엔 env 미설정 상태이므로 자동 skip)
+  const templateId = process.env.SOLAPI_TEMPLATE_ID_EXTRA_FEE?.trim();
+  if (templateId) {
+    try {
+      const sent = await sendExtraFeeAlimtalk(input, templateId);
+      if (sent) sentChannels.push("kakao_alimtalk_solapi");
+    } catch (err) {
+      console.error("[solapi] 추가비용 결제안내 알림톡 발송 실패:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  // 2순위(현재 기본 경로): 일반 SMS
+  if (!sentChannels.length) {
+    try {
+      const sent = await sendSolapiSms(input.phone, message);
+      if (sent) sentChannels.push("sms_solapi");
+    } catch (err) {
+      console.error("[solapi] 추가비용 결제안내 SMS 발송 실패:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  return sentChannels;
+}
