@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import LiveNotificationToast from "@/components/live/live-notification-toast";
 import DepositPaymentPanel from "@/components/payment/deposit-payment-panel";
+import TossFinalSettlementButton from "@/components/payment/toss-final-settlement-button";
 import { validateReservationInput } from "@/lib/reservation-validation";
 import { formatResidentDongHoDepositHolder } from "@/lib/resident-unit-label";
 import { cn } from "@/lib/utils";
@@ -762,51 +763,8 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
     await createReservation(preferredDate, preferredTime);
   };
 
-  const requestFinalPayment = async () => {
-    if (!orderId) {
-      setMessage("주문 정보가 없어 최종 결제를 시작할 수 없습니다.");
-      return;
-    }
-    if (additionalDueAmount <= 0) {
-      setMessage("추가 결제 금액이 없습니다.");
-      return;
-    }
-    const tossClientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY?.trim() ?? "";
-    if (!tossClientKey) {
-      setMessage("Toss 결제 키가 설정되지 않았습니다.");
-      return;
-    }
-    try {
-      const scriptId = "toss-payments-sdk";
-      if (!document.getElementById(scriptId)) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement("script");
-          script.id = scriptId;
-          script.src = "https://js.tosspayments.com/v1/payment";
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error("결제 SDK 로드 실패"));
-          document.body.appendChild(script);
-        });
-      }
-      const tossFactory = (window as typeof window & { TossPayments?: (clientKey: string) => { requestPayment: (method: string, payload: Record<string, unknown>) => Promise<void> } }).TossPayments;
-      if (!tossFactory) throw new Error("Toss SDK를 불러오지 못했습니다.");
-      const toss = tossFactory(tossClientKey);
-      const origin = window.location.origin;
-      const successUrl = `${origin}/payment/success?flow=final&reservationId=${encodeURIComponent(reservationId)}&aptCode=${encodeURIComponent(apartment.code)}`;
-      const failUrl = `${origin}/payment/fail?flow=final&reservationId=${encodeURIComponent(reservationId)}&aptCode=${encodeURIComponent(apartment.code)}`;
-      await toss.requestPayment("카드", {
-        amount: additionalDueAmount,
-        orderId,
-        orderName: `최종 정산 ${additionalDueAmount.toLocaleString("ko-KR")}원`,
-        customerName: residentName,
-        customerMobilePhone: residentPhone,
-        successUrl,
-        failUrl
-      });
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "최종 결제 호출 실패");
-    }
-  };
+  const finalPaymentSuccessUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/payment/success?flow=final&reservationId=${encodeURIComponent(reservationId)}&aptCode=${encodeURIComponent(apartment.code)}`;
+  const finalPaymentFailUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/payment/fail?flow=final&reservationId=${encodeURIComponent(reservationId)}&aptCode=${encodeURIComponent(apartment.code)}`;
 
   const markWaitingForDeposit = async () => {
     if (!orderId) {
@@ -1308,27 +1266,41 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
             >
               상세내역 보기
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (orderFinalPaymentStatus === "PENDING" || orderFinalPaymentStatus === "UNKNOWN") {
-                  void requestFinalSettlement();
-                  return;
-                }
-                if (orderFinalPaymentStatus === "REQUESTED") {
-                  void requestFinalPayment();
-                }
-              }}
-              disabled={loading || orderFinalPaymentStatus === "PAID"}
-              className="h-14 rounded-xl bg-gradient-to-r from-dk-navy to-dk-blue text-base font-black text-white disabled:opacity-60"
-            >
-              {orderFinalPaymentStatus === "PAID" ? "보증서 발급 완료" : "결제하고 보증서 받기"}
-            </button>
+            {orderFinalPaymentStatus === "PENDING" || orderFinalPaymentStatus === "UNKNOWN" ? (
+              <button
+                type="button"
+                onClick={() => void requestFinalSettlement()}
+                disabled={loading}
+                className="h-14 rounded-xl bg-gradient-to-r from-dk-navy to-dk-blue text-base font-black text-white disabled:opacity-60"
+              >
+                결제하고 보증서 받기
+              </button>
+            ) : orderFinalPaymentStatus === "PAID" ? (
+              <button
+                type="button"
+                disabled
+                className="h-14 rounded-xl bg-gradient-to-r from-dk-navy to-dk-blue text-base font-black text-white disabled:opacity-60"
+              >
+                보증서 발급 완료
+              </button>
+            ) : null}
           </div>
           {showSettlementDetail ? (
             <p className="mt-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-700">
               예약금 결제 {prepaymentAmount.toLocaleString("ko-KR")}원 이후, 현장 점검 결과를 반영한 최종 정산입니다.
             </p>
+          ) : null}
+          {orderFinalPaymentStatus === "REQUESTED" && orderId && additionalDueAmount > 0 ? (
+            <TossFinalSettlementButton
+              dbOrderId={orderId}
+              amount={additionalDueAmount}
+              orderName={`최종 정산 ${additionalDueAmount.toLocaleString("ko-KR")}원`}
+              customerName={residentName}
+              customerMobilePhone={residentPhone}
+              successUrl={finalPaymentSuccessUrl}
+              failUrl={finalPaymentFailUrl}
+              onError={setMessage}
+            />
           ) : null}
         </section>
       ) : null}

@@ -11,18 +11,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "TOSS_SECRET_KEY가 설정되지 않았습니다." }, { status: 500 });
   }
 
-  let body: { paymentKey?: string; orderId?: string; amount?: number } = {};
+  let body: { paymentKey?: string; orderId?: string; amount?: number; dbOrderId?: string } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ message: "요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
   const paymentKey = body.paymentKey?.trim() ?? "";
+  // orderId: Toss 쪽 결제 시도 식별자(매 시도마다 새로 발급됨) — Toss 확인 API 호출에만 쓴다.
   const orderId = body.orderId?.trim() ?? "";
   const amount = Number(body.amount ?? 0);
   if (!paymentKey || !orderId || !Number.isFinite(amount) || amount <= 0) {
     return NextResponse.json({ message: "paymentKey/orderId/amount가 필요합니다." }, { status: 400 });
   }
+  // dbOrderId: 우리 DB orders.id — 영속적 식별자. 없으면(구버전 호출 등) orderId로 폴백.
+  const dbOrderId = body.dbOrderId?.trim() || orderId;
 
   const basic = Buffer.from(`${secretKey}:`).toString("base64");
   const response = await fetch("https://api.tosspayments.com/v1/payments/confirm", {
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
   }
 
   await pgSaveCardPaymentRef({
-    orderId,
+    orderId: dbOrderId,
     provider: "TOSS",
     paymentKey
   });

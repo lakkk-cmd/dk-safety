@@ -23,7 +23,16 @@ export async function GET(request: Request) {
           reservation,
           fieldReport: await pgFindFieldReportByReservationId(reservation.id),
           // 최종정산 카드결제 버튼용 — payment_key/imp_uid 등 민감 필드는 넘기지 않는다.
-          order: order ? { id: order.id, additionalDueAmount: computeAdditionalDueAmount(order) } : null
+          // finalPaymentStatus는 reservations.orderFinalPaymentStatus(별도 조인) 대신 이 order 자체
+          // 값을 그대로 써야 한다 — 한 예약에 order가 2건 이상 걸리는 예외 상황에서 두 조인이
+          // 서로 다른 행을 가리켜 버튼 표시가 실제 최신 정산 상태와 어긋날 수 있기 때문.
+          order: order
+            ? {
+                id: order.id,
+                additionalDueAmount: computeAdditionalDueAmount(order),
+                finalPaymentStatus: order.final_payment_status as string | null
+              }
+            : null
         };
       })
     );

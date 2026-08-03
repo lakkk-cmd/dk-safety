@@ -20,6 +20,10 @@ export default function PaymentSuccessClient() {
     void (async () => {
       const paymentKey = searchParams.get("paymentKey")?.trim() ?? "";
       const orderId = searchParams.get("orderId")?.trim() ?? "";
+      // dbOrderId: 우리 DB의 영속적 주문 식별자 — Toss가 리다이렉트에 붙여주는 orderId(매
+      // 결제 시도마다 새로 발급되는 값)와는 별개. flow=final 결제(위젯)를 성공/실패 콜백까지
+      // 우리 orders 테이블 행과 정확히 매칭시키는 데 쓴다.
+      const dbOrderId = searchParams.get("dbOrderId")?.trim() ?? "";
       const amount = Number(searchParams.get("amount") ?? 0);
       const flow = (searchParams.get("flow")?.trim() ?? "").toLowerCase();
       if (!paymentKey || !orderId || !Number.isFinite(amount) || amount <= 0) {
@@ -30,12 +34,12 @@ export default function PaymentSuccessClient() {
         const response = await fetch("/api/payments/toss/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ paymentKey, orderId, amount })
+          body: JSON.stringify({ paymentKey, orderId, amount, dbOrderId: dbOrderId || undefined })
         });
         const data = (await response.json()) as { message?: string };
         if (!response.ok) throw new Error(data.message ?? "결제 승인 실패");
         if (flow === "final") {
-          const finalResponse = await fetch(`/api/orders/${encodeURIComponent(orderId)}/final-payment`, {
+          const finalResponse = await fetch(`/api/orders/${encodeURIComponent(dbOrderId || orderId)}/final-payment`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
