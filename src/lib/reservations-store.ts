@@ -67,6 +67,8 @@ export type Reservation = {
   source?: "online" | "walk_in" | "phone";
   /** 작업 완료 시각 (walk_in 완료 처리 시 기록) */
   completedAt?: string | null;
+  /** 값이 있으면 "A/S 요청" 예약 — 원본(작업완료된) 예약의 id를 가리킴 */
+  asSourceReservationId?: string | null;
 };
 
 export type BackupSnapshot = {

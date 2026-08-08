@@ -92,6 +92,49 @@ export default function DigitalWarrantyArtifact({ warranty }: Props) {
   const [verifyInput, setVerifyInput] = useState("WST-2024-APT001-3A8F2");
   const [verifyState, setVerifyState] = useState<{ loading: boolean; error?: string; found?: WarrantyView }>({ loading: false });
 
+  const [asOpen, setAsOpen] = useState(false);
+  const [asDetail, setAsDetail] = useState("");
+  const [asDate, setAsDate] = useState("");
+  const [asTime, setAsTime] = useState("");
+  const [asSubmitting, setAsSubmitting] = useState(false);
+  const [asError, setAsError] = useState<string | null>(null);
+  const [asResult, setAsResult] = useState<string | null>(null);
+
+  const todayStr = useMemo(() => {
+    const t = new Date();
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+  }, []);
+
+  const submitAsRequest = async () => {
+    setAsError(null);
+    if (asDetail.trim().length < 2) {
+      setAsError("증상/요청 내용을 2자 이상 입력해주세요.");
+      return;
+    }
+    if (!asDate || !asTime) {
+      setAsError("방문 희망 날짜와 시간을 선택해주세요.");
+      return;
+    }
+    setAsSubmitting(true);
+    try {
+      const response = await fetch(`/api/warranties/${encodeURIComponent(warranty.warrantyNumber)}/as-request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ detail: asDetail.trim(), preferredDate: asDate, preferredTime: asTime })
+      });
+      const data = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        setAsError(data.message ?? "A/S 신청에 실패했습니다.");
+        return;
+      }
+      setAsResult(data.message ?? "A/S 요청이 접수되었습니다.");
+    } catch {
+      setAsError("A/S 신청 중 오류가 발생했습니다.");
+    } finally {
+      setAsSubmitting(false);
+    }
+  };
+
   const calcResult = useMemo(
     () =>
       calculate_final_fee({
@@ -155,6 +198,62 @@ export default function DigitalWarrantyArtifact({ warranty }: Props) {
             <a href={pdfUrl} target="_blank" rel="noreferrer" className="btn-primary inline-flex items-center justify-center px-4 py-3 text-sm">보증서 PDF 열기</a>
             <a href={imageUrl} target="_blank" rel="noreferrer" className="btn-outline inline-flex items-center justify-center px-4 py-3 text-sm">보증서 이미지 열기</a>
           </div>
+
+          {isIssued ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              {asResult ? (
+                <p className="text-sm font-bold text-emerald-700">✅ {asResult}</p>
+              ) : asOpen ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-bold text-amber-900">A/S 신청 (보증기간 내 재방문)</p>
+                  <textarea
+                    value={asDetail}
+                    onChange={(e) => setAsDetail(e.target.value.slice(0, 500))}
+                    placeholder="증상/요청 내용을 적어주세요 (2자 이상)"
+                    rows={3}
+                    className="w-full resize-y rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      value={asDate}
+                      min={todayStr}
+                      onChange={(e) => setAsDate(e.target.value)}
+                      className="h-11 rounded-xl border border-slate-300 px-3 text-sm"
+                    />
+                    <input
+                      type="time"
+                      value={asTime}
+                      onChange={(e) => setAsTime(e.target.value)}
+                      className="h-11 rounded-xl border border-slate-300 px-3 text-sm"
+                    />
+                  </div>
+                  {asError ? <p className="text-xs font-semibold text-rose-600">{asError}</p> : null}
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setAsOpen(false)} className="btn-outline flex-1 px-4 py-2 text-sm">
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void submitAsRequest()}
+                      disabled={asSubmitting}
+                      className="btn-primary flex-1 px-4 py-2 text-sm disabled:opacity-50"
+                    >
+                      {asSubmitting ? "접수 중..." : "A/S 신청하기"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAsOpen(true)}
+                  className="w-full rounded-xl border-2 border-amber-400 bg-white px-4 py-3 text-sm font-bold text-amber-900"
+                >
+                  🔧 A/S 신청 (보증기간 내 재방문)
+                </button>
+              )}
+            </div>
+          ) : null}
         </section>
       ) : null}
 

@@ -723,8 +723,19 @@ export default function AdminReservationsTable({
                   <p className="mt-1 text-sm text-slate-600">{item.phone}</p>
                   <p className="mt-1 text-xs font-semibold text-indigo-700">{item.apartmentName ?? "미지정 아파트"}</p>
                   <p className="mt-1 text-xs text-slate-500">{item.address}</p>
+                  {item.asSourceReservationId ? (
+                    <p className="mt-1 text-xs text-amber-700">
+                      🔧 A/S 요청 · 원 예약{" "}
+                      <Link href={`/admin/reservations?id=${item.asSourceReservationId}`} className="font-semibold underline">
+                        바로가기
+                      </Link>
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {item.asSourceReservationId ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">🔧 A/S 요청</span>
+                  ) : null}
                   <span
                     className={`rounded-full px-2 py-1 text-xs font-semibold ${
                       item.priority === "emergency" ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600"

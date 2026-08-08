@@ -98,6 +98,7 @@ type ReservationRow = {
   last_declined_at?: string | null;
   upgrade_reason?: string | null;
   upgraded_at?: string | null;
+  as_source_reservation_id?: string | null;
   apartments: { name: string; code: string } | { name: string; code: string }[] | null;
   tasks: TaskRow[] | TaskRow | null;
   orders?:
@@ -266,7 +267,8 @@ function mapReservation(row: ReservationRow): Reservation {
     orderDispatchStatus: o?.dispatch_status ?? null,
     orderPrepaymentConfirmed: Boolean(o?.prepayment_confirmed),
     source: (row.source as "online" | "walk_in" | "phone" | null) ?? "online",
-    completedAt: row.completed_at ?? null
+    completedAt: row.completed_at ?? null,
+    asSourceReservationId: row.as_source_reservation_id ?? null
   };
 }
 
@@ -298,6 +300,7 @@ export async function pgReadReservations(): Promise<Reservation[]> {
       created_at,
       source,
       completed_at,
+      as_source_reservation_id,
       last_decline_reason,
       last_declined_worker_name,
       last_declined_at,
@@ -358,6 +361,7 @@ export async function pgFindReservationById(id: string): Promise<Reservation | n
       created_at,
       source,
       completed_at,
+      as_source_reservation_id,
       last_decline_reason,
       last_declined_worker_name,
       last_declined_at,
@@ -418,6 +422,7 @@ export async function pgFindReservationsByPhone(phone: string): Promise<Reservat
       created_at,
       source,
       completed_at,
+      as_source_reservation_id,
       apartments (
         name,
         code
@@ -527,7 +532,8 @@ export async function pgCreateReservation(
     is_paid: false,
     paid_at: null,
     prepayment_confirmed: false,
-    prepayment_confirmed_at: null
+    prepayment_confirmed_at: null,
+    as_source_reservation_id: payload.asSourceReservationId ?? null
   };
 
   const { data, error } = await supabase.from("reservations").insert(insert).select().single();
