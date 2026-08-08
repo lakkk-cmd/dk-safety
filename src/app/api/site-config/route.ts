@@ -4,7 +4,7 @@ import { requireAgentSupabase } from "@/lib/agent-db";
 // 카테고리별 key 접두사 매핑
 const CATEGORY_KEYS: Record<string, string[]> = {
   pricing: ["basic_price", "full_price", "extra_fee", "dispatch_fee"],
-  cta: ["hero_title", "hero_cta", "bottom_cta", "hero_subtitle"],
+  cta: ["hero_title", "hero_cta", "hero_subtitle"],
   notice: ["notice_text", "notice_enabled", "banner_text", "banner_enabled"],
   service: ["service_title", "service_desc", "service_items", "open_hours"],
 };

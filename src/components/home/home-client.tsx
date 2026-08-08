@@ -39,14 +39,13 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
   const heroTitle = config.hero_title ?? "우리집 전기 걱정되시나요?";
   const heroSubtitle = config.hero_subtitle ?? "전기기사가 직접 방문해서 해결해드립니다";
   const heroCta = config.hero_cta ?? "🔴 지금 점검 예약하기";
-  const bottomCta = config.bottom_cta ?? "예약하기";
   const noticeActive = config.notice_active === "true";
   const noticeText = config.notice_text ?? "";
   const seasonBannerActive = config.season_banner === "true";
   const seasonBannerText = config.season_banner_text ?? "";
 
   return (
-    <div className="min-h-screen bg-dk-gray pb-24">
+    <div className="min-h-screen bg-dk-gray pb-8">
       <header className="sticky top-0 z-50 bg-dk-navy">
         <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
           <div className="flex items-center gap-2.5">
@@ -157,16 +156,6 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
         </section>
 
         <SiteFooter />
-      </div>
-
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
-        <button
-          type="button"
-          onClick={() => setPickerOpen(true)}
-          className="mx-auto flex min-h-14 max-w-lg items-center justify-center gap-2 rounded-2xl bg-dk-blue text-base font-bold text-white shadow-[0_8px_20px_rgba(26,92,255,0.28)]"
-        >
-          {bottomCta}
-        </button>
       </div>
 
       <BottomSheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="우리 단지 찾기">

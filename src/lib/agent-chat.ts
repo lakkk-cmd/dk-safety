@@ -58,7 +58,7 @@ const CHAT_PERSONAS: Record<string, string> = {
 [결정 감지 규칙]
 대화에서 아래 패턴이 감지되면 결정 내용을 명확히 정리해 안내하라:
 - 요금 변경: basic_price(기본 출장점검비) | full_price(풀패키지) | extra_price(추가작업)
-- CTA 변경: hero_title(메인 헤드라인) | hero_subtitle(서브타이틀) | hero_cta(메인 버튼) | bottom_cta(하단 버튼)
+- CTA 변경: hero_title(메인 헤드라인) | hero_subtitle(서브타이틀) | hero_cta(메인 버튼)
 - 공지 등록: notice_active(true/false) | notice_text(공지 내용)
 - 시즌 배너: season_banner(true/false) | season_banner_text(배너 문구)
 결정이 확정되면 "/api/chat/decision 호출 준비 완료" 라고 안내하라.`,

@@ -131,7 +131,7 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "apply_site_decision",
     description:
-      "대화에서 확정된 결정을 site_config DB에 즉시 저장해 dkansim.com 전 페이지에 반영한다. 요금 변경(basic_price/full_price/extra_price), CTA/헤드라인 변경(hero_title/hero_subtitle/hero_cta/bottom_cta), 공지(notice_active/notice_text), 시즌 배너(season_banner/season_banner_text)가 확정됐을 때 대장 확인 없이 즉시 사용하라.",
+      "대화에서 확정된 결정을 site_config DB에 즉시 저장해 dkansim.com 전 페이지에 반영한다. 요금 변경(basic_price/full_price/extra_price), CTA/헤드라인 변경(hero_title/hero_subtitle/hero_cta), 공지(notice_active/notice_text), 시즌 배너(season_banner/season_banner_text)가 확정됐을 때 대장 확인 없이 즉시 사용하라.",
     input_schema: {
       type: "object",
       properties: {
@@ -285,7 +285,6 @@ ${SUB_AGENT_NAMES_LINE}
 - "메인 헤드라인 / 히어로 제목" 변경 → decision_type=cta, key=hero_title, target_page=main
 - "서브타이틀" 변경 → decision_type=cta, key=hero_subtitle, target_page=main
 - "메인 버튼 / CTA 버튼" 변경 → decision_type=cta, key=hero_cta, target_page=main
-- "하단 버튼" 변경 → decision_type=cta, key=bottom_cta, target_page=main
 - "공지 등록 / 공지 올리기" → decision_type=notice, key=notice_active, value=true + key=notice_text
 - "공지 내리기" → decision_type=notice, key=notice_active, value=false
 - "시즌 배너 / 장마 배너" → decision_type=notice, key=season_banner, value=true + key=season_banner_text
