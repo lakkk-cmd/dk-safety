@@ -147,7 +147,7 @@ export async function POST(request: Request) {
     customerName: created.name,
     customerPhone: created.phone,
     adminMessage: `${created.name}님의 예약이 접수 대기 상태로 생성되었습니다.`,
-    residentMessage: `${created.name}님 예약이 접수되었습니다. 결제 완료 후 기사 배정이 시작됩니다.`
+    residentMessage: `${created.name}님 예약 신청이 접수되었습니다. 결제완료 후 기사배정이 진행됩니다.`
   });
   try {
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://dkansim.com").replace(/\/$/, "");

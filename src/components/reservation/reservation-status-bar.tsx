@@ -87,7 +87,7 @@ function parseStored(raw: string | null): StoredReservation | null {
 export type ProgressStepDef = { key: string; label: string; icon: string };
 
 export const STEPS: ProgressStepDef[] = [
-  { key: "submitted", label: "접수 완료", icon: "✓" },
+  { key: "submitted", label: "예약 신청", icon: "✓" },
   { key: "paid", label: "결제 완료", icon: "💳" },
   { key: "assigned", label: "기사 배정", icon: "🔨" },
   { key: "working", label: "현장 작업", icon: "⚡" },

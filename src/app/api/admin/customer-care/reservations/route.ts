@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       customerName: created.name,
       customerPhone: created.phone,
       adminMessage: `${created.name}님 오프라인 접수가 관리자 화면에서 등록되었습니다.`,
-      residentMessage: `${created.name}님 예약이 접수되었습니다.`
+      residentMessage: `${created.name}님 예약 신청이 접수되었습니다. 결제완료 후 기사배정이 진행됩니다.`
     });
 
     return NextResponse.json({ message: "오프라인 접수가 등록되었습니다.", reservation: created }, { status: 201 });
