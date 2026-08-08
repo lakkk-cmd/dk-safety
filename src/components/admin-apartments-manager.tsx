@@ -26,6 +26,7 @@ export default function AdminApartmentsManager() {
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [formMessage, setFormMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
   const load = async () => {
     const response = await fetch("/api/admin/apartments", { cache: "no-store" });
@@ -43,6 +44,10 @@ export default function AdminApartmentsManager() {
 
   const saveItem = async () => {
     const isEdit = Boolean(editingId);
+    if (!form.name.trim() || !form.code.trim()) {
+      setFormMessage({ type: "error", text: "아파트명과 코드를 모두 입력해주세요." });
+      return;
+    }
     const response = await fetch(isEdit ? `/api/admin/apartments/${editingId}` : "/api/admin/apartments", {
       method: isEdit ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
@@ -56,12 +61,12 @@ export default function AdminApartmentsManager() {
     });
     const data = (await response.json()) as { message?: string };
     if (!response.ok) {
-      setMessage(data.message ?? "생성 실패");
+      setFormMessage({ type: "error", text: data.message ?? "생성 실패" });
       return;
     }
     setForm(initialForm);
     setEditingId(null);
-    setMessage(isEdit ? "아파트가 수정되었습니다." : "아파트가 생성되었습니다.");
+    setFormMessage({ type: "success", text: isEdit ? "아파트가 수정되었습니다." : "아파트가 생성되었습니다." });
     await load();
   };
 
@@ -81,8 +86,8 @@ export default function AdminApartmentsManager() {
         <h2 className="text-lg font-bold">{editingId ? "아파트 수정" : "아파트 생성"}</h2>
         <p className="mt-1 text-xs text-slate-600">생성 후 전용 경로: /apt/[code]</p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
-          <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="아파트명" className="soft-input" />
-          <input value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value.toLowerCase() }))} placeholder="코드 (예: moonheung)" className="soft-input" />
+          <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="아파트명 (필수)" className="soft-input" />
+          <input value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value.toLowerCase() }))} placeholder="코드 (필수, 예: moonheung)" className="soft-input" />
           <input value={form.logoUrl} onChange={(e) => setForm((p) => ({ ...p, logoUrl: e.target.value }))} placeholder="로고 URL" className="soft-input md:col-span-2" />
           <input value={form.bankName} onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value }))} placeholder="은행명" className="soft-input" />
           <input value={form.accountNumber} onChange={(e) => setForm((p) => ({ ...p, accountNumber: e.target.value }))} placeholder="계좌번호" className="soft-input" />
@@ -112,6 +117,11 @@ export default function AdminApartmentsManager() {
             </button>
           ) : null}
         </div>
+        {formMessage ? (
+          <p className={`mt-2 text-sm font-semibold ${formMessage.type === "error" ? "text-rose-600" : "text-emerald-600"}`}>
+            {formMessage.text}
+          </p>
+        ) : null}
       </div>
 
       <div className="surface-card rounded-2xl p-4">
