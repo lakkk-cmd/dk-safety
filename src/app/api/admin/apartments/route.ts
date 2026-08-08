@@ -23,6 +23,7 @@ export async function POST(request: Request) {
     logoUrl?: string;
     bankInfo?: { bankName?: string; accountNumber?: string; accountHolder?: string };
     baseFee?: number;
+    district?: string;
   };
   const name = body.name?.trim() ?? "";
   const code = body.code?.trim().toLowerCase() ?? "";
@@ -38,7 +39,8 @@ export async function POST(request: Request) {
       accountNumber: body.bankInfo?.accountNumber?.trim() || "",
       accountHolder: body.bankInfo?.accountHolder?.trim() || name
     },
-    baseFee: typeof body.baseFee === "number" ? body.baseFee : 50000
+    baseFee: typeof body.baseFee === "number" ? body.baseFee : 50000,
+    district: body.district ?? ""
   });
   return NextResponse.json({ apartment }, { status: 201 });
 }
