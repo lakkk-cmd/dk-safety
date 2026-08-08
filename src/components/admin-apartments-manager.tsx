@@ -15,10 +15,10 @@ const initialForm = {
   name: "",
   code: "",
   logoUrl: "",
-  bankName: "국민은행",
-  accountNumber: "",
-  accountHolder: "",
-  baseFee: 50000
+  bankName: "기업은행",
+  accountNumber: "188-146874-01-015",
+  accountHolder: "대경이엔피",
+  baseFee: 150000
 };
 
 export default function AdminApartmentsManager() {
