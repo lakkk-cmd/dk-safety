@@ -10,6 +10,8 @@ export type ApartmentTenant = {
   baseFee: number;
   /** 광주 구 단위 분류(동구/서구/남구/북구/광산구/기타) — 관리자 목록 탭·검색용, 미지정이면 빈 문자열(086) */
   district: string;
+  /** 실제 소재지 주소(도로명/지번) — 미지정이면 빈 문자열 */
+  address: string;
   createdAt: string;
 };
 
@@ -24,6 +26,7 @@ type ApartmentRow = {
   bank_info: { bankName?: string; accountNumber?: string; accountHolder?: string } | null;
   base_fee: number;
   district?: string | null;
+  address?: string | null;
   created_at: string;
 };
 
@@ -47,6 +50,7 @@ function mapApartment(row: ApartmentRow): ApartmentTenant {
     },
     baseFee: Number.isFinite(row.base_fee) ? Number(row.base_fee) : 50000,
     district: row.district?.trim() ?? "",
+    address: row.address?.trim() ?? "",
     createdAt: row.created_at
   };
 }
@@ -120,6 +124,7 @@ export async function pgCreateApartment(input: {
   bankInfo: { bankName: string; accountNumber: string; accountHolder: string };
   baseFee: number;
   district?: string;
+  address?: string;
 }): Promise<ApartmentTenant> {
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase
@@ -130,7 +135,8 @@ export async function pgCreateApartment(input: {
       logo_url: input.logoUrl?.trim() || null,
       bank_info: input.bankInfo,
       base_fee: Math.max(50000, Math.round(input.baseFee)),
-      district: input.district?.trim() || ""
+      district: input.district?.trim() || "",
+      address: input.address?.trim() || ""
     })
     .select("*")
     .single();
@@ -149,6 +155,7 @@ export async function pgUpdateApartment(
     bankInfo: { bankName: string; accountNumber: string; accountHolder: string };
     baseFee: number;
     district: string;
+    address: string;
   }>
 ): Promise<ApartmentTenant | null> {
   const supabase = requireSupabaseAdmin();
@@ -159,6 +166,7 @@ export async function pgUpdateApartment(
   if (patch.bankInfo) payload.bank_info = patch.bankInfo;
   if (typeof patch.baseFee === "number") payload.base_fee = Math.max(50000, Math.round(patch.baseFee));
   if (typeof patch.district === "string") payload.district = patch.district.trim();
+  if (typeof patch.address === "string") payload.address = patch.address.trim();
   if (Object.keys(payload).length === 0) return null;
 
   const { data, error } = await supabase.from("apartments").update(payload).eq("id", id).select("*").maybeSingle();

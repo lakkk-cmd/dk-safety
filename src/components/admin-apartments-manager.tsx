@@ -10,6 +10,7 @@ type Apartment = {
   bankInfo: { bankName: string; accountNumber: string; accountHolder: string };
   baseFee: number;
   district: string;
+  address: string;
 };
 
 /** 광주 5개 구 — 관리자 목록 탭 분류/생성 폼 선택지 */
@@ -24,7 +25,8 @@ const initialForm = {
   accountNumber: "188-146874-01-015",
   accountHolder: "대경이엔피",
   baseFee: 150000,
-  district: ""
+  district: "",
+  address: ""
 };
 
 export default function AdminApartmentsManager() {
@@ -65,7 +67,8 @@ export default function AdminApartmentsManager() {
         logoUrl: form.logoUrl,
         bankInfo: { bankName: form.bankName, accountNumber: form.accountNumber, accountHolder: form.accountHolder || form.name },
         baseFee: form.baseFee,
-        district: form.district
+        district: form.district,
+        address: form.address
       })
     });
     const data = (await response.json()) as { message?: string };
@@ -108,7 +111,7 @@ export default function AdminApartmentsManager() {
     const q = search.trim();
     return items.filter((item) => {
       const matchesTab = districtTab === "전체" || districtLabel(item.district) === districtTab;
-      const matchesSearch = !q || item.name.includes(q) || item.code.includes(q.toLowerCase());
+      const matchesSearch = !q || item.name.includes(q) || item.code.includes(q.toLowerCase()) || item.address.includes(q);
       return matchesTab && matchesSearch;
     });
   }, [items, districtTab, search]);
@@ -130,6 +133,12 @@ export default function AdminApartmentsManager() {
               </option>
             ))}
           </select>
+          <input
+            value={form.address}
+            onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
+            placeholder="주소 (도로명 또는 지번)"
+            className="soft-input md:col-span-2"
+          />
           <input value={form.logoUrl} onChange={(e) => setForm((p) => ({ ...p, logoUrl: e.target.value }))} placeholder="로고 URL" className="soft-input md:col-span-2" />
           <input value={form.bankName} onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value }))} placeholder="은행명" className="soft-input" />
           <input value={form.accountNumber} onChange={(e) => setForm((p) => ({ ...p, accountNumber: e.target.value }))} placeholder="계좌번호" className="soft-input" />
@@ -205,6 +214,7 @@ export default function AdminApartmentsManager() {
                 {item.name} <span className="text-xs text-slate-500">/apt/{item.code}</span>{" "}
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{districtLabel(item.district)}</span>
               </p>
+              {item.address ? <p className="mt-0.5 text-xs text-slate-500">{item.address}</p> : null}
               <p className="mt-1 text-xs text-slate-600">
                 {item.bankInfo.bankName} {item.bankInfo.accountNumber} ({item.bankInfo.accountHolder}) · 기본 {item.baseFee.toLocaleString("ko-KR")}원
               </p>
@@ -223,7 +233,8 @@ export default function AdminApartmentsManager() {
                     accountNumber: item.bankInfo.accountNumber,
                     accountHolder: item.bankInfo.accountHolder,
                     baseFee: item.baseFee,
-                    district: item.district
+                    district: item.district,
+                    address: item.address
                   });
                 }}
                 className="ml-2 mt-2 rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"
