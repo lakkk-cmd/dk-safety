@@ -142,6 +142,10 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
   const pendingSlotRef = useRef<number | null>(null);
   const flowStatusRef = useRef<FlowStatus>("draft");
   const paymentRedirectTimerRef = useRef<number | null>(null);
+  /** loading 상태값만으로 버튼을 disabled해도, 빠른 연속 탭이 같은 이벤트 루프 틱에서
+   *  둘 다 통과해 예약/주문이 중복 생성될 수 있다(2026-08-08 실사례 발견) — 동기적으로
+   *  즉시 막는 ref 가드를 추가로 둔다. */
+  const submittingRef = useRef(false);
 
   const requestPhotos = useMemo(() => photoSlots.filter((f): f is File => f != null), [photoSlots]);
 
@@ -595,6 +599,7 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
   }, [loading]);
 
   const createReservation = async (preferredDate: string, preferredTime: string): Promise<boolean> => {
+    if (submittingRef.current) return false;
     if (!hasRequiredInfo) {
       setMessage("메인페이지 팝업에서 동/호수, 성명, 연락처를 입력해 주세요.");
       return false;
@@ -603,6 +608,7 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
       setMessage("요청 내용(2자 이상)과 사진 1장 이상을 입력한 뒤 다시 시도해 주세요.");
       return false;
     }
+    submittingRef.current = true;
     setLoading(true);
     setMessage("");
     try {
@@ -688,6 +694,7 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
       setMessage(error instanceof Error ? error.message : "접수 생성 실패");
       return false;
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };

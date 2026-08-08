@@ -780,9 +780,12 @@ export async function pgChangeReservationServiceType(
     throw new Error(`서비스 유형 변경 실패: ${updateErr.message}`);
   }
 
+  // .maybeSingle()은 같은 예약에 order가 2개 이상 매칭되면 조용히 실패하므로(과거 중복생성
+  // 버그 사례 있음) 다건 조회로 안전하게 처리한다.
   let orderUpdated = false;
-  const { data: order } = await supabase.from("orders").select("id, payment_status").eq("reservation_id", id).maybeSingle();
-  if (order && order.payment_status === "PENDING") {
+  const { data: orders } = await supabase.from("orders").select("id, payment_status").eq("reservation_id", id);
+  for (const order of orders ?? []) {
+    if (order.payment_status !== "PENDING") continue;
     const { error: orderErr } = await supabase
       .from("orders")
       .update({ base_fee: newBaseFee, prepayment_amount: newBaseFee, updated_at: new Date().toISOString() })
@@ -1696,12 +1699,12 @@ export async function pgSetReservationPayment(
   // 현장정산승인 화면 등 orders 기준 화면이 이 예약을 제대로 인식한다. dispatch_status는
   // BLOCKED↔READY 사이에서만 맞추고, 이미 배정·진행·완료로 넘어간 order는 건드리지 않는다.
   try {
-    const { data: linkedOrder } = await supabase
-      .from("orders")
-      .select("id, dispatch_status")
-      .eq("reservation_id", id)
-      .maybeSingle();
-    if (linkedOrder) {
+    // .maybeSingle()은 같은 예약에 order가 2개 이상 매칭되면(과거 중복생성 버그로 실제
+    // 발생했었다) 조용히 실패해 이 블록 전체를 건너뛰었다 — 그래서 관리자가 "미입금으로
+    // 변경"을 눌러도 실제 결제행(order)에는 반영되지 않는 것처럼 보였다. 여러 건이
+    // 매칭되더라도 전부 동기화하도록 다건 조회로 바꾼다.
+    const { data: linkedOrders } = await supabase.from("orders").select("id, dispatch_status").eq("reservation_id", id);
+    for (const linkedOrder of linkedOrders ?? []) {
       const dispatchStatus = String(linkedOrder.dispatch_status ?? "").toUpperCase();
       const patch: Record<string, unknown> = {
         payment_status: isPaid ? "PAID" : "PENDING",

@@ -62,6 +62,30 @@ export async function pgCreateOrder(input: {
     }
   }
   const prepayment = normalizePrepaymentAmount(resolvedBaseFee);
+
+  // 멱등성 가드: 같은 예약에 대해 두 번 호출되면(모바일 더블탭, 네트워크 재시도 등) order가
+  // 중복 생성되던 버그(2026-08-08 추영선 고객 건에서 발견 — 예약금 확인/취소가 어느 쪽
+  // row에 적용됐는지 꼬여 "취소했는데 안 된 것 같다"는 증상으로 나타났다). 이미 있으면
+  // 새로 만들지 않고 기존 것을 최신 base_fee로 맞춰 반환한다.
+  if (input.reservationId) {
+    const { data: existing } = await supabase
+      .from("orders")
+      .select("id, apt_id, reservation_id, payment_status, dispatch_status, base_fee")
+      .eq("reservation_id", input.reservationId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      if (existing.payment_status === "PENDING" && existing.base_fee !== prepayment) {
+        await supabase
+          .from("orders")
+          .update({ base_fee: prepayment, prepayment_amount: prepayment, updated_at: new Date().toISOString() })
+          .eq("id", existing.id);
+        existing.base_fee = prepayment;
+      }
+      return existing;
+    }
+  }
   const { data, error } = await supabase
     .from("orders")
     .insert({
