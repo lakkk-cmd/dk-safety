@@ -27,7 +27,9 @@ function deriveDistrict(address: string): string {
 declare global {
   interface Window {
     daum?: {
-      Postcode: new (options: { oncomplete: (data: { roadAddress?: string; jibunAddress?: string; address?: string }) => void }) => {
+      Postcode: new (options: {
+        oncomplete: (data: { roadAddress?: string; jibunAddress?: string; address?: string; buildingName?: string; apartment?: "Y" | "N" }) => void;
+      }) => {
         open: () => void;
       };
     };
@@ -126,7 +128,12 @@ export default function AdminApartmentsManager() {
       new window.daum!.Postcode({
         oncomplete: (data) => {
           const fullAddress = data.roadAddress || data.jibunAddress || data.address || "";
-          setForm((p) => ({ ...p, address: fullAddress, district: deriveDistrict(fullAddress) }));
+          setForm((p) => ({
+            ...p,
+            address: fullAddress,
+            district: deriveDistrict(fullAddress),
+            name: !p.name.trim() && data.apartment === "Y" && data.buildingName ? data.buildingName : p.name
+          }));
         }
       }).open();
     } catch {
