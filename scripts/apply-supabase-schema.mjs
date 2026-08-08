@@ -18,14 +18,33 @@ if (!connectionString) {
 
 const sqlConn = postgres(connectionString, { max: 1, ssl: "require" });
 try {
+  // 이미 적용된 파일은 다시 재생하지 않는다 — 과거엔 매번 001번부터 전체를 재생해서,
+  // 운영 데이터가 이미 앞서간 상태(예: 나중 마이그레이션에서만 허용되는 값)로는
+  // 중간 단계의 옛 제약과 충돌해 재생 자체가 막히는 문제가 있었다.
+  await sqlConn.unsafe(
+    `create table if not exists public.schema_migrations (
+      filename text primary key,
+      applied_at timestamptz not null default now()
+    );`
+  );
+  const appliedRows = await sqlConn`select filename from public.schema_migrations`;
+  const applied = new Set(appliedRows.map((row) => row.filename));
+
   const files = fs
     .readdirSync(migrationsDir)
     .filter((name) => name.endsWith(".sql"))
     .sort((a, b) => a.localeCompare(b));
   for (const fileName of files) {
+    if (applied.has(fileName)) {
+      console.log("이미 적용됨(skip):", fileName);
+      continue;
+    }
     const migrationPath = path.join(migrationsDir, fileName);
     const sql = fs.readFileSync(migrationPath, "utf8");
-    await sqlConn.unsafe(sql);
+    await sqlConn.begin(async (tx) => {
+      await tx.unsafe(sql);
+      await tx`insert into public.schema_migrations (filename) values (${fileName})`;
+    });
     console.log("스키마 적용:", migrationPath);
   }
   console.log("스키마 적용 완료");
