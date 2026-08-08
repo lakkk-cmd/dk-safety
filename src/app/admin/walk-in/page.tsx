@@ -50,7 +50,7 @@ export default function WalkInPage() {
   const [workTime, setWorkTime] = useState(nowTimeStr());
   const [detail, setDetail] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
-  const [offlineDispatchFee, setOfflineDispatchFee] = useState(200000);
+  const [offlineDispatchFee, setOfflineDispatchFee] = useState(150000);
   const [photos, setPhotos] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<{ id: string; name: string } | null>(null);
@@ -60,6 +60,7 @@ export default function WalkInPage() {
   // 완료 처리 모달 상태
   const [completeTarget, setCompleteTarget] = useState<CompleteTarget | null>(null);
   const [serviceSummary, setServiceSummary] = useState("");
+  const [partsUsed, setPartsUsed] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [completeResult, setCompleteResult] = useState<CompleteResult | null>(null);
   const [completeError, setCompleteError] = useState<string | null>(null);
@@ -87,9 +88,9 @@ export default function WalkInPage() {
       try {
         const response = await fetch("/api/admin/payment-settings", { cache: "no-store" });
         if (!response.ok) return;
-        const data = (await response.json()) as { settings?: { baseDispatchFeeOffline?: number } };
-        if (data.settings?.baseDispatchFeeOffline != null) {
-          setOfflineDispatchFee(Number(data.settings.baseDispatchFeeOffline));
+        const data = (await response.json()) as { settings?: { baseDispatchFee?: number } };
+        if (data.settings?.baseDispatchFee != null) {
+          setOfflineDispatchFee(Number(data.settings.baseDispatchFee));
         }
       } catch {
         // 안내 문구용이라 실패해도 무시(기본값 200,000 유지)
@@ -133,6 +134,7 @@ export default function WalkInPage() {
   const openComplete = (r: Reservation) => {
     setCompleteTarget(r);
     setServiceSummary(r.detail || r.serviceType);
+    setPartsUsed(false);
     setCompleteResult(null);
     setCompleteError(null);
   };
@@ -153,7 +155,8 @@ export default function WalkInPage() {
           workDate: completeTarget.preferredDate,
           workTime: completeTarget.preferredTime,
           serviceSummary,
-          finalAmount: completeTarget.totalAmount
+          finalAmount: completeTarget.totalAmount,
+          partsUsed
         })
       });
       const json = (await res.json()) as CompleteResult & { error?: string };
@@ -242,7 +245,7 @@ export default function WalkInPage() {
                   placeholder={String(offlineDispatchFee)}
                 />
                 <p className="mt-1 text-[11px] text-slate-400">
-                  참고: 현장즉시접수 정가 출장비는 {offlineDispatchFee.toLocaleString("ko-KR")}원입니다.
+                  참고: 기본 출장비는 {offlineDispatchFee.toLocaleString("ko-KR")}원입니다(휴일/공휴일 20% 할증은 직접 반영해 입력).
                 </p>
               </div>
             </div>
@@ -386,6 +389,13 @@ export default function WalkInPage() {
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
                   단가: <strong>{completeTarget.totalAmount.toLocaleString()}원</strong>
+                </p>
+                <label className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-800">
+                  <input type="checkbox" checked={partsUsed} onChange={(e) => setPartsUsed(e.target.checked)} className="h-4 w-4" />
+                  이번 작업에 부품을 사용했나요?
+                </label>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  무상수리 보증기간이 부품 사용 여부로 갈립니다 (미사용 2개월 / 사용 4개월, 동일부위·동일증상 한정).
                 </p>
                 {completeError && (
                   <div className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{completeError}</div>

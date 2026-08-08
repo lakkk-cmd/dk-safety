@@ -912,6 +912,11 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
               접수 후 기본 출장비 {prepaymentAmount.toLocaleString("ko-KR")}원을 먼저 결제해 주세요.
             </p>
             <p className={cn("mt-1 text-xs", isEmergency ? "text-red-800/80" : "text-slate-600")}>{feeGuide}</p>
+            {requestType === "repair" || requestType === "etc-check" ? (
+              <p className={cn("mt-1 text-xs", isEmergency ? "text-red-800/80" : "text-slate-500")}>
+                * 토·일요일 및 법정공휴일 방문은 출장비 20% 할증이 적용됩니다.
+              </p>
+            ) : null}
           </>
         ) : null}
       </section>

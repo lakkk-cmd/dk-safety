@@ -8,6 +8,7 @@ import { appendActivityLog } from "@/lib/activity-log";
 import { pushReservationProgressNotifications } from "@/lib/live-notify";
 import { sendAdminAlertSms } from "@/lib/solapi-agent";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
+import { applyHolidaySurcharge } from "@/lib/holiday-surcharge";
 
 const AS_SERVICE_TYPE = "A/S 재방문";
 
@@ -69,7 +70,7 @@ export async function POST(request: Request, context: { params: Promise<{ warran
     detail,
     imageUrls: [],
     priority: "normal",
-    baseFee: paymentSettings.baseDispatchFee,
+    baseFee: applyHolidaySurcharge(paymentSettings.baseDispatchFee, body.preferredDate!.trim()),
     asSourceReservationId: original.id
   });
 

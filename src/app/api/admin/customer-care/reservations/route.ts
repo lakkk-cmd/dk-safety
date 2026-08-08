@@ -10,6 +10,7 @@ import { pgAdminCreateOfflineReservation } from "@/lib/reservations-pg";
 import { readPaymentSettings } from "@/lib/payment-settings";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { pushReservationProgressNotifications } from "@/lib/live-notify";
+import { applyHolidaySurcharge } from "@/lib/holiday-surcharge";
 
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
@@ -63,7 +64,8 @@ export async function POST(request: Request) {
       detail: body.detail?.trim() || "오프라인 접수",
       imageUrls: [],
       priority: body.priority === "emergency" ? "emergency" : "normal",
-      baseFee: paymentSettings.baseDispatchFeeOffline
+      // 2026-08: 채널별 차등가(온라인/전화·현장즉시접수) 폐지 — 기본 출장비 단일가 + 휴일/공휴일 할증(20%)
+      baseFee: applyHolidaySurcharge(paymentSettings.baseDispatchFee, body.preferredDate!.trim())
     });
 
     await appendActivityLog({

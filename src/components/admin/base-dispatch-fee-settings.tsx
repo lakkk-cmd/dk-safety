@@ -8,7 +8,6 @@ const MIN_SWAP_FEE = 10000;
 
 export default function BaseDispatchFeeSettings() {
   const [baseDispatchFee, setBaseDispatchFee] = useState(MIN_FEE);
-  const [baseDispatchFeeOffline, setBaseDispatchFeeOffline] = useState(200000);
   const [simpleSwapFee, setSimpleSwapFee] = useState(70000);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -19,13 +18,10 @@ export default function BaseDispatchFeeSettings() {
         const response = await fetch("/api/admin/payment-settings", { cache: "no-store" });
         if (!response.ok) return;
         const data = (await response.json()) as {
-          settings?: { baseDispatchFee?: number; baseDispatchFeeOffline?: number; simpleSwapFee?: number };
+          settings?: { baseDispatchFee?: number; simpleSwapFee?: number };
         };
         if (data.settings?.baseDispatchFee != null) {
           setBaseDispatchFee(Math.max(MIN_FEE, Number(data.settings.baseDispatchFee)));
-        }
-        if (data.settings?.baseDispatchFeeOffline != null) {
-          setBaseDispatchFeeOffline(Math.max(MIN_FEE, Number(data.settings.baseDispatchFeeOffline)));
         }
         if (data.settings?.simpleSwapFee != null) {
           setSimpleSwapFee(Math.max(MIN_SWAP_FEE, Number(data.settings.simpleSwapFee)));
@@ -35,8 +31,6 @@ export default function BaseDispatchFeeSettings() {
       }
     })();
   }, []);
-
-  const discount = Math.max(0, baseDispatchFeeOffline - baseDispatchFee);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -48,21 +42,17 @@ export default function BaseDispatchFeeSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           baseDispatchFee: Math.max(MIN_FEE, Math.round(baseDispatchFee)),
-          baseDispatchFeeOffline: Math.max(MIN_FEE, Math.round(baseDispatchFeeOffline)),
           simpleSwapFee: Math.max(MIN_SWAP_FEE, Math.round(simpleSwapFee))
         })
       });
       const data = (await response.json()) as {
-        settings?: { baseDispatchFee?: number; baseDispatchFeeOffline?: number; simpleSwapFee?: number };
+        settings?: { baseDispatchFee?: number; simpleSwapFee?: number };
         message?: string;
       };
       if (!response.ok || !data.settings) {
         throw new Error(data.message || "저장 실패");
       }
       setBaseDispatchFee(Math.max(MIN_FEE, Number(data.settings.baseDispatchFee)));
-      if (data.settings.baseDispatchFeeOffline != null) {
-        setBaseDispatchFeeOffline(Math.max(MIN_FEE, Number(data.settings.baseDispatchFeeOffline)));
-      }
       if (data.settings.simpleSwapFee != null) {
         setSimpleSwapFee(Math.max(MIN_SWAP_FEE, Number(data.settings.simpleSwapFee)));
       }
@@ -77,13 +67,14 @@ export default function BaseDispatchFeeSettings() {
   return (
     <section className="surface-card rounded-2xl border border-slate-200 p-5 dark:border-slate-700 dark:bg-slate-950">
       <p className="warranty-badge">BASE DISPATCH FEE</p>
-      <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-slate-50">기본 출장비 (채널별)</h2>
+      <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-slate-50">기본 출장비</h2>
       <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-        온라인(앱/홈페이지) 예약은 할인가, 전화예약·현장즉시접수는 정가가 적용됩니다. 변경 시 신규 예약부터 적용됩니다.
+        채널(온라인/전화/현장즉시접수) 구분 없이 단일가입니다. 토·일요일 및 법정공휴일에 방문하는 예약은 20% 할증이 자동
+        적용됩니다. 변경 시 신규 예약부터 적용됩니다.
       </p>
       <form className="mt-4 space-y-3" onSubmit={submit}>
         <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
-          온라인 예약 (할인가)
+          기본 출장비
           <input
             className="soft-input mt-1 w-full text-sm dark:border-slate-600 dark:bg-slate-900"
             type="number"
@@ -94,23 +85,9 @@ export default function BaseDispatchFeeSettings() {
             required
           />
         </label>
-        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
-          전화예약 · 현장즉시접수 (정가)
-          <input
-            className="soft-input mt-1 w-full text-sm dark:border-slate-600 dark:bg-slate-900"
-            type="number"
-            min={MIN_FEE}
-            step={1000}
-            value={baseDispatchFeeOffline}
-            onChange={(e) => setBaseDispatchFeeOffline(Math.max(MIN_FEE, Number(e.target.value || 0)))}
-            required
-          />
-        </label>
-        {discount > 0 ? (
-          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">
-            온라인 예약 시 {discount.toLocaleString("ko-KR")}원 할인 문구로 노출됩니다.
-          </p>
-        ) : null}
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+          휴일/공휴일 방문 시 자동 청구액: {Math.round(baseDispatchFee * 1.2).toLocaleString("ko-KR")}원 (20% 할증, 코드에 고정값)
+        </p>
         <p className="text-xs text-slate-500 dark:text-slate-400">최소 {MIN_FEE.toLocaleString("ko-KR")}원 이상입니다.</p>
         <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
           단순 기구교체 공임 (점검 없이 바로 교체 · 재료비 별도)

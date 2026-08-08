@@ -84,6 +84,9 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
 
   const [completionQuote, setCompletionQuote] = useState<QuoteValue>({ materials: [], laborTier: null, total: 0 });
   const [adjustmentReason, setAdjustmentReason] = useState("");
+  /** 무상수리 보증기간(부품 사용 2개월/4개월) 산정 근거 — 자재 목록이 있으면 기본 체크, 기사가 직접 최종 확인/수정 */
+  const [partsUsedOverride, setPartsUsedOverride] = useState<boolean | null>(null);
+  const partsUsed = partsUsedOverride ?? completionQuote.materials.length > 0;
 
   const load = useCallback(async () => {
     try {
@@ -438,7 +441,8 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
           extraFee: completionQuote.total,
           materials: completionQuote.materials,
           laborTier: completionQuote.laborTier,
-          adjustmentReason: adjustmentReason.trim() || undefined
+          adjustmentReason: adjustmentReason.trim() || undefined,
+          partsUsed
         })
       });
       const data = (await response.json()) as { message?: string };
@@ -773,6 +777,19 @@ export default function WorkerTaskDetail({ taskId }: { taskId: string }) {
                   <span className="ml-1 font-normal text-slate-500">
                     (출장비 {reservation.baseFee.toLocaleString()} + 현장 비용 {completionQuote.total.toLocaleString()})
                   </span>
+                </p>
+                <label className="flex items-center gap-2 rounded-lg bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={partsUsed}
+                    onChange={(e) => setPartsUsedOverride(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  이번 작업에 부품을 사용했나요?
+                </label>
+                <p className="text-xs text-slate-500">
+                  무상수리 보증기간이 부품 사용 여부로 갈립니다 (미사용 2개월 / 사용 4개월, 동일부위·동일증상 한정). 정확히
+                  체크해주세요.
                 </p>
                 <button
                   type="button"

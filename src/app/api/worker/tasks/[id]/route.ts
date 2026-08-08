@@ -64,6 +64,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     laborTier?: { label?: string; amount?: number } | null;
     fieldReportId?: string;
     adjustmentReason?: string;
+    partsUsed?: boolean;
   };
   const action = body.action?.trim() ?? "";
   try {
@@ -160,7 +161,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           ? { label: body.laborTier.label, amount: Math.max(0, Math.round(laborTierAmount)) }
           : null;
       const quotedAmountBefore = (await pgGetTaskForWorker(id, session.workerId))?.task.quote_amount ?? null;
-      await pgCompleteTask(id, session.workerId, signature, extraFee, { materials, laborTier });
+      const partsUsed = typeof body.partsUsed === "boolean" ? body.partsUsed : undefined;
+      await pgCompleteTask(id, session.workerId, signature, extraFee, { materials, laborTier }, partsUsed);
       const row = await pgGetTaskForWorker(id, session.workerId);
       if (row) {
         await appendActivityLog({

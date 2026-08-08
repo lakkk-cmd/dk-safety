@@ -9,6 +9,10 @@ import { getResidentBySessionId } from "@/lib/resident-db";
 import { RESIDENT_AUTH_COOKIE } from "@/lib/site-config";
 import { pushReservationProgressNotifications } from "@/lib/live-notify";
 import { sendAdminAlertSms } from "@/lib/solapi-agent";
+import { applyHolidaySurcharge } from "@/lib/holiday-surcharge";
+
+/** 기본 출장비(15만원 단일가)가 적용되는 서비스 유형만 휴일 할증 대상 — 긴급출동·단순기구교체는 별도 요금체계라 제외 */
+const STANDARD_DISPATCH_SERVICE_TYPES = new Set(["점검/수리", "기타점검"]);
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -121,6 +125,12 @@ export async function POST(request: Request) {
   // 없으면(레거시 호출부) 일반 출장비로 대체한다 — orders.base_fee와 항상 같은 값을 쓰기 위함.
   const requestedBaseFee = Number.isFinite(body.baseFee) ? Math.round(Number(body.baseFee)) : NaN;
   const baseFee = Number.isFinite(requestedBaseFee) && requestedBaseFee >= 10000 ? requestedBaseFee : paymentSettings.baseDispatchFee;
+  const trimmedServiceType = body.serviceType!.trim();
+  // 표준 출장비 대상 서비스만 휴일/공휴일 할증(20%) 적용 — 서버가 최종 금액을 항상 재계산해
+  // 클라이언트가 어떤 값을 보내든(또는 안 보내든) 실제 청구액이 항상 정확하도록 보장한다.
+  const finalBaseFee = STANDARD_DISPATCH_SERVICE_TYPES.has(trimmedServiceType)
+    ? applyHolidaySurcharge(baseFee, body.preferredDate!.trim())
+    : baseFee;
   const created = await createReservation({
     name: normalizedName,
     apartmentId: body.apartmentId?.trim() || undefined,
@@ -128,13 +138,13 @@ export async function POST(request: Request) {
     apartmentCode: body.apartmentCode?.trim() || undefined,
     phone: normalizedPhone,
     address: normalizedAddress,
-    serviceType: body.serviceType!.trim(),
+    serviceType: trimmedServiceType,
     preferredDate: body.preferredDate!,
     preferredTime: body.preferredTime!,
     detail: normalizedDetail,
     imageUrls,
     priority: "normal",
-    baseFee
+    baseFee: finalBaseFee
   });
 
   await appendActivityLog({

@@ -296,7 +296,7 @@ export async function PATCH(request: Request) {
     const { data: reservation, error: resErr } = await supabase
       .from("reservations")
       .select(
-        "id, name, phone, apartment_id, technician_id, service_item_id, service_type, detail, image_urls, base_fee, extra_fee, extra_fee_note, apartments(apt_code, name)"
+        "id, name, phone, apartment_id, technician_id, service_item_id, service_type, detail, image_urls, base_fee, extra_fee, extra_fee_note, parts_used, apartments(apt_code, name)"
       )
       .eq("id", reservationId)
       .maybeSingle();
@@ -356,6 +356,7 @@ export async function PATCH(request: Request) {
         serviceSummary: `${reservation.detail ?? reservation.service_type ?? "현장 작업"} / ${calc.breakdown.join(" | ")}`,
         finalAmount: calc.total_fee,
         sitePhotos,
+        partsUsed: Boolean(reservation.parts_used),
         reservationExtra: {
           status: "완료",
           extra_fee_confirmed: true,

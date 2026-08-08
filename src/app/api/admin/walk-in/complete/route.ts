@@ -24,16 +24,17 @@ export async function POST(request: Request) {
     serviceSummary: string;
     finalAmount: number;
     sitePhotos?: string[];
+    partsUsed?: boolean;
   };
 
-  const { reservationId, name, phone, serviceType, serviceSummary, finalAmount, sitePhotos = [] } = body;
+  const { reservationId, name, phone, serviceType, serviceSummary, finalAmount, sitePhotos = [], partsUsed = false } = body;
 
   if (!reservationId || !name || !phone || !serviceType) {
     return NextResponse.json({ error: "필수 항목 누락" }, { status: 400 });
   }
 
   // 1. 예약 상태 → 완료
-  await pgCompleteWalkInReservation(reservationId);
+  await pgCompleteWalkInReservation(reservationId, partsUsed);
 
   // 2. 보증서 발급 + 정산 확정 알림(문자) — pgIssueWarrantyAndSettle이 함께 처리한다
   const { warrantyNumber, verifyUrl, notifiedChannels } = await issueWalkInWarranty({
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
     serviceSummary: serviceSummary || serviceType,
     finalAmount,
     sitePhotos,
+    partsUsed,
     customer: { name, phone }
   });
 

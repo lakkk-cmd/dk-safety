@@ -203,6 +203,7 @@ async function issueWarrantyForReservation(params: {
   serviceSummary: string;
   finalAmount: number;
   sitePhotos: string[];
+  partsUsed: boolean;
   /** 있으면 발급 직후 고객에게 정산 확정 알림을 보낸다(best-effort) */
   customer?: { name: string; phone: string };
 }): Promise<{ warrantyId: string; warrantyNumber: string }> {
@@ -215,6 +216,7 @@ async function issueWarrantyForReservation(params: {
     serviceSummary: params.serviceSummary,
     finalAmount: params.finalAmount,
     sitePhotos: params.sitePhotos,
+    partsUsed: params.partsUsed,
     skipReservationUpdate: true,
     customer: params.customer,
     orderLogActor: "SYSTEM_TASK_COMPLETE"
@@ -1388,7 +1390,10 @@ export async function pgCompleteTask(
   workerId: string,
   signaturePng: string,
   extraFeeInput?: number,
-  breakdownInput?: TaskCompletionBreakdown
+  breakdownInput?: TaskCompletionBreakdown,
+  /** 무상수리 보증기간(2개월/4개월) 산정 근거 — 기사가 작업완료 화면에서 직접 체크.
+   *  값이 없으면(구버전 앱 등) 견적 자재 목록 존재 여부로 대체 추정한다. */
+  partsUsedInput?: boolean
 ): Promise<void> {
   const supabase = requireSupabaseAdmin();
   if (!signaturePng || signaturePng.length < 50) {
@@ -1473,6 +1478,7 @@ export async function pgCompleteTask(
   const sitePhotos = asStringArray(reservationRow.image_urls);
   const additionalDueAmount = finalFee.amount_due_now;
   const shouldAutoIssueWarranty = additionalDueAmount === 0;
+  const partsUsed = typeof partsUsedInput === "boolean" ? partsUsedInput : (breakdownInput?.materials?.length ?? 0) > 0;
   let warrantyId: string | null = null;
   if (reservationRow.apartment_id && shouldAutoIssueWarranty) {
     const issued = await issueWarrantyForReservation({
@@ -1483,6 +1489,7 @@ export async function pgCompleteTask(
       serviceSummary: warrantySummary,
       finalAmount: finalFee.total_fee,
       sitePhotos,
+      partsUsed,
       customer: { name: reservationRow.name ?? "고객", phone: reservationRow.phone ?? "" }
     });
     warrantyId = issued.warrantyId;
@@ -1500,7 +1507,8 @@ export async function pgCompleteTask(
       total_amount: finalFee.total_fee,
       settled_at: now,
       warranty_id: warrantyId,
-      warranty_status: warrantyId ? "ISSUED" : "PENDING"
+      warranty_status: warrantyId ? "ISSUED" : "PENDING",
+      parts_used: partsUsed
     })
     .eq("id", data.reservation_id);
   if (rErr) {
@@ -1767,6 +1775,7 @@ export async function issueWalkInWarranty(params: {
   serviceSummary: string;
   finalAmount: number;
   sitePhotos: string[];
+  partsUsed: boolean;
   customer?: { name: string; phone: string };
 }): Promise<{ warrantyId: string; warrantyNumber: string; verifyUrl: string; notifiedChannels: string[] }> {
   return pgIssueWarrantyAndSettle({
@@ -1778,16 +1787,17 @@ export async function issueWalkInWarranty(params: {
     serviceSummary: params.serviceSummary,
     finalAmount: params.finalAmount,
     sitePhotos: params.sitePhotos,
+    partsUsed: params.partsUsed,
     customer: params.customer,
     orderLogActor: "SYSTEM_WALKIN_COMPLETE"
   });
 }
 
-export async function pgCompleteWalkInReservation(reservationId: string): Promise<void> {
+export async function pgCompleteWalkInReservation(reservationId: string, partsUsed: boolean): Promise<void> {
   const supabase = requireSupabaseAdmin();
   const { error } = await supabase
     .from("reservations")
-    .update({ status: "완료", completed_at: new Date().toISOString() })
+    .update({ status: "완료", completed_at: new Date().toISOString(), parts_used: partsUsed })
     .eq("id", reservationId);
   if (error) throw new Error(`완료 처리 실패: ${error.message}`);
 }

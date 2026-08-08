@@ -47,7 +47,21 @@ export async function pgCreateOrder(input: {
   baseFee?: number;
 }) {
   const supabase = requireSupabaseAdmin();
-  const prepayment = normalizePrepaymentAmount(input.baseFee);
+  // reservations.base_fee가 이미 확정된 경우(휴일할증 등 서버가 재계산한 최종 금액) 그 값을
+  // 항상 우선한다 — 클라이언트가 보낸 baseFee와 실제 청구액(가상계좌/카드결제)이 어긋나는
+  // 것을 막기 위한 단일 소스. reservationId가 없거나 조회 실패 시에만 입력값으로 폴백.
+  let resolvedBaseFee = input.baseFee;
+  if (input.reservationId) {
+    const { data: reservationRow } = await supabase
+      .from("reservations")
+      .select("base_fee")
+      .eq("id", input.reservationId)
+      .maybeSingle();
+    if (reservationRow && Number.isFinite(reservationRow.base_fee)) {
+      resolvedBaseFee = reservationRow.base_fee;
+    }
+  }
+  const prepayment = normalizePrepaymentAmount(resolvedBaseFee);
   const { data, error } = await supabase
     .from("orders")
     .insert({
@@ -417,6 +431,8 @@ export async function pgIssueWarrantyAndSettle(input: {
   serviceSummary: string;
   finalAmount: number;
   sitePhotos: string[];
+  /** 무상수리 보증기간 산정 기준(2026-08 정책): 부품 미사용=2개월, 부품 사용=4개월(동일부위/동일증상) */
+  partsUsed: boolean;
   /** 없으면 지금 시각으로 reservations.settled_at을 새로 기록한다(정산이 지금 확정되는 경우).
    *  있으면 그 값을 보증서 발급일 계산 기준으로만 쓰고 settled_at은 다시 쓰지 않는다 —
    *  이미 작업완료 시점에 기록된 정산 시각을 유지해야 하는 관리자 승인 흐름이 이 경우다. */
@@ -462,8 +478,11 @@ export async function pgIssueWarrantyAndSettle(input: {
     aptCode
   });
   const startDate = issuedAt.toISOString().slice(0, 10);
+  // 무상수리 보증기간(2026-08 정책, 수리일자 기준·동일부위/동일증상 한정):
+  // 부품 미사용 2개월 / 부품 사용 4개월
+  const warrantyMonths = input.partsUsed ? 4 : 2;
   const endDate = new Date(issuedAt);
-  endDate.setFullYear(endDate.getFullYear() + 1);
+  endDate.setMonth(endDate.getMonth() + warrantyMonths);
   const endDateText = endDate.toISOString().slice(0, 10);
   const verifyBase = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://dkansim.com";
   const verifyUrl = `${verifyBase.replace(/\/$/, "")}/verify/${encodeURIComponent(warrantyNumber)}`;
@@ -478,7 +497,7 @@ export async function pgIssueWarrantyAndSettle(input: {
         technician_id: input.technicianId ?? null,
         service_type: mapServiceTypeToPatentKey(input.serviceType),
         service_summary: input.serviceSummary,
-        warranty_months: 12,
+        warranty_months: warrantyMonths,
         warranty_start: startDate,
         warranty_end: endDateText,
         final_amount: input.finalAmount,
@@ -574,7 +593,7 @@ export async function pgMarkFinalPaymentPaidAndIssueWarranty(input: {
 
   const { data: reservation, error: reservationErr } = await supabase
     .from("reservations")
-    .select("id, apartment_id, technician_id, service_type, detail, total_amount, settled_at, image_urls")
+    .select("id, apartment_id, technician_id, service_type, detail, total_amount, settled_at, image_urls, parts_used")
     .eq("id", order.reservation_id)
     .maybeSingle();
   if (reservationErr || !reservation) {
@@ -599,6 +618,7 @@ export async function pgMarkFinalPaymentPaidAndIssueWarranty(input: {
     serviceSummary,
     finalAmount,
     sitePhotos: Array.isArray(reservation.image_urls) ? (reservation.image_urls as string[]) : [],
+    partsUsed: Boolean(reservation.parts_used),
     settledAt: reservation.settled_at ?? null,
     provider: input.provider ?? null,
     paymentKey: input.paymentKey,
