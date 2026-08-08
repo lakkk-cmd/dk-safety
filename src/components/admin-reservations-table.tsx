@@ -279,6 +279,37 @@ export default function AdminReservationsTable({
     }
   };
 
+  const TOGGLEABLE_SERVICE_TYPES = ["점검/수리", "단순기구교체"] as const;
+
+  const changeServiceType = async (id: string, serviceType: string) => {
+    setLoadingId(id);
+    try {
+      const response = await fetch(`/api/admin/reservations/${id}/service-type`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceType })
+      });
+      const data = (await response.json()) as {
+        reservation?: Reservation;
+        message?: string;
+        previousBaseFee?: number;
+        newBaseFee?: number;
+      };
+      if (!response.ok || !data.reservation) {
+        throw new Error(data.message ?? "서비스 유형 변경에 실패했습니다.");
+      }
+      setReservations((prev) => prev.map((item) => (item.id === id ? data.reservation! : item)));
+      setToast({
+        type: "success",
+        message: `서비스 유형이 '${serviceType}'로 변경되었습니다. (요금 ${data.previousBaseFee?.toLocaleString()}원 → ${data.newBaseFee?.toLocaleString()}원)`
+      });
+    } catch (error) {
+      setToast({ type: "error", message: error instanceof Error ? error.message : "서비스 유형 변경에 실패했습니다." });
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
   const assignTask = async (reservationId: string) => {
     const workerId = assignWorkerId[reservationId] ?? "";
     if (!workerId) {
@@ -743,7 +774,25 @@ export default function AdminReservationsTable({
                   >
                     {item.priority === "emergency" ? "긴급출동" : "일반"}
                   </span>
-                  <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">{item.serviceType}</span>
+                  {item.status !== "완료" &&
+                  item.status !== "취소" &&
+                  (TOGGLEABLE_SERVICE_TYPES as readonly string[]).includes(item.serviceType) ? (
+                    <select
+                      value={item.serviceType}
+                      disabled={loadingId === item.id}
+                      onChange={(e) => void changeServiceType(item.id, e.target.value)}
+                      className="rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700"
+                      title="고객이 잘못된 버튼으로 접수한 경우 여기서 서비스 유형을 바로잡을 수 있습니다 (요금 자동 재계산)"
+                    >
+                      {TOGGLEABLE_SERVICE_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">{item.serviceType}</span>
+                  )}
                   {item.status === "취소" ? (
                     <span className="rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">취소됨</span>
                   ) : (

@@ -7,10 +7,13 @@ import { ADMIN_ALERT_PHONE } from "@/lib/site-config";
 // sendAdminAlertSms는 예약 접수/A/S 요청 등에서 best-effort로 호출되어 실패해도
 // 흐름을 막지 않고 activity-log에만 남기는데, Vercel 서버리스는 파일시스템이
 // 읽기전용이라 그 로그조차 조용히 사라진다 — 그래서 실패 원인을 직접 눈으로 봐야 한다.
-export async function POST() {
+export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ message: "권한이 없습니다." }, { status: 401 });
   }
+
+  const body = (await request.json().catch(() => ({}))) as { message?: string };
+  const customMessage = body.message?.trim();
 
   const phoneConfigured = ADMIN_ALERT_PHONE.trim().length > 0;
   const maskedPhone = phoneConfigured
@@ -18,7 +21,7 @@ export async function POST() {
     : null;
 
   try {
-    const result = await sendAdminAlertSms(`[진단 테스트] ${new Date().toISOString()} 관리자 SMS 발송 테스트입니다.`);
+    const result = await sendAdminAlertSms(customMessage || `[진단 테스트] ${new Date().toISOString()} 관리자 SMS 발송 테스트입니다.`);
     return NextResponse.json({ success: true, phoneConfigured, maskedPhone, result });
   } catch (error) {
     return NextResponse.json(

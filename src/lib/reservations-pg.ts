@@ -7,6 +7,8 @@ import {
   type ServiceItem
 } from "@/lib/daekyung-fee-logic";
 import { pgCreateOrder, pgIssueWarrantyAndSettle } from "@/lib/orders-pg";
+import { readPaymentSettings } from "@/lib/payment-settings";
+import { applyHolidaySurcharge } from "@/lib/holiday-surcharge";
 
 function parseDongHoFromAddress(address: string): { dong: string; ho: string } {
   const compact = address.replaceAll(/\s/g, "");
@@ -710,6 +712,96 @@ export async function pgUpdateReservation(
     throw new Error(`예약 수정 실패: ${error.message}`);
   }
   return pgFindReservationById(id);
+}
+
+export type ToggleableServiceType = "점검/수리" | "단순기구교체";
+
+export type ChangeServiceTypeResult = {
+  reservation: Reservation;
+  previousServiceType: string;
+  previousBaseFee: number;
+  newBaseFee: number;
+  /** 연결된 orders 행의 예약금도 함께 갱신했는지 — 이미 입금대기/결제 단계로 넘어간 주문은
+   *  자동으로 금액을 바꾸지 않고 관리자가 기존 입금확인/추가비용 도구로 직접 정리해야 한다. */
+  orderUpdated: boolean;
+};
+
+/**
+ * 고객이 앱에서 잘못된 버튼(점검/수리 ↔ 단순기구교체)을 눌러 접수한 경우, 관리자가 실제
+ * 요청 내용에 맞게 서비스 유형을 바로잡는다. 요금(base_fee/total_amount)과 정산용
+ * service_item_id를 새 유형 기준으로 다시 계산해서 이후 작업완료·정산·보증서 발급이
+ * 전부 바뀐 유형에 맞게 진행되도록 한다. 이미 완료·취소된 예약은 실제 수행한 작업
+ * 자체를 바꿀 수 없으므로 변경을 막는다.
+ */
+export async function pgChangeReservationServiceType(
+  id: string,
+  newServiceType: ToggleableServiceType
+): Promise<ChangeServiceTypeResult> {
+  const supabase = requireSupabaseAdmin();
+  const { data: current, error: readErr } = await supabase
+    .from("reservations")
+    .select("id, service_type, preferred_date, status, is_paid, apartment_id, base_fee, extra_fee")
+    .eq("id", id)
+    .maybeSingle();
+  if (readErr || !current) {
+    throw new Error(`예약 조회 실패: ${readErr?.message ?? "not found"}`);
+  }
+  if (current.status === "완료" || current.status === "취소") {
+    throw new Error("완료되었거나 취소된 예약은 서비스 유형을 변경할 수 없습니다.");
+  }
+  if (current.service_type === newServiceType) {
+    throw new Error("이미 동일한 서비스 유형입니다.");
+  }
+
+  const paymentSettings = await readPaymentSettings();
+  const newBaseFee =
+    newServiceType === "단순기구교체"
+      ? paymentSettings.simpleSwapFee
+      : applyHolidaySurcharge(paymentSettings.baseDispatchFee, current.preferred_date);
+
+  const serviceItem = await findApplicableServiceItem({
+    apartmentId: current.apartment_id,
+    serviceType: newServiceType
+  });
+
+  const extraFee = Number.isFinite(current.extra_fee) ? Number(current.extra_fee) : 0;
+  const newTotal = newBaseFee + extraFee;
+
+  const { error: updateErr } = await supabase
+    .from("reservations")
+    .update({
+      service_type: newServiceType,
+      base_fee: newBaseFee,
+      total_amount: newTotal,
+      service_item_id: serviceItem?.id ?? null
+    })
+    .eq("id", id);
+  if (updateErr) {
+    throw new Error(`서비스 유형 변경 실패: ${updateErr.message}`);
+  }
+
+  let orderUpdated = false;
+  const { data: order } = await supabase.from("orders").select("id, payment_status").eq("reservation_id", id).maybeSingle();
+  if (order && order.payment_status === "PENDING") {
+    const { error: orderErr } = await supabase
+      .from("orders")
+      .update({ base_fee: newBaseFee, prepayment_amount: newBaseFee, updated_at: new Date().toISOString() })
+      .eq("id", order.id);
+    if (!orderErr) orderUpdated = true;
+  }
+
+  const reservation = await pgFindReservationById(id);
+  if (!reservation) {
+    throw new Error("변경 후 예약 조회에 실패했습니다.");
+  }
+
+  return {
+    reservation,
+    previousServiceType: current.service_type,
+    previousBaseFee: Number.isFinite(current.base_fee) ? Number(current.base_fee) : 0,
+    newBaseFee,
+    orderUpdated
+  };
 }
 
 export type PgRestoreResult = {
