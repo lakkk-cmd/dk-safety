@@ -14,6 +14,25 @@ function thisMonthRange() {
   return { from, to };
 }
 
+function lastMonthRange() {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const to = new Date(now.getFullYear(), now.getMonth(), 0);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
+
+function thisYearRange() {
+  const now = new Date();
+  return { from: `${now.getFullYear()}-01-01`, to: `${now.getFullYear()}-12-31` };
+}
+
+/** 서비스 시작 이전 날짜라 사실상 "전체 기간"과 동일 — DB에 이보다 이른 거래는 없다 */
+const ALL_TIME_FROM = "2020-01-01";
+
+function allTimeRange() {
+  return { from: ALL_TIME_FROM, to: new Date().toISOString().slice(0, 10) };
+}
+
 const SOURCE_LABEL: Record<string, string> = {
   order_payment: "예약금 결제",
   order_final_settlement: "현장 정산 잔금",
@@ -21,6 +40,20 @@ const SOURCE_LABEL: Record<string, string> = {
   refund: "환불",
   manual: "수기 입력"
 };
+
+const LEDGER_CATEGORIES = [
+  "매출",
+  "매입",
+  "재료비",
+  "공구/장비",
+  "교통비",
+  "통신비",
+  "광고비",
+  "인건비",
+  "API비용",
+  "환불",
+  "기타"
+] as const;
 
 export default function ErpLedgerPage() {
   const defaults = thisMonthRange();
@@ -161,6 +194,30 @@ export default function ErpLedgerPage() {
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
         <span className="text-slate-400">~</span>
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <div className="ml-2 flex flex-wrap gap-1.5">
+          {[
+            { label: "이번 달", range: thisMonthRange() },
+            { label: "지난 달", range: lastMonthRange() },
+            { label: "올해", range: thisYearRange() },
+            { label: "전체", range: allTimeRange() }
+          ].map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() => {
+                setFrom(preset.range.from);
+                setTo(preset.range.to);
+              }}
+              className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                from === preset.range.from && to === preset.range.to
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="mb-6 grid grid-cols-3 gap-4">
@@ -188,7 +245,13 @@ export default function ErpLedgerPage() {
         </p>
         <div className="flex flex-wrap gap-2">
           <input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="항목명 (예: 매출, 재료비)" className="w-40 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-40 rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            {LEDGER_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
           <input
             type="number"
             value={amount}
@@ -242,7 +305,16 @@ export default function ErpLedgerPage() {
                         <input type="date" value={editDate} onChange={(ev) => setEditDate(ev.target.value)} className="w-36 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
                       </td>
                       <td className="px-2 py-2">
-                        <input value={editCategory} onChange={(ev) => setEditCategory(ev.target.value)} className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+                        <select value={editCategory} onChange={(ev) => setEditCategory(ev.target.value)} className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+                          {!LEDGER_CATEGORIES.includes(editCategory as (typeof LEDGER_CATEGORIES)[number]) ? (
+                            <option value={editCategory}>{editCategory}</option>
+                          ) : null}
+                          {LEDGER_CATEGORIES.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">{SOURCE_LABEL[e.source_type] ?? e.source_type}</td>
                       <td className="px-2 py-2">
