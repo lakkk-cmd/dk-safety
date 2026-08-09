@@ -3,7 +3,7 @@ title: "에이전트 메모리 — shared_memory"
 category: agent-memory
 tags: ["agent-memory", "shared_memory"]
 source: "agent_memory (key=shared_memory)"
-synced_at: "2026-08-08T20:14:38.190Z"
+synced_at: "2026-08-09T20:17:02.957Z"
 ---
 
 <!-- AUTO:START -->
