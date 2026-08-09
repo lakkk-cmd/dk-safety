@@ -1836,6 +1836,9 @@ export async function pgCreateWalkInReservation(payload: {
   detail: string;
   imageUrls: string[];
   totalAmount: number;
+  /** 현장에서 실제로 작업을 진행하는 담당 기사 — 표준 배정→수락→견적→시작 파이프라인을
+   *  즉시 태워 기사수당정산·배정관제에 반영되게 한다(2026-08-09) */
+  workerId: string;
 }): Promise<Reservation> {
   const supabase = requireSupabaseAdmin();
   const now = new Date().toISOString();
@@ -1853,11 +1856,17 @@ export async function pgCreateWalkInReservation(payload: {
     status: "접수" as const,
     note: "",
     note_updated_at: null,
-    base_fee: 0,
+    // base_fee를 실제 합의금액으로 채워야 order/표준 요금계산 로직과 정합성이 맞는다(과거엔 0
+    // 하드코딩이라 order.base_fee가 안전 최소값(50000)으로 대체되는 부작용이 있었다).
+    base_fee: payload.totalAmount,
     extra_fee: 0,
     total_amount: payload.totalAmount,
     is_paid: true,
     paid_at: now,
+    // pgAssignTask가 "미입금 예약은 배정할 수 없습니다"로 거부하지 않도록 명시적으로 설정
+    // (기존엔 이 필드가 빠져 있어 DB 기본값 false로 남아 있었다).
+    prepayment_confirmed: true,
+    prepayment_confirmed_at: now,
     source: "walk_in"
   };
   const { data, error } = await supabase.from("reservations").insert(insert).select(`
@@ -1885,8 +1894,58 @@ export async function pgCreateWalkInReservation(payload: {
     console.error(`현장 즉시접수 ${data.id}의 정산용 order 생성 실패:`, orderError);
   }
 
+  // 표준 배정→수락→견적→시작 파이프라인을 그대로 태운다 — 기사수당정산(listPendingSettlements)이
+  // tasks.worker_id 조인값(assignedWorkerId)만 보기 때문에, 이 호출들이 없으면 즉시접수 건은
+  // 절대 정산 대기 목록에 나타나지 않는다(2026-08-09 발견). 실패를 삼키지 않고 그대로 던진다 —
+  // 담당기사 배정은 즉시접수의 필수 조건이라 조용히 넘어가면 안 된다.
+  const assigned = await pgAssignTask(data.id, payload.workerId);
+  const taskId = assigned.taskId;
+  if (!taskId) {
+    throw new Error("배정 처리 후 작업 ID를 찾을 수 없습니다.");
+  }
+  await pgAcceptTask(taskId, payload.workerId);
+  // pgStartTask가 quoted_at을 요구하므로 형식상 빈 견적을 제출 — 즉시접수는 이미 합의된
+  // 단가(payload.totalAmount)만 쓰고 재료비/노무비 세부 산출은 하지 않는다.
+  await pgSubmitQuote(taskId, payload.workerId, { materials: [], laborTier: null });
+  await pgStartTask(taskId, payload.workerId);
+
   const found = await pgFindReservationById(data.id);
   return found ?? mapReservation(data as ReservationRow);
+}
+
+/**
+ * 즉시접수 완료 처리 시 tasks 행도 함께 마감한다 — pgCompleteTask(표준 온라인 완료 처리)는
+ * "예약금은 이미 결제됨 + 추가비용이 있을 때만 그 차액을 정산"하는 차감 모델이라, extra_fee가
+ * 항상 0인 즉시접수(현장에서 전액 현금 수금)에 그대로 적용하면 보증서가 자동발급되지 않고
+ * /admin/billing 수동승인 대기 상태로 빠진다(회귀). 그래서 완료 처리는 기존
+ * pgCompleteWalkInReservation + issueWalkInWarranty 경로를 유지하되, tasks 행 마감만 이
+ * 함수로 별도 수행해 배정관제/기사수당정산이 정확한 최종 상태를 보게 한다(2026-08-09).
+ */
+export async function pgMarkWalkInTaskCompleted(reservationId: string, workerId: string, signaturePng: string): Promise<void> {
+  if (!signaturePng || signaturePng.length < 50) {
+    throw new Error("완료 서명이 필요합니다.");
+  }
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id, worker_id, status")
+    .eq("reservation_id", reservationId)
+    .eq("worker_id", workerId)
+    .maybeSingle();
+  if (error || !data) {
+    throw new Error("작업을 찾을 수 없거나 권한이 없습니다.");
+  }
+  if (data.status === "completed") {
+    return;
+  }
+  const now = new Date().toISOString();
+  const { error: uErr } = await supabase
+    .from("tasks")
+    .update({ status: "completed", completed_at: now, signature_png: signaturePng, updated_at: now })
+    .eq("id", data.id);
+  if (uErr) {
+    throw new Error(`작업 완료 처리 실패: ${uErr.message}`);
+  }
 }
 
 /**
@@ -1904,6 +1963,8 @@ export async function issueWalkInWarranty(params: {
   sitePhotos: string[];
   partsUsed: boolean;
   customer?: { name: string; phone: string };
+  /** 배정된 담당 기사 — 보증서에 정확한 담당자를 기록한다(2026-08-09) */
+  technicianId?: string | null;
 }): Promise<{ warrantyId: string; warrantyNumber: string; verifyUrl: string; notifiedChannels: string[] }> {
   // 접수 시 함께 만든 order(있으면)를 찾아 정산 반영 — 예약접수(온라인) 작업완료와 동일하게
   // 고객관리 정산·보증 열에 최종 금액/보증서 발급일이 반영되도록 한다(2026-08-09).
@@ -1913,6 +1974,7 @@ export async function issueWalkInWarranty(params: {
     orderId: order?.id ?? null,
     apartmentId: null,
     aptCodeFallback: "WALK",
+    technicianId: params.technicianId ?? null,
     serviceType: params.serviceType,
     serviceSummary: params.serviceSummary,
     finalAmount: params.finalAmount,

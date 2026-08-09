@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Reservation } from "@/lib/reservations-store";
+import SignaturePad from "@/components/worker/signature-pad";
+
+type WorkerOption = { id: string; name: string; active: boolean };
 
 const SERVICE_TYPES = [
   "누전차단기 교체",
@@ -34,7 +37,10 @@ type CompleteResult = {
   channelAddUrl: string | null;
 };
 
-type CompleteTarget = Pick<Reservation, "id" | "name" | "phone" | "serviceType" | "preferredDate" | "preferredTime" | "totalAmount">;
+type CompleteTarget = Pick<
+  Reservation,
+  "id" | "name" | "phone" | "serviceType" | "preferredDate" | "preferredTime" | "totalAmount" | "assignedWorkerId"
+>;
 
 export default function WalkInPage() {
   const [tab, setTab] = useState<"form" | "list">("form");
@@ -52,6 +58,8 @@ export default function WalkInPage() {
   const [totalAmount, setTotalAmount] = useState("");
   const [offlineDispatchFee, setOfflineDispatchFee] = useState(150000);
   const [photos, setPhotos] = useState<File[]>([]);
+  const [workers, setWorkers] = useState<WorkerOption[]>([]);
+  const [workerId, setWorkerId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<{ id: string; name: string } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -61,6 +69,7 @@ export default function WalkInPage() {
   const [completeTarget, setCompleteTarget] = useState<CompleteTarget | null>(null);
   const [serviceSummary, setServiceSummary] = useState("");
   const [partsUsed, setPartsUsed] = useState(false);
+  const [signature, setSignature] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
   const [completeResult, setCompleteResult] = useState<CompleteResult | null>(null);
   const [completeError, setCompleteError] = useState<string | null>(null);
@@ -98,6 +107,21 @@ export default function WalkInPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/workers", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { workers?: WorkerOption[] };
+        const active = (data.workers ?? []).filter((w) => w.active);
+        setWorkers(active);
+        if (active.length === 1) setWorkerId(active[0].id);
+      } catch {
+        // 기사 목록 로드 실패해도 폼 자체는 그대로 사용 가능 — 아래에서 필수값 검증으로 막힘
+      }
+    })();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
@@ -113,6 +137,7 @@ export default function WalkInPage() {
       form.set("workTime", workTime);
       form.set("detail", detail);
       form.set("totalAmount", totalAmount || "0");
+      form.set("workerId", workerId);
       for (const file of photos) form.append("photos", file);
 
       const res = await fetch("/api/admin/walk-in", { method: "POST", body: form });
@@ -123,6 +148,7 @@ export default function WalkInPage() {
       setSubmitResult({ id: r.id, name: r.name });
       setName(""); setPhone(""); setAddress(""); setDetail(""); setTotalAmount("");
       setPhotos([]); setServiceType(SERVICE_TYPES[0]); setWorkDate(todayStr()); setWorkTime(nowTimeStr());
+      if (workers.length !== 1) setWorkerId("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "오류 발생");
@@ -135,12 +161,21 @@ export default function WalkInPage() {
     setCompleteTarget(r);
     setServiceSummary(r.detail || r.serviceType);
     setPartsUsed(false);
+    setSignature(null);
     setCompleteResult(null);
     setCompleteError(null);
   };
 
   const handleComplete = async () => {
     if (!completeTarget) return;
+    if (!completeTarget.assignedWorkerId) {
+      setCompleteError("배정된 담당 기사를 찾을 수 없습니다.");
+      return;
+    }
+    if (!signature || signature.length < 50) {
+      setCompleteError("완료 전 서명을 남겨주세요.");
+      return;
+    }
     setCompleting(true);
     setCompleteError(null);
     try {
@@ -149,6 +184,8 @@ export default function WalkInPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reservationId: completeTarget.id,
+          workerId: completeTarget.assignedWorkerId,
+          signaturePng: signature,
           name: completeTarget.name,
           phone: completeTarget.phone,
           serviceType: completeTarget.serviceType,
@@ -225,6 +262,20 @@ export default function WalkInPage() {
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-dk-navy"
                 placeholder="광주시 ○○동 ○○아파트 ○동 ○호"
               />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-600">담당 기사 *</label>
+              <select
+                required value={workerId} onChange={(e) => setWorkerId(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-dk-navy"
+              >
+                <option value="">기사를 선택해주세요</option>
+                {workers.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-400">
+                이 접수는 즉시 선택한 기사에게 배정되어 기사수당정산·배정관제에 반영됩니다.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -397,6 +448,10 @@ export default function WalkInPage() {
                 <p className="mt-1 text-[11px] text-slate-400">
                   무상수리 보증기간이 부품 사용 여부로 갈립니다 (미사용 2개월 / 사용 4개월, 동일부위·동일증상 한정).
                 </p>
+                <div className="mt-3">
+                  <p className="mb-1 text-xs font-bold text-slate-600">완료 서명</p>
+                  <SignaturePad onChange={setSignature} />
+                </div>
                 {completeError && (
                   <div className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{completeError}</div>
                 )}
@@ -409,7 +464,7 @@ export default function WalkInPage() {
                   </button>
                   <button
                     onClick={() => void handleComplete()}
-                    disabled={completing}
+                    disabled={completing || !signature || signature.length < 50}
                     className="flex-1 rounded-xl bg-dk-navy py-2.5 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50"
                   >
                     {completing ? "처리 중…" : "완료 처리 + 보증서 발급"}
