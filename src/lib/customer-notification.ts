@@ -350,6 +350,44 @@ async function sendExtraFeeAlimtalk(input: ExtraFeePaymentNotification, template
   return true;
 }
 
+// ─── 기사 배정수락 알림 ───────────────────────────────────────────────────────
+// 아직 전용 알림톡 템플릿이 없어 일반 SMS로만 발송한다.
+
+export type WorkerAcceptedNotification = {
+  reservationId: string;
+  name: string;
+  phone: string;
+  workerName: string;
+  preferredDate: string;
+  preferredTime: string;
+  /** 접수 시각 — 신규접수 컷오프 판단용. 없으면 컷오프 적용 안 함 */
+  createdAt?: string;
+};
+
+function buildWorkerAcceptedMessage(input: WorkerAcceptedNotification): string {
+  return [
+    `${input.name} 고객님, ${input.workerName} 기사님이 배정을 수락했습니다.`,
+    `방문 예정일시: ${input.preferredDate} ${input.preferredTime}`,
+    "곧 찾아뵙겠습니다.",
+  ].join("\n");
+}
+
+export async function notifyCustomerWorkerAccepted(input: WorkerAcceptedNotification): Promise<string[]> {
+  if (isBeforeCustomerNotificationCutoff(input.createdAt)) {
+    console.log(`[customer-notification] 신규접수 컷오프 이전 건(대표님 지시) — 예약 ${input.reservationId} 배정수락 알림 발송 건너뜀`);
+    return [];
+  }
+  const sentChannels: string[] = [];
+  const message = buildWorkerAcceptedMessage(input);
+  try {
+    const sent = await sendSolapiSms(input.phone, message);
+    if (sent) sentChannels.push("sms_solapi");
+  } catch (err) {
+    console.error("[solapi] 배정수락 SMS 발송 실패:", err instanceof Error ? err.message : err);
+  }
+  return sentChannels;
+}
+
 export async function notifyExtraFeePaymentRequired(input: ExtraFeePaymentNotification): Promise<string[]> {
   if (isBeforeCustomerNotificationCutoff(input.createdAt)) {
     console.log(`[customer-notification] 신규접수 컷오프 이전 건(대표님 지시) — 예약 ${input.reservationId} 추가비용 결제안내 발송 건너뜀`);

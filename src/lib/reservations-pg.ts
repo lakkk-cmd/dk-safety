@@ -980,14 +980,14 @@ export async function pgCreateWorker(input: { name: string; phone: string; pinHa
   };
 }
 
-export async function pgGetWorkerById(workerId: string): Promise<{ id: string; name: string } | null> {
+export async function pgGetWorkerById(workerId: string): Promise<{ id: string; name: string; phone: string } | null> {
   const supabase = requireSupabaseAdmin();
-  const { data, error } = await supabase.from("workers").select("id, name").eq("id", workerId).maybeSingle();
+  const { data, error } = await supabase.from("workers").select("id, name, phone").eq("id", workerId).maybeSingle();
   if (error) {
     throw new Error(`기사 조회 실패: ${error.message}`);
   }
   if (!data) return null;
-  return { id: data.id, name: data.name };
+  return { id: data.id, name: data.name, phone: data.phone };
 }
 
 export async function pgFindWorkerByPhone(phone: string): Promise<{ id: string; pin_hash: string; active: boolean } | null> {
@@ -1738,11 +1738,14 @@ export async function pgUnassignTask(reservationId: string): Promise<Reservation
 }
 
 /** 기사가 배정을 수락 — 본인 소유·아직 시작 전(assigned) 작업만 가능, 이미 수락했으면 조용히 무시(멱등) */
-export async function pgAcceptTask(taskId: string, workerId: string): Promise<void> {
+export async function pgAcceptTask(
+  taskId: string,
+  workerId: string
+): Promise<{ reservation: Reservation; workerName: string; alreadyAccepted: boolean }> {
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase
     .from("tasks")
-    .select("id, worker_id, status, accepted_at")
+    .select("id, worker_id, status, accepted_at, reservation_id")
     .eq("id", taskId)
     .maybeSingle();
   if (error || !data || data.worker_id !== workerId) {
@@ -1751,16 +1754,27 @@ export async function pgAcceptTask(taskId: string, workerId: string): Promise<vo
   if (data.status !== "assigned") {
     throw new Error("이미 시작되었거나 완료된 작업입니다.");
   }
-  if (data.accepted_at) {
-    return;
+
+  const worker = await pgGetWorkerById(workerId);
+  const workerName = worker?.name ?? "담당 기사";
+  const alreadyAccepted = Boolean(data.accepted_at);
+
+  if (!alreadyAccepted) {
+    const { error: uErr } = await supabase
+      .from("tasks")
+      .update({ accepted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", taskId);
+    if (uErr) {
+      throw new Error(`수락 처리 실패: ${uErr.message}`);
+    }
   }
-  const { error: uErr } = await supabase
-    .from("tasks")
-    .update({ accepted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq("id", taskId);
-  if (uErr) {
-    throw new Error(`수락 처리 실패: ${uErr.message}`);
+
+  const reservation = await pgFindReservationById(data.reservation_id);
+  if (!reservation) {
+    throw new Error("수락 처리 후 예약을 찾을 수 없습니다.");
   }
+
+  return { reservation, workerName, alreadyAccepted };
 }
 
 /**

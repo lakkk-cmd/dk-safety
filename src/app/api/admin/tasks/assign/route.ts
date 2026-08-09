@@ -6,6 +6,7 @@ import { activateDispatch } from "@/lib/orders-pg";
 import { pushLiveNotification, pushReservationProgressNotifications } from "@/lib/live-notify";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { validateWorkerAssignment } from "@/lib/cross-validate";
+import { sendSMS } from "@/lib/solapi-agent";
 
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
@@ -60,6 +61,27 @@ export async function POST(request: Request) {
       title: "새 작업 배정",
       message: `${reservation.name} 고객 작업이 배정되었습니다.`
     });
+    if (worker?.phone) {
+      try {
+        await sendSMS(
+          worker.phone,
+          [
+            "[새 작업 배정] 대경이엔피",
+            `고객: ${reservation.name}`,
+            `주소: ${reservation.apartmentName ?? reservation.address}`,
+            `일시: ${reservation.preferredDate} ${reservation.preferredTime}`,
+            "앱에서 배정 수락/거절을 진행해주세요."
+          ].join("\n")
+        );
+      } catch (notifyError) {
+        const notifyMessage = notifyError instanceof Error ? notifyError.message : "알 수 없는 오류";
+        await appendActivityLog({
+          action: "task_assigned",
+          reservationId: reservation.id,
+          message: `기사 배정 SMS 발송 실패: ${notifyMessage}`
+        });
+      }
+    }
     return NextResponse.json({ reservation });
   } catch (error) {
     const message = error instanceof Error ? error.message : "배정에 실패했습니다.";

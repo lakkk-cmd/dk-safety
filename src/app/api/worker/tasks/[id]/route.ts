@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { appendActivityLog } from "@/lib/activity-log";
-import { notifyCustomerWorkCompleted, notifyExtraFeePaymentRequired } from "@/lib/customer-notification";
+import { notifyCustomerWorkCompleted, notifyCustomerWorkerAccepted, notifyExtraFeePaymentRequired } from "@/lib/customer-notification";
 import { pushLiveNotification, pushReservationProgressNotifications } from "@/lib/live-notify";
 import { computeAdditionalDueAmount, pgFindOrderByReservationId } from "@/lib/orders-pg";
 import {
@@ -69,7 +69,38 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const action = body.action?.trim() ?? "";
   try {
     if (action === "accept") {
-      await pgAcceptTask(id, session.workerId);
+      const { reservation, workerName, alreadyAccepted } = await pgAcceptTask(id, session.workerId);
+      if (!alreadyAccepted) {
+        const acceptedMessage = `✅[배정수락] ${workerName} 기사가 배정을 수락했습니다\n예약: ${reservation.apartmentName ?? reservation.address}\n일시: ${reservation.preferredDate} ${reservation.preferredTime}`;
+        try {
+          await notifyAdminUrgent(acceptedMessage);
+        } catch (notifyError) {
+          const notifyMessage = notifyError instanceof Error ? notifyError.message : "알 수 없는 오류";
+          await appendActivityLog({
+            action: "task_assigned",
+            reservationId: reservation.id,
+            message: `관리자 배정수락 알림 발송 실패: ${notifyMessage}`
+          });
+        }
+        try {
+          await notifyCustomerWorkerAccepted({
+            reservationId: reservation.id,
+            name: reservation.name,
+            phone: reservation.phone,
+            workerName,
+            preferredDate: reservation.preferredDate,
+            preferredTime: reservation.preferredTime,
+            createdAt: reservation.createdAt
+          });
+        } catch (notifyError) {
+          const notifyMessage = notifyError instanceof Error ? notifyError.message : "알 수 없는 오류";
+          await appendActivityLog({
+            action: "task_assigned",
+            reservationId: reservation.id,
+            message: `고객 배정수락 알림 발송 실패: ${notifyMessage}`
+          });
+        }
+      }
       return NextResponse.json({ message: "배정을 수락했습니다." });
     }
     if (action === "decline") {
@@ -267,6 +298,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           title: "작업 완료 처리",
           message: `${row.reservation.name} 고객 작업이 완료로 저장되었습니다.`
         });
+        try {
+          await notifyAdminUrgent(
+            `✅[작업완료] ${row.reservation.name} 고객 작업이 완료되었습니다\n예약: ${row.reservation.apartmentName ?? row.reservation.address}\n최종금액: ${row.reservation.extraFee.toLocaleString("ko-KR")}원`
+          );
+        } catch (notifyError) {
+          const notifyMessage = notifyError instanceof Error ? notifyError.message : "알 수 없는 오류";
+          await appendActivityLog({
+            action: "task_completed",
+            reservationId: row.reservation.id,
+            message: `관리자 작업완료 알림 발송 실패: ${notifyMessage}`
+          });
+        }
       }
       return NextResponse.json({ message: "작업이 완료되었습니다.", task: row?.task, reservation: row?.reservation });
     }
