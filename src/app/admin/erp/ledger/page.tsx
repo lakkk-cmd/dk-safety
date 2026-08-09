@@ -36,6 +36,13 @@ export default function ErpLedgerPage() {
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [rowBusyId, setRowBusyId] = useState<string | null>(null);
+
   const load = useCallback(async (f: string, t: string) => {
     setLoading(true);
     try {
@@ -77,6 +84,68 @@ export default function ErpLedgerPage() {
       void load(from, to);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const startEdit = (e: LedgerEntry) => {
+    setEditingId(e.id);
+    setEditDate(e.entry_date);
+    setEditCategory(e.category);
+    setEditAmount(String(e.amount));
+    setEditDescription(e.description ?? "");
+    setMsg(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const saveEdit = async (id: string) => {
+    const amt = Number(editAmount);
+    if (!amt) {
+      setMsg("금액을 입력하세요.");
+      return;
+    }
+    setRowBusyId(id);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/erp/ledger/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entry_date: editDate, category: editCategory, amount: amt, description: editDescription || null })
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setMsg(json.error ?? "수정 실패");
+        return;
+      }
+      setEditingId(null);
+      setMsg("항목이 수정되었습니다.");
+      void load(from, to);
+    } finally {
+      setRowBusyId(null);
+    }
+  };
+
+  const removeEntry = async (e: LedgerEntry) => {
+    const warning =
+      e.source_type === "manual"
+        ? "이 수기 항목을 삭제할까요?"
+        : `이 항목은 ${SOURCE_LABEL[e.source_type] ?? e.source_type} 화면에서 자동 기장된 것입니다. 원장에서만 지워지고 원본 데이터는 그대로 남습니다 — 삭제할까요?`;
+    if (!window.confirm(warning)) return;
+    setRowBusyId(e.id);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/erp/ledger/${e.id}`, { method: "DELETE" });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setMsg(json.error ?? "삭제 실패");
+        return;
+      }
+      setMsg("항목이 삭제되었습니다.");
+      void load(from, to);
+    } finally {
+      setRowBusyId(null);
     }
   };
 
@@ -143,6 +212,10 @@ export default function ErpLedgerPage() {
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-slate-200 px-5 py-4">
           <h2 className="font-bold text-slate-900">거래내역</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            자동 기장된 항목(예약금 결제·현장 정산 잔금·경비 등)도 여기서 직접 수정·삭제할 수 있습니다. 단, 원장에서만
+            지워질 뿐 예약/주문/경비 원본 데이터는 바뀌지 않습니다 — 원본이 나중에 다시 갱신되면 새 항목이 또 쌓일 수 있습니다.
+          </p>
         </div>
         {loading ? (
           <p className="py-8 text-center text-slate-400">불러오는 중...</p>
@@ -158,20 +231,79 @@ export default function ErpLedgerPage() {
                   <th className="px-4 py-3 font-semibold text-slate-600">출처</th>
                   <th className="px-4 py-3 font-semibold text-slate-600">메모</th>
                   <th className="px-4 py-3 text-right font-semibold text-slate-600">금액</th>
+                  <th className="px-4 py-3 text-right font-semibold text-slate-600">관리</th>
                 </tr>
               </thead>
               <tbody>
-                {entries.map((e) => (
-                  <tr key={e.id} className="border-t border-slate-100">
-                    <td className="px-4 py-3 text-slate-600">{e.entry_date}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-900">{e.category}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{SOURCE_LABEL[e.source_type] ?? e.source_type}</td>
-                    <td className="px-4 py-3 text-slate-700">{e.description ?? "-"}</td>
-                    <td className={`px-4 py-3 text-right font-bold ${e.amount >= 0 ? "text-blue-600" : "text-red-600"}`}>
-                      {formatKRW(e.amount)}
-                    </td>
-                  </tr>
-                ))}
+                {entries.map((e) =>
+                  editingId === e.id ? (
+                    <tr key={e.id} className="border-t border-slate-100 bg-amber-50/60">
+                      <td className="px-2 py-2">
+                        <input type="date" value={editDate} onChange={(ev) => setEditDate(ev.target.value)} className="w-36 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input value={editCategory} onChange={(ev) => setEditCategory(ev.target.value)} className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{SOURCE_LABEL[e.source_type] ?? e.source_type}</td>
+                      <td className="px-2 py-2">
+                        <input value={editDescription} onChange={(ev) => setEditDescription(ev.target.value)} className="w-full min-w-[140px] rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="number"
+                          value={editAmount}
+                          onChange={(ev) => setEditAmount(ev.target.value)}
+                          className="w-32 rounded-lg border border-slate-300 px-2 py-1.5 text-right text-sm"
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        <div className="flex justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => void saveEdit(e.id)}
+                            disabled={rowBusyId === e.id}
+                            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                          >
+                            저장
+                          </button>
+                          <button type="button" onClick={cancelEdit} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700">
+                            취소
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={e.id} className="border-t border-slate-100">
+                      <td className="px-4 py-3 text-slate-600">{e.entry_date}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-900">{e.category}</td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{SOURCE_LABEL[e.source_type] ?? e.source_type}</td>
+                      <td className="px-4 py-3 text-slate-700">{e.description ?? "-"}</td>
+                      <td className={`px-4 py-3 text-right font-bold ${e.amount >= 0 ? "text-blue-600" : "text-red-600"}`}>
+                        {formatKRW(e.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(e)}
+                            disabled={rowBusyId === e.id}
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            수정
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void removeEntry(e)}
+                            disabled={rowBusyId === e.id}
+                            className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                )}
               </tbody>
             </table>
           </div>

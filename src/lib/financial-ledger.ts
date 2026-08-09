@@ -67,6 +67,41 @@ export async function createManualLedgerEntry(input: {
   return data as LedgerEntry;
 }
 
+/**
+ * 원장 항목 수정 — source_type이 manual이 아닌(주문/경비에서 자동 기장된) 항목도 수정 가능하다
+ * (오늘 발견된 것처럼 자동 기장 자체가 잘못된 값을 남기는 경우가 실제로 있었다). 다만 이 경우
+ * 원본 주문/경비 데이터 자체를 바꾸는 게 아니므로, 이후 그 주문/경비가 다시 갱신되어 자동 기장
+ * 트리거가 재발동하면(예: payment_status를 다시 토글) 별개의 새 항목이 또 생길 수 있다 — 이건
+ * UI에서 안내 문구로 알린다.
+ */
+export async function updateLedgerEntry(
+  id: string,
+  patch: { entry_date?: string; category?: string; amount?: number; description?: string | null }
+): Promise<LedgerEntry> {
+  const payload: Record<string, unknown> = {};
+  if (typeof patch.entry_date === "string") payload.entry_date = patch.entry_date;
+  if (typeof patch.category === "string") payload.category = patch.category;
+  if (typeof patch.amount === "number") {
+    if (!Number.isFinite(patch.amount) || patch.amount === 0) {
+      throw new Error("금액이 올바르지 않습니다.");
+    }
+    payload.amount = Math.round(patch.amount);
+  }
+  if (patch.description !== undefined) payload.description = patch.description;
+  if (Object.keys(payload).length === 0) {
+    throw new Error("수정할 값이 없습니다.");
+  }
+  const { data, error } = await sb().from("financial_ledger").update(payload).eq("id", id).select().maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("대상 항목을 찾을 수 없습니다.");
+  return data as LedgerEntry;
+}
+
+export async function deleteLedgerEntry(id: string): Promise<void> {
+  const { error } = await sb().from("financial_ledger").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export type IncomeStatement = {
   from: string;
   to: string;
