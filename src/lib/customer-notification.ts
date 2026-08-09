@@ -25,7 +25,22 @@ type ReservationForNotification = {
   serviceType: string;
   preferredDate: string;
   preferredTime: string;
+  /** 접수 시각 — 아래 신규접수 컷오프 판단용. 없으면(구버전 호출부) 컷오프 적용 안 함 */
+  createdAt?: string;
 };
+
+// 2026-08-09 대표님 지시: 요금체계 개편 전에 접수된 기존 건(추영선/김근홍/박명희 등)은
+// 지금 작업완료 처리를 진행해도 고객에게 문자/알림톡이 나가면 안 된다. 이 시각 이후 새로
+// 접수되는 건부터는 정상적으로 알림이 나가야 한다. reservations.created_at을 기준으로
+// 판단한다 — 재개(컷오프 해제)하려면 이 상수를 지우거나 과거 시각으로 되돌리면 된다.
+const CUSTOMER_NOTIFICATION_CUTOFF_AT = "2026-08-09T00:33:17.000Z";
+
+function isBeforeCustomerNotificationCutoff(createdAt: string | undefined): boolean {
+  if (!createdAt) return false;
+  const created = new Date(createdAt).getTime();
+  if (Number.isNaN(created)) return false;
+  return created < new Date(CUSTOMER_NOTIFICATION_CUTOFF_AT).getTime();
+}
 
 function normalizePhoneDigits(value: string): string {
   return value.replaceAll(/[^0-9]/g, "");
@@ -152,6 +167,10 @@ async function sendSmsWebhook(
 // ─── 공개 API ─────────────────────────────────────────────────────────────────
 
 export async function notifyCustomerWorkCompleted(reservation: ReservationForNotification): Promise<string[]> {
+  if (isBeforeCustomerNotificationCutoff(reservation.createdAt)) {
+    console.log(`[customer-notification] 신규접수 컷오프 이전 건(대표님 지시) — 예약 ${reservation.id} 작업완료 알림 발송 건너뜀`);
+    return [];
+  }
   const message = buildCompletionMessage(reservation);
   const sentChannels: string[] = [];
 
@@ -289,6 +308,8 @@ export type ExtraFeePaymentNotification = {
   name: string;
   phone: string;
   additionalDueAmount: number;
+  /** 접수 시각 — 신규접수 컷오프 판단용. 없으면 컷오프 적용 안 함 */
+  createdAt?: string;
 };
 
 function buildExtraFeePaymentMessage(input: ExtraFeePaymentNotification): string {
@@ -330,6 +351,10 @@ async function sendExtraFeeAlimtalk(input: ExtraFeePaymentNotification, template
 }
 
 export async function notifyExtraFeePaymentRequired(input: ExtraFeePaymentNotification): Promise<string[]> {
+  if (isBeforeCustomerNotificationCutoff(input.createdAt)) {
+    console.log(`[customer-notification] 신규접수 컷오프 이전 건(대표님 지시) — 예약 ${input.reservationId} 추가비용 결제안내 발송 건너뜀`);
+    return [];
+  }
   const sentChannels: string[] = [];
   const message = buildExtraFeePaymentMessage(input);
 

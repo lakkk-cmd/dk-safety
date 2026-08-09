@@ -201,7 +201,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
             apartmentName: row.reservation.apartmentName,
             serviceType: row.reservation.serviceType,
             preferredDate: row.reservation.preferredDate,
-            preferredTime: row.reservation.preferredTime
+            preferredTime: row.reservation.preferredTime,
+            createdAt: row.reservation.createdAt
           });
           await appendActivityLog({
             action: "task_completed",
@@ -239,7 +240,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
                 reservationId: row.reservation.id,
                 name: row.reservation.name,
                 phone: row.reservation.phone,
-                additionalDueAmount
+                additionalDueAmount,
+                createdAt: row.reservation.createdAt
               });
               await appendActivityLog({
                 action: "task_completed",
