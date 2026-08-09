@@ -118,7 +118,7 @@ export const adminSidebarNavItems: AdminNavItem[] = [
   // 같은 reservations 데이터를 예약 단위/전화번호 단위로 나눠 보여주던 화면 2개였음.
   {
     href: "/admin/customers",
-    label: "고객관리",
+    label: "고객(접수,예약총괄)관리",
     description: "예약별 보기(접수·주문·배정·보증) / 고객별 보기(재상담·잠재고객) 탭 통합",
     icon: Users,
     sectionLabel: "CRM",
@@ -381,7 +381,7 @@ export const adminWorkflowSteps: AdminWorkflowStep[] = [
   {
     step: 2,
     href: "/admin/customers",
-    label: "고객관리",
+    label: "고객(접수,예약총괄)관리",
     flowRole: "접수 시 등록한 고객·예약·연결 주문·배정·보증 흐름을 한 화면에서 추적합니다.",
     icon: Users
   },

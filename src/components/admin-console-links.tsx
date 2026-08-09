@@ -13,7 +13,7 @@ type SectionKey =
 
 const items: Array<{ key: SectionKey; label: string; href: string }> = [
   { key: "main", label: "메인화면", href: "/admin/home" },
-  { key: "customers", label: "고객관리", href: "/admin/customers" },
+  { key: "customers", label: "고객(접수,예약총괄)관리", href: "/admin/customers" },
   { key: "reservations", label: "예약/정산", href: "/admin/reservations" },
   { key: "apartments", label: "아파트 관리", href: "/admin/apartments" },
   { key: "workers", label: "기사 관리", href: "/admin/technicians" },

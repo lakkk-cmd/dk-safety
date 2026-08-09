@@ -6,7 +6,7 @@ import {
   match_technician,
   type ServiceItem
 } from "@/lib/daekyung-fee-logic";
-import { pgCreateOrder, pgIssueWarrantyAndSettle } from "@/lib/orders-pg";
+import { pgCreateOrder, pgFindOrderByReservationId, pgIssueWarrantyAndSettle } from "@/lib/orders-pg";
 import { readPaymentSettings } from "@/lib/payment-settings";
 import { applyHolidaySurcharge } from "@/lib/holiday-surcharge";
 
@@ -1868,7 +1868,25 @@ export async function pgCreateWalkInReservation(payload: {
     orders(payment_status,dispatch_status,prepayment_confirmed,final_payment_status,total_final_fee,warranty_issued_at)
   `).single();
   if (error || !data) throw new Error(`현장 즉시접수 생성 실패: ${error?.message ?? "unknown"}`);
-  return mapReservation(data as ReservationRow);
+
+  // 예약접수(온라인)와 동일하게 고객관리(주문·입금/배정·정산 열)에 반영되도록 order를
+  // 함께 만든다(migration 091부터 apartment_id 없이도 order 생성 가능) — 즉시접수는 현장에서
+  // 이미 현금 결제가 끝난 상태라 PENDING이 아니라 PAID로 바로 생성한다(2026-08-09).
+  try {
+    const { dong, ho } = parseDongHoFromAddress(payload.address);
+    await pgCreateOrder({
+      aptId: null,
+      reservationId: data.id,
+      residentInfo: { name: payload.name, phone: payload.phone, dong, ho },
+      baseFee: payload.totalAmount,
+      initialStatus: { paymentStatus: "PAID", dispatchStatus: "IN_PROGRESS" }
+    });
+  } catch (orderError) {
+    console.error(`현장 즉시접수 ${data.id}의 정산용 order 생성 실패:`, orderError);
+  }
+
+  const found = await pgFindReservationById(data.id);
+  return found ?? mapReservation(data as ReservationRow);
 }
 
 /**
@@ -1887,9 +1905,12 @@ export async function issueWalkInWarranty(params: {
   partsUsed: boolean;
   customer?: { name: string; phone: string };
 }): Promise<{ warrantyId: string; warrantyNumber: string; verifyUrl: string; notifiedChannels: string[] }> {
+  // 접수 시 함께 만든 order(있으면)를 찾아 정산 반영 — 예약접수(온라인) 작업완료와 동일하게
+  // 고객관리 정산·보증 열에 최종 금액/보증서 발급일이 반영되도록 한다(2026-08-09).
+  const order = await pgFindOrderByReservationId(params.reservationId).catch(() => null);
   return pgIssueWarrantyAndSettle({
     reservationId: params.reservationId,
-    orderId: null,
+    orderId: order?.id ?? null,
     apartmentId: null,
     aptCodeFallback: "WALK",
     serviceType: params.serviceType,
@@ -1898,7 +1919,8 @@ export async function issueWalkInWarranty(params: {
     sitePhotos: params.sitePhotos,
     partsUsed: params.partsUsed,
     customer: params.customer,
-    orderLogActor: "SYSTEM_WALKIN_COMPLETE"
+    orderLogActor: "SYSTEM_WALKIN_COMPLETE",
+    orderExtra: order ? { dispatch_status: "DONE" } : undefined
   });
 }
 

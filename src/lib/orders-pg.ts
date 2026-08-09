@@ -41,10 +41,14 @@ function mapServiceTypeToPatentKey(serviceType: string): string {
 }
 
 export async function pgCreateOrder(input: {
-  aptId: string;
+  /** null이면 단지 미지정 접수(현장 즉시접수 등, migration 091부터 허용) */
+  aptId: string | null;
   reservationId?: string;
   residentInfo: OrderResidentInfo;
   baseFee?: number;
+  /** 즉시접수(walk-in)처럼 접수 시점에 이미 현금 결제·현장 작업이 끝난 경우 PENDING/BLOCKED
+   *  대신 이 상태로 바로 생성한다 */
+  initialStatus?: { paymentStatus: "PAID"; dispatchStatus: "DONE" | "IN_PROGRESS" };
 }) {
   const supabase = requireSupabaseAdmin();
   // reservations.base_fee가 이미 확정된 경우(휴일할증 등 서버가 재계산한 최종 금액) 그 값을
@@ -90,7 +94,6 @@ export async function pgCreateOrder(input: {
     .from("orders")
     .insert({
       apt_id: input.aptId,
-      /** migration 015+: `apartment_id` NOT NULL — PostgREST insert does not copy from `apt_id` */
       apartment_id: input.aptId,
       reservation_id: input.reservationId ?? null,
       resident_info: input.residentInfo,
@@ -98,8 +101,9 @@ export async function pgCreateOrder(input: {
       ho: input.residentInfo.ho.trim(),
       base_fee: prepayment,
       prepayment_amount: prepayment,
-      payment_status: "PENDING",
-      dispatch_status: "BLOCKED"
+      payment_status: input.initialStatus?.paymentStatus ?? "PENDING",
+      dispatch_status: input.initialStatus?.dispatchStatus ?? "BLOCKED",
+      ...(input.initialStatus ? { paid_at: new Date().toISOString() } : {})
     })
     .select("id, apt_id, reservation_id, payment_status, dispatch_status, base_fee")
     .single();
