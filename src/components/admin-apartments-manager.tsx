@@ -98,28 +98,32 @@ export default function AdminApartmentsManager() {
       setFormMessage({ type: "error", text: "아파트명과 코드를 모두 입력해주세요." });
       return;
     }
-    const response = await fetch(isEdit ? `/api/admin/apartments/${editingId}` : "/api/admin/apartments", {
-      method: isEdit ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: form.name,
-        code: form.code,
-        logoUrl: form.logoUrl,
-        bankInfo: { bankName: form.bankName, accountNumber: form.accountNumber, accountHolder: form.accountHolder || form.name },
-        baseFee: form.baseFee,
-        district: form.district,
-        address: form.address
-      })
-    });
-    const data = (await response.json()) as { message?: string };
-    if (!response.ok) {
-      setFormMessage({ type: "error", text: data.message ?? "생성 실패" });
-      return;
+    try {
+      const response = await fetch(isEdit ? `/api/admin/apartments/${editingId}` : "/api/admin/apartments", {
+        method: isEdit ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          code: form.code,
+          logoUrl: form.logoUrl,
+          bankInfo: { bankName: form.bankName, accountNumber: form.accountNumber, accountHolder: form.accountHolder || form.name },
+          baseFee: form.baseFee,
+          district: form.district,
+          address: form.address
+        })
+      });
+      const data = (await response.json().catch(() => ({}))) as { message?: string };
+      if (!response.ok) {
+        setFormMessage({ type: "error", text: data.message ?? "생성 실패" });
+        return;
+      }
+      setForm(initialForm);
+      setEditingId(null);
+      setFormMessage({ type: "success", text: isEdit ? "아파트가 수정되었습니다." : "아파트가 생성되었습니다." });
+      await load();
+    } catch {
+      setFormMessage({ type: "error", text: "요청 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요." });
     }
-    setForm(initialForm);
-    setEditingId(null);
-    setFormMessage({ type: "success", text: isEdit ? "아파트가 수정되었습니다." : "아파트가 생성되었습니다." });
-    await load();
   };
 
   const openAddressSearch = async () => {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { Reservation } from "@/lib/reservations-store";
 import { hasReservationTimeConflict, readReservations, updateReservation } from "@/lib/reservations-store";
 import { appendActivityLog } from "@/lib/activity-log";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { pgSetReservationPayment } from "@/lib/reservations-pg";
 import { pushLiveNotification, pushReservationProgressNotifications } from "@/lib/live-notify";
@@ -38,6 +39,9 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ message: "권한이 없습니다." }, { status: 401 });
+  }
   const { id } = await context.params;
   const body = (await request.json()) as {
     status?: string;

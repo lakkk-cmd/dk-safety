@@ -127,11 +127,16 @@ export async function pgCreateApartment(input: {
   address?: string;
 }): Promise<ApartmentTenant> {
   const supabase = requireSupabaseAdmin();
+  const normalizedCode = input.code.trim().toLowerCase();
   const { data, error } = await supabase
     .from("apartments")
     .insert({
       name: input.name.trim(),
-      code: input.code.trim().toLowerCase(),
+      code: normalizedCode,
+      // apt_code/apt_id: 015/016 마이그레이션에서 추가된 NOT NULL(+apt_id는 UNIQUE) 레거시
+      // 컬럼 — code와 항상 같은 값으로 채워야 한다. 빠뜨리면 INSERT가 그대로 실패한다.
+      apt_code: normalizedCode,
+      apt_id: normalizedCode,
       logo_url: input.logoUrl?.trim() || null,
       bank_info: input.bankInfo,
       base_fee: Math.max(50000, Math.round(input.baseFee)),
@@ -161,7 +166,13 @@ export async function pgUpdateApartment(
   const supabase = requireSupabaseAdmin();
   const payload: Record<string, unknown> = {};
   if (typeof patch.name === "string") payload.name = patch.name.trim();
-  if (typeof patch.code === "string") payload.code = patch.code.trim().toLowerCase();
+  if (typeof patch.code === "string") {
+    const normalizedCode = patch.code.trim().toLowerCase();
+    payload.code = normalizedCode;
+    // apt_code/apt_id도 항상 code와 같은 값으로 유지 — pgCreateApartment 참고
+    payload.apt_code = normalizedCode;
+    payload.apt_id = normalizedCode;
+  }
   if (typeof patch.logoUrl === "string") payload.logo_url = patch.logoUrl.trim() || null;
   if (patch.bankInfo) payload.bank_info = patch.bankInfo;
   if (typeof patch.baseFee === "number") payload.base_fee = Math.max(50000, Math.round(patch.baseFee));
