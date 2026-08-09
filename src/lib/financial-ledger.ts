@@ -25,7 +25,7 @@ export type LedgerEntry = {
 };
 
 export const EXPENSE_CATEGORIES = ["재료비", "공구/장비", "교통비", "통신비", "광고비", "인건비", "기타"] as const;
-const COST_OF_SALES_CATEGORIES = new Set(["재료비", "인건비"]);
+const COST_OF_SALES_CATEGORIES = new Set(["재료비", "매입", "인건비"]);
 
 export async function listLedgerEntries(opts?: {
   from?: string;

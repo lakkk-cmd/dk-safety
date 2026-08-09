@@ -14,6 +14,25 @@ function thisMonthRange() {
   return { from, to };
 }
 
+function lastMonthRange() {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const to = new Date(now.getFullYear(), now.getMonth(), 0);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
+
+function thisYearRange() {
+  const now = new Date();
+  return { from: `${now.getFullYear()}-01-01`, to: `${now.getFullYear()}-12-31` };
+}
+
+/** 서비스 시작 이전 날짜라 사실상 "전체 기간"과 동일 — DB에 이보다 이른 거래는 없다 */
+const ALL_TIME_FROM = "2020-01-01";
+
+function allTimeRange() {
+  return { from: ALL_TIME_FROM, to: new Date().toISOString().slice(0, 10) };
+}
+
 export default function IncomeStatementPage() {
   const defaults = thisMonthRange();
   const [from, setFrom] = useState(defaults.from);
@@ -46,6 +65,30 @@ export default function IncomeStatementPage() {
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
         <span className="text-slate-400">~</span>
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <div className="ml-2 flex flex-wrap gap-1.5">
+          {[
+            { label: "이번 달", range: thisMonthRange() },
+            { label: "지난 달", range: lastMonthRange() },
+            { label: "올해", range: thisYearRange() },
+            { label: "전체", range: allTimeRange() }
+          ].map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() => {
+                setFrom(preset.range.from);
+                setTo(preset.range.to);
+              }}
+              className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                from === preset.range.from && to === preset.range.to
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading || !stmt ? (
@@ -60,7 +103,7 @@ export default function IncomeStatementPage() {
                   <td className="px-5 py-3 text-right font-bold text-blue-600">{formatKRW(stmt.revenue)}</td>
                 </tr>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
-                  <td className="px-5 py-3 pl-8 text-slate-600">매출원가 (재료비+인건비)</td>
+                  <td className="px-5 py-3 pl-8 text-slate-600">매출원가 (재료비+매입+인건비)</td>
                   <td className="px-5 py-3 text-right text-red-500">-{formatKRW(stmt.costOfSales)}</td>
                 </tr>
                 <tr className="border-b border-slate-100">
@@ -68,7 +111,7 @@ export default function IncomeStatementPage() {
                   <td className="px-5 py-3 text-right font-bold text-slate-900">{formatKRW(stmt.grossProfit)}</td>
                 </tr>
                 <tr className="border-b border-slate-100 bg-slate-50/60">
-                  <td className="px-5 py-3 pl-8 text-slate-600">판매관리비 (교통비·통신비·광고비·공구장비·기타)</td>
+                  <td className="px-5 py-3 pl-8 text-slate-600">판매관리비 (교통비·통신비·광고비·공구장비·API비용·기타)</td>
                   <td className="px-5 py-3 text-right text-red-500">-{formatKRW(stmt.sgaExpenses)}</td>
                 </tr>
                 <tr>
