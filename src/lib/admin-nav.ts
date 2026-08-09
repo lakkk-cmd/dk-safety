@@ -125,6 +125,13 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     moduleGroup: "core"
   },
   {
+    href: "/admin/reservations",
+    label: "예약/정산",
+    description: "고객 접수·일정·입금 상태 관리",
+    icon: CalendarDays,
+    moduleGroup: "core"
+  },
+  {
     href: "/admin/apartments",
     label: "아파트 단지 관리",
     description: "단지 코드, 명칭, 계좌·기본료",
