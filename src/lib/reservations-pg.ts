@@ -1143,6 +1143,20 @@ export async function pgAssignTask(reservationId: string, workerId: string): Pro
     }
   }
 
+  // orders.dispatch_status를 ASSIGNED로 갱신 — activateDispatch()는 결제확인 시 READY까지만
+  // 올리고, 그 이후 이 값을 ASSIGNED로 진행시키는 코드가 어디에도 없어 기사를 배정해도
+  // 관리자 화면(고객관리/배정관제)에는 계속 "배정 대기"로만 보이는 버그였다(2026-08-11,
+  // 추영선 고객 건에서 발견 — 정산·보증서까지 끝났는데도 배정대기로 표시됨). 단지 미지정
+  // 접수 등 연결된 order가 없는 경우도 있어 best-effort로 처리한다.
+  const { error: dispatchErr } = await supabase
+    .from("orders")
+    .update({ dispatch_status: "ASSIGNED" })
+    .eq("reservation_id", reservationId)
+    .in("dispatch_status", ["BLOCKED", "READY"]);
+  if (dispatchErr) {
+    console.error(`예약 ${reservationId} orders.dispatch_status ASSIGNED 갱신 실패:`, dispatchErr.message);
+  }
+
   const found = await pgFindReservationById(reservationId);
   if (!found) {
     throw new Error("배정 후 예약을 찾을 수 없습니다.");
@@ -1641,6 +1655,10 @@ export async function pgCompleteTask(
     },
     total_final_fee: finalFee.total_fee,
     final_payment_status: canSettleNow ? "PAID" : "REQUESTED",
+    // 현장 작업 자체는(추가비용 확인 대기 여부와 무관하게) 이 시점에 끝난 것이므로
+    // dispatch_status도 DONE으로 맞춘다 — 안 그러면 관리자 화면에 계속 "배정 대기/기사
+    // 배정됨"으로만 보인다(pgAssignTask의 ASSIGNED 누락과 같은 근본 원인, 2026-08-11).
+    dispatch_status: "DONE",
     updated_at: now
   };
 
