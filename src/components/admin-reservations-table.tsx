@@ -756,7 +756,7 @@ export default function AdminReservationsTable({
                   <p className="mt-1 text-xs text-slate-500">{item.address}</p>
                   {item.asSourceReservationId ? (
                     <p className="mt-1 text-xs text-amber-700">
-                      🔧 A/S 요청 · 원 예약{" "}
+                      🔧 A/S 요청(출장비 무료·보증서 미발급) · 원 예약{" "}
                       <Link href={`/admin/reservations?id=${item.asSourceReservationId}`} className="font-semibold underline">
                         바로가기
                       </Link>

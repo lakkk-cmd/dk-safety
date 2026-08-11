@@ -244,13 +244,16 @@ export default function DigitalWarrantyArtifact({ warranty }: Props) {
                   </div>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setAsOpen(true)}
-                  className="w-full rounded-xl border-2 border-amber-400 bg-white px-4 py-3 text-sm font-bold text-amber-900"
-                >
-                  🔧 A/S 신청 (보증기간 내 재방문)
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setAsOpen(true)}
+                    className="w-full rounded-xl border-2 border-amber-400 bg-white px-4 py-3 text-sm font-bold text-amber-900"
+                  >
+                    🔧 A/S 신청 (보증기간 내 재방문)
+                  </button>
+                  <p className="mt-2 text-xs text-amber-800">출장비 무료로 자동 접수됩니다. 단, A/S 방문건에는 새 보증서가 발급되지 않으며, 현장에서 추가 작업비가 발생할 수 있습니다.</p>
+                </>
               )}
             </div>
           ) : null}

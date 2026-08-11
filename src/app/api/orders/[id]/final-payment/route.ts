@@ -32,7 +32,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       impUid: body.impUid
     });
     return NextResponse.json({
-      message: "최종 결제가 완료되어 디지털 보증서가 발급되었습니다.",
+      message: result.warrantyId
+        ? "최종 결제가 완료되어 디지털 보증서가 발급되었습니다."
+        : "최종 결제가 완료되었습니다. (A/S 건은 보증서가 재발급되지 않습니다)",
       result
     });
   } catch (error) {

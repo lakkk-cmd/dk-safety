@@ -296,7 +296,7 @@ export async function PATCH(request: Request) {
     const { data: reservation, error: resErr } = await supabase
       .from("reservations")
       .select(
-        "id, name, phone, apartment_id, technician_id, service_item_id, service_type, detail, image_urls, base_fee, extra_fee, extra_fee_note, parts_used, apartments(apt_code, name)"
+        "id, name, phone, apartment_id, technician_id, service_item_id, service_type, detail, image_urls, base_fee, extra_fee, extra_fee_note, parts_used, as_source_reservation_id, apartments(apt_code, name)"
       )
       .eq("id", reservationId)
       .maybeSingle();
@@ -345,7 +345,7 @@ export async function PATCH(request: Request) {
     const sitePhotos = asStringArray(reservation.image_urls);
     const phone = String(reservation.phone ?? "").trim();
 
-    let result: { warrantyId: string; warrantyNumber: string; verifyUrl: string };
+    let result: { warrantyId: string | null; warrantyNumber: string | null; verifyUrl: string | null };
     try {
       result = await pgIssueWarrantyAndSettle({
         reservationId,
@@ -375,7 +375,8 @@ export async function PATCH(request: Request) {
           }
         },
         customer: phone ? { name: String(reservation.name ?? "").trim() || "고객", phone } : undefined,
-        orderLogActor: `EXTRA_FEE_CONFIRM:${confirmedByRaw}`
+        orderLogActor: `EXTRA_FEE_CONFIRM:${confirmedByRaw}`,
+        skipWarrantyIssuance: Boolean(reservation.as_source_reservation_id)
       });
     } catch (issueError) {
       const message = issueError instanceof Error ? issueError.message : "보증서 발급 실패";
@@ -407,7 +408,9 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({
-      message: "추가비용 확인이 완료되어 정산·보증서가 반영되었습니다.",
+      message: result.warrantyId
+        ? "추가비용 확인이 완료되어 정산·보증서가 반영되었습니다."
+        : "추가비용 확인이 완료되어 정산이 반영되었습니다. (A/S 건은 보증서가 재발급되지 않습니다)",
       total_fee: calc.total_fee,
       breakdown: calc.breakdown,
       warrantyNumber: result.warrantyNumber,

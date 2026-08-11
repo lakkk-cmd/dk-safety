@@ -137,6 +137,10 @@ export default function AdminCustomerCarePanel({ initialRows }: Props) {
   });
   const [page, setPage] = useState(1);
   const [jumpDraft, setJumpDraft] = useState("1");
+  const [asOpenFor, setAsOpenFor] = useState<string | null>(null);
+  const [asForm, setAsForm] = useState({ preferredDate: "", preferredTime: "09:00", detail: "" });
+  const [asBusy, setAsBusy] = useState(false);
+  const [asError, setAsError] = useState<string | null>(null);
 
   const enrichedRows: EnrichedRow[] = useMemo(() => {
     const idMap = buildReservationDisplayIdById(initialRows);
@@ -320,6 +324,42 @@ export default function AdminCustomerCarePanel({ initialRows }: Props) {
     router.refresh();
   };
 
+  const openAsRequest = (r: EnrichedRow) => {
+    setAsOpenFor(r.reservationId);
+    setAsForm({ preferredDate: "", preferredTime: "09:00", detail: "" });
+    setAsError(null);
+  };
+
+  const submitAsRequest = async (sourceReservationId: string) => {
+    setAsError(null);
+    if (!asForm.preferredDate || !asForm.detail.trim()) {
+      setAsError("희망일과 증상 상세를 입력해 주세요.");
+      return;
+    }
+    setAsBusy(true);
+    try {
+      const res = await fetch("/api/admin/reservations/as-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceReservationId,
+          preferredDate: asForm.preferredDate,
+          preferredTime: asForm.preferredTime,
+          detail: asForm.detail
+        })
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        setAsError(data.message ?? "A/S 접수에 실패했습니다.");
+        return;
+      }
+      setAsOpenFor(null);
+      router.refresh();
+    } finally {
+      setAsBusy(false);
+    }
+  };
+
   const clearFilters = () =>
     setFilters({
       reservationId: "",
@@ -473,6 +513,15 @@ export default function AdminCustomerCarePanel({ initialRows }: Props) {
                     <td>
                       <span className="dk-pill">{reservationStatusKo(r.status)}</span>
                       <div className="dk-muted-xs">{r.isPaid ? "예약금 납부" : "미납"}</div>
+                      {r.status === "완료" ? (
+                        <button
+                          type="button"
+                          className="mt-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100"
+                          onClick={() => openAsRequest(r)}
+                        >
+                          🔧 A/S 접수
+                        </button>
+                      ) : null}
                     </td>
                     <td className="dk-mono">
                       {r.orderId ? (
@@ -745,6 +794,85 @@ export default function AdminCustomerCarePanel({ initialRows }: Props) {
                 </button>
                 <button type="submit" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700">
                   등록
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {asOpenFor ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="as-request-title"
+        >
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+            <h4 id="as-request-title" className="text-lg font-black text-slate-900">
+              🔧 A/S 접수 — {enrichedRows.find((r) => r.reservationId === asOpenFor)?.name ?? ""}님
+            </h4>
+            <p className="mt-1 text-xs text-slate-600">
+              출장비 무료가 자동 적용되며, 접수 즉시 「접수」 상태로 전환되어 일반 예약과 동일하게 기사 배정을 진행할 수 있습니다. 이 건에는
+              보증서가 재발급되지 않으며, 현장에서 추가 작업비가 발생할 수 있습니다.
+            </p>
+            <form
+              className="mt-4 space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submitAsRequest(asOpenFor);
+              }}
+            >
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-600">방문 희망일 *</label>
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-md border border-slate-200 px-2 py-2 text-sm"
+                    value={asForm.preferredDate}
+                    onChange={(e) => setAsForm((f) => ({ ...f, preferredDate: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-600">희망 시간 *</label>
+                  <input
+                    type="time"
+                    className="mt-1 w-full rounded-md border border-slate-200 px-2 py-2 text-sm"
+                    value={asForm.preferredTime}
+                    onChange={(e) => setAsForm((f) => ({ ...f, preferredTime: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-600">증상/요청 내용 *</label>
+                <textarea
+                  className="mt-1 min-h-[72px] w-full rounded-md border border-slate-200 px-2 py-2 text-sm"
+                  value={asForm.detail}
+                  onChange={(e) => setAsForm((f) => ({ ...f, detail: e.target.value.slice(0, 500) }))}
+                  placeholder="예: 지난 점검 부위에서 동일 증상 재발"
+                  required
+                />
+              </div>
+              {asError ? <p className="text-sm font-semibold text-rose-600">{asError}</p> : null}
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-800"
+                  onClick={() => {
+                    setAsOpenFor(null);
+                    setAsError(null);
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={asBusy}
+                  className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {asBusy ? "접수 중…" : "A/S 접수(무료)"}
                 </button>
               </div>
             </form>

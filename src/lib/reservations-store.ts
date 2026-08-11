@@ -332,6 +332,8 @@ export async function createReservation(
     priority?: Reservation["priority"];
     imageUrls?: string[];
     baseFee?: number;
+    /** true면 출장비를 0원으로 강제(50,000원 최소 clamp 우회) — A/S 재방문 등 무료 접수 전용 */
+    feeWaived?: boolean;
   }
 ): Promise<Reservation> {
   if (shouldUsePgReservations()) {
@@ -339,6 +341,11 @@ export async function createReservation(
   }
 
   const current = await readReservations();
+  const baseFee = payload.feeWaived
+    ? 0
+    : typeof payload.baseFee === "number" && Number.isFinite(payload.baseFee)
+      ? Math.max(50000, Math.round(payload.baseFee))
+      : 50000;
   const nextItem: Reservation = {
     ...payload,
     apartmentId: "apartmentId" in payload && typeof payload.apartmentId === "string" ? payload.apartmentId : null,
@@ -349,9 +356,9 @@ export async function createReservation(
     status: "waiting_payment",
     note: "",
     noteUpdatedAt: null,
-    baseFee: typeof payload.baseFee === "number" && Number.isFinite(payload.baseFee) ? Math.max(50000, Math.round(payload.baseFee)) : 50000,
+    baseFee,
     extraFee: 0,
-    totalAmount: typeof payload.baseFee === "number" && Number.isFinite(payload.baseFee) ? Math.max(50000, Math.round(payload.baseFee)) : 50000,
+    totalAmount: baseFee,
     isPaid: false,
     paidAt: null,
     id: crypto.randomUUID(),

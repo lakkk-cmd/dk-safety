@@ -55,6 +55,7 @@ export async function pgCreateOrder(input: {
   // 항상 우선한다 — 클라이언트가 보낸 baseFee와 실제 청구액(가상계좌/카드결제)이 어긋나는
   // 것을 막기 위한 단일 소스. reservationId가 없거나 조회 실패 시에만 입력값으로 폴백.
   let resolvedBaseFee = input.baseFee;
+  let baseFeeIsTrusted = false;
   if (input.reservationId) {
     const { data: reservationRow } = await supabase
       .from("reservations")
@@ -63,9 +64,13 @@ export async function pgCreateOrder(input: {
       .maybeSingle();
     if (reservationRow && Number.isFinite(reservationRow.base_fee)) {
       resolvedBaseFee = reservationRow.base_fee;
+      baseFeeIsTrusted = true;
     }
   }
-  const prepayment = normalizePrepaymentAmount(resolvedBaseFee);
+  // reservations.base_fee에서 읽어온 값은 이미 확정된 단일 소스이므로(0원 무료 A/S 접수 포함)
+  // 그대로 신뢰한다. 예약을 못 찾아 input.baseFee 폴백을 쓸 때만 가비지 입력 방어용
+  // normalizePrepaymentAmount()의 50,000원 최소값 보정을 적용한다.
+  const prepayment = baseFeeIsTrusted ? Math.max(0, Math.round(resolvedBaseFee!)) : normalizePrepaymentAmount(resolvedBaseFee);
 
   // 멱등성 가드: 같은 예약에 대해 두 번 호출되면(모바일 더블탭, 네트워크 재시도 등) order가
   // 중복 생성되던 버그(2026-08-08 추영선 고객 건에서 발견 — 예약금 확인/취소가 어느 쪽
@@ -377,6 +382,9 @@ export async function pgIssueVirtualAccount(orderId: string) {
   const safeHo = ho || "000";
   const accountHolderName = `${aptCodeForPg}_${safeDong}_${safeHo}`;
   const displayHolder = formatResidentDongHoDepositHolder(dong, ho) || accountHolderName;
+  if (Number(order.base_fee) === 0) {
+    throw new Error("이 건은 출장비가 없어 가상계좌 발급이 필요하지 않습니다.");
+  }
   const amount = normalizePrepaymentAmount(order.base_fee);
 
   const issued = await issueVirtualAccountFromProvider({
@@ -471,12 +479,15 @@ export async function pgIssueWarrantyAndSettle(input: {
   orderExtra?: Record<string, unknown>;
   /** true면 reservations 갱신을 건너뛴다 — 호출부가 같은 요청에서 이미 자체 UPDATE(status 등 포함)를 수행하는 경우 */
   skipReservationUpdate?: boolean;
+  /** true면 보증서를 발급하지 않고 정산만 진행한다 — A/S(애프터서비스) 재방문 건은
+   *  보증서 추가발급이 불가하다(2026-08-11 정책). warranty_status는 NOT_APPLICABLE로 남는다. */
+  skipWarrantyIssuance?: boolean;
   provider?: "TOSS" | "PORTONE" | "MANUAL" | null;
   paymentKey?: string | null;
   impUid?: string | null;
   customer?: { name: string; phone: string };
   orderLogActor?: string;
-}): Promise<{ warrantyId: string; warrantyNumber: string; verifyUrl: string; notifiedChannels: string[] }> {
+}): Promise<{ warrantyId: string | null; warrantyNumber: string | null; verifyUrl: string | null; notifiedChannels: string[] }> {
   const supabase = requireSupabaseAdmin();
 
   let aptCode: string | null = null;
@@ -500,45 +511,53 @@ export async function pgIssueWarrantyAndSettle(input: {
   const now = new Date();
   const nowIso = now.toISOString();
   const issuedAt = input.settledAt ? new Date(input.settledAt) : now;
-  const warrantyNumber = buildPatentWarrantyNumber({
-    issuedAt,
-    reservationId: input.reservationId,
-    aptCode
-  });
-  const startDate = issuedAt.toISOString().slice(0, 10);
-  // 무상수리 보증기간(2026-08 정책, 수리일자 기준·동일부위/동일증상 한정):
-  // 부품 미사용 2개월 / 부품 사용 4개월
-  const warrantyMonths = input.partsUsed ? 4 : 2;
-  const endDate = new Date(issuedAt);
-  endDate.setMonth(endDate.getMonth() + warrantyMonths);
-  const endDateText = endDate.toISOString().slice(0, 10);
-  const verifyBase = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://dkansim.com";
-  const verifyUrl = `${verifyBase.replace(/\/$/, "")}/verify/${encodeURIComponent(warrantyNumber)}`;
+  const skipWarranty = input.skipWarrantyIssuance === true;
 
-  const { data: warranty, error: warrantyErr } = await supabase
-    .from("warranties")
-    .upsert(
-      {
-        warranty_number: warrantyNumber,
-        reservation_id: input.reservationId,
-        apt_id: input.apartmentId,
-        technician_id: input.technicianId ?? null,
-        service_type: mapServiceTypeToPatentKey(input.serviceType),
-        service_summary: input.serviceSummary,
-        warranty_months: warrantyMonths,
-        warranty_start: startDate,
-        warranty_end: endDateText,
-        final_amount: input.finalAmount,
-        site_photos: input.sitePhotos,
-        verify_url: verifyUrl,
-        status: "ISSUED"
-      },
-      { onConflict: "reservation_id" }
-    )
-    .select("id, warranty_number")
-    .single();
-  if (warrantyErr || !warranty) {
-    throw new Error(`보증서 저장 실패: ${warrantyErr?.message ?? "unknown"}`);
+  let warranty: { id: string; warranty_number: string } | null = null;
+  let verifyUrl: string | null = null;
+
+  if (!skipWarranty) {
+    const warrantyNumber = buildPatentWarrantyNumber({
+      issuedAt,
+      reservationId: input.reservationId,
+      aptCode
+    });
+    const startDate = issuedAt.toISOString().slice(0, 10);
+    // 무상수리 보증기간(2026-08 정책, 수리일자 기준·동일부위/동일증상 한정):
+    // 부품 미사용 2개월 / 부품 사용 4개월
+    const warrantyMonths = input.partsUsed ? 4 : 2;
+    const endDate = new Date(issuedAt);
+    endDate.setMonth(endDate.getMonth() + warrantyMonths);
+    const endDateText = endDate.toISOString().slice(0, 10);
+    const verifyBase = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://dkansim.com";
+    verifyUrl = `${verifyBase.replace(/\/$/, "")}/verify/${encodeURIComponent(warrantyNumber)}`;
+
+    const { data, error: warrantyErr } = await supabase
+      .from("warranties")
+      .upsert(
+        {
+          warranty_number: warrantyNumber,
+          reservation_id: input.reservationId,
+          apt_id: input.apartmentId,
+          technician_id: input.technicianId ?? null,
+          service_type: mapServiceTypeToPatentKey(input.serviceType),
+          service_summary: input.serviceSummary,
+          warranty_months: warrantyMonths,
+          warranty_start: startDate,
+          warranty_end: endDateText,
+          final_amount: input.finalAmount,
+          site_photos: input.sitePhotos,
+          verify_url: verifyUrl,
+          status: "ISSUED"
+        },
+        { onConflict: "reservation_id" }
+      )
+      .select("id, warranty_number")
+      .single();
+    if (warrantyErr || !data) {
+      throw new Error(`보증서 저장 실패: ${warrantyErr?.message ?? "unknown"}`);
+    }
+    warranty = data;
   }
 
   if (!input.skipReservationUpdate) {
@@ -546,8 +565,8 @@ export async function pgIssueWarrantyAndSettle(input: {
       .from("reservations")
       .update({
         payment_status: "SETTLED",
-        warranty_id: warranty.id,
-        warranty_status: "ISSUED",
+        warranty_id: warranty?.id ?? null,
+        warranty_status: warranty ? "ISSUED" : "NOT_APPLICABLE",
         total_amount: input.finalAmount,
         ...(input.settledAt ? {} : { settled_at: nowIso }),
         ...(input.reservationExtra ?? {})
@@ -562,8 +581,8 @@ export async function pgIssueWarrantyAndSettle(input: {
     const orderPatch: Record<string, unknown> = {
       total_final_fee: input.finalAmount,
       final_payment_status: "PAID",
-      warranty_issued_at: nowIso,
       updated_at: nowIso,
+      ...(warranty ? { warranty_issued_at: nowIso } : {}),
       ...(input.orderExtra ?? {})
     };
     if (input.provider) orderPatch.pg_provider = input.provider;
@@ -580,7 +599,7 @@ export async function pgIssueWarrantyAndSettle(input: {
     status_from: "CONFIRMING",
     status_to: "SETTLED",
     actor: input.orderLogActor ?? "SYSTEM_WARRANTY_ISSUANCE",
-    note: `warranty:${warranty.warranty_number};total:${input.finalAmount}`
+    note: warranty ? `warranty:${warranty.warranty_number};total:${input.finalAmount}` : `warranty:N/A(A/S);total:${input.finalAmount}`
   });
 
   let notifiedChannels: string[] = [];
@@ -592,15 +611,20 @@ export async function pgIssueWarrantyAndSettle(input: {
         phone: input.customer.phone,
         apartmentName,
         finalAmount: input.finalAmount,
-        warrantyNumber: warranty.warranty_number,
-        verifyUrl
+        warrantyNumber: warranty?.warranty_number ?? "",
+        verifyUrl: verifyUrl ?? ""
       });
     } catch (notifyError) {
       console.error(`예약 ${input.reservationId} 정산 확정 알림 발송 실패:`, notifyError);
     }
   }
 
-  return { warrantyId: warranty.id, warrantyNumber: warranty.warranty_number, verifyUrl, notifiedChannels };
+  return {
+    warrantyId: warranty?.id ?? null,
+    warrantyNumber: warranty?.warranty_number ?? null,
+    verifyUrl,
+    notifiedChannels
+  };
 }
 
 export async function pgMarkFinalPaymentPaidAndIssueWarranty(input: {
@@ -621,7 +645,7 @@ export async function pgMarkFinalPaymentPaidAndIssueWarranty(input: {
 
   const { data: reservation, error: reservationErr } = await supabase
     .from("reservations")
-    .select("id, apartment_id, technician_id, service_type, detail, total_amount, settled_at, image_urls, parts_used")
+    .select("id, apartment_id, technician_id, service_type, detail, total_amount, settled_at, image_urls, parts_used, as_source_reservation_id")
     .eq("id", order.reservation_id)
     .maybeSingle();
   if (reservationErr || !reservation) {
@@ -652,7 +676,8 @@ export async function pgMarkFinalPaymentPaidAndIssueWarranty(input: {
     paymentKey: input.paymentKey,
     impUid: input.impUid,
     customer: residentInfo.phone ? { name: residentInfo.name?.trim() || "고객", phone: residentInfo.phone } : undefined,
-    orderLogActor: "SYSTEM_FINAL_PAYMENT"
+    orderLogActor: "SYSTEM_FINAL_PAYMENT",
+    skipWarrantyIssuance: Boolean(reservation.as_source_reservation_id)
   });
 
   return {

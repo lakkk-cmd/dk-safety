@@ -208,7 +208,9 @@ async function issueWarrantyForReservation(params: {
   partsUsed: boolean;
   /** 있으면 발급 직후 고객에게 정산 확정 알림을 보낸다(best-effort) */
   customer?: { name: string; phone: string };
-}): Promise<{ warrantyId: string; warrantyNumber: string }> {
+  /** true면 보증서를 발급하지 않고 정산만 진행한다 — A/S 재방문 건 전용 */
+  skipWarrantyIssuance?: boolean;
+}): Promise<{ warrantyId: string | null; warrantyNumber: string | null }> {
   const result = await pgIssueWarrantyAndSettle({
     reservationId: params.reservationId,
     orderId: null,
@@ -221,7 +223,8 @@ async function issueWarrantyForReservation(params: {
     partsUsed: params.partsUsed,
     skipReservationUpdate: true,
     customer: params.customer,
-    orderLogActor: "SYSTEM_TASK_COMPLETE"
+    orderLogActor: "SYSTEM_TASK_COMPLETE",
+    skipWarrantyIssuance: params.skipWarrantyIssuance
   });
   return { warrantyId: result.warrantyId, warrantyNumber: result.warrantyNumber };
 }
@@ -505,11 +508,16 @@ export async function pgCreateReservation(
     priority?: Reservation["priority"];
     imageUrls?: string[];
     baseFee?: number;
+    /** true면 출장비를 0원으로 강제(50,000원 최소 clamp 우회) — A/S 재방문 등 무료 접수 전용 */
+    feeWaived?: boolean;
   }
 ): Promise<Reservation> {
   const supabase = requireSupabaseAdmin();
-  const baseFee =
-    typeof payload.baseFee === "number" && Number.isFinite(payload.baseFee) ? Math.max(50000, Math.round(payload.baseFee)) : 50000;
+  const baseFee = payload.feeWaived
+    ? 0
+    : typeof payload.baseFee === "number" && Number.isFinite(payload.baseFee)
+      ? Math.max(50000, Math.round(payload.baseFee))
+      : 50000;
   const serviceItem = await findApplicableServiceItem({
     apartmentId: payload.apartmentId ?? null,
     serviceType: payload.serviceType
@@ -537,7 +545,10 @@ export async function pgCreateReservation(
     paid_at: null,
     prepayment_confirmed: false,
     prepayment_confirmed_at: null,
-    as_source_reservation_id: payload.asSourceReservationId ?? null
+    as_source_reservation_id: payload.asSourceReservationId ?? null,
+    // source를 안 넣으면 DB default('online')로 잘못 기록돼 채널별 출장비/A/S 접수경로
+    // 구분이 무의미해진다(pgAdminCreateOfflineReservation에서 이미 확인된 문제, 622행).
+    source: payload.source ?? "online"
   };
 
   const { data, error } = await supabase.from("reservations").insert(insert).select().single();
@@ -1521,7 +1532,7 @@ export async function pgCompleteTask(
   }
   const { data: reservationRow, error: reservationReadErr } = await supabase
     .from("reservations")
-    .select("name, phone, base_fee, apartment_id, service_item_id, service_type, detail, image_urls")
+    .select("name, phone, base_fee, apartment_id, service_item_id, service_type, detail, image_urls, as_source_reservation_id")
     .eq("id", data.reservation_id)
     .maybeSingle();
   if (reservationReadErr || !reservationRow) {
@@ -1572,10 +1583,13 @@ export async function pgCompleteTask(
   const warrantySummary = `${reservationRow.detail ?? reservationRow.service_type ?? "현장 작업"} / ${finalFee.breakdown.join(" | ")}`;
   const sitePhotos = asStringArray(reservationRow.image_urls);
   const additionalDueAmount = finalFee.amount_due_now;
-  const shouldAutoIssueWarranty = additionalDueAmount === 0;
+  const canSettleNow = additionalDueAmount === 0;
+  // A/S(애프터서비스) 재방문 건은 보증서를 추가발급하지 않는다(2026-08-11 정책) — 정산 자체는
+  // 일반 예약과 동일하게 진행된다.
+  const isAsRequest = Boolean(reservationRow.as_source_reservation_id);
   const partsUsed = typeof partsUsedInput === "boolean" ? partsUsedInput : (breakdownInput?.materials?.length ?? 0) > 0;
   let warrantyId: string | null = null;
-  if (reservationRow.apartment_id && shouldAutoIssueWarranty) {
+  if (reservationRow.apartment_id && canSettleNow) {
     const issued = await issueWarrantyForReservation({
       reservationId: data.reservation_id,
       apartmentId: reservationRow.apartment_id,
@@ -1585,7 +1599,8 @@ export async function pgCompleteTask(
       finalAmount: finalFee.total_fee,
       sitePhotos,
       partsUsed,
-      customer: { name: reservationRow.name ?? "고객", phone: reservationRow.phone ?? "" }
+      customer: { name: reservationRow.name ?? "고객", phone: reservationRow.phone ?? "" },
+      skipWarrantyIssuance: isAsRequest
     });
     warrantyId = issued.warrantyId;
   }
@@ -1593,7 +1608,7 @@ export async function pgCompleteTask(
     .from("reservations")
     .update({
       status: "완료",
-      payment_status: shouldAutoIssueWarranty ? "SETTLED" : "CONFIRMING",
+      payment_status: canSettleNow ? "SETTLED" : "CONFIRMING",
       extra_fee: finalFee.extra_fee,
       extra_fee_note: extraFee > 0 ? "현장 추가 비용 입력" : null,
       extra_fee_added_at: extraFee > 0 ? now : null,
@@ -1602,7 +1617,7 @@ export async function pgCompleteTask(
       total_amount: finalFee.total_fee,
       settled_at: now,
       warranty_id: warrantyId,
-      warranty_status: warrantyId ? "ISSUED" : "PENDING",
+      warranty_status: !canSettleNow ? "PENDING" : warrantyId ? "ISSUED" : "NOT_APPLICABLE",
       parts_used: partsUsed
     })
     .eq("id", data.reservation_id);
@@ -1625,7 +1640,7 @@ export async function pgCompleteTask(
       laborTier: breakdownInput?.laborTier ?? null
     },
     total_final_fee: finalFee.total_fee,
-    final_payment_status: shouldAutoIssueWarranty ? "PAID" : "REQUESTED",
+    final_payment_status: canSettleNow ? "PAID" : "REQUESTED",
     updated_at: now
   };
 
@@ -1965,7 +1980,7 @@ export async function issueWalkInWarranty(params: {
   customer?: { name: string; phone: string };
   /** 배정된 담당 기사 — 보증서에 정확한 담당자를 기록한다(2026-08-09) */
   technicianId?: string | null;
-}): Promise<{ warrantyId: string; warrantyNumber: string; verifyUrl: string; notifiedChannels: string[] }> {
+}): Promise<{ warrantyId: string | null; warrantyNumber: string | null; verifyUrl: string | null; notifiedChannels: string[] }> {
   // 접수 시 함께 만든 order(있으면)를 찾아 정산 반영 — 예약접수(온라인) 작업완료와 동일하게
   // 고객관리 정산·보증 열에 최종 금액/보증서 발급일이 반영되도록 한다(2026-08-09).
   const order = await pgFindOrderByReservationId(params.reservationId).catch(() => null);
