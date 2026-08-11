@@ -63,6 +63,11 @@ function StatusPageContent() {
   const [items, setItems] = useState<Item[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [asOpenFor, setAsOpenFor] = useState<string | null>(null);
+  const [asForm, setAsForm] = useState({ preferredDate: "", preferredTime: "09:00", detail: "" });
+  const [asBusy, setAsBusy] = useState(false);
+  const [asError, setAsError] = useState<string | null>(null);
+  const [asResultFor, setAsResultFor] = useState<string | null>(null);
 
   const search = async (phoneOverride?: string) => {
     const target = (phoneOverride ?? phone).trim();
@@ -81,6 +86,44 @@ function StatusPageContent() {
       setMessage("네트워크 오류가 발생했습니다.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openAsRequest = (reservationId: string) => {
+    setAsOpenFor(reservationId);
+    setAsForm({ preferredDate: "", preferredTime: "09:00", detail: "" });
+    setAsError(null);
+  };
+
+  const submitAsRequest = async (sourceReservationId: string) => {
+    setAsError(null);
+    if (!asForm.preferredDate || !asForm.detail.trim()) {
+      setAsError("희망일과 증상 내용을 입력해 주세요.");
+      return;
+    }
+    setAsBusy(true);
+    try {
+      const res = await fetch("/api/reservations/as-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceReservationId,
+          phone,
+          preferredDate: asForm.preferredDate,
+          preferredTime: asForm.preferredTime,
+          detail: asForm.detail
+        })
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        setAsError(data.message ?? "A/S 신청에 실패했습니다.");
+        return;
+      }
+      setAsOpenFor(null);
+      setAsResultFor(sourceReservationId);
+      void search();
+    } finally {
+      setAsBusy(false);
     }
   };
 
@@ -171,6 +214,65 @@ function StatusPageContent() {
                   <span>📋</span>
                   <span>리포트 확인하기</span>
                 </Link>
+              ) : null}
+
+              {item.reservation.status === "완료" ? (
+                <div className="mt-3 rounded-2xl border-2 border-amber-300 bg-amber-50 p-3">
+                  {asResultFor === item.reservation.id ? (
+                    <p className="text-sm font-bold text-emerald-700">✅ A/S 신청이 출장비 무료로 접수되었습니다. 확인 후 연락드리겠습니다.</p>
+                  ) : asOpenFor === item.reservation.id ? (
+                    <div className="space-y-2">
+                      <p className="text-sm font-bold text-amber-900">🔧 A/S 신청 (동일 부위 재발 시 출장비 무료)</p>
+                      <textarea
+                        value={asForm.detail}
+                        onChange={(e) => setAsForm((f) => ({ ...f, detail: e.target.value.slice(0, 500) }))}
+                        placeholder="증상/요청 내용을 적어주세요 (예: 지난 점검 부위 재발)"
+                        rows={3}
+                        className="soft-input w-full resize-y text-sm"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="date"
+                          value={asForm.preferredDate}
+                          onChange={(e) => setAsForm((f) => ({ ...f, preferredDate: e.target.value }))}
+                          className="soft-input text-sm"
+                        />
+                        <input
+                          type="time"
+                          value={asForm.preferredTime}
+                          onChange={(e) => setAsForm((f) => ({ ...f, preferredTime: e.target.value }))}
+                          className="soft-input text-sm"
+                        />
+                      </div>
+                      {asError ? <p className="text-xs font-semibold text-rose-600">{asError}</p> : null}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAsOpenFor(null)}
+                          className="min-h-11 flex-1 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-700"
+                        >
+                          취소
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void submitAsRequest(item.reservation.id)}
+                          disabled={asBusy}
+                          className="min-h-11 flex-1 rounded-xl bg-amber-600 text-sm font-bold text-white disabled:opacity-50"
+                        >
+                          {asBusy ? "접수 중..." : "A/S 신청하기"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openAsRequest(item.reservation.id)}
+                      className="min-h-12 w-full rounded-xl border-2 border-amber-400 bg-white text-sm font-bold text-amber-900"
+                    >
+                      🔧 A/S 신청 (출장비 무료)
+                    </button>
+                  )}
+                </div>
               ) : null}
             </SectionCard>
           ))}
