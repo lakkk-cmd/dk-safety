@@ -1,7 +1,7 @@
 ---
 title: "위키 목차"
 category: index
-synced_at: "2026-08-11T20:31:14.355Z"
+synced_at: "2026-08-12T20:28:58.656Z"
 ---
 
 # dk-safety AI 지식 위키
