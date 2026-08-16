@@ -3,7 +3,7 @@ title: "에이전트 메모리 — content_pipeline_log"
 category: agent-memory
 tags: ["agent-memory", "content_pipeline_log"]
 source: "agent_memory (key=content_pipeline_log)"
-synced_at: "2026-08-15T20:08:01.637Z"
+synced_at: "2026-08-16T20:07:27.574Z"
 ---
 
 <!-- AUTO:START -->
