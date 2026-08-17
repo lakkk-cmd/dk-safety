@@ -73,6 +73,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
           NEXT_PUBLIC_BUSINESS_PHONE: "010-0000-0000"
           NEXT_PUBLIC_KAKAO_OPENCHAT_URL: "https://open.kakao.com/"
           ADMIN_PASSWORD: "ci-placeholder"
@@ -98,6 +99,19 @@ jobs:
             gh pr create --base main --head "$BRANCH" \
               --title "[AI 개선] ${ISSUE_TITLE}" \
               --body "Closes #${ISSUE_NUMBER}"
+          fi
+
+          # 디렉터 파이프라인 §5 화이트리스트 조건("영향범위 1파일 이내") 게이트 — 채팅에서
+          # auto_implement=true로 들어온 이슈(본문 마커로 식별)만 대상. /hq 개선요청 위젯은
+          # 사람이 이미 명시적으로 요청을 제출한 별개 경로라 이 게이트 대상이 아니다.
+          if echo "$ISSUE_BODY" | grep -q "risk-tier: chat-whitelist"; then
+            git fetch origin main "$BRANCH" --quiet
+            CHANGED_FILES=$(git diff --name-only "origin/main...origin/$BRANCH" | wc -l | tr -d ' ')
+            if [ "$CHANGED_FILES" -gt 1 ]; then
+              gh pr comment "$BRANCH" --body "⚠️ 채팅 자동구현 화이트리스트는 영향범위 1파일 이내만 허용합니다(변경 파일 ${CHANGED_FILES}개). 자동 머지를 보류하고 수동 확인이 필요합니다."
+              report_progress failed "화이트리스트 범위 초과(변경 파일 ${CHANGED_FILES}개)로 자동 머지가 보류되었습니다."
+              exit 0
+            fi
           fi
 
           # bot이 생성한 PR은 pull_request 트리거 CI가 승인 대기(action_required) 상태로

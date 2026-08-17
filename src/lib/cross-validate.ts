@@ -98,6 +98,8 @@ export async function validateContent(params: {
   content: string;
   contentType: "blog" | "kakao" | "youtube" | "document";
   keywords?: string[];
+  /** 마케터(CMO)가 워커에게 내린 가이드라인 — 있으면 "가이드라인 준수" 기준으로 함께 검증한다. */
+  guideline?: { tone?: string; mustInclude?: string[]; mustAvoid?: string[] };
 }): Promise<{ passed: boolean; score: number; reason: string; verdict: string }> {
   const typeLabel = {
     blog: "네이버 블로그 포스트",
@@ -119,7 +121,12 @@ export async function validateContent(params: {
 2. 키워드 포함 여부: ${params.keywords?.join(", ") ?? "없음"}
 3. 한국어 자연스러움
 4. 광고성/과장 표현 없음
-5. 안전 관련 오정보 없음`;
+5. 안전 관련 오정보 없음${
+          params.guideline
+            ? `
+6. 마케터(CMO) 가이드라인 준수 여부 — 톤앤매너: ${params.guideline.tone || "(미지정)"} / 반드시 포함: ${(params.guideline.mustInclude ?? []).join(", ") || "(없음)"} / 반드시 피할 것: ${(params.guideline.mustAvoid ?? []).join(", ") || "(없음)"}`
+            : ""
+        }`;
 
   const prompt = `당신은 전기안전 콘텐츠 검증 전문가입니다.
 아래 ${typeLabel}의 품질을 검증하고 점수를 매겨주세요.

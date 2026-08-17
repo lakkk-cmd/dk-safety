@@ -123,7 +123,14 @@ async function callContentAgent(
   return callClaudeCustom(system, userPrompt, maxTokens, timeoutMs);
 }
 
-// ─── 주간 콘텐츠 기획 (월요일 09:00) ──────────────────────────────────────────────
+// ─── 디렉터 브리핑 + 마케터(CMO) 가이드라인 — 순차 위임 (월요일 09:00) ────────────────
+//
+// 디렉터 파이프라인 재편(Phase 1, 2026-08): 예전엔 CMO/CSO/CLO/유튜브PD/카카오매니저/
+// 블로그에디터가 한 번의 호출 안에서 동시에 답하는 "병렬 롤플레이"였다. 지금은
+// (1) 총괄디렉터가 CSO+CLO 관점을 자체 종합해 브리핑을 만들고 →
+// (2) CMO(마케터)가 그 브리핑을 입력으로 받아 워커가 실제로 쓸 가이드라인을 만든다.
+// 마케터의 산출물(tone/mustInclude/mustAvoid)은 DB의 marketer_guideline 컬럼에 저장되어
+// draftYoutubeScript/draftKakaoPost/draftBlogPost(워커)의 실제 입력이 된다.
 
 export type ContentPlanItem = {
   title: string;
@@ -133,114 +140,167 @@ export type ContentPlanItem = {
 
 export type YoutubeContentPlanItem = ContentPlanItem & { category: ContentCategory };
 
-export type ContentPlanResult = {
+/** 워커가 실제로 지켜야 할 제작 지침 — 마케터(CMO)가 산출하는 데이터 */
+export type ContentGuideline = {
+  tone: string;
+  mustInclude: string[];
+  mustAvoid: string[];
+};
+
+/** 총괄디렉터가 CSO(전략)+CLO(법무) 관점을 종합해 마케터에게 내리는 브리핑 */
+export type DirectorContentBrief = {
+  priorities: string;
+  constraints: string;
+  weekFocus: string;
+  categories: ContentCategory[];
+};
+
+export type MarketerYoutubeItem = YoutubeContentPlanItem & ContentGuideline;
+export type MarketerContentItem = ContentPlanItem & ContentGuideline;
+
+export type MarketerContentGuideline = {
   cmoDirection: string;
-  csoInsight: string;
-  cloNotes: string;
-  /** 카테고리별 유튜브 기획 (다카테고리 지원). 단일 카테고리일 때도 배열로 반환 */
-  youtubeItems: YoutubeContentPlanItem[];
-  /** 하위 호환 — youtubeItems[0] */
-  youtube: ContentPlanItem;
-  kakao: ContentPlanItem;
-  blog: ContentPlanItem[];
+  youtubeItems: MarketerYoutubeItem[];
+  kakao: MarketerContentItem;
+  blog: MarketerContentItem[];
   summary: string;
 };
 
-function buildPlanningSystemPrompt(categories: ContentCategory[]): string {
-  const ytInstruction =
-    categories.length > 1
-      ? `유튜브 PD 클립: 아래 카테고리별로 각 1건씩 총 ${categories.length}건 기획\n${categories.map((c) => `  - ${c}: ${CATEGORY_DESCRIPTIONS[c]}`).join("\n")}`
-      : `유튜브 PD 클립: 카테고리 "${categories[0]}" — ${CATEGORY_DESCRIPTIONS[categories[0] ?? "전기안전"]} — 1건 기획`;
-
-  const ytJsonExample =
-    categories.length > 1
-      ? `"youtubeItems": [\n${categories.map((c) => `    { "title": "...", "brief": "경쟁분석 메모 + 영상 방향", "category": "${c}" }`).join(",\n")}\n  ]`
-      : `"youtubeItems": [ { "title": "...", "brief": "경쟁분석 메모 + 영상 방향", "category": "${categories[0]}" } ]`;
-
-  return `당신은 우리집 전기주치의(대경이엔피) 콘텐츠 마케팅 사령부입니다. 다음 역할을 한 번에 응답합니다:
-- CMO 확성기(마케팅총괄): 이번 주 콘텐츠 방향 1~2문장
-- CSO 브릿지(전략총괄): 고객 인사이트 1~2문장
-- CLO 규정집(법무총괄): 이번 주 콘텐츠 제작 시 법적 주의사항 1~2문장 (없으면 "특이사항 없음")
-- ${ytInstruction}
-- 카카오 매니저 톡톡: 이번 주 포스트 기획 1건
-- 블로그 에디터 펜: 이번 주 글 기획 최대 2건
+const DIRECTOR_INTAKE_PROMPT = `당신은 우리집 전기주치의(대경이엔피)의 총괄디렉터입니다.
+콘텐츠 제작에 들어가기 전, CSO 브릿지(전략총괄)와 CLO 규정집(법무총괄)의 관점을 스스로 종합해
+마케터(CMO 확성기)에게 내릴 브리핑을 작성합니다. 디렉터는 산출물을 직접 만들지 않고, 마케터가
+따라야 할 우선순위와 제약만 정리합니다.
 
 반드시 한국어로, 아래 JSON 형식으로만 응답하라(설명 텍스트 없이 JSON만):
 \`\`\`json
 {
-  "cmoDirection": "...",
-  "csoInsight": "...",
-  "cloNotes": "...",
+  "priorities": "CSO 관점의 이번 주 우선순위/고객 인사이트 1~2문장",
+  "constraints": "CLO 관점의 법적 주의사항 1~2문장 (없으면 특이사항 없음)",
+  "weekFocus": "이번 주 콘텐츠가 집중해야 할 한 줄 방향"
+}
+\`\`\``;
+
+/** 총괄디렉터 — CSO+CLO 관점 종합, 마케터에게 내릴 브리핑만 산출(실행 없음) */
+export async function runDirectorContentIntake(
+  memory: string,
+  feedback: string,
+  weekStatus: WeekStatus | undefined,
+  youtubeCategories: ContentCategory[],
+): Promise<DirectorContentBrief> {
+  const weekLine = weekStatus
+    ? `현재 로드맵: ${weekStatus.message}\n집중과제: ${weekStatus.yearFocus}\n`
+    : "";
+  const feedbackBlock = feedback.trim() ? `\n[대장 지시사항 — 반드시 반영]\n${feedback}\n` : "";
+  const memoryBlock = memory ? `\n[누적 콘텐츠 기억]\n${memory}\n` : "";
+
+  const prompt = `${weekLine}${feedbackBlock}${BUSINESS_CONTEXT}${memoryBlock}
+이번 주 콘텐츠 제작에 들어가기 전 마케터에게 내릴 브리핑을 작성하라.`.trim();
+
+  const raw = await callClaudeCustom(DIRECTOR_INTAKE_PROMPT, prompt, 700, 60_000);
+  const jsonText = extractJsonBlock(raw);
+  const parsed = jsonText
+    ? (JSON.parse(jsonText) as Partial<Omit<DirectorContentBrief, "categories">>)
+    : {};
+
+  return {
+    priorities: String(parsed.priorities ?? ""),
+    constraints: String(parsed.constraints ?? "특이사항 없음"),
+    weekFocus: String(parsed.weekFocus ?? ""),
+    categories: youtubeCategories,
+  };
+}
+
+function buildMarketerSystemPrompt(categories: ContentCategory[]): string {
+  const ytInstruction =
+    categories.length > 1
+      ? `유튜브 PD 클립에게 내릴 가이드라인: 아래 카테고리별로 각 1건씩 총 ${categories.length}건\n${categories.map((c) => `  - ${c}: ${CATEGORY_DESCRIPTIONS[c]}`).join("\n")}`
+      : `유튜브 PD 클립에게 내릴 가이드라인: 카테고리 "${categories[0]}" — ${CATEGORY_DESCRIPTIONS[categories[0] ?? "전기안전"]} — 1건`;
+
+  const ytJsonExample =
+    categories.length > 1
+      ? `"youtubeItems": [\n${categories.map((c) => `    { "title": "...", "brief": "경쟁분석 메모 + 영상 방향", "category": "${c}", "tone": "...", "mustInclude": ["..."], "mustAvoid": ["..."] }`).join(",\n")}\n  ]`
+      : `"youtubeItems": [ { "title": "...", "brief": "경쟁분석 메모 + 영상 방향", "category": "${categories[0]}", "tone": "...", "mustInclude": ["..."], "mustAvoid": ["..."] } ]`;
+
+  return `당신은 우리집 전기주치의(대경이엔피)의 CMO 확성기(마케팅총괄)입니다.
+총괄디렉터의 브리핑(우선순위·제약)을 입력으로 받아, 워커(유튜브PD·카카오매니저·블로그에디터)가
+그대로 따라 제작할 수 있는 구체적 가이드라인을 작성합니다. 당신은 산출물을 직접 쓰지 않고
+가이드라인만 내립니다 — tone(톤앤매너), mustInclude(반드시 포함할 요소), mustAvoid(피해야 할 표현)를
+각 항목마다 명시하세요.
+
+${ytInstruction}
+- 카카오 매니저 톡톡에게 내릴 가이드라인 1건
+- 블로그 에디터 펜에게 내릴 가이드라인 최대 2건
+
+반드시 한국어로, 아래 JSON 형식으로만 응답하라(설명 텍스트 없이 JSON만):
+\`\`\`json
+{
+  "cmoDirection": "이번 주 콘텐츠 방향 1~2문장",
   ${ytJsonExample},
-  "kakao": { "title": "...", "brief": "포스트 핵심 내용 한 줄" },
-  "blog": [ { "title": "...", "brief": "글의 핵심 메시지", "keywords": ["키워드1", "키워드2"] } ],
+  "kakao": { "title": "...", "brief": "포스트 핵심 내용 한 줄", "tone": "...", "mustInclude": ["..."], "mustAvoid": ["..."] },
+  "blog": [ { "title": "...", "brief": "글의 핵심 메시지", "keywords": ["키워드1", "키워드2"], "tone": "...", "mustInclude": ["..."], "mustAvoid": ["..."] } ],
   "summary": "이번 주 콘텐츠 전략 한 줄 요약"
 }
 \`\`\``;
 }
 
-export async function planContentWeek(
-  memory: string,
-  feedback: string,
+/** CMO(마케터) — 디렉터 브리핑을 입력받아 워커용 제작 가이드라인을 산출 */
+export async function runMarketerContentBrief(
+  brief: DirectorContentBrief,
   trendKeywords: string[],
   weekStatus?: WeekStatus,
-  youtubeCategories?: ContentCategory[],
-): Promise<ContentPlanResult> {
-  const categories: ContentCategory[] = youtubeCategories?.length ? youtubeCategories : ["전기안전"];
-
+): Promise<MarketerContentGuideline> {
   const weekLine = weekStatus
     ? `현재 로드맵: ${weekStatus.message}\n집중과제: ${weekStatus.yearFocus}\n`
     : "";
-  const feedbackBlock = feedback.trim()
-    ? `\n[대장 지시사항 — 반드시 반영]\n${feedback}\n`
-    : "";
-  const memoryBlock = memory ? `\n[누적 콘텐츠 기억]\n${memory}\n` : "";
   const trendsBlock = trendKeywords.length
     ? `\n[네이버 트렌드 키워드 상위]\n${trendKeywords.slice(0, 10).join(", ")}\n`
     : "";
 
-  const prompt = `${weekLine}${feedbackBlock}${BUSINESS_CONTEXT}${memoryBlock}${trendsBlock}
-이번 주 콘텐츠 기획을 진행하라.`.trim();
+  const prompt = `${weekLine}${BUSINESS_CONTEXT}${trendsBlock}
+[총괄디렉터 브리핑]
+- 우선순위: ${brief.priorities || "(없음)"}
+- 제약(법무): ${brief.constraints}
+- 이번 주 집중 방향: ${brief.weekFocus || "(없음)"}
 
-  const systemPrompt = buildPlanningSystemPrompt(categories);
+위 브리핑을 반영해 워커용 제작 가이드라인을 작성하라.`.trim();
+
+  const systemPrompt = buildMarketerSystemPrompt(brief.categories);
   const raw = await callClaudeCustom(systemPrompt, prompt, 4000, 120_000);
   const jsonText = extractJsonBlock(raw);
-  if (!jsonText) throw new Error("콘텐츠 기획 응답에서 JSON을 파싱할 수 없습니다.");
+  if (!jsonText) throw new Error("마케터 가이드라인 응답에서 JSON을 파싱할 수 없습니다.");
 
-  const parsed = JSON.parse(jsonText) as Partial<ContentPlanResult & { youtubeItems?: Partial<YoutubeContentPlanItem>[] }>;
+  const parsed = JSON.parse(jsonText) as Partial<
+    MarketerContentGuideline & { youtubeItems?: Partial<MarketerYoutubeItem>[] }
+  >;
 
-  // youtubeItems 파싱 (신규 형식) — 구형 youtube 필드도 fallback
+  const toGuideline = (g: Partial<ContentGuideline> | undefined): ContentGuideline => ({
+    tone: String(g?.tone ?? ""),
+    mustInclude: Array.isArray(g?.mustInclude) ? g!.mustInclude!.map(String).slice(0, 6) : [],
+    mustAvoid: Array.isArray(g?.mustAvoid) ? g!.mustAvoid!.map(String).slice(0, 6) : [],
+  });
+
   const rawItems = Array.isArray(parsed.youtubeItems) ? parsed.youtubeItems : [];
-  const youtubeItems: YoutubeContentPlanItem[] =
-    rawItems.length > 0
-      ? rawItems.map((item, idx) => ({
-          title: String(item.title ?? "제목 미정"),
-          brief: String(item.brief ?? ""),
-          category: (item.category ?? categories[idx] ?? categories[0]) as ContentCategory,
-        }))
-      : [
-          {
-            title: String((parsed as { youtube?: { title?: string } }).youtube?.title ?? "제목 미정"),
-            brief: String((parsed as { youtube?: { brief?: string } }).youtube?.brief ?? ""),
-            category: categories[0],
-          },
-        ];
+  const youtubeItems: MarketerYoutubeItem[] = (rawItems.length > 0 ? rawItems : [{}]).map((item, idx) => ({
+    title: String(item.title ?? "제목 미정"),
+    brief: String(item.brief ?? ""),
+    category: (item.category ?? brief.categories[idx] ?? brief.categories[0] ?? "전기안전") as ContentCategory,
+    ...toGuideline(item),
+  }));
 
   return {
     cmoDirection: String(parsed.cmoDirection ?? ""),
-    csoInsight: String(parsed.csoInsight ?? ""),
-    cloNotes: String(parsed.cloNotes ?? "특이사항 없음"),
     youtubeItems,
-    youtube: youtubeItems[0],
     kakao: {
       title: String(parsed.kakao?.title ?? "제목 미정"),
       brief: String(parsed.kakao?.brief ?? ""),
+      ...toGuideline(parsed.kakao),
     },
     blog: Array.isArray(parsed.blog)
       ? parsed.blog.slice(0, 2).map((b) => ({
           title: String(b.title ?? "제목 미정"),
           brief: String(b.brief ?? ""),
           keywords: Array.isArray(b.keywords) ? b.keywords.map(String).slice(0, 6) : [],
+          ...toGuideline(b),
         }))
       : [],
     summary: String(parsed.summary ?? ""),
@@ -287,11 +347,23 @@ function parseYoutubeDraft(raw: string): YoutubeDraft {
   };
 }
 
+/** 워커 프롬프트에 마케터 가이드라인을 끼워 넣는 공통 블록 — 가이드라인이 없으면 빈 문자열 */
+function formatGuidelineBlock(guideline?: Partial<ContentGuideline>): string {
+  if (!guideline) return "";
+  const lines: string[] = [];
+  if (guideline.tone) lines.push(`- 톤앤매너: ${guideline.tone}`);
+  if (guideline.mustInclude?.length) lines.push(`- 반드시 포함: ${guideline.mustInclude.join(", ")}`);
+  if (guideline.mustAvoid?.length) lines.push(`- 반드시 피할 것: ${guideline.mustAvoid.join(", ")}`);
+  if (lines.length === 0) return "";
+  return `\n[마케터(CMO) 가이드라인 — 반드시 준수]\n${lines.join("\n")}\n`;
+}
+
 export async function draftYoutubeScript(
   title: string,
   brief: string,
   weekStatus?: WeekStatus,
   category?: ContentCategory,
+  guideline?: Partial<ContentGuideline>,
 ): Promise<YoutubeDraft> {
   const isExamPrep = category === "자격시험";
   const weekLine = weekStatus ? `${weekStatus.message}\n` : "";
@@ -309,7 +381,7 @@ export async function draftYoutubeScript(
 기획 메모: ${brief}
 카테고리: ${category ?? "전기안전"}
 ${thumbnailHint}
-
+${formatGuidelineBlock(guideline)}
 위 기획을 바탕으로 영상 스크립트와 썸네일 기획을 작성하라.
 ${SCRIPT_SECTION_HINT}`.trim();
 
@@ -318,12 +390,17 @@ ${SCRIPT_SECTION_HINT}`.trim();
   return parseYoutubeDraft(raw);
 }
 
-export async function draftKakaoPost(title: string, brief: string, weekStatus?: WeekStatus): Promise<string> {
+export async function draftKakaoPost(
+  title: string,
+  brief: string,
+  weekStatus?: WeekStatus,
+  guideline?: Partial<ContentGuideline>,
+): Promise<string> {
   const weekLine = weekStatus ? `${weekStatus.message}\n` : "";
   const prompt = `${weekLine}${BUSINESS_CONTEXT}
 포스트 제목: ${title}
 기획 메모: ${brief}
-
+${formatGuidelineBlock(guideline)}
 위 기획을 바탕으로 카카오 채널 포스트 본문을 작성하라. 본문 텍스트만 출력하라(설명·머리말 없이).`.trim();
 
   const raw = await callContentAgent("kakao_manager", prompt, 800);
@@ -337,13 +414,14 @@ export async function draftBlogPost(
   brief: string,
   keywords: string[],
   weekStatus?: WeekStatus,
+  guideline?: Partial<ContentGuideline>,
 ): Promise<BlogDraft> {
   const weekLine = weekStatus ? `${weekStatus.message}\n` : "";
   const prompt = `${weekLine}${BUSINESS_CONTEXT}
 글 제목: ${title}
 기획 메모: ${brief}
 타깃 키워드: ${keywords.join(", ") || "(없음)"}
-
+${formatGuidelineBlock(guideline)}
 위 기획을 바탕으로 블로그 글을 작성하라.
 JSON 형식으로만 응답하라(설명 없이 JSON만):
 \`\`\`json

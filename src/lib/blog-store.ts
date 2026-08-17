@@ -18,10 +18,14 @@ export type BlogPost = {
   updated_at: string;
   published_at: string | null;
   view_count: number;
+  /** 총괄디렉터가 CSO+CLO 관점을 종합한 브리핑 (JSON 텍스트) — 디렉터 파이프라인 Phase 1 */
+  director_brief: string | null;
+  /** CMO가 워커(블로그에디터)에게 내린 제작 가이드라인 (JSON 텍스트) — 디렉터 파이프라인 Phase 1 */
+  marketer_guideline: string | null;
 };
 
 const BLOG_COLUMNS =
-  "id, slug, title, content, excerpt, meta_description, keywords, status, agent_source, reject_reason, created_at, updated_at, published_at, view_count";
+  "id, slug, title, content, excerpt, meta_description, keywords, status, agent_source, reject_reason, created_at, updated_at, published_at, view_count, director_brief, marketer_guideline";
 
 /** 한글/영문 제목을 URL slug로 변환 (한글은 그대로 유지, 공백→하이픈) */
 export function slugify(title: string): string {
@@ -118,6 +122,10 @@ export type CreateBlogPostInput = {
   keywords?: string[];
   agentSource?: string | null;
   status?: BlogPostStatus;
+  /** 총괄디렉터 브리핑 (JSON 텍스트) */
+  directorBrief?: string | null;
+  /** CMO 제작 가이드라인 (JSON 텍스트) */
+  marketerGuideline?: string | null;
 };
 
 export async function createBlogPost(input: CreateBlogPostInput): Promise<BlogPost> {
@@ -134,6 +142,8 @@ export async function createBlogPost(input: CreateBlogPostInput): Promise<BlogPo
       keywords: input.keywords ?? [],
       agent_source: input.agentSource ?? null,
       status: input.status ?? "pending_approval",
+      director_brief: input.directorBrief ?? null,
+      marketer_guideline: input.marketerGuideline ?? null,
     })
     .select(BLOG_COLUMNS)
     .single();

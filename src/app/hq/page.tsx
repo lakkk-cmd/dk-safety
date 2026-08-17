@@ -36,7 +36,7 @@ export default async function HqPage() {
             rel="noreferrer"
             className="flex min-h-9 items-center gap-1.5 rounded-full border border-slate-200 px-3 text-xs font-bold text-cc-text hover:bg-cc-bg"
           >
-            콘텐츠 승인대기
+            디렉터 파이프라인 승인대기
             <span className={`rounded-full px-1.5 py-0.5 ${content.pendingTotal > 0 ? "bg-cc-gold text-cc-navy" : "bg-slate-100 text-slate-500"}`}>
               {content.pendingTotal}
             </span>

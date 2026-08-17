@@ -107,7 +107,7 @@ GitHub Actions 시크릿 필요: `CRON_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `SUP
 
 | 일시 (KST) | cron 표현식(UTC) | 경로 | 내용 |
 |---|---|---|---|
-| 월 09:00 | `0 0 * * 1` | `/api/cron/content-plan` | 네이버 트렌드 수집(설정 시) + `planContentWeek`로 이번 주 유튜브/카카오/블로그 기획, 큐·`blog_posts`(draft)에 삽입 |
+| 월 09:00 | `0 0 * * 1` | `/api/cron/content-plan` | 네이버 트렌드 수집(설정 시) + `runDirectorContentIntake`→`runMarketerContentBrief`(디렉터 브리핑→CMO 가이드라인 순차 위임)로 이번 주 유튜브/카카오/블로그 기획, 큐·`blog_posts`(draft)에 삽입 |
 | 화 09:00 | `0 0 * * 2` | `/api/cron/content-draft` | 유튜브 스크립트+썸네일 기획, 카카오 포스트 본문, 블로그 본문(최대 2건) 생성 → `pending_approval` |
 | 수 08:00 | `0 23 * * 2` | `/api/cron/content-approval-notify` | 승인 대기 건수 집계, 1건 이상이면 카카오 메모로 알림 |
 

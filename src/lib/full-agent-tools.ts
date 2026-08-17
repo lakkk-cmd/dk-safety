@@ -9,6 +9,7 @@ import { createChatImprovementRequest } from "@/lib/improvement-requests";
 import { saveKnowledgeRows } from "@/lib/knowledge-store";
 import { ALLOWED_QUERY_TABLES, runSafeQuery, type QueryFilter } from "@/lib/safe-query";
 import { DOC_TEMPLATES, generateDocument } from "@/lib/document-generator";
+import { classifyTechRisk, CHAT_WHITELIST_MARKER } from "@/lib/tech-risk-rules";
 
 export const SUB_AGENT_IDS = CHAT_AGENTS.filter((a) => a.id !== "general").map((a) => a.id);
 
@@ -36,18 +37,33 @@ export async function toolGithubCreateIssue(args: {
   const title = args.title?.trim();
   const body = args.body?.trim();
   if (!title || !body) return { message: "오류: title과 body가 모두 필요합니다." };
-  const autoImplement = args.auto_implement === true;
+
+  const requestedAutoImplement = args.auto_implement === true;
+  // 총괄디렉터의 최종 리스크 판정 — 에이전트가 auto_implement=true를 요청해도 §5 블랙리스트
+  // (가격/결제/인증/DB스키마/삭제/알림발송/외부API/공개발행)에 해당하면 코드 규칙으로
+  // 강제 override한다. LLM 자기신뢰에만 기대지 않는다는 게 이 게이트의 핵심이다.
+  const risk = classifyTechRisk(title, body);
+  const overriddenByDirector = requestedAutoImplement && risk.forcedHuman;
+  const autoImplement = requestedAutoImplement && !risk.forcedHuman;
+
   try {
     const issue = await createGithubIssue({
       title,
       body: autoImplement
-        ? `${body}\n\n---\n_이 이슈는 Full 에이전트(총괄) 채팅에서 생성되었으며, 에이전트가 저위험 변경으로 판단해 'ai-improvement' 라벨을 붙여 자동 구현/자동병합 파이프라인이 즉시 시작됩니다. lint/build 통과 시 사람 검토 없이 프로덕션에 배포될 수 있습니다._`
-        : `${body}\n\n---\n_이 이슈는 Full 에이전트(총괄) 채팅에서 생성되었습니다. 자동 구현 파이프라인을 트리거하지 않는 별도 라벨(chat-suggestion)이 붙어 있어, 검토 후 필요하면 대장이 직접 ai-improvement로 전환해야 합니다._`,
+        ? `${body}\n\n---\n_이 이슈는 Full 에이전트(총괄) 채팅에서 생성되었으며, 총괄디렉터가 저위험 변경으로 판단해 'ai-improvement' 라벨을 붙여 자동 구현/자동병합 파이프라인이 즉시 시작됩니다. lint/build 통과 시 사람 검토 없이 프로덕션에 배포될 수 있습니다.\n${CHAT_WHITELIST_MARKER}_`
+        : `${body}\n\n---\n_이 이슈는 Full 에이전트(총괄) 채팅에서 생성되었습니다. 자동 구현 파이프라인을 트리거하지 않는 별도 라벨(chat-suggestion)이 붙어 있어, 검토 후 필요하면 대장이 직접 ai-improvement로 전환해야 합니다.${
+            overriddenByDirector
+              ? ` (에이전트는 자동구현을 요청했지만 총괄디렉터가 [${risk.matchedLabels.join(", ")}] 항목에 해당해 사람 검토로 전환했습니다.)`
+              : ""
+          }_`,
       labels: [autoImplement ? "ai-improvement" : "chat-suggestion"],
     });
 
     if (!autoImplement) {
-      return { message: `이슈 생성 완료: ${issue.url} (#${issue.number})` };
+      const overrideMsg = overriddenByDirector
+        ? ` — 에이전트가 자동구현을 요청했지만 [${risk.matchedLabels.join(", ")}] 항목에 해당해 총괄디렉터가 사람 검토로 전환했습니다.`
+        : "";
+      return { message: `이슈 생성 완료: ${issue.url} (#${issue.number})${overrideMsg}` };
     }
 
     // 자동구현 경로만 진행상황 추적 테이블에 연결한다 — chat-suggestion은 사람이 라벨을 바꿔야

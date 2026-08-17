@@ -558,7 +558,7 @@ export default function HqChatClient() {
         <header className="hidden flex-shrink-0 cc-card p-4 md:flex md:p-5">
           <h1 className="text-lg font-black tracking-[-0.02em] text-cc-text md:text-xl">AI 에이전트와 1:1 대화</h1>
           <p className="mt-1 max-w-2xl text-xs text-slate-600 md:text-sm">
-            총괄에게 전체 현황을 물어보거나, 경영진 6명 + 콘텐츠팀 3명에게 직접 질문하세요.
+            총괄디렉터에게 전체 현황을 물어보거나, 경영진 6명 + 콘텐츠팀 3명에게 직접 질문하세요.
           </p>
         </header>
       ) : null}
@@ -758,7 +758,7 @@ export default function HqChatClient() {
             </div>
           ) : null}
 
-          {/* 문서 작성 빠른 버튼 (총괄 전용) */}
+          {/* 문서 작성 빠른 버튼 (총괄디렉터 전용) */}
           {selectedAgent === "general" ? (
             <div className="mt-2 flex flex-shrink-0 flex-wrap gap-1">
               {DOC_TYPE_BUTTONS.map((d) => (
@@ -825,7 +825,7 @@ export default function HqChatClient() {
                 type="button"
                 onClick={() => setShowMenu((v) => !v)}
                 disabled={sending || uploading}
-                title={selectedAgent === "general" ? "첨부 (총괄은 웹검색이 항상 켜져 있습니다)" : "첨부/검색 옵션"}
+                title={selectedAgent === "general" ? "첨부 (총괄디렉터는 웹검색이 항상 켜져 있습니다)" : "첨부/검색 옵션"}
                 className={`flex h-[46px] w-[46px] items-center justify-center rounded-xl border text-lg font-bold transition disabled:opacity-50 ${
                   showMenu || (selectedAgent !== "general" && webSearchOn) || attachment
                     ? "border-cc-navy bg-cc-navy/10 text-cc-navy"
@@ -864,7 +864,7 @@ export default function HqChatClient() {
 
           {/* 웹 검색 활성 표시 */}
           {selectedAgent === "general" ? (
-            <p className="mt-2 flex-shrink-0 text-xs text-cc-navy">🔍 총괄은 필요하다고 판단되면 자동으로 웹 검색을 사용합니다.</p>
+            <p className="mt-2 flex-shrink-0 text-xs text-cc-navy">🔍 총괄디렉터는 필요하다고 판단되면 자동으로 웹 검색을 사용합니다.</p>
           ) : webSearchOn ? (
             <p className="mt-2 flex-shrink-0 text-xs text-cc-navy">
               🔍 웹 검색 활성 — 전송 시 최신 정보를 검색해 답변합니다.{" "}

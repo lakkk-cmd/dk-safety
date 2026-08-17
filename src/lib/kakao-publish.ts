@@ -154,7 +154,10 @@ export async function notifyImprovementRequestReceived(title: string, issueUrl: 
 
 /** 개선 요청 구현 완료 알림 — PR 머지·배포 완료 시 */
 export async function notifyImprovementRequestCompleted(title: string, prUrl: string): Promise<void> {
-  await sendKakaoMemo(`[개선요청 완료]\n${title}\n\n자동 구현 및 배포가 완료되었습니다.`, prUrl);
+  await sendKakaoMemo(
+    `[개선요청 완료]\n${title}\n\n자동 구현 및 배포가 완료되었습니다.\n되돌리려면: ${prUrl} 페이지의 "Revert" 버튼을 누르면 됩니다.`,
+    prUrl,
+  );
 }
 
 /** 매일 아침 이상신호+성장기회 스캔 알림 — daily-business-scan cron에서 호출 */

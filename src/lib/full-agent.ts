@@ -69,7 +69,7 @@ const TOOLS: ToolDefinition[] = [
         auto_implement: {
           type: "boolean",
           description:
-            "true로 설정하면 'ai-improvement' 라벨이 붙어 Claude Code가 즉시 구현하고, lint/build 통과 시 사람 검토 없이 자동 머지·프로덕션 배포까지 진행된다. false(기본값)면 'chat-suggestion' 라벨만 붙고 대장이 직접 라벨을 바꿔야 구현이 시작된다.\n\ntrue는 되돌리기 쉽고 범위가 좁은 저위험 변경에만 사용하라 — 오타/문구/스타일 수정, 명백한 버그 수정, UI 텍스트 변경 등.\nfalse를 사용해야 하는 경우: 가격/결제/정산 로직, 인증/권한, DB 스키마·마이그레이션, 데이터 삭제, 알림/발송 트리거, 외부 API 연동, 범위가 모호하거나 요구사항이 불충분한 요청, 또는 위험도를 확신할 수 없는 모든 경우. 판단이 서지 않으면 항상 false를 선택하라.",
+            "true로 설정하면 'ai-improvement' 라벨이 붙어 Claude Code가 즉시 구현하고, lint/build 통과 시 사람 검토 없이 자동 머지·프로덕션 배포까지 진행된다. false(기본값)면 'chat-suggestion' 라벨만 붙고 대장이 직접 라벨을 바꿔야 구현이 시작된다.\n\n주의: true를 요청해도 최종 결정권은 이 도구가 아니라 총괄디렉터에게 있다 — title/body가 가격·결제·정산, 인증·권한, DB 스키마·마이그레이션, 데이터 삭제, 알림·발송 트리거, 외부 API 연동, 공개 콘텐츠 발행 중 하나에 해당하면 코드 규칙(정규식 블랙리스트)이 자동으로 false로 되돌린다 — 네 판단을 우회할 수 없다.\n\ntrue는 되돌리기 쉽고 범위가 좁은 저위험 변경에만 요청하라 — 오타/문구/스타일 수정, 명백한 버그 수정, UI 텍스트 변경 등.\nfalse를 선택해야 하는 경우: 위 블랙리스트 항목, 범위가 모호하거나 요구사항이 불충분한 요청, 또는 위험도를 확신할 수 없는 모든 경우. 판단이 서지 않으면 항상 false를 선택하라 — 블랙리스트에 걸리지 않는다고 해서 자동으로 안전한 것은 아니다.",
         },
       },
       required: ["title", "body"],
@@ -131,7 +131,7 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "apply_site_decision",
     description:
-      "대화에서 확정된 결정을 site_config DB에 즉시 저장해 dkansim.com 전 페이지에 반영한다. 요금 변경(basic_price/full_price/extra_price), CTA/헤드라인 변경(hero_title/hero_subtitle/hero_cta), 공지(notice_active/notice_text), 시즌 배너(season_banner/season_banner_text)가 확정됐을 때 대장 확인 없이 즉시 사용하라.",
+      "대화에서 확정된 결정을 site_config DB에 즉시 저장해 dkansim.com 전 페이지에 반영한다. CTA/헤드라인 변경(hero_title/hero_subtitle/hero_cta), 공지(notice_active/notice_text), 시즌 배너(season_banner/season_banner_text)가 확정됐을 때 대장 확인 없이 즉시 사용하라.\n\n주의: decision_type='pricing'(요금 변경)은 이 도구로 절대 즉시 반영되지 않는다 — 서버가 무조건 거부하고 /admin/pricing에서 대표님이 직접 반영해야 한다는 안내만 반환한다. 요금은 §5 블랙리스트 대상(항상 사람 승인)이므로 이 도구를 호출하는 것 자체는 막지 않지만, 반영은 절대 되지 않는다는 걸 알고 대장에게 안내하라.",
     input_schema: {
       type: "object",
       properties: {
@@ -243,7 +243,7 @@ const TOOLS: ToolDefinition[] = [
   },
 ];
 
-const FULL_AGENT_SYSTEM_PROMPT = `당신은 우리집 전기주치의(대경이엔피)의 Full 에이전트(총괄)입니다. 경영진 6명과 콘텐츠팀 3명, 총 9명의 전문 에이전트를 실제로 호출(call_sub_agent)해서 종합 답변을 만들 수 있고, 디지털 작업을 직접 처리할 도구를 갖고 있습니다.
+const FULL_AGENT_SYSTEM_PROMPT = `당신은 우리집 전기주치의(대경이엔피)의 총괄디렉터입니다(내부적으로 Full 에이전트라고도 부릅니다). 대표님과의 유일한 상시 대화 창구로서, 경영진 6명과 콘텐츠팀 3명, 총 9명의 전문 에이전트를 실제로 호출(call_sub_agent)해서 종합 답변을 만들 수 있고, 디지털 작업을 직접 처리할 도구를 갖고 있습니다. 콘텐츠 제작은 CMO(마케터)에게 가이드라인을 맡기고 워커가 만들며 발행은 항상 사람 승인을 거치고, 코드 자동구현은 코드 규칙(블랙리스트)이 최종 리스크를 강제합니다 — 당신의 판단이 최종 실행권은 아닙니다.
 
 ${SUB_AGENT_NAMES_LINE}
 
@@ -279,9 +279,6 @@ ${SUB_AGENT_NAMES_LINE}
 
 ## 사이트 자동 반영 규칙
 대화에서 아래 패턴이 확정(승인)되면 즉시 apply_site_decision 도구를 호출해 dkansim.com 전 페이지에 반영하라:
-- "기본 출장점검비 / 기본 요금" 변경 → decision_type=pricing, key=basic_price
-- "풀패키지 / 전체 요금" 변경 → decision_type=pricing, key=full_price
-- "추가작업 요금" 변경 → decision_type=pricing, key=extra_price
 - "메인 헤드라인 / 히어로 제목" 변경 → decision_type=cta, key=hero_title, target_page=main
 - "서브타이틀" 변경 → decision_type=cta, key=hero_subtitle, target_page=main
 - "메인 버튼 / CTA 버튼" 변경 → decision_type=cta, key=hero_cta, target_page=main
@@ -290,6 +287,11 @@ ${SUB_AGENT_NAMES_LINE}
 - "시즌 배너 / 장마 배너" → decision_type=notice, key=season_banner, value=true + key=season_banner_text
 - "배너 내리기" → decision_type=notice, key=season_banner, value=false
 반영 완료 후 반드시 "✅ [반영 완료] {label} → dkansim.com에 즉시 적용됐습니다" 형식으로 보고하라.
+
+## 요금 변경 — 절대 즉시 반영 금지
+"기본 출장점검비 / 풀패키지 / 추가작업 요금" 같은 가격 변경 요청은 위 규칙과 달리 **절대 apply_site_decision으로
+즉시 반영하지 마라**. 서버도 pricing 타입은 무조건 거부하도록 되어 있다. 가격 변경이 확정되면 "/admin/pricing에서
+대표님이 직접 반영해야 합니다"라고 안내만 하라.
 
 한국어로, 친근하지만 실행 가능한 수준으로 구체적으로 답하라.`;
 
@@ -300,7 +302,7 @@ ${SUB_AGENT_NAMES_LINE}
 
 규칙:
 - 종합 현황이나 여러 부서 의견이 필요하면 관련된 에이전트를 전부 고른다.
-- 코드 조회/운영 데이터 조회/콘텐츠 기획 등록/GitHub 이슈 등록처럼 총괄이 도구로 직접 처리하는 디지털 작업이면 빈 배열을 반환한다.
+- 코드 조회/운영 데이터 조회/콘텐츠 기획 등록/GitHub 이슈 등록처럼 총괄디렉터가 도구로 직접 처리하는 디지털 작업이면 빈 배열을 반환한다.
 - 확신이 없으면 관련 가능성이 있는 에이전트를 포함한다 (누락보다 과포함이 안전하다).
 
 설명 없이 JSON 배열만 출력하라. 예: ["cfo","coo"] 또는 []`;

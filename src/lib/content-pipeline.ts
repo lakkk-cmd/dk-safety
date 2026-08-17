@@ -2,7 +2,6 @@ import { getCurrentWeekStatus, type WeekStatus } from "@/lib/agents";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { loadPendingFeedback } from "@/lib/agent-memory";
 import {
-  approveBlogPost,
   countBlogPostsByStatus,
   createBlogPost,
 } from "@/lib/blog-store";
@@ -12,20 +11,20 @@ import {
   draftBlogPost,
   draftKakaoPost,
   draftYoutubeScript,
-  planContentWeek,
+  runDirectorContentIntake,
+  runMarketerContentBrief,
   summarizeContentPerformance,
   type ContentCategory,
-  type ContentPlanResult,
+  type ContentGuideline,
+  type MarketerContentGuideline,
 } from "@/lib/content-agents";
 import { loadPerformanceLessons } from "@/lib/content-performance";
 import { KAKAO_BLOG_APPROVAL_STATUSES, YOUTUBE_APPROVAL_STATUSES } from "@/lib/content-status";
 import { humanizeKoreanText } from "@/lib/humanizer";
-import { notifyAutoPublished } from "@/lib/kakao-publish";
 import { broadcastKakaoFriendTalkToCustomers, publishKakaoPost } from "@/lib/kakao-publish";
 import { NAVER_ENABLED, collectNaverTrends, getRecentTrendKeywords } from "@/lib/naver-pipeline";
 import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
 import { sendAdminAlertSms } from "@/lib/solapi-agent";
-import { produceVideoAssets } from "@/lib/video-pipeline";
 import { uploadYoutubeVideo } from "@/lib/youtube-upload";
 
 const CONTENT_MEMORY_KEY = "content_pipeline_log";
@@ -70,9 +69,14 @@ function errMessage(err: unknown): string {
 // ─── 월요일 09:00: 주간 콘텐츠 기획 ──────────────────────────────────────────────
 
 export type ContentPlanRunResult = {
-  plan: ContentPlanResult;
+  guideline: MarketerContentGuideline;
   trendCollected: number;
 };
+
+/** 마케터 산출물에서 워커에게 넘길 가이드라인 부분만 뽑아 DB 저장용 JSON 문자열로 직렬화 */
+function serializeGuideline(g: Partial<ContentGuideline>): string {
+  return JSON.stringify({ tone: g.tone ?? "", mustInclude: g.mustInclude ?? [], mustAvoid: g.mustAvoid ?? [] });
+}
 
 export async function runContentPlanning(): Promise<ContentPlanRunResult> {
   const runId = await startPipelineRun("content-plan");
@@ -102,43 +106,57 @@ export async function runContentPlanning(): Promise<ContentPlanRunResult> {
     const feedbackText = pendingFeedback.map((f) => f.content).join("\n---\n");
 
     const youtubeCategories = getYoutubeCategories();
-    const plan = await planContentWeek(combinedMemory, feedbackText, trendKeywords, weekStatus, youtubeCategories);
+
+    // 순차 위임(디렉터 파이프라인 Phase 1): 총괄디렉터가 CSO+CLO 관점을 종합해 브리핑을
+    // 만들고, CMO(마케터)가 그 브리핑을 받아 워커용 제작 가이드라인을 산출한다. 이전엔
+    // 이 둘이 한 번의 호출 안에서 동시에 답하는 병렬 롤플레이였다.
+    const directorBrief = await runDirectorContentIntake(combinedMemory, feedbackText, weekStatus, youtubeCategories);
+    const guideline = await runMarketerContentBrief(directorBrief, trendKeywords, weekStatus);
+    const directorBriefJson = JSON.stringify(directorBrief);
 
     const supabase = requireAgentSupabase();
 
-    for (const yt of plan.youtubeItems) {
+    for (const yt of guideline.youtubeItems) {
       await supabase.from("content_youtube_queue").insert({
         title: yt.title,
         competitor_notes: yt.brief,
         category: yt.category,
         status: "planning",
+        director_brief: directorBriefJson,
+        marketer_guideline: serializeGuideline(yt),
       });
     }
 
     await supabase.from("content_kakao_queue").insert({
-      title: plan.kakao.title,
-      content: plan.kakao.brief,
+      title: guideline.kakao.title,
+      content: guideline.kakao.brief,
       status: "planning",
+      director_brief: directorBriefJson,
+      marketer_guideline: serializeGuideline(guideline.kakao),
     });
 
-    for (const item of plan.blog) {
+    for (const item of guideline.blog) {
       await createBlogPost({
         title: item.title,
         content: item.brief,
         keywords: item.keywords ?? [],
         agentSource: "블로그 에디터 펜",
         status: "draft",
+        directorBrief: directorBriefJson,
+        marketerGuideline: serializeGuideline(item),
       });
     }
 
     await appendContentMemory(
-      `[${weekStatus.message}] CMO: ${plan.cmoDirection} | CSO: ${plan.csoInsight} | CLO: ${plan.cloNotes} | 요약: ${plan.summary}`,
+      `[${weekStatus.message}] 디렉터: ${directorBrief.priorities} | CLO 제약: ${directorBrief.constraints} | CMO: ${guideline.cmoDirection} | 요약: ${guideline.summary}`,
     );
 
-    await logAgentEvent("info", "content-plan", "주간 콘텐츠 기획 완료", { summary: plan.summary });
-    await finishPipelineRun(runId, "success", { summary: plan.summary, trendCollected });
+    await logAgentEvent("info", "content-plan", "주간 콘텐츠 기획 완료 (디렉터→마케터 순차 위임)", {
+      summary: guideline.summary,
+    });
+    await finishPipelineRun(runId, "success", { summary: guideline.summary, trendCollected });
 
-    return { plan, trendCollected };
+    return { guideline, trendCollected };
   } catch (err) {
     await logAgentEvent("error", "content-plan", `주간 콘텐츠 기획 실패: ${errMessage(err)}`);
     await finishPipelineRun(runId, "failed", { error: errMessage(err) });
@@ -154,7 +172,7 @@ export type ContentDraftRunResult = {
   blogUpdated: number;
 };
 
-export type YoutubeDraftItemResult = { id: string; title: string; status: "approved" | "review_required" };
+export type YoutubeDraftItemResult = { id: string; title: string; status: "pending_approval" | "review_required" };
 
 export type YoutubeDraftRunResult = {
   processed: number;
@@ -164,10 +182,13 @@ export type YoutubeDraftRunResult = {
 };
 
 /**
- * "planning" 상태 유튜브 항목 중 오래된 순으로 최대 `limit`개를 뽑아 스크립트를 작성한다.
- * Gemini 자동검수 게이트를 통과하면 즉시 approved 처리 + 영상 제작(Flux 씬 생성)까지 자동
- * 트리거한다. 카카오/블로그는 건드리지 않는다 — runContentDrafting()의 화/수요일 정기 배치와
- * 별도로, 관리자가 "유튜브만 지금 N개 더" 요청할 때 재사용하기 위해 분리했다.
+ * "planning" 상태 유튜브 항목 중 오래된 순으로 최대 `limit`개를 뽑아, 마케터(CMO) 가이드라인을
+ * 입력으로 워커(유튜브PD)가 스크립트를 작성한다. Gemini 품질게이트는 가이드라인 준수 여부까지
+ * 검증하지만, 통과해도 곧바로 영상 제작·발행을 트리거하지 않는다 — 디렉터 파이프라인 재편
+ * (공개 콘텐츠 발행은 항상 사람 승인) 규칙에 따라 pending_approval로 넘겨 대표님 승인을
+ * 기다린다. 승인 후 "🎬 영상 제작 시작" 버튼(/contents)에서 영상 자산 생성을 별도로 트리거한다.
+ * 카카오/블로그는 건드리지 않는다 — runContentDrafting()의 화/수요일 정기 배치와 별도로,
+ * 관리자가 "유튜브만 지금 N개 더" 요청할 때 재사용하기 위해 분리했다.
  */
 export async function runYoutubeDrafting(limit = 2): Promise<YoutubeDraftRunResult> {
   const weekStatus = getCurrentWeekStatus();
@@ -176,25 +197,26 @@ export async function runYoutubeDrafting(limit = 2): Promise<YoutubeDraftRunResu
 
   const { data: ytRows } = await supabase
     .from("content_youtube_queue")
-    .select("id, title, competitor_notes, category")
+    .select("id, title, competitor_notes, category, marketer_guideline")
     .eq("status", "planning")
     .order("created_at", { ascending: true })
     .limit(limit);
 
   for (const ytRow of ytRows ?? []) {
+    const guideline = ytRow.marketer_guideline
+      ? (JSON.parse(ytRow.marketer_guideline) as Partial<ContentGuideline>)
+      : undefined;
     const draft = await draftYoutubeScript(
       ytRow.title,
       ytRow.competitor_notes ?? "",
       weekStatus,
       (ytRow.category as ContentCategory | null) ?? undefined,
+      guideline,
     );
     draft.script = await humanizeKoreanText(draft.script, 6000);
     const titleCandidatesBlock = draft.titleCandidates.length
       ? `[제목 후보]\n${draft.titleCandidates.map((t, i) => `${i + 1}. ${t}`).join("\n")}\n\n`
       : "";
-    // 사람 승인 대신 Gemini 자동검수 게이트 — 통과하면 즉시 approved 처리하고 영상 제작(Flux 씬
-    // 생성)까지 자동 트리거한다. 최종 합성+유튜브 업로드는 별도 워크플로우(video-assembly.yml,
-    // Veo 비용 이슈로 스케줄 비활성화·workflow_dispatch 전용)나 Google Flow 수동 작업이 필요하다.
     let validationPassed = false;
     if (GEMINI_ENABLED) {
       try {
@@ -202,20 +224,20 @@ export async function runYoutubeDrafting(limit = 2): Promise<YoutubeDraftRunResu
           title: ytRow.title,
           content: draft.script,
           contentType: "youtube",
+          guideline,
         });
         validationPassed = validation.passed;
       } catch (err) {
         await logAgentEvent("warn", "content-draft", `YouTube 교차검증 실패 (건너뜀): ${errMessage(err)}`);
       }
     }
-    const ytStatus: "approved" | "review_required" = validationPassed ? "approved" : "review_required";
+    const ytStatus: "pending_approval" | "review_required" = validationPassed ? "pending_approval" : "review_required";
     await supabase
       .from("content_youtube_queue")
       .update({
         script: draft.script,
         thumbnail_concept: `${titleCandidatesBlock}${draft.thumbnailConcept}`,
         status: ytStatus,
-        approved_at: validationPassed ? new Date().toISOString() : null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", ytRow.id);
@@ -223,15 +245,7 @@ export async function runYoutubeDrafting(limit = 2): Promise<YoutubeDraftRunResu
     result.processed += 1;
     if (validationPassed) {
       result.approved += 1;
-      try {
-        await produceVideoAssets(ytRow.id);
-        await logAgentEvent("info", "content-draft", `유튜브 스크립트 자동승인 + 영상 제작 트리거: ${ytRow.title}`);
-        notifyAutoPublished({ type: "youtube", title: `${ytRow.title} (자동승인, 영상 제작 시작 — 최종 업로드는 별도 검토 필요)` }).catch(
-          (err) => logAgentEvent("warn", "content-draft", `발행 알림 실패: ${errMessage(err)}`),
-        );
-      } catch (err) {
-        await logAgentEvent("warn", "content-draft", `영상 자산 자동생성 실패 (건너뜀): ${errMessage(err)}`);
-      }
+      await logAgentEvent("info", "content-draft", `유튜브 스크립트 품질게이트 통과, 승인 대기: ${ytRow.title}`);
     } else {
       result.reviewRequired += 1;
     }
@@ -253,20 +267,30 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
 
     const { data: kkRow } = await supabase
       .from("content_kakao_queue")
-      .select("id, title, content")
+      .select("id, title, content, marketer_guideline")
       .eq("status", "planning")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (kkRow) {
-      const draftRaw = await draftKakaoPost(kkRow.title, kkRow.content ?? "", weekStatus);
+      const kkGuideline = kkRow.marketer_guideline
+        ? (JSON.parse(kkRow.marketer_guideline) as Partial<ContentGuideline>)
+        : undefined;
+      const draftRaw = await draftKakaoPost(kkRow.title, kkRow.content ?? "", weekStatus, kkGuideline);
       const draft = await humanizeKoreanText(draftRaw, 800);
-      // 사람 승인 대신 Gemini 자동검수 게이트 — 통과하면 사람 클릭 없이 즉시 카카오 채널로 발송한다.
+      // 품질게이트(마케터 가이드라인 대비 검증)를 통과해도 곧바로 발송하지 않는다 — 디렉터
+      // 파이프라인 재편 규칙에 따라 카카오 발행은 항상 대표님 승인을 거친다(/contents에서
+      // 승인 클릭 → approveKakaoQueueItem이 실제 발송을 트리거).
       let validationPassed = false;
       if (GEMINI_ENABLED) {
         try {
-          const validation = await validateContent({ title: kkRow.title, content: draft, contentType: "kakao" });
+          const validation = await validateContent({
+            title: kkRow.title,
+            content: draft,
+            contentType: "kakao",
+            guideline: kkGuideline,
+          });
           validationPassed = validation.passed;
         } catch (err) {
           await logAgentEvent("warn", "content-draft", `Kakao 교차검증 실패 (건너뜀): ${errMessage(err)}`);
@@ -276,50 +300,32 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
         .from("content_kakao_queue")
         .update({
           content: draft,
-          status: validationPassed ? "draft" : "review_required",
+          status: validationPassed ? "pending_approval" : "review_required",
           updated_at: new Date().toISOString(),
         })
         .eq("id", kkRow.id);
 
       if (validationPassed) {
-        try {
-          await approveKakaoQueueItem(kkRow.id);
-          await logAgentEvent("info", "content-draft", `카카오 포스트 자동발행: ${kkRow.title}`);
-          notifyAutoPublished({ type: "kakao", title: kkRow.title }).catch((err) =>
-            logAgentEvent("warn", "content-draft", `발행 알림 실패: ${errMessage(err)}`),
-          );
-        } catch (err) {
-          await logAgentEvent("warn", "content-draft", `카카오 자동발행 실패 (수동 승인 필요): ${errMessage(err)}`);
-        }
-
-        // 최근 완료 고객에게 친구톡 자동 발송 — KAKAO_FRIENDTALK_BROADCAST_ENABLED=true일 때만 동작.
-        try {
-          const result = await broadcastKakaoFriendTalkToCustomers(kkRow.title, draft);
-          if (!result.skipped) {
-            await logAgentEvent(
-              "info",
-              "content-draft",
-              `친구톡 발송: 성공 ${result.sent}건, 실패 ${result.failed}건`,
-            );
-          }
-        } catch (err) {
-          await logAgentEvent("warn", "content-draft", `친구톡 발송 실패: ${errMessage(err)}`);
-        }
+        await logAgentEvent("info", "content-draft", `카카오 포스트 품질게이트 통과, 승인 대기: ${kkRow.title}`);
       }
       kakaoUpdated = true;
     }
 
     const { data: blogRows } = await supabase
       .from("blog_posts")
-      .select("id, title, content, keywords, slug")
+      .select("id, title, content, keywords, slug, marketer_guideline")
       .eq("status", "draft")
       .order("created_at", { ascending: false })
       .limit(2);
 
     for (const row of blogRows ?? []) {
-      const draft = await draftBlogPost(row.title, row.content ?? "", row.keywords ?? [], weekStatus);
+      const blogGuideline = row.marketer_guideline
+        ? (JSON.parse(row.marketer_guideline) as Partial<ContentGuideline>)
+        : undefined;
+      const draft = await draftBlogPost(row.title, row.content ?? "", row.keywords ?? [], weekStatus, blogGuideline);
       draft.content = await humanizeKoreanText(draft.content, 2500);
-      // 사람 승인 대신 Gemini 자동검수 게이트 — 통과하면 사람 클릭 없이 즉시 dkansim.com/blog에 발행한다.
+      // 품질게이트를 통과해도 곧바로 발행하지 않는다 — 디렉터 파이프라인 재편 규칙에 따라
+      // 블로그 발행은 항상 대표님 승인을 거친다(/contents에서 승인 클릭 → approveBlogPost).
       let validationPassed = false;
       if (GEMINI_ENABLED) {
         try {
@@ -328,6 +334,7 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
             content: draft.content,
             contentType: "blog",
             keywords: row.keywords as string[] | undefined,
+            guideline: blogGuideline,
           });
           validationPassed = validation.passed;
         } catch (err) {
@@ -340,23 +347,13 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
           content: draft.content,
           excerpt: draft.excerpt,
           meta_description: draft.metaDescription,
-          status: validationPassed ? "published" : "review_required",
+          status: validationPassed ? "pending_approval" : "review_required",
           updated_at: new Date().toISOString(),
         })
         .eq("id", row.id);
 
       if (validationPassed) {
-        try {
-          await approveBlogPost(row.id);
-          await logAgentEvent("info", "content-draft", `블로그 자동발행: ${row.title}`);
-          notifyAutoPublished({
-            type: "blog",
-            title: row.title,
-            url: row.slug ? `https://dkansim.com/blog/${row.slug}` : null,
-          }).catch((err) => logAgentEvent("warn", "content-draft", `발행 알림 실패: ${errMessage(err)}`));
-        } catch (err) {
-          await logAgentEvent("warn", "content-draft", `블로그 자동발행 실패 (수동 승인 필요): ${errMessage(err)}`);
-        }
+        await logAgentEvent("info", "content-draft", `블로그 초안 품질게이트 통과, 승인 대기: ${row.title}`);
       }
       blogUpdated += 1;
     }
@@ -475,6 +472,18 @@ export async function approveKakaoQueueItem(id: string): Promise<void> {
     .from("content_kakao_queue")
     .update({ status: "published", published_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq("id", id);
+
+  // 최근 완료 고객에게 친구톡 자동 발송 — KAKAO_FRIENDTALK_BROADCAST_ENABLED=true일 때만 동작.
+  // 디렉터 파이프라인 재편 이전엔 초안 자동발행 시점에 함께 쐈으나, 발행 자체가 항상 사람
+  // 승인을 거치도록 바뀌면서 실제 발행이 일어나는 이 함수로 옮겼다.
+  try {
+    const broadcast = await broadcastKakaoFriendTalkToCustomers(data.title, data.content ?? "");
+    if (!broadcast.skipped) {
+      await logAgentEvent("info", "content-approve", `친구톡 발송: 성공 ${broadcast.sent}건, 실패 ${broadcast.failed}건`);
+    }
+  } catch (err) {
+    await logAgentEvent("warn", "content-approve", `친구톡 발송 실패: ${errMessage(err)}`);
+  }
 }
 
 export async function rejectKakaoQueueItem(id: string, reason: string): Promise<void> {

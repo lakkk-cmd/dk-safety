@@ -62,7 +62,7 @@ export default function AdminDocumentsPage() {
         <p className="text-xs font-bold uppercase tracking-widest text-slate-500">AI 채팅 · 문서 작성</p>
         <h1 className="mt-1 text-3xl font-black text-slate-900">생성된 문서 관리</h1>
         <p className="mt-1 text-sm text-slate-500">
-          /hq/chat 총괄 에이전트가 작성한 문서 목록입니다. Gemini 검증 점수와 함께 PDF/Word 다운로드가 가능합니다.
+          /hq/chat 총괄디렉터가 작성한 문서 목록입니다. Gemini 검증 점수와 함께 PDF/Word 다운로드가 가능합니다.
         </p>
       </div>
 

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { requireAgentSupabase } from "@/lib/agent-db";
-import { readPricingCatalog, updatePricingCatalog } from "@/lib/pricing-catalog";
 
 type DecisionInput = {
   decision_type: "pricing" | "cta" | "notice" | "service" | "content" | "booking";
@@ -43,6 +42,18 @@ export async function POST(request: Request) {
   for (const decision of decisions) {
     const { decision_type, target_page, key, value, label } = decision;
 
+    // 디렉터 파이프라인 재편(Phase 3) — 가격 변경은 §5 블랙리스트("항상 사람 승인, 예외 없음")
+    // 대상이라 이 API로는 절대 즉시 반영하지 않는다. 실제 청구액의 단일 출처는 /admin/pricing
+    // (payment_settings/pricing_catalog/service_items)이며, 대표님이 거기서 직접 반영해야 한다.
+    // 이전엔 여기서 site_config를 즉시 UPSERT하고 payment_settings까지 동기화해버려서,
+    // "확정 요금 체계는 대장 승인 없이 변경 금지"라는 정책과 코드가 정면으로 모순돼 있었다.
+    if (decision_type === "pricing") {
+      warnings.push(
+        `${key}: 가격 변경은 채팅에서 자동 반영되지 않습니다. /admin/pricing에서 대표님이 직접 반영해주세요. (요청된 값: ${value})`,
+      );
+      continue;
+    }
+
     // site_decisions INSERT + site_config UPSERT(+실패 시 롤백)를 단일 DB 함수 호출로 묶어
     // 원자적으로 처리한다 (마이그레이션 059) — 예전에는 4개의 별도 요청으로 나뉘어 있어
     // 롤백 단계 자체가 중간에 실패하면 두 테이블 상태가 어긋날 수 있었다.
@@ -71,39 +82,6 @@ export async function POST(request: Request) {
 
     const prev_value = result.prev_value;
     applied.push({ key, prev_value, new_value: value, target_page });
-
-    // ⑤ pricing 결정은 site_config(AI 참고용 정보)만으로는 실제 예약/결제 화면에 반영되지 않는다.
-    // 진짜 반영 대상은 payment_settings(base_dispatch_fee/pricing_catalog) — pricing-guide-card.tsx가
-    // 여기서 읽어 고객에게 보여주고 Toss 결제 금액도 여기서 나온다. 이걸 빠뜨리면 AI가 "적용 완료"라고
-    // 보고해도 실제 결제 화면 금액은 그대로인 상태가 된다 (실제로 발생했던 버그).
-    if (decision_type === "pricing" && (key === "basic_price" || key === "full_price")) {
-      const amount = Number(value);
-      if (!Number.isFinite(amount)) {
-        warnings.push(`${key}: 금액을 숫자로 해석할 수 없어 실제 결제 화면(payment_settings)에는 반영하지 못했습니다. site_config에만 기록됨.`);
-      } else {
-        try {
-          const catalog = await readPricingCatalog();
-          const catalogKey = key === "basic_price" ? "base_dispatch" : "full_package";
-          const exists = catalog.some((line) => line.key === catalogKey);
-          const nextCatalog = exists
-            ? catalog.map((line) => (line.key === catalogKey ? { ...line, amount } : line))
-            : [
-                ...catalog,
-                {
-                  key: catalogKey,
-                  title: key === "basic_price" ? "기본 출장점검" : "풀패키지",
-                  amount,
-                  detail: "",
-                },
-              ];
-          await updatePricingCatalog(nextCatalog);
-        } catch (syncErr) {
-          warnings.push(
-            `${key}: 실제 결제 화면(payment_settings) 동기화 실패 — ${syncErr instanceof Error ? syncErr.message : String(syncErr)}. site_config에는 기록됐지만 고객이 보는 결제 금액은 아직 바뀌지 않았을 수 있습니다.`,
-          );
-        }
-      }
-    }
   }
 
   return NextResponse.json({ success: true, applied, applied_count: applied.length, warnings });
