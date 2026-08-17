@@ -23,7 +23,7 @@ const READONLY_TOOLS: ToolDefinition[] = [
   {
     name: "call_sub_agent",
     description:
-      "9개 전문 에이전트(경영진 6명 + 콘텐츠팀 3명) 중 한 명에게 질문을 위임하고 답변을 받는다. 특정 이상신호의 원인이나 대응 방향에 대한 전문 의견이 필요할 때 사용하라.",
+      "9개 전문 에이전트(자문단 4명: CSO/COO/CFO/CLO + 마케터 2명: CMO/CTO + 워커 3명: 콘텐츠팀) 중 한 명에게 질문을 위임하고 답변을 받는다. 특정 이상신호의 원인이나 대응 방향에 대한 전문 의견이 필요할 때 사용하라.",
     input_schema: {
       type: "object",
       properties: {

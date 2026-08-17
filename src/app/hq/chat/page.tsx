@@ -1,6 +1,8 @@
-import { redirect } from "next/navigation";
+import HqChatClient from "./chat-client";
 
-// AI채팅이 hq 홈(/)으로 승격되면서 이 경로는 홈으로 리다이렉트된다 (기존 북마크/링크 유지용).
+export const dynamic = "force-dynamic";
+
+// AI 채팅 전용 페이지 (2026-08: 홈에서 분리 — 홈은 요약 대시보드, 여기가 채팅 전용 화면).
 export default function HqChatPage() {
-  redirect("/");
+  return <HqChatClient />;
 }

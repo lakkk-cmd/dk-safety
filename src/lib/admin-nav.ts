@@ -340,7 +340,7 @@ export const adminExternalHubLinks: AdminHubLink[] = [
   {
     href: "/hq",
     label: "9-에이전트 채팅",
-    description: "경영진 6인 + 콘텐츠 3인 AI 비서",
+    description: "총괄디렉터·자문단·마케터·워커 9인 AI 비서",
     icon: Bot,
     moduleGroup: "ai"
   },

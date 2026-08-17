@@ -47,7 +47,7 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "call_sub_agent",
     description:
-      "9개 전문 에이전트(경영진 6명 + 콘텐츠팀 3명) 중 한 명에게 질문을 위임하고 답변을 받는다. 종합 답변을 만들 때 필요한 만큼 여러 번 호출할 수 있다.",
+      "9개 전문 에이전트(자문단 4명: CSO/COO/CFO/CLO + 마케터 2명: CMO/CTO + 워커 3명: 콘텐츠팀) 중 한 명에게 질문을 위임하고 답변을 받는다. 종합 답변을 만들 때 필요한 만큼 여러 번 호출할 수 있다.",
     input_schema: {
       type: "object",
       properties: {

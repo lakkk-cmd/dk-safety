@@ -9,6 +9,7 @@ import SubdomainNav from "@/components/subdomain-nav";
 
 const TABS = [
   { href: "/", label: "홈" },
+  { href: "/chat", label: "AI 채팅" },
   { href: "/reservation", label: "예약" },
   { href: "/videos", label: "영상" },
   { href: "/blog-jobs", label: "블로그" },
@@ -40,11 +41,12 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // 홈(루트)이 이제 채팅을 겸하므로, 채팅에 필요했던 풀높이 레이아웃을 홈에도 적용한다.
-  const isHome = pathname === "/";
+  // AI 채팅은 별도 메뉴(/chat)로 분리되어 있어, 채팅에 필요한 풀높이 레이아웃은 그 탭에서만 쓴다.
+  // 홈(루트)은 이제 순수 대시보드 요약 화면이라 다른 탭과 같은 일반 레이아웃을 쓴다.
+  const isChatPage = pathname === "/chat";
 
   return (
-    <div className={`flex flex-col bg-cc-bg text-cc-text overflow-x-hidden w-full ${isHome ? "h-dvh" : "min-h-dvh"}`}>
+    <div className={`flex flex-col bg-cc-bg text-cc-text overflow-x-hidden w-full ${isChatPage ? "h-dvh" : "min-h-dvh"}`}>
       <header className="flex-shrink-0 bg-cc-navy text-white w-full overflow-x-hidden">
         <div className="flex w-full items-center justify-between gap-3 px-3 py-3 md:mx-auto md:max-w-5xl md:px-6 md:py-4">
           <BrandLockup />
@@ -80,7 +82,7 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
           </ul>
         </nav>
       </header>
-      <div className={isHome ? "flex min-h-0 flex-1 flex-col overflow-hidden p-2 md:p-3" : "mx-auto w-full max-w-5xl px-4 py-3 md:px-6 md:py-6"}>{children}</div>
+      <div className={isChatPage ? "flex min-h-0 flex-1 flex-col overflow-hidden p-2 md:p-3" : "mx-auto w-full max-w-5xl px-4 py-3 md:px-6 md:py-6"}>{children}</div>
     </div>
   );
 }

@@ -23,9 +23,14 @@ const GENERAL_AGENT: Agent = { id: "general", name: "총괄디렉터", role: "�
 
 export const CHAT_AGENTS: Agent[] = [GENERAL_AGENT, ...AGENTS, ...CONTENT_AGENTS];
 
+// 디렉터 파이프라인 재편(2026-08) — "경영진/콘텐츠팀"이 아니라 실제 위임 구조(총괄디렉터→
+// 자문단/마케터→워커)를 그대로 UI 그룹으로 노출한다. CSO·COO·CFO·CLO는 산출물을 만들지 않고
+// 총괄디렉터의 판단 재료만 제공하는 자문단이라 "디렉터" 그룹에 함께 묶는다(full-agent.ts
+// 시스템 프롬프트의 분류와 동일).
 export const CHAT_AGENT_GROUPS: Record<string, string[]> = {
-  경영진: ["general", ...AGENTS.map((a) => a.id)],
-  콘텐츠팀: CONTENT_AGENTS.map((a) => a.id),
+  디렉터: ["general", "cso", "coo", "cfo", "clo"],
+  마케터: ["cmo", "cto"],
+  워커: CONTENT_AGENTS.map((a) => a.id),
 };
 
 /** Full 에이전트 시스템 프롬프트에서 호출 가능한 9개 에이전트를 소개하는 줄 */

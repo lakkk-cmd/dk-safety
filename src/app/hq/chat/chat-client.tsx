@@ -558,7 +558,7 @@ export default function HqChatClient() {
         <header className="hidden flex-shrink-0 cc-card p-4 md:flex md:p-5">
           <h1 className="text-lg font-black tracking-[-0.02em] text-cc-text md:text-xl">AI 에이전트와 1:1 대화</h1>
           <p className="mt-1 max-w-2xl text-xs text-slate-600 md:text-sm">
-            총괄디렉터에게 전체 현황을 물어보거나, 경영진 6명 + 콘텐츠팀 3명에게 직접 질문하세요.
+            총괄디렉터에게 전체 현황을 물어보거나, 자문단(CSO·COO·CFO·CLO)·마케터(CMO·CTO)·워커(콘텐츠 3팀)에게 직접 질문하세요.
           </p>
         </header>
       ) : null}
