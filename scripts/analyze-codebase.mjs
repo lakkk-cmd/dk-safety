@@ -2,6 +2,12 @@
  * src/app 아래의 실제 API route.ts / admin·hq page.tsx를 스캔해 project_features 테이블과
  * 대조한다. 새로 생긴 경로는 등록하고, 코드에서 사라진 경로는 deprecated 처리한다.
  *
+ * 범위 밖: "feature"/"pending"/"integration" 카테고리(손으로 쓴 설명 텍스트)는 이 스크립트가
+ * 건드리지 않는다 — 경로 존재 여부가 아니라 사람의 판단이 필요한 서술이기 때문. 이 카테고리가
+ * 30일 넘게 안 바뀌면 system-health.ts::runWeeklySystemCheck()가 주간 점검에서 자동으로
+ * 감지해 카카오 알림 + delegation prompt로 알린다(2026-08-17 추가 — 이 두 카테고리가 한 달
+ * 넘게 낡아서 Gemini가 총괄디렉터의 정확한 답변을 거짓정보로 오탐 차단한 사고 계기).
+ *
  * 코드 리뷰로 확인된 설계 원칙(리네임 이중등록 방지, fix #4):
  * - 같은 카테고리·같은 상위 디렉토리(dirname) 안에서 "사라진 경로 1개 + 새 경로 1개"가
  *   1:1로만 대응되면 리네임으로 간주해 기존 행의 path를 UPDATE한다(신규 삽입 + deprecated

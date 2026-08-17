@@ -53,6 +53,28 @@ npm run brain:sync:ops   # Supabase(운영 데이터) → brain/ops/*.md 마크�
 6. **사실 우선순위**: 코드 > raw > wiki. 위키와 코드가 충돌하면 코드가 맞고 위키를 고친다.
    코드로 검증 불가능한 사실(사업자등록번호 등 외부 법적 정보)은 대표님 확인 없이 단정하지 않는다.
 
+## project_features — Gemini가 참고하는 "현재 시스템이 뭘 할 수 있는가" 기준 (2026-08 규칙 추가)
+
+`project_features` 테이블(`src/lib/project-context.ts::getProjectContext()`)이 `cross-validate.ts`의
+`validateAgentAnswer`에 주입되어, 총괄디렉터 채팅 답변이 거짓/미구현 기능 오안내인지 Gemini가
+판정하는 기준으로 쓰인다. **"api"/"page" 카테고리는 GitHub Actions(`update-project-context.yml`,
+매 배포 + 주간)가 `analyze-codebase.mjs`로 자동 동기화하지만, "feature"/"pending"/"integration"
+카테고리(손으로 쓴 설명 문장)는 그 스크립트가 건드리지 않는다** — 코드 존재 여부가 아니라 사람의
+판단이 필요한 서술이라서다.
+
+**실제 발생한 사고(2026-08-17)**: 이 세 카테고리 항목이 한 달 넘게 안 바뀌어("6에이전트 시스템"이
+9-에이전트 디렉터 파이프라인 재편을 반영 못함, "영상 합성 파이프라인"이 실제로는 완성돼 실업로드까지
+성공했는데 DB엔 `pending`으로 남아있었음), 총괄디렉터의 정확한 답변을 Gemini가 거짓정보로 오탐
+차단했다. `system-health.ts::runWeeklySystemCheck()`(매주 월요일, `weekly-system-check` 크론)가
+이제 이 세 카테고리 중 30일 이상 미갱신 항목을 자동 감지해 findings + delegation prompt로 카카오
+알림을 보낸다 — 하지만 이건 **감지**일 뿐 자동 **수정**은 아니다.
+
+**따라서 이 저장소에서 기능을 새로 만들거나 기존 기능의 동작을 바꿀 때마다(예: 새 파이프라인 단계,
+에이전트 역할 재편, 검증 게이트 추가), 관련된 `project_features` 행도 같은 작업의 일부로 즉시
+갱신할 것** — 코드만 고치고 이 테이블을 안 건드리면 다음 총괄디렉터 채팅에서 같은 종류의 오탐
+차단이 재발한다. 갱신 후 `project_context_cache`도 재생성해야 1시간 캐시 없이 즉시 반영된다
+(`refreshProjectContext()` 또는 `POST /api/admin/project-context`).
+
 ## Architecture
 
 ### Storage Strategy (dual-mode)
