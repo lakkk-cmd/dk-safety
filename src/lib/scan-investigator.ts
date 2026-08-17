@@ -14,6 +14,8 @@ import {
 } from "@/lib/agents";
 import { SUB_AGENT_IDS, toolCallSubAgent, toolGithubReadFile, toolSupabaseQuery } from "@/lib/full-agent-tools";
 import { ALLOWED_QUERY_TABLES } from "@/lib/safe-query";
+import { searchKnowledgeBase } from "@/lib/knowledge-base";
+import { searchKnowledgeChunks } from "@/lib/knowledge-chunks-search";
 
 const MAX_TOOL_ROUNDS = 8;
 
@@ -70,6 +72,18 @@ const READONLY_TOOLS: ToolDefinition[] = [
       required: ["table"],
     },
   },
+  {
+    name: "search_knowledge",
+    description:
+      "지식베이스(RAG)에서 학습된 자료를 검색한다 — PDF/웹서치 자동학습/외부뉴스 수집으로 쌓인 법령·정부지원·경쟁사·자격증·업계뉴스 등. 성장기회 후보가 떠오르면, 관련 최신 정보가 이미 학습되어 있는지 이 도구로 먼저 확인하라.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "검색할 질문/키워드" },
+      },
+      required: ["query"],
+    },
+  },
 ];
 
 function findToolUseBlocks(content: ClaudeContentBlock[]): ToolUseBlock[] {
@@ -91,6 +105,16 @@ async function dispatchReadonlyTool(name: string, input: Record<string, unknown>
       return toolGithubReadFile(input);
     case "supabase_query":
       return toolSupabaseQuery(input);
+    case "search_knowledge": {
+      const query = String(input.query ?? "").trim();
+      if (!query) return "오류: query가 필요합니다.";
+      const [kb, chunks] = await Promise.all([
+        searchKnowledgeBase(query, 5),
+        searchKnowledgeChunks(query, 5).catch(() => ""),
+      ]);
+      const combined = [kb, chunks].filter(Boolean).join("\n\n");
+      return combined || "관련 지식베이스 자료를 찾지 못했습니다.";
+    }
     default:
       return `알 수 없는 도구: ${name}`;
   }

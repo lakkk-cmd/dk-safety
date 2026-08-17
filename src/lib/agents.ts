@@ -602,6 +602,7 @@ export async function runFullMeeting(
   memory: string,
   feedback: string,
   weekStatus?: WeekStatus,
+  recentSignals?: string,
 ): Promise<FullMeetingResult> {
   const weekLine = weekStatus ? `${weekStatus.message}\n` : "";
   const weekCtxLine = weekStatus
@@ -611,10 +612,16 @@ export async function runFullMeeting(
     ? `\n[대장 지시사항 — 모든 분석과 액션 아이템에 반드시 반영]\n${feedback}\n`
     : "";
   const memoryBlock = memory ? `\n[누적 조직 기억]\n${memory}\n` : "";
+  // 지식베이스 신규 학습/시장 인텔리전스/아침 스캔 성장기회 — 회의가 "우리 조직의 과거 논의"만
+  // 참고하고 외부에서 새로 학습된 정보는 전혀 반영하지 못하던 문제를 해결하기 위한 브리핑
+  // (디렉터 파이프라인 확장, 2026-08). 대장 지시가 아니라 참고 신호이므로 별도 섹션으로 분리한다.
+  const signalsBlock = recentSignals?.trim()
+    ? `\n[최근 학습된 새 정보 — 참고 신호, 대장 지시 아님. 관련성 있으면 이번 주 액션 아이템에 반영을 검토하라]\n${recentSignals.trim()}\n`
+    : "";
 
   // ── 1라운드: 6명 배치 응답 ─────────────────────────────────
   const round1Prompt = `${weekLine}회의 주제: ${topic}
-${weekCtxLine}${feedbackBlock}${BUSINESS_CONTEXT}${memoryBlock}
+${weekCtxLine}${feedbackBlock}${BUSINESS_CONTEXT}${memoryBlock}${signalsBlock}
 다음 6명 전문가가 각자 관점으로 답해줘. 각 섹션은 정확히 아래 헤더로 구분해야 함:
 [CTO 스파크]
 [CSO 브릿지]
@@ -661,6 +668,7 @@ ${weekCtxChief}
 ${feedback ? `대장 지시사항:\n${feedback}\n` : ""}
 ${BUSINESS_CONTEXT}
 ${memory ? `\n누적 조직 기억:\n${memory}` : ""}
+${recentSignals?.trim() ? `\n[최근 학습된 새 정보 — 참고 신호, 대장 지시 아님]\n${recentSignals.trim()}\n` : ""}
 
 아래는 6인 경영진 2라운드 회의 기록입니다.
 

@@ -16,7 +16,17 @@ tags: ["rag", "knowledge"]
 | 임베딩 | OpenRouter, 1536차원 (`embedTexts`, `src/lib/embeddings.ts`) | Voyage AI voyage-3, 1024차원 (`embedChunks`, `src/lib/knowledge-embed.ts`) |
 | 검색 RPC | `match_knowledge_base` (유사도 임계값 기본 0.4, 호출부는 0.35) | `match_chunks` |
 | 검색 함수 | `searchKnowledgeBase` (`src/lib/knowledge-base.ts`) | `searchKnowledgeChunks`/`searchKnowledgeChunksWithEvidence` (`src/lib/knowledge-chunks-search.ts`) |
-| 실제 소비자 | `agent-chat.ts`(9-에이전트 채팅), `field-report-opinion.ts`(현장 AI 소견) | `full-agent.ts`(풀 에이전트 — 안전 차단 게이트가 유사도 0.7 임계값에 의존) |
+| 실제 소비자 | `agent-chat.ts`(9-에이전트 채팅), `field-report-opinion.ts`(현장 AI 소견), `scan-investigator.ts`(아침 스캔 `search_knowledge` 도구, 2026-08 추가) | `full-agent.ts`(풀 에이전트 — 안전 차단 게이트가 유사도 0.7 임계값에 의존), `scan-investigator.ts` |
+
+**2026-08 추가**: 지식베이스가 채팅에서만 소비되고 6경영진 회의(`runFullMeeting`)·아침 스캔에는 전혀
+반영되지 않던 문제를 발견 — "학습은 하는데 활용을 못 하는" 구조였다. 두 가지로 고쳤다:
+1. 아침 스캔(`daily-scan.ts`/`scan-investigator.ts`)에 `search_knowledge` 도구 추가 — 성장기회
+   후보를 발견하면 지식베이스에 근거가 있는지 능동적으로 검색한다.
+2. `src/lib/recent-signals.ts::loadRecentSignalsBrief()` 신설 — 최근 7일 지식베이스 신규 학습 +
+   `market_intelligence_insights` + 아침 스캔 `daily_business_scans.opportunities`를 하나로 합쳐
+   `runFullMeeting`(6경영진 회의)에 참고 신호로 주입한다. `boss_feedback` 테이블에는 넣지 않는다 —
+   그 테이블은 회의 프롬프트에서 "대장 지시사항, 반드시 반영"으로 취급되는데 AI가 스스로 찾은
+   가설을 대장의 명령처럼 위장시키는 건 부정확하기 때문이다.
 
 - 모든 생산자는 `src/lib/knowledge-store.ts::saveKnowledgeRows()` 하나로 쓴다 — 배치를 받아
   두 임베딩을 각각 독립적으로 계산해 한 행에 같이 저장한다. 한쪽 공급자가 실패해도(레이트리밋

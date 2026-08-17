@@ -17,6 +17,7 @@ import {
   type MeetingMemoryEntry,
 } from "@/lib/agent-memory";
 import { clearPendingTopics } from "@/lib/agent-schedule";
+import { loadRecentSignalsBrief } from "@/lib/recent-signals";
 
 export type ReportSectionPayload = {
   topic: string;
@@ -71,11 +72,14 @@ export async function runDailyAgentPipeline(
 
   const { structured, legacy } = await loadAgentMemory();
   const memoryPrompt = formatMemoryForPrompt(structured, legacy);
+  // 지식베이스 신규 학습/시장 인텔리전스/아침 스캔 성장기회를 회의 브리핑에 포함 — 실패해도
+  // 회의 자체는 계속 진행되어야 하므로 조회 실패는 빈 문자열로 무시한다.
+  const recentSignals = await loadRecentSignalsBrief().catch(() => "");
 
   const meetings: FullMeetingResult[] = [];
   for (const topic of topics) {
     console.log(`[agent-pipeline] Meeting: ${weekStatus.message} | ${topic}`);
-    meetings.push(await runFullMeeting(topic, memoryPrompt, feedbackText, weekStatus));
+    meetings.push(await runFullMeeting(topic, memoryPrompt, feedbackText, weekStatus, recentSignals));
   }
 
   const sections: ReportSectionPayload[] = meetings.map((m) => ({

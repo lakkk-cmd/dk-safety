@@ -78,6 +78,7 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 | `src/lib/worker-session-server.ts` | Worker session extraction from `dk_worker_auth` cookie |
 | `src/lib/agents.ts` | AI executive agents (CTO/CSO/CMO/COO/CFO/CLO + Chief); calls Claude API |
 | `src/lib/agent-schedule.ts` | Weekly meeting schedule logic (KST time, first report + recurring Sunday 08:00) |
+| `src/lib/recent-signals.ts` | `loadRecentSignalsBrief()` — pulls the last 7 days from `knowledge` (new RAG entries), `market_intelligence_insights`, and `daily_business_scans.opportunities` into one text block fed to `runFullMeeting` as a non-binding reference signal (not a 대장 directive) — closes the gap where learned knowledge/trends never reached the 6-executive meeting |
 | `src/lib/activity-log.ts` | Admin activity log persistence |
 | `src/lib/agent-db.ts` | Supabase client for agent/pipeline tables (`getAgentSupabase`, `requireAgentSupabase`, `isAgentSupabaseReady`) |
 | `src/lib/youtube-pipeline.ts` | YouTube Data API v3 — fetch latest videos per channel (`fetchLatestVideos`), popular videos by keyword (`searchPopularVideos`), resolve channel from URL/handle/name (`resolveYoutubeChannel`), top videos by view count (`fetchChannelTopVideos`) |
@@ -162,6 +163,8 @@ Located in `supabase/migrations/` (numbered 001–033). Apply with `npm run db:a
 ### AI Command Center
 
 `hq.dkansim.com` (internally `/hq`) runs a virtual 6-executive meeting (CTO, CSO, CMO, COO, CFO, CLO) powered by `ANTHROPIC_API_KEY`. Agent system prompts are in `src/lib/agents.ts`. Meeting schedule and topics persist in Supabase (`agent_memories` table). The model used is controlled by `ANTHROPIC_MODEL` env var (defaults to `claude-sonnet-4-6`). Reports approved for content use appear in the `report.dkansim.com` (`/report`) archive.
+
+The meeting also receives a "최근 학습된 새 정보" briefing (`loadRecentSignalsBrief()`, `src/lib/recent-signals.ts`) covering the last 7 days of RAG knowledge-base additions, market intelligence insights, and morning-scan growth opportunities — framed explicitly as reference signal, not 대장 지시, so the committee weighs it rather than treating it as a command. Without this, learned knowledge/trends never reached actual strategy decisions (2026-08 gap found and fixed).
 
 `/hq/intelligence` (마켓 인텔리전스 대시보드) — server-side read-only dashboard showing category-wise trend keyword bar charts, latest insights, recommended content ideas, and competitor channel analysis from `market_intelligence_insights` and `youtube_channel_analyses`.
 
