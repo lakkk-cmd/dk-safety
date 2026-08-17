@@ -9,7 +9,14 @@ import { logAgentEvent } from "@/lib/pipeline-logs";
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
 
-async function callGemini(prompt: string): Promise<string> {
+/**
+ * truncated:true는 maxOutputTokens에 걸려 finishReason이 MAX_TOKENS로 끝난 응답이라는 뜻 —
+ * "수정제안:" 같은 뒷부분 섹션이 통째로 없어지거나 문장 중간에서 끊긴 채로 파싱될 수 있다는
+ * 신호다. 2026-08-17 실제 사례: validateAgentAnswer 프롬프트가 경고사항 상세 나열 + 전체
+ * 답변 재작성을 요구할 만큼 무거운데 기본 800토큰으로는 부족해, 총괄디렉터의 표/섹션이 많은
+ * 답변마다 수정제안이 잘려나가 오탐 전면차단으로 이어졌다.
+ */
+async function callGeminiRaw(prompt: string, maxOutputTokens = 800): Promise<{ text: string; truncated: boolean }> {
   const key = process.env.GEMINI_API_KEY?.trim();
   if (!key) throw new Error("GEMINI_API_KEY 없음");
 
@@ -22,7 +29,7 @@ async function callGemini(prompt: string): Promise<string> {
         contents: [{ parts: [{ text: prompt }] }],
         // gemini-2.5 계열은 기본적으로 내부 reasoning("thinking")에 maxOutputTokens를 먼저 소모해
         // 실제 응답 텍스트가 잘리는 문제가 있어 thinkingBudget:0으로 비활성화한다.
-        generationConfig: { temperature: 0.1, maxOutputTokens: 800, thinkingConfig: { thinkingBudget: 0 } },
+        generationConfig: { temperature: 0.1, maxOutputTokens, thinkingConfig: { thinkingBudget: 0 } },
       }),
     }
   );
@@ -33,10 +40,16 @@ async function callGemini(prompt: string): Promise<string> {
   }
 
   const json = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>;
   };
-  const parts = json.candidates?.[0]?.content?.parts ?? [];
-  return parts.map((p) => p.text ?? "").join("");
+  const candidate = json.candidates?.[0];
+  const parts = candidate?.content?.parts ?? [];
+  const text = parts.map((p) => p.text ?? "").join("");
+  return { text, truncated: candidate?.finishReason === "MAX_TOKENS" };
+}
+
+async function callGemini(prompt: string, maxOutputTokens = 800): Promise<string> {
+  return (await callGeminiRaw(prompt, maxOutputTokens)).text;
 }
 
 // ── 점수 파싱 ──────────────────────────────────────────────────────────────────
@@ -622,7 +635,28 @@ ${params.context ? `참고 자료:\n${params.context.slice(0, 1000)}` : ""}
 경고사항: [문제점 목록, 없으면 "없음"]
 수정제안: [수정이 필요한 경우만 전체 수정본 작성, 없으면 "없음"]`.trim();
 
-  const verdict = await callGemini(prompt);
+  // 이 프롬프트만 유일하게 "경고사항 상세 나열 + 전체 답변 재작성"까지 요구해 다른 검증
+  // 프롬프트보다 훨씬 길게 나온다 — 기본 800토큰으로는 총괄디렉터의 표/섹션 많은 답변에서
+  // 정기적으로 잘렸으므로(2026-08-17 실증) 넉넉하게 잡는다.
+  const { text: verdict, truncated } = await callGeminiRaw(prompt, 4096);
+
+  if (truncated) {
+    // MAX_TOKENS로 끝나면 "수정제안:" 섹션이 아예 없거나 문장 중간에서 끊긴 채로 파싱될 수 있어,
+    // 이걸 그대로 "수정본 없음(→전면차단)"이나 "수정본 있음(→깨진 답변 노출)"으로 처리하면 안 된다.
+    // 호출부(route.ts)가 이미 검증 자체가 실패했을 때 원본 답변을 그대로 보여주는(fail-open) 처리를
+    // 갖고 있으므로(네트워크 오류 등과 동일하게), 여기서도 예외를 던져 같은 안전한 경로를 탄다.
+    await logResult({
+      type: "agent_answer",
+      target: params.question.slice(0, 100),
+      original: params.answer.slice(0, 500),
+      verdict,
+      score: parseScore(verdict),
+      passed: false,
+      extraMeta: { truncated: true, hasRAGEvidence: Boolean(params.hasRAGEvidence) },
+    });
+    throw new Error("Gemini 검증 응답이 maxOutputTokens 한도에 걸려 잘렸습니다 (finishReason: MAX_TOKENS)");
+  }
+
   const score = parseScore(verdict);
   const passed = score >= 75;
 
