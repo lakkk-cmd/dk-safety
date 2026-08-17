@@ -1,5 +1,6 @@
-import { Agent, BUSINESS_CONTEXT, callClaudeCustom, extractJsonBlock, type WeekStatus } from "@/lib/agents";
+import { Agent, BUSINESS_CONTEXT, callClaude, callClaudeCustom, extractJsonBlock, type WeekStatus } from "@/lib/agents";
 import type { PerformanceSnapshotItem } from "@/lib/content-performance";
+import { loadRecentSharedMemory } from "@/lib/shared-memory";
 
 // ─── 콘텐츠 카테고리 ───────────────────────────────────────────────────────────
 
@@ -255,14 +256,24 @@ export async function runMarketerContentBrief(
   const trendsBlock = trendKeywords.length
     ? `\n[네이버 트렌드 키워드 상위]\n${trendKeywords.slice(0, 10).join(", ")}\n`
     : "";
+  // 공유 기억(마케터/워커 맥락 확장) — 총괄디렉터가 다른 대화에서 대표님과 나눈 결정/선호를
+  // CMO도 참고할 수 있게 한다. 디렉터의 브리핑이 놓친 최신 맥락과 충돌하면 CMO가 가이드라인의
+  // tone/mustAvoid에 반영해 워커에게까지 자연스럽게 전달되도록 한다.
+  const sharedMemory = await loadRecentSharedMemory(8).catch(() => []);
+  const sharedMemoryBlock = sharedMemory.length
+    ? `\n[최근 대표님 관련 맥락 — 다른 대화에서 나온 사실/결정, 참고만 할 것]\n${sharedMemory
+        .map((m) => `- ${m.content}`)
+        .join("\n")}\n`
+    : "";
 
-  const prompt = `${weekLine}${BUSINESS_CONTEXT}${trendsBlock}
+  const prompt = `${weekLine}${BUSINESS_CONTEXT}${trendsBlock}${sharedMemoryBlock}
 [총괄디렉터 브리핑]
 - 우선순위: ${brief.priorities || "(없음)"}
 - 제약(법무): ${brief.constraints}
 - 이번 주 집중 방향: ${brief.weekFocus || "(없음)"}
 
-위 브리핑을 반영해 워커용 제작 가이드라인을 작성하라.`.trim();
+위 브리핑을 반영해 워커용 제작 가이드라인을 작성하라. 브리핑이 [최근 대표님 관련 맥락]과 명백히
+충돌한다면 무시하지 말고 가이드라인의 mustAvoid/tone에 그 우려를 반영하라.`.trim();
 
   const systemPrompt = buildMarketerSystemPrompt(brief.categories);
   const raw = await callClaudeCustom(systemPrompt, prompt, 4000, 120_000);
@@ -305,6 +316,43 @@ export async function runMarketerContentBrief(
       : [],
     summary: String(parsed.summary ?? ""),
   };
+}
+
+// ─── 지시 검증 게이트 (오해 전파 방지, 2026-08) ────────────────────────────────────
+//
+// 총괄디렉터가 대표님과의 실시간 대화 중 잘못 이해한 내용을 그대로 콘텐츠 큐에 등록해버리면
+// 워커가 그걸 그대로 실행해 완전히 엉뚱한 결과물이 나올 수 있다. CMO(마케터)가 등록 직전에
+// "이 지시가 대표님의 전형적인 요청과 논리적으로 맞는가"를 한 번 검증해, 이상하면 등록을
+// 막고 총괄디렉터가 대표님께 재확인하도록 되돌린다.
+
+export type BriefVerification = { concern: string | null };
+
+const VERIFICATION_MAX_TOKENS = 200;
+
+/** 총괄디렉터가 채팅 중 등록하려는 콘텐츠 지시를 CMO 관점에서 검증한다 */
+export async function verifyContentBriefWithMarketer(
+  title: string,
+  brief: string,
+  category?: string,
+): Promise<BriefVerification> {
+  const prompt = `총괄디렉터가 다음 콘텐츠 제작 지시를 채팅 중 방금 내렸다.
+제목: ${title}
+기획 메모: ${brief}
+카테고리: ${category ?? "미지정"}
+
+이 지시가 대표님의 전형적인 요청 맥락(전기안전 점검·수리 출장 서비스, 광주 아파트 입주민 대상)에
+비춰 논리적으로 타당한지 검토하라. 명백히 앞뒤가 안 맞거나, 전혀 다른 주제로 벗어나거나, 실행하면
+곤란할 것 같은 부분이 있을 때만 그 이유를 1~2문장으로 적어라. 사소한 스타일·취향 차이로는 트집 잡지
+마라 — 명백한 오해/모순으로 보일 때만 지적한다. 특별한 문제가 없으면 정확히 "이상없음"이라고만 답하라.`;
+
+  try {
+    const raw = (await callClaude("cmo", prompt, VERIFICATION_MAX_TOKENS)).trim();
+    return { concern: raw.startsWith("이상없음") ? null : raw };
+  } catch {
+    // 검증 자체가 실패하면(레이트리밋 등) 등록을 막지 않는다 — 안전장치가 없어서 실행이
+    // 아예 안 되는 것보다는, 검증 없이 기존 동작(등록)을 유지하는 편이 낫다.
+    return { concern: null };
+  }
 }
 
 // ─── 콘텐츠 초안 생성 (화요일 09:00) ──────────────────────────────────────────────
@@ -358,12 +406,20 @@ function formatGuidelineBlock(guideline?: Partial<ContentGuideline>): string {
   return `\n[마케터(CMO) 가이드라인 — 반드시 준수]\n${lines.join("\n")}\n`;
 }
 
+/** 워커 프롬프트에 최근 공유 기억(대표님 관련 최신 맥락)을 끼워 넣는 공통 블록 — 오해 전파 방지 게이트의
+ *  일부. 마케터 가이드라인과 별개로, 워커 단계에서도 최신 맥락을 직접 참고할 수 있게 한다. */
+function formatContextBlock(recentContext?: string): string {
+  if (!recentContext?.trim()) return "";
+  return `\n[최근 대표님 관련 맥락 — 참고, 기획 메모와 충돌하면 신중하게 반영]\n${recentContext.trim()}\n`;
+}
+
 export async function draftYoutubeScript(
   title: string,
   brief: string,
   weekStatus?: WeekStatus,
   category?: ContentCategory,
   guideline?: Partial<ContentGuideline>,
+  recentContext?: string,
 ): Promise<YoutubeDraft> {
   const isExamPrep = category === "자격시험";
   const weekLine = weekStatus ? `${weekStatus.message}\n` : "";
@@ -381,7 +437,7 @@ export async function draftYoutubeScript(
 기획 메모: ${brief}
 카테고리: ${category ?? "전기안전"}
 ${thumbnailHint}
-${formatGuidelineBlock(guideline)}
+${formatGuidelineBlock(guideline)}${formatContextBlock(recentContext)}
 위 기획을 바탕으로 영상 스크립트와 썸네일 기획을 작성하라.
 ${SCRIPT_SECTION_HINT}`.trim();
 
@@ -395,12 +451,13 @@ export async function draftKakaoPost(
   brief: string,
   weekStatus?: WeekStatus,
   guideline?: Partial<ContentGuideline>,
+  recentContext?: string,
 ): Promise<string> {
   const weekLine = weekStatus ? `${weekStatus.message}\n` : "";
   const prompt = `${weekLine}${BUSINESS_CONTEXT}
 포스트 제목: ${title}
 기획 메모: ${brief}
-${formatGuidelineBlock(guideline)}
+${formatGuidelineBlock(guideline)}${formatContextBlock(recentContext)}
 위 기획을 바탕으로 카카오 채널 포스트 본문을 작성하라. 본문 텍스트만 출력하라(설명·머리말 없이).`.trim();
 
   const raw = await callContentAgent("kakao_manager", prompt, 800);
@@ -415,13 +472,14 @@ export async function draftBlogPost(
   keywords: string[],
   weekStatus?: WeekStatus,
   guideline?: Partial<ContentGuideline>,
+  recentContext?: string,
 ): Promise<BlogDraft> {
   const weekLine = weekStatus ? `${weekStatus.message}\n` : "";
   const prompt = `${weekLine}${BUSINESS_CONTEXT}
 글 제목: ${title}
 기획 메모: ${brief}
 타깃 키워드: ${keywords.join(", ") || "(없음)"}
-${formatGuidelineBlock(guideline)}
+${formatGuidelineBlock(guideline)}${formatContextBlock(recentContext)}
 위 기획을 바탕으로 블로그 글을 작성하라.
 JSON 형식으로만 응답하라(설명 없이 JSON만):
 \`\`\`json

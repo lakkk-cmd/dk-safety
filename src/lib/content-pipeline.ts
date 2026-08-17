@@ -25,7 +25,14 @@ import { broadcastKakaoFriendTalkToCustomers, publishKakaoPost } from "@/lib/kak
 import { NAVER_ENABLED, collectNaverTrends, getRecentTrendKeywords } from "@/lib/naver-pipeline";
 import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
 import { sendAdminAlertSms } from "@/lib/solapi-agent";
+import { loadRecentSharedMemory } from "@/lib/shared-memory";
 import { uploadYoutubeVideo } from "@/lib/youtube-upload";
+
+/** 워커 프롬프트에 실어 보낼 "최근 공유 기억" 텍스트 — 오해 전파 방지 게이트의 일부 */
+async function loadRecentContextForWorkers(): Promise<string> {
+  const entries = await loadRecentSharedMemory(8).catch(() => []);
+  return entries.map((m) => `- ${m.content}`).join("\n");
+}
 
 const CONTENT_MEMORY_KEY = "content_pipeline_log";
 
@@ -194,6 +201,7 @@ export async function runYoutubeDrafting(limit = 2): Promise<YoutubeDraftRunResu
   const weekStatus = getCurrentWeekStatus();
   const supabase = requireAgentSupabase();
   const result: YoutubeDraftRunResult = { processed: 0, approved: 0, reviewRequired: 0, items: [] };
+  const recentContext = await loadRecentContextForWorkers();
 
   const { data: ytRows } = await supabase
     .from("content_youtube_queue")
@@ -212,6 +220,7 @@ export async function runYoutubeDrafting(limit = 2): Promise<YoutubeDraftRunResu
       weekStatus,
       (ytRow.category as ContentCategory | null) ?? undefined,
       guideline,
+      recentContext,
     );
     draft.script = await humanizeKoreanText(draft.script, 6000);
     const titleCandidatesBlock = draft.titleCandidates.length
@@ -264,6 +273,7 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
     const youtubeUpdated = ytResult.processed > 0;
     let kakaoUpdated = false;
     let blogUpdated = 0;
+    const recentContext = await loadRecentContextForWorkers();
 
     const { data: kkRow } = await supabase
       .from("content_kakao_queue")
@@ -277,7 +287,7 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
       const kkGuideline = kkRow.marketer_guideline
         ? (JSON.parse(kkRow.marketer_guideline) as Partial<ContentGuideline>)
         : undefined;
-      const draftRaw = await draftKakaoPost(kkRow.title, kkRow.content ?? "", weekStatus, kkGuideline);
+      const draftRaw = await draftKakaoPost(kkRow.title, kkRow.content ?? "", weekStatus, kkGuideline, recentContext);
       const draft = await humanizeKoreanText(draftRaw, 800);
       // 품질게이트(마케터 가이드라인 대비 검증)를 통과해도 곧바로 발송하지 않는다 — 디렉터
       // 파이프라인 재편 규칙에 따라 카카오 발행은 항상 대표님 승인을 거친다(/contents에서
@@ -322,7 +332,7 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
       const blogGuideline = row.marketer_guideline
         ? (JSON.parse(row.marketer_guideline) as Partial<ContentGuideline>)
         : undefined;
-      const draft = await draftBlogPost(row.title, row.content ?? "", row.keywords ?? [], weekStatus, blogGuideline);
+      const draft = await draftBlogPost(row.title, row.content ?? "", row.keywords ?? [], weekStatus, blogGuideline, recentContext);
       draft.content = await humanizeKoreanText(draft.content, 2500);
       // 품질게이트를 통과해도 곧바로 발행하지 않는다 — 디렉터 파이프라인 재편 규칙에 따라
       // 블로그 발행은 항상 대표님 승인을 거친다(/contents에서 승인 클릭 → approveBlogPost).

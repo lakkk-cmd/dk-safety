@@ -1,9 +1,10 @@
 /** Full(총괄) 에이전트가 호출하는 6개 도구의 실행부. 각 도구는 기존 함수를 얇게 감싸 재사용한다. */
 
 import { chatWithAgentPlus, CHAT_AGENTS } from "@/lib/agent-chat";
+import { callClaude } from "@/lib/agents";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { createBlogPost } from "@/lib/blog-store";
-import type { ContentCategory } from "@/lib/content-agents";
+import { verifyContentBriefWithMarketer, type ContentCategory } from "@/lib/content-agents";
 import { createGithubIssue, readGithubFile } from "@/lib/github-issues";
 import { createChatImprovementRequest } from "@/lib/improvement-requests";
 import { saveKnowledgeRows } from "@/lib/knowledge-store";
@@ -12,6 +13,29 @@ import { DOC_TEMPLATES, generateDocument } from "@/lib/document-generator";
 import { classifyTechRisk, CHAT_WHITELIST_MARKER } from "@/lib/tech-risk-rules";
 
 export const SUB_AGENT_IDS = CHAT_AGENTS.filter((a) => a.id !== "general").map((a) => a.id);
+
+/**
+ * 지시 검증 게이트(오해 전파 방지, 2026-08) — 총괄디렉터가 대표님과의 대화를 잘못 이해해
+ * 엉뚱한 코드 변경 이슈를 등록하려 하면, CTO(기술 마케터) 관점에서 먼저 타당성을 검토한다.
+ * 이상하면 이슈를 만들지 않고 총괄디렉터가 대표님께 재확인하도록 되돌린다.
+ */
+async function verifyIssueWithTechMarketer(title: string, body: string): Promise<{ concern: string | null }> {
+  const prompt = `총괄디렉터가 다음 코드 변경 이슈를 채팅 중 방금 등록하려 한다.
+제목: ${title}
+본문: ${body.slice(0, 1000)}
+
+이 요청이 대표님의 전형적인 요청 맥락(dkansim.com — 전기안전 점검·수리 예약 플랫폼)에 비춰
+논리적으로 타당한지 검토하라. 명백히 앞뒤가 안 맞거나, 요청 범위를 벗어나거나, 실행하면
+곤란할 것 같은 부분이 있을 때만 그 이유를 1~2문장으로 적어라. 사소한 구현 방식 차이로는
+트집 잡지 마라 — 명백한 오해/모순으로 보일 때만 지적한다. 특별한 문제가 없으면 정확히
+"이상없음"이라고만 답하라.`;
+  try {
+    const raw = (await callClaude("cto", prompt, 200)).trim();
+    return { concern: raw.startsWith("이상없음") ? null : raw };
+  } catch {
+    return { concern: null };
+  }
+}
 
 export async function toolCallSubAgent(args: { agent_name?: string; query?: string }): Promise<string> {
   const agentId = args.agent_name?.trim();
@@ -37,6 +61,15 @@ export async function toolGithubCreateIssue(args: {
   const title = args.title?.trim();
   const body = args.body?.trim();
   if (!title || !body) return { message: "오류: title과 body가 모두 필요합니다." };
+
+  // 지시 검증 게이트 — 리스크 등급과 무관하게, 이슈 자체가 대표님 요청과 명백히 어긋나 보이면
+  // 이슈를 만들지 않고 총괄디렉터가 먼저 재확인하도록 되돌린다.
+  const verification = await verifyIssueWithTechMarketer(title, body);
+  if (verification.concern) {
+    return {
+      message: `⚠️ CTO(기술 마케터) 검토 결과 이슈를 등록하지 않았습니다 — "${verification.concern}" 이 지시가 맞는지 대표님께 다시 확인해주세요.`,
+    };
+  }
 
   const requestedAutoImplement = args.auto_implement === true;
   // 총괄디렉터의 최종 리스크 판정 — 에이전트가 auto_implement=true를 요청해도 §5 블랙리스트
@@ -159,6 +192,13 @@ export async function toolCreateContentDraft(args: {
     return `오류: type은 ${CONTENT_DRAFT_TYPES.join("/")} 중 하나여야 합니다.`;
   }
   if (!title || !brief) return "오류: title과 brief가 모두 필요합니다.";
+
+  // 지시 검증 게이트 — CMO(마케터) 관점에서 이 지시가 대표님 요청과 명백히 어긋나 보이면
+  // 큐에 등록하지 않고 총괄디렉터가 먼저 재확인하도록 되돌린다.
+  const verification = await verifyContentBriefWithMarketer(title, brief, args.category);
+  if (verification.concern) {
+    return `⚠️ 마케터(CMO) 검토 결과 등록하지 않았습니다 — "${verification.concern}" 이 지시가 맞는지 대표님께 다시 확인해주세요.`;
+  }
 
   try {
     const supabase = requireAgentSupabase();
