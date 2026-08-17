@@ -155,6 +155,125 @@ export async function renderDocumentPdf(params: {
   return pdfDoc.save();
 }
 
+// ── 행정업무운영편람 간이기안문(별지 제2호서식) 양식 — 내부 보고서 전용 ──────────
+// "보고서·계획서·검토서 등 내부적으로 결재하는 문서"에 쓰는 공식 양식(2025 행정업무운영
+// 편람 73쪽). 좌측 상단 문서등록 표시 + 우측 상단 결재란 + 제목/요약 + 작성기관 + 본문
+// 구조를 그대로 따르되, 1인 사업 실제 구조(대표님=결재권자, Gemini=검토자)에 맞춰 채운다.
+
+export type AdminReportMeta = {
+  registrationNo: string; // 생산등록번호
+  dateLabel: string; // 등록일·결재일에 공통으로 씀 (보고서는 등록/결재가 보통 같은 날)
+  draftedBy: string; // 기안자 — 담당 AI 에이전트
+  reviewedBy: string; // 검토자 — Gemini 교차검증 등
+  approvedBy: string; // 결재권자 — 대표님
+  disclosure?: string; // 공개구분 (기본값: 비공개)
+  orgLabel?: string; // 작성기관
+  summary?: string; // 보고근거 및 보고내용 요약 (선택)
+};
+
+function AdminReportElement({
+  title,
+  meta,
+  sections,
+  heightPx,
+}: {
+  title: string;
+  meta: AdminReportMeta;
+  sections: DocumentSection[];
+  heightPx: number;
+}) {
+  const box: React.CSSProperties = { display: "flex", flexDirection: "column", border: "1.5px solid #1e293b" };
+  const row: React.CSSProperties = { display: "flex", borderBottom: "1px solid #cbd5e1" };
+  const labelCell: React.CSSProperties = { display: "flex", width: 130, padding: "10px 12px", fontSize: 16, color: "#475569", backgroundColor: "#f1f5f9", borderRight: "1px solid #cbd5e1" };
+  const valueCell: React.CSSProperties = { display: "flex", flex: 1, padding: "10px 12px", fontSize: 16, color: "#1e293b" };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        width: PAGE_W_PX,
+        height: heightPx,
+        backgroundColor: "#ffffff",
+        fontFamily: "NotoSansKR",
+        padding: "56px 64px 40px",
+      }}
+    >
+      {/* 상단 문서등록/결재란 그리드 */}
+      <div style={{ display: "flex", width: "100%" }}>
+        <div style={{ ...box, flex: 1, marginRight: 12 }}>
+          <div style={row}><div style={labelCell}>생산등록번호</div><div style={valueCell}>{meta.registrationNo}</div></div>
+          <div style={row}><div style={labelCell}>등록일</div><div style={valueCell}>{meta.dateLabel}</div></div>
+          <div style={row}><div style={labelCell}>결재일</div><div style={valueCell}>{meta.dateLabel}</div></div>
+          <div style={{ display: "flex" }}><div style={labelCell}>공개구분</div><div style={valueCell}>{meta.disclosure ?? "비공개"}</div></div>
+        </div>
+        <div style={{ ...box, flex: 1 }}>
+          <div style={row}><div style={labelCell}>기안자</div><div style={valueCell}>{meta.draftedBy}</div></div>
+          <div style={row}><div style={labelCell}>검토자</div><div style={valueCell}>{meta.reviewedBy}</div></div>
+          <div style={row}><div style={labelCell}>협조자</div><div style={valueCell}>-</div></div>
+          <div style={{ display: "flex" }}><div style={labelCell}>결재권자</div><div style={valueCell}>{meta.approvedBy}</div></div>
+        </div>
+      </div>
+
+      {/* 제목 */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 36, paddingBottom: 20, borderBottom: `3px solid ${NAVY}` }}>
+        <div style={{ display: "flex", fontSize: 34, fontWeight: 700, color: NAVY }}>{title}</div>
+        {meta.summary ? (
+          <div style={{ display: "flex", marginTop: 10, fontSize: 18, color: "#64748b" }}>{meta.summary}</div>
+        ) : null}
+      </div>
+
+      {/* 작성기관 */}
+      <div style={{ display: "flex", marginTop: 20, fontSize: 18, color: "#334155" }}>
+        {meta.orgLabel ?? "우리집 전기주치의(대경이엔피) · AI 경영진 사령부"}
+      </div>
+
+      {/* 본문 */}
+      <div style={{ display: "flex", flexDirection: "column", paddingTop: 28, gap: 26 }}>
+        {sections.map((section, idx) => (
+          <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", fontSize: 24, fontWeight: 700, color: NAVY, borderLeft: `6px solid ${GOLD}`, paddingLeft: 14, marginBottom: 10 }}>
+              {section.heading}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
+              {section.body.split("\n").map((line, lineIdx) => (
+                <div key={lineIdx} style={{ display: "flex", fontSize: 20, color: "#334155", lineHeight: 1.6 }}>
+                  {line || " "}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", marginTop: "auto", paddingTop: 32, fontSize: 15, color: "#94a3b8" }}>
+        2025 행정업무운영편람 간이기안문(별지 제2호서식) 양식 준용 · 우리집 전기주치의(대경이엔피)
+      </div>
+    </div>
+  );
+}
+
+/** 행정업무운영편람 간이기안문 양식으로 내부 보고서 PDF를 렌더링한다. */
+export async function renderAdminReportPdf(params: {
+  title: string;
+  meta: AdminReportMeta;
+  sections: DocumentSection[];
+}): Promise<Uint8Array> {
+  const sectionsHeight = params.sections.reduce((sum, s) => sum + 24 + 10 + estimateTextHeightPx(s.body) + 26, 0);
+  const heightPx = Math.max(PAGE_H_PX, 420 + sectionsHeight + 120);
+
+  const png = await renderElementToPng(
+    <AdminReportElement title={params.title} meta={params.meta} sections={params.sections} heightPx={heightPx} />,
+    PAGE_W_PX,
+    heightPx,
+  );
+
+  const pdfDoc = await PDFDocument.create();
+  const image = await pngToImageWithPdfDoc(pdfDoc, png);
+  addSlicedPages(pdfDoc, image, PAGE_W_PX, heightPx);
+  return pdfDoc.save();
+}
+
 /** 마크다운 유사 텍스트(## 헤더)를 섹션 배열로 파싱한다. */
 export function parseMarkdownSections(markdown: string): DocumentSection[] {
   const lines = markdown.split("\n");

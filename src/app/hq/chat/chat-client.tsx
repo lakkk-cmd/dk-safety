@@ -118,6 +118,7 @@ const DOC_TYPE_BUTTONS: { id: string; label: string }[] = [
   { id: "safety_guide", label: "📢 안전 안내문" },
   { id: "contract", label: "📄 계약서" },
   { id: "proposal", label: "📊 제안서" },
+  { id: "admin_report", label: "🗂️ 업무보고서(행정양식)" },
 ];
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;

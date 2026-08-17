@@ -20,7 +20,10 @@ async function sendKakaoMe(text: string): Promise<void> {
     console.error("[cron] Kakao me send error:", err);
   }
 }
-import { isAgentSupabaseReady } from "@/lib/agent-db";
+import { isAgentSupabaseReady, requireAgentSupabase } from "@/lib/agent-db";
+import { buildAdminReportMeta, SUPABASE_DOCUMENTS_BUCKET } from "@/lib/document-generator";
+import { renderAdminReportPdf } from "@/lib/document-pdf";
+import { uploadBinaryObject } from "@/lib/supabase-server";
 import {
   DEFAULT_MEETING_TOPICS,
   evaluateReportSchedule,
@@ -133,6 +136,26 @@ export async function GET(request: Request) {
     })),
   }));
 
+  // 행정업무운영편람 간이기안문(별지 제2호서식) 양식 PDF — 실패해도 이메일 발송 자체는 막지 않는다
+  // (내부 보고 형식일 뿐, 핵심 정보는 이미 이메일 본문에 있으므로).
+  let reportPdfBytes: Uint8Array | null = null;
+  try {
+    reportPdfBytes = await renderAdminReportPdf({
+      title: `${reportLabel} 보고서`,
+      meta: buildAdminReportMeta({ draftedBy: "AI 경영진 6인", summary: pipeline.weekStatus.message }),
+      sections: pipeline.sections.map((s) => ({ heading: s.topic, body: s.chief_summary })),
+    });
+    const pdfUrl = await uploadBinaryObject({
+      bucket: SUPABASE_DOCUMENTS_BUCKET,
+      objectPath: `agent-reports/${pipeline.reportId}.pdf`,
+      contentType: "application/pdf",
+      data: reportPdfBytes,
+    });
+    await requireAgentSupabase().from("agent_reports").update({ pdf_url: pdfUrl }).eq("id", pipeline.reportId);
+  } catch (err) {
+    console.error("[cron] 업무보고서 PDF 생성/업로드 실패:", err);
+  }
+
   try {
     const { error } = await resend.emails.send({
       from: "우리집 안심전기 <report@dkansim.com>",
@@ -140,6 +163,9 @@ export async function GET(request: Request) {
       subject: `[우리집 안심전기] ${reportLabel} 보고 — ${dateStr}`,
       html: buildEmailHTML(emailSectionsFixed, dateStr, pipeline.chiefDailySummary, pipeline.feedbackApplied, contentSummary),
       text: buildEmailText(emailSectionsFixed, dateStr, pipeline.chiefDailySummary, pipeline.feedbackApplied, contentSummary),
+      attachments: reportPdfBytes
+        ? [{ filename: `${reportLabel}_${dateStr.replace(/[.\s:]/g, "-")}.pdf`, content: Buffer.from(reportPdfBytes) }]
+        : undefined,
     });
     if (error) throw error;
   } catch (err) {

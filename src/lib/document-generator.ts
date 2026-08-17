@@ -6,7 +6,7 @@ import { validateContent } from "@/lib/cross-validate";
 import { verifyDocumentWithCLOandCFO } from "@/lib/advisory-gates";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { uploadBinaryObject, SUPABASE_ENABLED } from "@/lib/supabase-server";
-import { parseMarkdownSections, renderDocumentPdf, type DocumentSection } from "@/lib/document-pdf";
+import { parseMarkdownSections, renderAdminReportPdf, renderDocumentPdf, type AdminReportMeta, type DocumentSection } from "@/lib/document-pdf";
 
 export const SUPABASE_DOCUMENTS_BUCKET = process.env.SUPABASE_DOCUMENTS_BUCKET ?? "dk-safety-documents";
 
@@ -20,8 +20,40 @@ export const DOC_TEMPLATES: Record<
   safety_guide: { title: "전기안전 안내문", sections: ["안전 수칙", "주의 사항", "긴급 연락처"] },
   contract: { title: "정기점검 계약서", sections: ["계약 당사자", "계약 내용", "점검 주기", "비용", "특약 사항"] },
   proposal: { title: "전기안전 서비스 제안서", sections: ["제안 배경", "서비스 내용", "기대 효과", "비용 안내", "회사 소개"] },
+  admin_report: { title: "AI 경영진 업무보고서", sections: ["보고 배경", "주요 현황", "분석 및 판단", "건의 사항"] },
   custom: { title: "문서", sections: [] },
 };
+
+/** admin_report(내부 업무보고서)는 견적서 등 대고객 문서와 달리 행정업무운영편람 간이기안문
+ *  양식(생산등록번호/기안·검토·결재란)을 쓰므로 별도 취급한다. */
+const ADMIN_REPORT_DOC_TYPES = new Set(["admin_report"]);
+
+function nextRegistrationNo(prefix: string, date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const seq = String(date.getHours() * 60 + date.getMinutes()).padStart(4, "0");
+  return `${prefix}-${y}${m}${d}-${seq}`;
+}
+
+/** agent_reports(주간 경영진 회의)처럼 이미 만들어진 보고 내용을 간이기안문 PDF로 감쌀 때 쓴다. */
+export function buildAdminReportMeta(params: {
+  registrationPrefix?: string;
+  draftedBy: string;
+  reviewedBy?: string;
+  summary?: string;
+  date?: Date;
+}): AdminReportMeta {
+  const date = params.date ?? new Date();
+  return {
+    registrationNo: nextRegistrationNo(params.registrationPrefix ?? "AI경영", date),
+    dateLabel: date.toLocaleDateString("ko-KR"),
+    draftedBy: params.draftedBy,
+    reviewedBy: params.reviewedBy ?? "Gemini 교차검증",
+    approvedBy: "대표님",
+    summary: params.summary,
+  };
+}
 
 async function generateDocumentContent(params: {
   docType: string;
@@ -138,7 +170,13 @@ export async function generateDocument(params: {
   let pdfUrl: string | null = null;
   let docxUrl: string | null = null;
   try {
-    const pdfBytes = await renderDocumentPdf({ title: template.title, customerName: params.customerName, sections });
+    const pdfBytes = ADMIN_REPORT_DOC_TYPES.has(params.docType)
+      ? await renderAdminReportPdf({
+          title: template.title,
+          meta: buildAdminReportMeta({ draftedBy: "총괄디렉터" }),
+          sections,
+        })
+      : await renderDocumentPdf({ title: template.title, customerName: params.customerName, sections });
     pdfUrl = await uploadBinaryObject({
       bucket: SUPABASE_DOCUMENTS_BUCKET,
       objectPath: `documents/${docRow.id}.pdf`,

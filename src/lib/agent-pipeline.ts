@@ -27,6 +27,7 @@ export type ReportSectionPayload = {
 };
 
 export type DailyAgentPipelineResult = {
+  reportId: string;
   dateLabel: string;
   feedbackApplied: string | null;
   feedbackIds: string[];
@@ -142,15 +143,21 @@ export async function runDailyAgentPipeline(
     meetings.map((m, i) => `${i + 1}. ${m.topic}\n${m.chiefSummary}`).join("\n\n---\n\n");
 
   const supabase = requireAgentSupabase();
-  await supabase.from("agent_reports").insert({
-    created_at: new Date().toISOString(),
-    date_label: dateLabel,
-    chief_summary: chiefDailySummary,
-    sections,
-    feedback_applied: feedbackText || null,
-  });
+  const { data: reportRow, error: reportErr } = await supabase
+    .from("agent_reports")
+    .insert({
+      created_at: new Date().toISOString(),
+      date_label: dateLabel,
+      chief_summary: chiefDailySummary,
+      sections,
+      feedback_applied: feedbackText || null,
+    })
+    .select("id")
+    .single();
+  if (reportErr || !reportRow) throw new Error(`agent_reports 저장 실패: ${reportErr?.message ?? "unknown"}`);
 
   return {
+    reportId: reportRow.id,
     dateLabel,
     feedbackApplied: feedbackText || null,
     feedbackIds,

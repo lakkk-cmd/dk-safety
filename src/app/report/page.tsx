@@ -25,6 +25,7 @@ type ReportRow = {
   sections: ReportSection[] | null;
   approved: boolean;
   approved_at: string | null;
+  pdf_url: string | null;
 };
 
 async function loadReports(): Promise<{ reports: ReportRow[]; error: string | null }> {
@@ -35,7 +36,7 @@ async function loadReports(): Promise<{ reports: ReportRow[]; error: string | nu
     const supabase = requireAgentSupabase();
     const { data, error } = await supabase
       .from("agent_reports")
-      .select("id, created_at, date_label, chief_summary, sections, approved, approved_at")
+      .select("id, created_at, date_label, chief_summary, sections, approved, approved_at, pdf_url")
       .order("created_at", { ascending: false })
       .limit(20);
     if (error) return { reports: [], error: error.message };
@@ -132,6 +133,14 @@ export default async function ReportPage() {
                       <p className="mt-2 text-xs text-slate-500">
                         회의일 {new Date(r.created_at).toLocaleString("ko-KR")}
                         {r.approved_at ? ` · 승인일 ${new Date(r.approved_at).toLocaleString("ko-KR")}` : ""}
+                        {r.pdf_url ? (
+                          <>
+                            {" · "}
+                            <a href={r.pdf_url} target="_blank" rel="noopener noreferrer" className="font-bold text-cc-navy underline">
+                              📄 행정양식 PDF
+                            </a>
+                          </>
+                        ) : null}
                       </p>
 
                       {sections.length > 0 ? (
