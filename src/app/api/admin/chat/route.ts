@@ -45,9 +45,23 @@ async function reviewFullAgentAnswer(
     });
     let finalAnswer = answer;
     let badge: ChatBadge = hasEvidence ? "ok" : "no_evidence";
-    if (v.hasFalseInfo || v.hasDangerousMisinfo) {
+    // 위험 오정보(감전/화재 등 안전사고 소지)는 수정본이 있어도 절대 신뢰하지 않고 항상 전면 차단한다.
+    // 반면 hasFalseInfo(과장/미구현 오안내 등 비안전 오류)는 Gemini가 문제 구간만 고친 수정제안을
+    // 함께 주는 경우가 많으므로, 그 수정본이 있으면 전면 차단 대신 그걸 보여준다 — 그렇지 않으면
+    // "업무범위 알려줘" 같은 정상적인 질문에도 아무 내용 없는 일반 안내문만 나가는 문제가 있었다
+    // (2026-08-17 실제 사례: 총괄디렉터 답변 중 근거 없는 매출 목표 단정 한 줄 때문에 답변 전체가
+    // 차단되고, Gemini가 이미 만들어 둔 정확한 수정본은 버려짐).
+    if (v.hasDangerousMisinfo) {
       finalAnswer = BLOCKED_MESSAGE;
       badge = "blocked";
+    } else if (v.hasFalseInfo) {
+      if (v.correctedAnswer) {
+        finalAnswer = v.correctedAnswer;
+        badge = "corrected";
+      } else {
+        finalAnswer = BLOCKED_MESSAGE;
+        badge = "blocked";
+      }
     } else if (!v.passed && v.correctedAnswer) {
       finalAnswer = v.correctedAnswer;
       badge = "corrected";
