@@ -3,6 +3,7 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { listExpenses, createExpense, getExpenseStats } from "@/lib/erp-db";
 import { validateExpense, GEMINI_ENABLED } from "@/lib/cross-validate";
+import { verifyExpenseWithCFO } from "@/lib/advisory-gates";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,12 @@ export async function POST(req: NextRequest) {
       if (!validation.passed) {
         return NextResponse.json({ error: `경비 검증 실패: ${validation.reason}`, validation }, { status: 422 });
       }
+    }
+
+    // CFO 검증 게이트 — Gemini(카테고리-설명 일치)와 별개로 사업 맥락(규모·현금흐름) 기준 재검토
+    const cfo = await verifyExpenseWithCFO(body.category, amount, body.description ?? null);
+    if (cfo.concern) {
+      return NextResponse.json({ error: `CFO 재무 검토 반려: ${cfo.concern}` }, { status: 422 });
     }
 
     const expense = await createExpense({

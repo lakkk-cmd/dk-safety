@@ -6,7 +6,9 @@ import { activateDispatch } from "@/lib/orders-pg";
 import { pushLiveNotification, pushReservationProgressNotifications } from "@/lib/live-notify";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { validateWorkerAssignment } from "@/lib/cross-validate";
+import { checkWorkerAssignmentWithCOO } from "@/lib/advisory-gates";
 import { sendSMS } from "@/lib/solapi-agent";
+import { logAgentEvent } from "@/lib/pipeline-logs";
 
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
@@ -35,6 +37,21 @@ export async function POST(request: Request) {
     });
     if (!validation.passed) {
       return NextResponse.json({ message: validation.reason }, { status: 422 });
+    }
+
+    // COO 검증 게이트(소프트) — 하드 차단(당일 5건 이상)에는 못 미치지만 과부하가 우려되면
+    // 경고만 로그로 남긴다. 배정 자체는 막지 않는다(운영 판단은 대표님 재량).
+    try {
+      const coo = await checkWorkerAssignmentWithCOO(
+        worker?.name ?? workerId,
+        scheduledAt,
+        existingAssignments.length,
+      );
+      if (coo.concern) {
+        await logAgentEvent("warn", "task-assign", `COO 운영 검토 경고: ${worker?.name ?? workerId} — ${coo.concern}`);
+      }
+    } catch {
+      // 경고성 검증 실패는 배정 흐름에 영향 없음
     }
 
     // orders: 결제(PAID) 확인 후 dispatch_status를 READY(배정 대기)로 맞춥니다(015+ 제약).

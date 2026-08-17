@@ -459,6 +459,16 @@ export async function callClaudeWithTools(params: {
 }
 
 /**
+ * "이상없음"/그 외 텍스트로 판정하는 검증 게이트(verifyContentBriefWithMarketer,
+ * verifyIssueWithTechMarketer, advisory-gates.ts 등)가 공유하는 판정 헬퍼. 모델이 "이상없음"을
+ * 마크다운 강조(**이상없음**)나 목록기호로 감싸 응답하면 단순 startsWith가 오탐(정상을 반려로
+ * 처리)을 내는 실제 버그가 있었다(2026-08 발견) — 흔한 마크다운 접두 기호를 벗겨내고 비교한다.
+ */
+export function isNoConcernVerdict(raw: string): boolean {
+  return raw.replace(/^[\s*_#>`~-]+/, "").startsWith("이상없음");
+}
+
+/**
  * chief가 반환한 ```json``` 블록을 파싱하는 범용 헬퍼.
  * 중괄호 깊이를 직접 추적해 첫 `{`에 대응하는 `}`까지 추출한다 — 정규식 기반 추출은
  * JSON 문자열 값 내부에 ``` 코드펜스나 중첩 `{}`가 포함된 경우(예: 코드 제안이 담긴

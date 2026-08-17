@@ -1,4 +1,5 @@
 import { getCurrentWeekStatus, type WeekStatus } from "@/lib/agents";
+import { verifyContentLegalRisk } from "@/lib/advisory-gates";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { loadPendingFeedback } from "@/lib/agent-memory";
 import {
@@ -240,6 +241,14 @@ export async function runYoutubeDrafting(limit = 2): Promise<YoutubeDraftRunResu
         await logAgentEvent("warn", "content-draft", `YouTube 교차검증 실패 (건너뜀): ${errMessage(err)}`);
       }
     }
+    // CLO 검증 게이트 — Gemini 통과 후에만 실행(비용 절약). 법적 리스크가 있으면 통과를 뒤집는다.
+    if (validationPassed) {
+      const clo = await verifyContentLegalRisk(ytRow.title, draft.script, "youtube");
+      if (clo.concern) {
+        validationPassed = false;
+        await logAgentEvent("warn", "content-draft", `CLO 법적 검토 반려: ${ytRow.title} — ${clo.concern}`);
+      }
+    }
     const ytStatus: "pending_approval" | "review_required" = validationPassed ? "pending_approval" : "review_required";
     await supabase
       .from("content_youtube_queue")
@@ -306,6 +315,13 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
           await logAgentEvent("warn", "content-draft", `Kakao 교차검증 실패 (건너뜀): ${errMessage(err)}`);
         }
       }
+      if (validationPassed) {
+        const clo = await verifyContentLegalRisk(kkRow.title, draft, "kakao");
+        if (clo.concern) {
+          validationPassed = false;
+          await logAgentEvent("warn", "content-draft", `CLO 법적 검토 반려: ${kkRow.title} — ${clo.concern}`);
+        }
+      }
       await supabase
         .from("content_kakao_queue")
         .update({
@@ -349,6 +365,13 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
           validationPassed = validation.passed;
         } catch (err) {
           await logAgentEvent("warn", "content-draft", `Blog 교차검증 실패 (건너뜀): ${errMessage(err)}`);
+        }
+      }
+      if (validationPassed) {
+        const clo = await verifyContentLegalRisk(row.title, draft.content, "blog");
+        if (clo.concern) {
+          validationPassed = false;
+          await logAgentEvent("warn", "content-draft", `CLO 법적 검토 반려: ${row.title} — ${clo.concern}`);
         }
       }
       await supabase

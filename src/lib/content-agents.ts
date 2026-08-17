@@ -1,4 +1,5 @@
-import { Agent, BUSINESS_CONTEXT, callClaude, callClaudeCustom, extractJsonBlock, type WeekStatus } from "@/lib/agents";
+import { Agent, BUSINESS_CONTEXT, callClaude, callClaudeCustom, extractJsonBlock, isNoConcernVerdict, type WeekStatus } from "@/lib/agents";
+import { checkStrategyAlignmentWithCSO } from "@/lib/advisory-gates";
 import type { PerformanceSnapshotItem } from "@/lib/content-performance";
 import { loadRecentSharedMemory } from "@/lib/shared-memory";
 
@@ -154,6 +155,8 @@ export type DirectorContentBrief = {
   constraints: string;
   weekFocus: string;
   categories: ContentCategory[];
+  /** 실제 CSO 페르소나가 브리핑을 다시 검토해 남긴 참고 메모(있을 때만) — 하드 블록 아님 */
+  csoNote?: string;
 };
 
 export type MarketerYoutubeItem = YoutubeContentPlanItem & ContentGuideline;
@@ -203,11 +206,25 @@ export async function runDirectorContentIntake(
     ? (JSON.parse(jsonText) as Partial<Omit<DirectorContentBrief, "categories">>)
     : {};
 
+  const priorities = String(parsed.priorities ?? "");
+  const weekFocusText = String(parsed.weekFocus ?? "");
+
+  // CSO 검증 게이트(소프트) — 디렉터가 자체 종합한 우선순위가 실제 CSO 페르소나 관점에서도
+  // 로드맵과 맞는지 재확인한다. 하드 블록이 아니라 마케터(CMO) 참고 메모로만 붙인다.
+  let csoNote: string | undefined;
+  try {
+    const cso = await checkStrategyAlignmentWithCSO(priorities, weekFocusText, weekStatus?.message);
+    if (cso.concern) csoNote = cso.concern;
+  } catch {
+    // 경고성 검증 실패는 브리핑 생성 흐름에 영향 없음
+  }
+
   return {
-    priorities: String(parsed.priorities ?? ""),
+    priorities,
     constraints: String(parsed.constraints ?? "특이사항 없음"),
-    weekFocus: String(parsed.weekFocus ?? ""),
+    weekFocus: weekFocusText,
     categories: youtubeCategories,
+    csoNote,
   };
 }
 
@@ -266,14 +283,17 @@ export async function runMarketerContentBrief(
         .join("\n")}\n`
     : "";
 
+  const csoNoteBlock = brief.csoNote ? `- CSO 참고 메모(전략 정합성 우려): ${brief.csoNote}\n` : "";
+
   const prompt = `${weekLine}${BUSINESS_CONTEXT}${trendsBlock}${sharedMemoryBlock}
 [총괄디렉터 브리핑]
 - 우선순위: ${brief.priorities || "(없음)"}
 - 제약(법무): ${brief.constraints}
 - 이번 주 집중 방향: ${brief.weekFocus || "(없음)"}
-
+${csoNoteBlock}
 위 브리핑을 반영해 워커용 제작 가이드라인을 작성하라. 브리핑이 [최근 대표님 관련 맥락]과 명백히
-충돌한다면 무시하지 말고 가이드라인의 mustAvoid/tone에 그 우려를 반영하라.`.trim();
+충돌한다면 무시하지 말고 가이드라인의 mustAvoid/tone에 그 우려를 반영하라. CSO 참고 메모가 있다면
+전략 방향 조정에 참고하라(강제 아님).`.trim();
 
   const systemPrompt = buildMarketerSystemPrompt(brief.categories);
   const raw = await callClaudeCustom(systemPrompt, prompt, 4000, 120_000);
@@ -347,7 +367,7 @@ export async function verifyContentBriefWithMarketer(
 
   try {
     const raw = (await callClaude("cmo", prompt, VERIFICATION_MAX_TOKENS)).trim();
-    return { concern: raw.startsWith("이상없음") ? null : raw };
+    return { concern: isNoConcernVerdict(raw) ? null : raw };
   } catch {
     // 검증 자체가 실패하면(레이트리밋 등) 등록을 막지 않는다 — 안전장치가 없어서 실행이
     // 아예 안 되는 것보다는, 검증 없이 기존 동작(등록)을 유지하는 편이 낫다.

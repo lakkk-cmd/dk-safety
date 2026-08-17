@@ -3,6 +3,7 @@
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 import { callClaudeCustom } from "@/lib/agents";
 import { validateContent } from "@/lib/cross-validate";
+import { verifyDocumentWithCLOandCFO } from "@/lib/advisory-gates";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { uploadBinaryObject, SUPABASE_ENABLED } from "@/lib/supabase-server";
 import { parseMarkdownSections, renderDocumentPdf, type DocumentSection } from "@/lib/document-pdf";
@@ -103,6 +104,17 @@ export async function generateDocument(params: {
     content,
     contentType: "document",
   }).catch(() => ({ passed: true, score: 70, reason: "검증 불가(Gemini 미설정)", verdict: "" }));
+
+  // CLO+CFO 검증 게이트(하드 블록) — 견적서/계약서/완료확인서/제안서는 실제 고객에게 나가는
+  // 금전·계약 문서라, 발행 전 법무(CLO)+재무(CFO) 관점을 추가로 거친다. 점검보고서/안전안내문은
+  // 금액·계약 조건이 없어 대상에서 제외한다.
+  const FINANCIAL_LEGAL_DOC_TYPES = ["estimate", "contract", "completion_cert", "proposal"];
+  if (FINANCIAL_LEGAL_DOC_TYPES.includes(params.docType)) {
+    const advisory = await verifyDocumentWithCLOandCFO(template.title, content);
+    if (advisory.concern) {
+      throw new Error(`자문단 검토 반려(${advisory.concern}) — 대장님께 내용을 재확인해주세요.`);
+    }
+  }
 
   const supabase = requireAgentSupabase();
   const { data: docRow, error: insertErr } = await supabase

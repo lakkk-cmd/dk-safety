@@ -4,6 +4,7 @@ import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { listInvoices, createInvoice } from "@/lib/erp-db";
 import type { InvoiceItem } from "@/lib/erp-db";
 import { validateInvoice, GEMINI_ENABLED } from "@/lib/cross-validate";
+import { verifyInvoiceWithCFO } from "@/lib/advisory-gates";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,12 @@ export async function POST(req: NextRequest) {
     } catch (validationErr) {
       if (GEMINI_ENABLED) throw validationErr;
       // Gemini 미설정: 수학 검증은 오류 발생 시 이미 위에서 반환되었으므로 여기 도달 시 계속 진행
+    }
+
+    // CFO 검증 게이트 — 확정 요금 체계 대비 금액이 명백히 벗어나 있는지 재검토
+    const cfo = await verifyInvoiceWithCFO(body.customer_name, items, total);
+    if (cfo.concern) {
+      return NextResponse.json({ error: `CFO 재무 검토 반려: ${cfo.concern}` }, { status: 422 });
     }
 
     const invoice = await createInvoice({

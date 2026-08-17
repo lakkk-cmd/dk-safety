@@ -1,10 +1,11 @@
 /** Full(총괄) 에이전트가 호출하는 6개 도구의 실행부. 각 도구는 기존 함수를 얇게 감싸 재사용한다. */
 
 import { chatWithAgentPlus, CHAT_AGENTS } from "@/lib/agent-chat";
-import { callClaude } from "@/lib/agents";
+import { callClaude, isNoConcernVerdict } from "@/lib/agents";
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { createBlogPost } from "@/lib/blog-store";
 import { verifyContentBriefWithMarketer, type ContentCategory } from "@/lib/content-agents";
+import { checkContentJobLoadWithCOO } from "@/lib/advisory-gates";
 import { createGithubIssue, readGithubFile } from "@/lib/github-issues";
 import { createChatImprovementRequest } from "@/lib/improvement-requests";
 import { saveKnowledgeRows } from "@/lib/knowledge-store";
@@ -31,7 +32,7 @@ async function verifyIssueWithTechMarketer(title: string, body: string): Promise
 "이상없음"이라고만 답하라.`;
   try {
     const raw = (await callClaude("cto", prompt, 200)).trim();
-    return { concern: raw.startsWith("이상없음") ? null : raw };
+    return { concern: isNoConcernVerdict(raw) ? null : raw };
   } catch {
     return { concern: null };
   }
@@ -487,11 +488,25 @@ export async function toolCreateVideoJob(args: {
     const { data, error } = await supabase.from("video_jobs").insert(row).select("id").single();
     if (error) throw error;
     const jobId = (data as { id: string }).id;
+
+    // COO 검증 게이트(소프트) — 처리 중/대기 중인 영상 작업이 너무 쌓여있으면 경고만 덧붙인다.
+    let cooNote = "";
+    try {
+      const { count } = await supabase
+        .from("video_jobs")
+        .select("id", { count: "exact", head: true })
+        .not("status", "in", "(published,rejected,error)");
+      const coo = await checkContentJobLoadWithCOO("video", topic, count ?? 1);
+      if (coo.concern) cooNote = `\n⚠️ COO 운영 검토: ${coo.concern}`;
+    } catch {
+      // 경고성 검증 실패는 등록 흐름에 영향 없음
+    }
+
     return (
       `✅ 영상 제작 작업 등록됨 (job_id: ${jobId}, format: ${format})\n` +
       `처리 흐름: 로컬 워커 PC가 켜져 있으면 60초 내에 집어가 대본 생성→TTS→렌더링을 진행하고, ` +
       `완료되면 대장에게 카카오 검토 알림이 갑니다. 대장이 hq.dkansim.com/videos에서 승인해야만 유튜브에 업로드됩니다 (즉시 게시 아님). ` +
-      `진행 상황은 get_video_job(job_id)로 확인할 수 있습니다.`
+      `진행 상황은 get_video_job(job_id)로 확인할 수 있습니다.${cooNote}`
     );
   } catch (e) {
     return `영상 작업 등록 실패: ${e instanceof Error ? e.message : String(e)}`;
@@ -564,11 +579,25 @@ export async function toolCreateBlogJob(args: {
     const { data, error } = await supabase.from("blog_jobs").insert(row).select("id").single();
     if (error) throw error;
     const jobId = (data as { id: string }).id;
+
+    // COO 검증 게이트(소프트) — 처리 중/대기 중인 블로그 작업이 너무 쌓여있으면 경고만 덧붙인다.
+    let cooNote = "";
+    try {
+      const { count } = await supabase
+        .from("blog_jobs")
+        .select("id", { count: "exact", head: true })
+        .not("status", "in", "(published,rejected,error)");
+      const coo = await checkContentJobLoadWithCOO("blog", topic, count ?? 1);
+      if (coo.concern) cooNote = `\n⚠️ COO 운영 검토: ${coo.concern}`;
+    } catch {
+      // 경고성 검증 실패는 등록 흐름에 영향 없음
+    }
+
     return (
       `✅ 블로그 원고 제작 작업 등록됨 (job_id: ${jobId})\n` +
       `처리 흐름: 로컬 워커 PC가 켜져 있으면 60초 내에 집어가 키워드 조사→원고 작성→검증→사진/썸네일까지 자동 처리하고, ` +
       `완성되면 대장에게 카카오 알림이 갑니다. 네이버 발행은 자동화가 불가능(정책 위반)하므로 반드시 대장이 hq.dkansim.com/blog-jobs에서 패키지를 받아 직접 발행합니다. ` +
-      `진행 상황은 get_blog_job(job_id)로 확인할 수 있습니다.`
+      `진행 상황은 get_blog_job(job_id)로 확인할 수 있습니다.${cooNote}`
     );
   } catch (e) {
     return `블로그 작업 등록 실패: ${e instanceof Error ? e.message : String(e)}`;
