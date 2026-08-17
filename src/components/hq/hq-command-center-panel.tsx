@@ -242,7 +242,7 @@ h1{font-size:20px;font-weight:900;margin:0}h2{font-size:15px;margin:20px 0 8px}
 <div class="header">
   <div class="badge">Weekly Executive Report</div>
   <h1>대경이엔피 경영진 보고서</h1>
-  <p style="margin:6px 0 0;font-size:13px;color:#666">${r.date_label} · 우리집 안심전기</p>
+  <p style="margin:6px 0 0;font-size:13px;color:#666">${r.date_label} · 우리집 전기주치의</p>
 </div>
 <button onclick="window.print()" style="margin-bottom:20px;padding:8px 18px;background:#111;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🖨️ 인쇄</button>
 <h2>총괄 코디네이터 종합 보고</h2>
@@ -250,7 +250,7 @@ h1{font-size:20px;font-weight:900;margin:0}h2{font-size:15px;margin:20px 0 8px}
 ${sectionRows ? `<h2>주제별 요약</h2>${sectionRows}` : ""}
 <h2>경영진 핵심 의견</h2>
 ${agentRows || "<p style='color:#999;font-size:13px'>에이전트 응답 없음</p>"}
-<div class="footer">대경이엔피 · 우리집 안심전기 · dkansim.com</div>
+<div class="footer">대경이엔피 · 우리집 전기주치의 · dkansim.com</div>
 </body></html>`;
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); }

@@ -107,7 +107,7 @@ export function buildEmailHTML(
     <div style="background:#111;padding:28px 32px">
       <p style="margin:0 0 4px;font-size:11px;letter-spacing:.1em;color:#888;text-transform:uppercase">Weekly Executive Council</p>
       <h1 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#fff">주간 경영진 회의 보고서</h1>
-      <p style="margin:0;font-size:13px;color:#aaa">${date} · 우리집 안심전기 · 매주 토요일</p>
+      <p style="margin:0;font-size:13px;color:#aaa">${date} · 우리집 전기주치의 · 매주 토요일</p>
     </div>
     <div style="padding:32px">
       ${feedbackBlock}

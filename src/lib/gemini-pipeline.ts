@@ -34,7 +34,7 @@ export async function analyzeVideoTranscript(title: string, transcript: string):
     throw new Error("GEMINI_API_KEY가 설정되지 않았습니다.");
   }
 
-  const prompt = `다음은 전기·주거 안전 관련 유튜브 영상의 자막입니다. "우리집 안심전기"(광주광역시 아파트 입주민 대상 전기 점검·수리 1인 사업자, dkansim.com)의 마케팅·콘텐츠 기획 관점에서 분석해 주세요.
+  const prompt = `다음은 전기·주거 안전 관련 유튜브 영상의 자막입니다. "우리집 전기주치의"(광주광역시 아파트 입주민 대상 전기 점검·수리 1인 사업자, dkansim.com)의 마케팅·콘텐츠 기획 관점에서 분석해 주세요.
 
 영상 제목: ${title || "(제목 없음)"}
 
@@ -44,7 +44,7 @@ ${transcript.slice(0, MAX_TRANSCRIPT_CHARS)}
 JSON으로 응답하세요:
 - summary: 영상 핵심 내용 3~5문장 요약 (한국어)
 - key_points: 핵심 포인트 (최대 5개, 한국어)
-- content_ideas: 우리집 안심전기가 참고할 콘텐츠/마케팅 아이디어 (최대 3개, 한국어)
+- content_ideas: 우리집 전기주치의가 참고할 콘텐츠/마케팅 아이디어 (최대 3개, 한국어)
 - relevance: 우리 사업(아파트 전기 점검·수리)과의 관련도 (high/medium/low)`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;

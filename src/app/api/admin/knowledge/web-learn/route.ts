@@ -26,38 +26,24 @@ export async function GET() {
 
   try {
     const supabase = requireAgentSupabase();
-    const { data, error } = await supabase
-      .from('knowledge')
-      .select('source, created_at')
-      .not('embedding_voyage', 'is', null)
-      .limit(50000);
-
+    // source별로 이미 DB에서 GROUP BY 집계된 결과를 받는다(knowledge_stats_by_source RPC,
+    // 099 마이그레이션) — raw 행을 fetch해 JS에서 세던 예전 방식은 PostgREST 기본 행 개수
+    // 상한(1,000)에 걸려 knowledge 테이블이 그보다 커지면 부정확해졌다(2026-08-17 실사례:
+    // 행정업무운영편람 614청크가 21청크로 잘못 표시됨 — 데이터 자체는 정상 저장돼 있었음).
+    const { data, error } = await supabase.rpc('knowledge_stats_by_source');
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const rows = data ?? [];
-    let pdf = 0, tavily = 0, firecrawl = 0;
-
-    const bySource = new Map<string, { count: number; lastLearned: string }>();
-    for (const row of rows) {
-      const sf = row.source as string;
-      const ca = row.created_at as string;
-      if (sf.startsWith('web:tavily:')) tavily++;
-      else if (sf.startsWith('web:firecrawl:')) firecrawl++;
-      else pdf++;
-
-      const ex = bySource.get(sf);
-      if (!ex) {
-        bySource.set(sf, { count: 1, lastLearned: ca });
-      } else {
-        ex.count++;
-        if (ca > ex.lastLearned) ex.lastLearned = ca;
-      }
-    }
-
+    const bySource = (data ?? []) as { source: string; chunk_count: number; last_learned: string }[];
+    let total = 0, pdf = 0, tavily = 0, firecrawl = 0;
     const catMap = new Map<string, { category: string; type: string; chunks: number; lastLearned: string }>();
     const recentList: Array<{ sourceFile: string; chunks: number; type: string; label: string; category: string; lastLearned: string }> = [];
 
-    for (const [sf, { count, lastLearned }] of bySource) {
+    for (const { source: sf, chunk_count: count, last_learned: lastLearned } of bySource) {
+      total += count;
+      if (sf.startsWith('web:tavily:')) tavily += count;
+      else if (sf.startsWith('web:firecrawl:')) firecrawl += count;
+      else pdf += count;
+
       const { type, category, label } = parseSourceFile(sf);
       const key = `${type}:${category}`;
       const ex = catMap.get(key);
@@ -73,7 +59,7 @@ export async function GET() {
     const categories = [...catMap.values()].sort((a, b) => b.chunks - a.chunks);
     const recent = recentList.sort((a, b) => b.lastLearned.localeCompare(a.lastLearned)).slice(0, 10);
 
-    return NextResponse.json({ total: rows.length, pdf, tavily, firecrawl, categories, recent });
+    return NextResponse.json({ total, pdf, tavily, firecrawl, categories, recent });
   } catch (err) {
     console.error('[admin/web-learn GET] 오류:', err);
     return NextResponse.json({ error: (err as Error).message ?? '통계 로드 실패' }, { status: 500 });
