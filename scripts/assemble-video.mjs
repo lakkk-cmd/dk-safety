@@ -4,10 +4,12 @@
  * 자막 번인으로 9:16 영상을 합성하고, Supabase Storage에 업로드(video_asset_url) 후
  * (연동되어 있으면) 유튜브에 비공개로 업로드한다.
  *
- * 요구: ffmpeg/ffprobe (apt-get install ffmpeg), edge-tts (pip install edge-tts, 슈퍼톤/ElevenLabs 미설정 시 폴백),
+ * 요구: ffmpeg/ffprobe (apt-get install ffmpeg), edge-tts (pip install edge-tts, 아래 유료 티어 미설정 시 폴백),
  *       fonts-noto-cjk (자막 한글 폰트)
- * 선택 env: SUPERTONE_API_KEY + SUPERTONE_VOICE_ID (한국어 특화, 우선순위 1순위 — 가입: supertone.ai/en/api)
- *          ELEVENLABS_API_KEY + ELEVENLABS_VOICE_ID (2순위, 둘 다 있어야 사용됨)
+ * 선택 env: FAL_API_KEY + FAL_SPEAKER_EMBEDDING_URL (대표님 목소리 클론, 우선순위 1순위 — fal.ai 가입 후
+ *          scripts/clone-voice-fal.mjs로 1회 생성. 1,000자당 $0.09, Qwen3-TTS 기반)
+ *          SUPERTONE_API_KEY + SUPERTONE_VOICE_ID (한국어 특화 기성 음성, 2순위 — 가입: supertone.ai/en/api)
+ *          ELEVENLABS_API_KEY + ELEVENLABS_VOICE_ID (3순위, 둘 다 있어야 사용됨)
  * Usage: node --env-file=.env.local scripts/assemble-video.mjs
  */
 import { createClient } from "@supabase/supabase-js";
@@ -29,6 +31,9 @@ const WIDTH = 1080;
 const HEIGHT = 1920;
 const CAPTION_FONT = "Noto Sans CJK KR";
 const TTS_VOICE = "ko-KR-SunHiNeural";
+const FAL_API_KEY = process.env.FAL_API_KEY?.trim();
+const FAL_SPEAKER_EMBEDDING_URL = process.env.FAL_SPEAKER_EMBEDDING_URL?.trim();
+const FAL_TTS_MODEL = "fal-ai/qwen-3-tts/text-to-speech/1.7b";
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY?.trim();
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID?.trim();
 const SUPERTONE_API_KEY = process.env.SUPERTONE_API_KEY?.trim();
@@ -178,6 +183,53 @@ function buildSegment(dir, index, scene) {
   return { imagePath, audioPath, captionPath, segmentPath };
 }
 
+/**
+ * fal.ai는 queue 방식 REST API — submit → status 폴링 → result 조회 3단계.
+ * (동기 fal.run/{model} 엔드포인트도 있으나 생성 시간이 모델/부하에 따라 들쭉날쭉해 queue가 더 안전)
+ */
+async function falSubmitAndWait(modelId, input, timeoutMs = 60_000) {
+  const submitRes = await fetch(`https://queue.fal.run/${modelId}`, {
+    method: "POST",
+    headers: { Authorization: `Key ${FAL_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!submitRes.ok) {
+    throw new Error(`fal.ai 요청 실패 (${submitRes.status}): ${(await submitRes.text()).slice(0, 200)}`);
+  }
+  const { request_id: requestId } = await submitRes.json();
+
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const statusRes = await fetch(`https://queue.fal.run/${modelId}/requests/${requestId}/status`, {
+      headers: { Authorization: `Key ${FAL_API_KEY}` },
+    });
+    const statusData = await statusRes.json();
+    if (statusData.status === "COMPLETED") {
+      const resultRes = await fetch(`https://queue.fal.run/${modelId}/requests/${requestId}`, {
+        headers: { Authorization: `Key ${FAL_API_KEY}` },
+      });
+      if (!resultRes.ok) throw new Error(`fal.ai 결과 조회 실패 (${resultRes.status})`);
+      return resultRes.json();
+    }
+    if (statusData.status === "ERROR") {
+      throw new Error(`fal.ai 생성 실패: ${JSON.stringify(statusData).slice(0, 300)}`);
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  throw new Error("fal.ai 응답 시간 초과");
+}
+
+async function synthesizeWithFal(text, destPath) {
+  const result = await falSubmitAndWait(FAL_TTS_MODEL, {
+    text,
+    language: "Korean",
+    speaker_voice_embedding_file_url: FAL_SPEAKER_EMBEDDING_URL,
+  });
+  const audioRes = await fetch(result.audio.url);
+  if (!audioRes.ok) throw new Error(`fal.ai 오디오 다운로드 실패 (${audioRes.status})`);
+  writeFileSync(destPath, Buffer.from(await audioRes.arrayBuffer()));
+}
+
 async function synthesizeWithSupertone(text, destPath) {
   const res = await fetch(`https://supertoneapi.com/v1/text-to-speech/${SUPERTONE_VOICE_ID}`, {
     method: "POST",
@@ -209,10 +261,19 @@ async function synthesizeWithElevenLabs(text, destPath) {
 }
 
 /**
- * 나레이션 음성 합성 — 우선순위: 슈퍼톤(한국어 특화) → ElevenLabs → 무료 edge-tts.
+ * 나레이션 음성 합성 — 우선순위: fal.ai(대표님 클론 목소리) → 슈퍼톤(한국어 특화) → ElevenLabs → 무료 edge-tts.
  * 각 단계는 필요한 env가 없거나 호출이 실패하면 조용히 다음 단계로 넘어간다(필수 설정 아님).
  */
 async function synthesizeNarration(text, destPath) {
+  if (FAL_API_KEY && FAL_SPEAKER_EMBEDDING_URL) {
+    try {
+      await synthesizeWithFal(text, destPath);
+      return;
+    } catch (err) {
+      console.warn("  fal.ai(클론 목소리) TTS 실패 — 다음 우선순위로 폴백:", err instanceof Error ? err.message : err);
+    }
+  }
+
   if (SUPERTONE_API_KEY && SUPERTONE_VOICE_ID && text.length <= SUPERTONE_MAX_CHARS) {
     try {
       await synthesizeWithSupertone(text, destPath);

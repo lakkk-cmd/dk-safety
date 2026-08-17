@@ -145,6 +145,57 @@ function Linkified({ text }: { text: string }) {
   );
 }
 
+function SpeakButton({ text }: { text: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "playing" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handleClick = useCallback(async () => {
+    if (state === "loading") return;
+    if (state === "playing") {
+      audioRef.current?.pause();
+      if (audioRef.current) audioRef.current.currentTime = 0;
+      setState("idle");
+      return;
+    }
+    setState("loading");
+    setErrorMsg(null);
+    try {
+      const res = await fetch("/api/admin/chat/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = (await res.json()) as { audioUrl?: string; message?: string };
+      if (!res.ok || !data.audioUrl) throw new Error(data.message ?? "음성 생성에 실패했습니다.");
+      const audio = new Audio(data.audioUrl);
+      audio.onended = () => setState("idle");
+      audio.onerror = () => { setState("error"); setErrorMsg("오디오 재생에 실패했습니다."); };
+      audioRef.current = audio;
+      await audio.play();
+      setState("playing");
+    } catch (err) {
+      setState("error");
+      setErrorMsg(err instanceof Error ? err.message : "음성 생성에 실패했습니다.");
+    }
+  }, [state, text]);
+
+  return (
+    <div className="mt-1 flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => void handleClick()}
+        disabled={state === "loading"}
+        className="flex items-center gap-1 text-[10px] font-bold text-slate-400 transition hover:text-cc-navy disabled:opacity-50"
+        title="음성으로 듣기"
+      >
+        {state === "loading" ? "⏳ 생성 중…" : state === "playing" ? "⏸ 정지" : "🔊 들려주기"}
+      </button>
+      {state === "error" && errorMsg ? <span className="text-[10px] text-cc-red">{errorMsg}</span> : null}
+    </div>
+  );
+}
+
 function ValidationBadge({ validation }: { validation: ChatValidation }) {
   const badge = validation.badge ?? (validation.passed ? "ok" : "corrected");
   if (badge === "blocked") {
@@ -712,6 +763,7 @@ export default function HqChatClient() {
                           ) : null}
                         </div>
                       ) : null}
+                      {m.role === "assistant" && m.content ? <SpeakButton text={m.content} /> : null}
                       {m.role === "assistant" && m.validation ? <ValidationBadge validation={m.validation} /> : null}
                       {m.role === "assistant" && m.pendingImprovement ? (
                         <ImprovementProgressCard
