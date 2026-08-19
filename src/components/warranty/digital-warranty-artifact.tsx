@@ -82,14 +82,20 @@ const SERVICE_PRESETS: Record<ServiceKey, ServiceItem> = {
 
 const currency = (value: number) => `${Math.max(0, Math.round(value)).toLocaleString()}원`;
 
+function toServiceKey(value: string | null | undefined): ServiceKey {
+  const normalized = value?.trim().toUpperCase();
+  return normalized && normalized in SERVICE_PRESETS ? (normalized as ServiceKey) : "VISIT";
+}
+
 export default function DigitalWarrantyArtifact({ warranty }: Props) {
   const [tab, setTab] = useState<"cert" | "calc" | "verify">("cert");
-  const [baseFee, setBaseFee] = useState(50000);
+  const [viewer, setViewer] = useState<null | "pdf" | "image">(null);
+  const [baseFee, setBaseFee] = useState(warranty.finalAmount ?? 50000);
   const [extraFee, setExtraFee] = useState(0);
   const [quantity, setQuantity] = useState(1);
-  const [serviceType, setServiceType] = useState<ServiceKey>("LEAKAGE");
+  const [serviceType, setServiceType] = useState<ServiceKey>(() => toServiceKey(warranty.serviceType));
   const [workProceeded, setWorkProceeded] = useState(false);
-  const [verifyInput, setVerifyInput] = useState("WST-2024-APT001-3A8F2");
+  const [verifyInput, setVerifyInput] = useState(warranty.warrantyNumber);
   const [verifyState, setVerifyState] = useState<{ loading: boolean; error?: string; found?: WarrantyView }>({ loading: false });
 
   const [asOpen, setAsOpen] = useState(false);
@@ -195,8 +201,8 @@ export default function DigitalWarrantyArtifact({ warranty }: Props) {
             <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">최종 정산금</p><p className="font-semibold text-slate-900">{currency(warranty.finalAmount ?? 0)}</p></div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            <a href={pdfUrl} target="_blank" rel="noreferrer" className="btn-primary inline-flex items-center justify-center px-4 py-3 text-sm">보증서 PDF 열기</a>
-            <a href={imageUrl} target="_blank" rel="noreferrer" className="btn-outline inline-flex items-center justify-center px-4 py-3 text-sm">보증서 이미지 열기</a>
+            <button type="button" onClick={() => setViewer("pdf")} className="btn-primary inline-flex items-center justify-center px-4 py-3 text-sm">보증서 PDF 열기</button>
+            <button type="button" onClick={() => setViewer("image")} className="btn-outline inline-flex items-center justify-center px-4 py-3 text-sm">보증서 이미지 열기</button>
           </div>
 
           {isIssued ? (
@@ -282,7 +288,7 @@ export default function DigitalWarrantyArtifact({ warranty }: Props) {
 
       {tab === "verify" ? (
         <section className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4">
-          <p className="text-xs text-slate-500">샘플 번호: WST-2024-APT001-3A8F2</p>
+          <p className="text-xs text-slate-500">다른 보증번호를 입력해 진위를 확인할 수 있습니다. (기본값: 현재 보고 있는 보증서 번호)</p>
           <div className="flex gap-2">
             <input value={verifyInput} onChange={(e) => setVerifyInput(e.target.value)} className="h-11 flex-1 rounded-xl border border-slate-300 px-3 font-mono text-sm" placeholder="WST-2024-APT001-3A8F2" />
             <button type="button" onClick={() => void onVerify()} className="btn-primary px-4 text-sm" disabled={verifyState.loading}>{verifyState.loading ? "확인중" : "진위 확인"}</button>
@@ -298,6 +304,38 @@ export default function DigitalWarrantyArtifact({ warranty }: Props) {
             </div>
           ) : null}
         </section>
+      ) : null}
+
+      {viewer ? (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black">
+          <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setViewer(null)}
+              className="flex items-center gap-1 text-sm font-bold text-white"
+            >
+              ← 돌아가기
+            </button>
+            <a
+              href={viewer === "pdf" ? pdfUrl : imageUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs font-semibold text-slate-300 underline"
+            >
+              새 탭에서 열기
+            </a>
+          </div>
+          <div className="flex-1 overflow-auto bg-slate-950">
+            {viewer === "pdf" ? (
+              <iframe src={pdfUrl} title="보증서 PDF" className="h-full w-full border-0" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={imageUrl} alt="보증서 이미지" className="max-h-full max-w-full object-contain" />
+              </div>
+            )}
+          </div>
+        </div>
       ) : null}
     </div>
   );
