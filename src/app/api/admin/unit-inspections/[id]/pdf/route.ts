@@ -50,7 +50,8 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       insulationResistance: inspection.insulationResistance,
       etcNotes: inspection.etcNotes,
       autoDiagnosis: inspection.autoDiagnosis,
-      residentName: inspection.residentName
+      residentName: inspection.residentName,
+      signatureData: inspection.signatureData
     });
 
     const { dateKey } = getKstDateTime();
