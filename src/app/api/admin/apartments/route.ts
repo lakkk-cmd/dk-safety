@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     address?: string;
     electricalSafetyManagerName?: string;
     insulationResistanceThresholdMohm?: number | null;
+    leakageCurrentThresholdMa?: number | null;
   };
   const name = body.name?.trim() ?? "";
   const code = body.code?.trim().toLowerCase() ?? "";
@@ -48,7 +49,8 @@ export async function POST(request: Request) {
       address: body.address ?? "",
       electricalSafetyManagerName: body.electricalSafetyManagerName ?? "",
       insulationResistanceThresholdMohm:
-        typeof body.insulationResistanceThresholdMohm === "number" ? body.insulationResistanceThresholdMohm : null
+        typeof body.insulationResistanceThresholdMohm === "number" ? body.insulationResistanceThresholdMohm : null,
+      leakageCurrentThresholdMa: typeof body.leakageCurrentThresholdMa === "number" ? body.leakageCurrentThresholdMa : null
     });
     return NextResponse.json({ apartment }, { status: 201 });
   } catch (error) {

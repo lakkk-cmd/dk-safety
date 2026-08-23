@@ -13,6 +13,7 @@ type Apartment = {
   address: string;
   electricalSafetyManagerName: string;
   insulationResistanceThresholdMohm: number | null;
+  leakageCurrentThresholdMa: number | null;
 };
 
 /** 광주 5개 구 — 관리자 목록 탭 분류 + 주소 검색 결과로부터 구 자동 판별 */
@@ -70,7 +71,8 @@ const initialForm = {
   district: "",
   address: "",
   electricalSafetyManagerName: "",
-  insulationResistanceThresholdMohm: ""
+  insulationResistanceThresholdMohm: "",
+  leakageCurrentThresholdMa: ""
 };
 
 export default function AdminApartmentsManager() {
@@ -115,7 +117,8 @@ export default function AdminApartmentsManager() {
           district: form.district,
           address: form.address,
           electricalSafetyManagerName: form.electricalSafetyManagerName,
-          insulationResistanceThresholdMohm: form.insulationResistanceThresholdMohm === "" ? null : Number(form.insulationResistanceThresholdMohm)
+          insulationResistanceThresholdMohm: form.insulationResistanceThresholdMohm === "" ? null : Number(form.insulationResistanceThresholdMohm),
+          leakageCurrentThresholdMa: form.leakageCurrentThresholdMa === "" ? null : Number(form.leakageCurrentThresholdMa)
         })
       });
       const data = (await response.json().catch(() => ({}))) as { message?: string };
@@ -227,6 +230,14 @@ export default function AdminApartmentsManager() {
             placeholder="절연저항 기준값(MΩ) — 세대점검 자동판정용"
             className="soft-input"
           />
+          <input
+            type="number"
+            step="0.01"
+            value={form.leakageCurrentThresholdMa}
+            onChange={(e) => setForm((p) => ({ ...p, leakageCurrentThresholdMa: e.target.value }))}
+            placeholder="누설전류(IGR) 기준값(mA) — 세대점검 자동판정용"
+            className="soft-input"
+          />
         </div>
         <div className="mt-3 flex gap-2">
           <button type="button" onClick={() => void saveItem()} className="btn-primary px-4 py-2 text-sm">
@@ -298,9 +309,15 @@ export default function AdminApartmentsManager() {
               <p className="mt-1 text-xs text-slate-500">
                 전기선임자: {item.electricalSafetyManagerName || "미설정"} · 절연저항 기준값:{" "}
                 {item.insulationResistanceThresholdMohm === null ? (
-                  <span className="font-semibold text-amber-600">미설정(세대점검 자동판정 불가)</span>
+                  <span className="font-semibold text-amber-600">미설정</span>
                 ) : (
                   `${item.insulationResistanceThresholdMohm}MΩ`
+                )}{" "}
+                · IGR 기준값:{" "}
+                {item.leakageCurrentThresholdMa === null ? (
+                  <span className="font-semibold text-amber-600">미설정(세대점검 자동판정 불가)</span>
+                ) : (
+                  `${item.leakageCurrentThresholdMa}mA`
                 )}
               </p>
               <button type="button" onClick={() => void removeItem(item.id)} className="mt-2 rounded-md border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-700">
@@ -322,7 +339,8 @@ export default function AdminApartmentsManager() {
                     address: item.address,
                     electricalSafetyManagerName: item.electricalSafetyManagerName,
                     insulationResistanceThresholdMohm:
-                      item.insulationResistanceThresholdMohm === null ? "" : String(item.insulationResistanceThresholdMohm)
+                      item.insulationResistanceThresholdMohm === null ? "" : String(item.insulationResistanceThresholdMohm),
+                    leakageCurrentThresholdMa: item.leakageCurrentThresholdMa === null ? "" : String(item.leakageCurrentThresholdMa)
                   });
                 }}
                 className="ml-2 mt-2 rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"

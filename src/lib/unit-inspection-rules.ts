@@ -101,10 +101,11 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
   {
     id: "elb_missing_or_faulty",
     category: "배선기구(기구파손 불량기구)",
-    riskFactors: ["감전", "합선", "화재"],
+    riskFactors: ["감전", "합선", "화재", "전력손실"],
     label: "누전차단기 미설치 또는 동작불량, 열화 및 손상",
     simpleInspectable: false,
-    requiresManualCheck: true,
+    // 누설전류(IGR) 실측값으로 자동판정(2026-08 확정) — autoJudgeLeakageItem 참고.
+    requiresManualCheck: false,
     regulation: "별표3-3-가·라 누전차단기(ELB) 점검 (KEC 234.10 외, 권장 수명연한 제조일로부터 15년)",
     actionTypes: ["구두", "개선"],
     confidence: "exact"
@@ -215,17 +216,22 @@ export function buildChecklistTemplate(inspectionType: "visit" | "unvisited_simp
 }
 
 /**
- * 절연저항 실측값으로 절연(누전) 2항목을 자동 판정한다 — 워커가 버튼을 누르지 않아도 되는
- * 유일한 자동판정 케이스(2026-08 확정). 부하전류/누설전류(IGR)가 담당하는 항목은 아직
- * 기준값이 확정되지 않아 별도 자동판정 없이 수동 확인 대상으로 남아있다.
+ * 절연저항/누설전류(IGR) 실측값으로 3개 항목(절연 2개 + 누전차단기 미설치·동작불량)을 자동
+ * 판정한다 — 워커가 버튼을 누르지 않아도 되는 케이스(2026-08 확정). 부하전류가 담당하는
+ * 항목은 아직 기준값이 확정되지 않아 수동 확인 대상으로 남아있다.
  *
- * 기준값(thresholdMohm)은 전역 상수가 아니라 단지별로 관리자가 직접 입력한 값이다 —
- * 「전기설비 검사 및 점검의 방법·절차 등에 관한 고시」 별표3의 절연저항 기준은 세대 누전차단기
- * "회로 하나"를 기준으로 만들어졌는데, 총괄분전반처럼 여러 회로를 한번에 재면 병렬합성저항
- * (1/R총 = 1/R1+...+1/Rn)이라 항상 더 낮게 나온다. 단지마다 세대당 회로 개수가 다르므로
- * "정상"으로 볼 기준값도 단지마다 달라야 한다(2026-08 실사용 피드백, apartments 102 참고).
- * threshold가 아직 설정 안 된 단지는 자동판정을 하지 않고 해당없음("/")으로 남긴다 —
- * 잘못된 전역 기준값을 몰래 대신 쓰는 것보다 "판정 보류"가 안전하다.
+ * 기준값은 전역 상수가 아니라 단지별로 관리자가 직접 입력한 값이다 — 별표3의 절연저항/
+ * 누설전류 기준은 세대 누전차단기 "회로 하나"를 기준으로 만들어졌는데, 총괄분전반처럼 여러
+ * 회로를 한번에 재면 절연저항은 병렬합성저항(1/R총 = 1/R1+...+1/Rn)이라 항상 더 낮게, 누설
+ * 전류는 여러 회로분이 합산되어 더 높게 나온다. 단지마다 세대당 회로 개수가 다르므로 "정상"
+ * 으로 볼 기준값도 단지마다 달라야 한다(2026-08 실사용 피드백, apartments 102/103 참고).
+ * 기준값이 아직 설정 안 된 단지는 자동판정을 하지 않고 해당없음("/")으로 남긴다 — 잘못된
+ * 전역 기준값을 몰래 대신 쓰는 것보다 "판정 보류"가 안전하다.
+ *
+ * 다만 elb_missing_or_faulty는 "미설치 또는 동작불량"을 하나로 묶은 항목이라, IGR로는
+ * "동작불량"만 검증 가능하고 "미설치"(차단기 자체가 없는 경우)는 실측만으로 못 잡는다 —
+ * 회로에 ELB가 아예 없어도 누설전류 자체는 낮게 측정될 수 있다. 현장에서 육안으로 미설치를
+ * 확인하는 절차가 별도로 필요하다는 걸 감안해야 한다.
  */
 export function autoJudgeInsulationItem(insulationResistance: number | null, thresholdMohm: number | null): ChecklistResult {
   if (typeof insulationResistance !== "number" || !Number.isFinite(insulationResistance)) return "/";
@@ -233,15 +239,48 @@ export function autoJudgeInsulationItem(insulationResistance: number | null, thr
   return insulationResistance < thresholdMohm ? "X" : "O";
 }
 
+/** 누설전류는 절연저항과 반대 방향 — 기준값보다 "높으면" 부적합이다. */
+export function autoJudgeLeakageItem(igr: number | null, thresholdMa: number | null): ChecklistResult {
+  if (typeof igr !== "number" || !Number.isFinite(igr)) return "/";
+  if (typeof thresholdMa !== "number" || !Number.isFinite(thresholdMa)) return "/";
+  return igr > thresholdMa ? "X" : "O";
+}
+
+type AutoJudgeMeasurements = {
+  insulationResistance: number | null;
+  insulationResistanceThresholdMohm: number | null;
+  igr: number | null;
+  leakageCurrentThresholdMa: number | null;
+};
+
+function autoJudge(id: ChecklistItemId, m: AutoJudgeMeasurements): { result: ChecklistResult; note: string } {
+  if (id === "insulation_main_branch" || id === "insulation_equipment") {
+    const result = autoJudgeInsulationItem(m.insulationResistance, m.insulationResistanceThresholdMohm);
+    const note =
+      m.insulationResistanceThresholdMohm === null
+        ? "단지 기준값 미설정 — 관리자 설정 필요"
+        : `실측값(절연저항 ${m.insulationResistance}MΩ) 기준 자동판정`;
+    return { result, note };
+  }
+  if (id === "elb_missing_or_faulty") {
+    const result = autoJudgeLeakageItem(m.igr, m.leakageCurrentThresholdMa);
+    const note =
+      m.leakageCurrentThresholdMa === null ? "단지 기준값 미설정 — 관리자 설정 필요" : `실측값(누설전류 ${m.igr}mA) 기준 자동판정`;
+    return { result, note };
+  }
+  return { result: "/", note: "" };
+}
+
 /**
  * 워커가 입력한 항목별 결과(id+result+note)를 서버 신뢰 템플릿에 병합한다. category/riskFactors/
  * item 텍스트는 항상 CHECKLIST_ITEMS 기준으로 재구성해 클라이언트 위·변조를 막는다. requiresManualCheck
- * 가 false인 항목(현재 절연 2항목)은 클라이언트가 뭘 보내든 무시하고 실측값으로 서버가 다시 판정한다.
+ * 가 false인 항목(절연 2개 + 누전차단기 미설치·동작불량)은 클라이언트가 뭘 보내든 무시하고
+ * 실측값으로 서버가 다시 판정한다.
  */
 export function applyChecklistResults(
   inspectionType: "visit" | "unvisited_simple",
   overrides: { id: ChecklistItemId; result: ChecklistResult; note: string }[],
-  measurements: { insulationResistance: number | null; insulationResistanceThresholdMohm: number | null }
+  measurements: AutoJudgeMeasurements
 ): ChecklistEntry[] {
   const template = buildChecklistTemplate(inspectionType);
   const overrideMap = new Map(overrides.map((o) => [o.id, o]));
@@ -251,8 +290,7 @@ export function applyChecklistResults(
     const isNotApplicable = inspectionType === "unvisited_simple" && !def.simpleInspectable;
     if (isNotApplicable) return entry; // 미방문 간이점검의 비실측 항목은 덮어쓸 수 없음 — 항상 N/A
     if (!def.requiresManualCheck) {
-      const result = autoJudgeInsulationItem(measurements.insulationResistance, measurements.insulationResistanceThresholdMohm);
-      const note = measurements.insulationResistanceThresholdMohm === null ? "단지 기준값 미설정 — 관리자 설정 필요" : "실측값 기준 자동판정";
+      const { result, note } = autoJudge(entry.id, measurements);
       return { ...entry, result, note };
     }
     const override = overrideMap.get(entry.id);
@@ -270,11 +308,11 @@ export type DiagnosisEntry = {
 };
 
 /**
- * 체크리스트의 부적합(X) 항목을 별표3 규칙표와 대조해 자동 안전진단을 산출한다. 절연 2항목은
- * applyChecklistResults가 이미 단지별 기준값으로 O/X를 확정해 넘겨주므로, 여기서는 그 결과가
- * X인 경우만 그대로 안내하면 된다 — 별도 임계치 로직이 필요 없다. 부하전류/누설전류(IGR)는
- * 분기회로 정격용량 대비 판정이 필요해(현장마다 다름) 고정 임계값을 두지 않고 실측값만
- * 기록한다 — 과부하 최종 판단은 전기선임자가 현장 정격을 보고 내린다.
+ * 체크리스트의 부적합(X) 항목을 별표3 규칙표와 대조해 자동 안전진단을 산출한다. 자동판정
+ * 항목(절연 2개 + ELB)은 applyChecklistResults가 이미 note에 실측값을 담아 넘겨주므로,
+ * 그 note를 코멘트로 그대로 쓰면 된다. 부하전류는 분기회로 정격용량 대비 판정이 필요해
+ * (현장마다 다름) 고정 임계값을 두지 않고 실측값만 기록한다 — 과부하 최종 판단은 전기선임자가
+ * 현장 정격을 보고 내린다.
  */
 export function diagnoseChecklist(checklist: ChecklistEntry[]): DiagnosisEntry[] {
   const findings: DiagnosisEntry[] = [];
@@ -289,12 +327,10 @@ export function diagnoseChecklist(checklist: ChecklistEntry[]): DiagnosisEntry[]
       regulation: def.regulation,
       actionTypes: def.actionTypes,
       comment:
-        entry.note === "실측값 기준 자동판정"
-          ? "실측 절연저항이 이 단지의 기준값에 못 미칩니다. 누전·감전 위험이 있어 조속한 정밀점검이 필요합니다."
-          : entry.note ||
-            `${def.category} 항목이 부적합으로 확인되었습니다. ${
-              def.actionTypes.includes("개선") ? "조속한 개선(수리)이 필요합니다." : "세대에 통지가 필요합니다."
-            }`
+        entry.note ||
+        `${def.category} 항목이 부적합으로 확인되었습니다. ${
+          def.actionTypes.includes("개선") ? "조속한 개선(수리)이 필요합니다." : "세대에 통지가 필요합니다."
+        }`
     });
   }
 

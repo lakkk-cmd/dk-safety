@@ -22,6 +22,7 @@ type ApartmentOption = {
   name: string;
   electrical_safety_manager_name: string | null;
   insulation_resistance_threshold_mohm: number | null;
+  leakage_current_threshold_ma: number | null;
 };
 
 type DiagnosisEntry = {
@@ -105,6 +106,7 @@ export default function UnitInspectionForm() {
   const isLastStep = step === stepLabels.length - 1;
   const selectedApartment = apartments.find((a) => a.id === apartmentId) ?? null;
   const insulationThresholdConfigured = selectedApartment?.insulation_resistance_threshold_mohm != null;
+  const leakageThresholdConfigured = selectedApartment?.leakage_current_threshold_ma != null;
 
   const visibleGroups = useMemo(
     () =>
@@ -325,17 +327,25 @@ export default function UnitInspectionForm() {
                 {group.ids.map((id) => {
                   const def = CHECKLIST_ITEMS.find((d) => d.id === id)!;
                   if (!def.requiresManualCheck) {
+                    const isLeakageItem = id === "elb_missing_or_faulty";
+                    const thresholdConfigured = isLeakageItem ? leakageThresholdConfigured : insulationThresholdConfigured;
+                    const thresholdLabel = isLeakageItem
+                      ? `이 단지 기준값 ${selectedApartment?.leakage_current_threshold_ma}mA`
+                      : `이 단지 기준값 ${selectedApartment?.insulation_resistance_threshold_mohm}MΩ`;
+                    const measurementLabel = isLeakageItem ? "누설전류(IGR)" : "절연저항";
+                    const missingLabel = isLeakageItem ? "누설전류(IGR)" : "절연저항";
                     return (
                       <div key={id}>
                         <p className="mb-1 text-[14px] font-semibold text-slate-800">{def.label}</p>
-                        {insulationThresholdConfigured ? (
+                        {thresholdConfigured ? (
                           <p className="rounded-xl bg-dk-sky px-3 py-2 text-[13px] text-dk-navy">
-                            ⚡ 실측값(다음 단계의 절연저항, 이 단지 기준값 {selectedApartment?.insulation_resistance_threshold_mohm}MΩ) 기준으로
-                            자동 판정됩니다 — 여기서 누를 필요 없어요.
+                            ⚡ 실측값(다음 단계의 {measurementLabel}, {thresholdLabel}) 기준으로 자동 판정됩니다 — 여기서 누를 필요
+                            없어요.
+                            {isLeakageItem ? " 단, \"미설치\"는 실측만으로 잡히지 않으니 육안으로 함께 확인해주세요." : ""}
                           </p>
                         ) : (
                           <p className="rounded-xl bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
-                            ⚠️ 이 단지는 절연저항 기준값이 아직 설정되지 않아 자동 판정이 보류됩니다(해당없음 처리). 관리자에게
+                            ⚠️ 이 단지는 {missingLabel} 기준값이 아직 설정되지 않아 자동 판정이 보류됩니다(해당없음 처리). 관리자에게
                             단지 설정을 요청해주세요.
                           </p>
                         )}

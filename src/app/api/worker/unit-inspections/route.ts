@@ -123,7 +123,9 @@ export async function POST(request: Request) {
   const etcNotes = toStringField(body.etcNotes);
   const checklistItems = applyChecklistResults(inspectionType, overrides, {
     insulationResistance,
-    insulationResistanceThresholdMohm: apartment.insulationResistanceThresholdMohm
+    insulationResistanceThresholdMohm: apartment.insulationResistanceThresholdMohm,
+    igr,
+    leakageCurrentThresholdMa: apartment.leakageCurrentThresholdMa
   });
 
   const residentNameRaw = toStringField(body.residentName).trim();
