@@ -1,5 +1,11 @@
 import { requireSupabaseAdmin } from "@/lib/supabase-pg";
-import { diagnoseChecklist, type ChecklistEntry, type DiagnosisEntry } from "@/lib/unit-inspection-rules";
+import {
+  checkCompanyServiceLifeAdvisories,
+  diagnoseChecklist,
+  type ChecklistEntry,
+  type CompanyAdvisoryEntry,
+  type DiagnosisEntry
+} from "@/lib/unit-inspection-rules";
 
 export type UnitInspectionType = "visit" | "unvisited_simple";
 
@@ -17,6 +23,9 @@ export type UnitInspectionInput = {
   residentName: string | null;
   signatureData: string | null;
   residentPhone: string | null;
+  /** 회사 자체 교체주기(10년) 안내 계산용 — 워커가 알 때만 입력하는 선택값 */
+  outletInstallYear: number | null;
+  switchInstallYear: number | null;
 };
 
 export type UnitInspection = UnitInspectionInput & {
@@ -24,6 +33,8 @@ export type UnitInspection = UnitInspectionInput & {
   inspectorWorkerId: string | null;
   inspectedAt: string;
   autoDiagnosis: DiagnosisEntry[];
+  /** 법적 근거 아님 — 별표3 규칙엔진(autoDiagnosis)과 분리해서 저장·표시한다 */
+  companyAdvisories: CompanyAdvisoryEntry[];
   pdfUrl: string | null;
   createdAt: string;
 };
@@ -45,6 +56,9 @@ type UnitInspectionRow = {
   resident_name: string | null;
   signature_data: string | null;
   resident_phone: string | null;
+  outlet_install_year: number | null;
+  switch_install_year: number | null;
+  company_advisories: unknown;
   pdf_url: string | null;
   created_at: string;
 };
@@ -67,6 +81,9 @@ function mapUnitInspection(row: UnitInspectionRow): UnitInspection {
     residentName: row.resident_name,
     signatureData: row.signature_data,
     residentPhone: row.resident_phone,
+    outletInstallYear: row.outlet_install_year,
+    switchInstallYear: row.switch_install_year,
+    companyAdvisories: (Array.isArray(row.company_advisories) ? row.company_advisories : []) as CompanyAdvisoryEntry[],
     pdfUrl: row.pdf_url,
     createdAt: row.created_at
   };
@@ -76,6 +93,10 @@ function mapUnitInspection(row: UnitInspectionRow): UnitInspection {
 export async function pgCreateUnitInspection(workerId: string, input: UnitInspectionInput): Promise<UnitInspection> {
   const supabase = requireSupabaseAdmin();
   const autoDiagnosis = diagnoseChecklist(input.checklistItems);
+  const companyAdvisories = checkCompanyServiceLifeAdvisories({
+    outletInstallYear: input.outletInstallYear,
+    switchInstallYear: input.switchInstallYear
+  });
 
   const { data, error } = await supabase
     .from("unit_electrical_inspections")
@@ -93,7 +114,10 @@ export async function pgCreateUnitInspection(workerId: string, input: UnitInspec
       auto_diagnosis: autoDiagnosis,
       resident_name: input.residentName,
       signature_data: input.signatureData,
-      resident_phone: input.residentPhone
+      resident_phone: input.residentPhone,
+      outlet_install_year: input.outletInstallYear,
+      switch_install_year: input.switchInstallYear,
+      company_advisories: companyAdvisories
     })
     .select("*")
     .single();

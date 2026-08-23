@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type ChecklistItem = { id: string; category: string; item: string; result: "O" | "X" | "/" | "N/A"; note: string };
 type DiagnosisEntry = { item: string; verdict: string; regulation: string; actionTypes: string[]; comment: string };
+type CompanyAdvisoryEntry = { item: string; comment: string };
 
 type UnitInspection = {
   id: string;
@@ -18,6 +19,9 @@ type UnitInspection = {
   insulationResistance: number | null;
   etcNotes: string;
   autoDiagnosis: DiagnosisEntry[];
+  companyAdvisories: CompanyAdvisoryEntry[];
+  outletInstallYear: number | null;
+  switchInstallYear: number | null;
   residentName: string | null;
   pdfUrl: string | null;
 };
@@ -278,6 +282,12 @@ export default function AdminUnitInspectionsPanel() {
                       <p>절연저항: {item.insulationResistance ?? "-"} MΩ</p>
                     </div>
                     {item.etcNotes ? <p className="text-xs text-slate-600">기타사항: {item.etcNotes}</p> : null}
+                    {item.outletInstallYear || item.switchInstallYear ? (
+                      <p className="text-xs text-slate-600">
+                        {item.outletInstallYear ? `콘센트 설치연도: ${item.outletInstallYear}년 ` : ""}
+                        {item.switchInstallYear ? `스위치 설치연도: ${item.switchInstallYear}년` : ""}
+                      </p>
+                    ) : null}
 
                     <table className="w-full text-left text-xs">
                       <thead>
@@ -309,6 +319,20 @@ export default function AdminUnitInspectionsPanel() {
                               <span className="font-semibold">{d.item}</span> — {d.regulation}
                               <br />
                               {d.comment}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {item.companyAdvisories.length > 0 ? (
+                      <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-3">
+                        <p className="text-xs font-bold text-amber-800">우리집 전기주치의 자체 권장사항</p>
+                        <p className="mt-0.5 text-[11px] text-amber-600">※ 직무고시·별표3 등 법적 근거가 아닌 자체 점검 기준</p>
+                        <ul className="mt-1 space-y-1.5">
+                          {item.companyAdvisories.map((d, idx) => (
+                            <li key={idx} className="text-xs text-amber-800">
+                              <span className="font-semibold">{d.item}</span> — {d.comment}
                             </li>
                           ))}
                         </ul>

@@ -126,6 +126,8 @@ export async function POST(request: Request) {
   const igr = toNullableNumber(body.igr);
   const insulationResistance = toNullableNumber(body.insulationResistance);
   const etcNotes = toStringField(body.etcNotes);
+  const outletInstallYear = toNullableNumber(body.outletInstallYear);
+  const switchInstallYear = toNullableNumber(body.switchInstallYear);
   const checklistItems = applyChecklistResults(inspectionType, overrides, {
     insulationResistance,
     insulationResistanceThresholdMohm: apartment.insulationResistanceThresholdMohm,
@@ -157,7 +159,9 @@ export async function POST(request: Request) {
     etcNotes,
     residentName: inspectionType === "visit" ? residentNameRaw : null,
     signatureData: inspectionType === "visit" ? signatureDataRaw : null,
-    residentPhone: inspectionType === "visit" ? residentPhoneRaw : null
+    residentPhone: inspectionType === "visit" ? residentPhoneRaw : null,
+    outletInstallYear,
+    switchInstallYear
   };
 
   let inspection;
@@ -192,6 +196,7 @@ export async function POST(request: Request) {
         insulationResistance: inspection.insulationResistance,
         etcNotes: inspection.etcNotes,
         autoDiagnosis: inspection.autoDiagnosis,
+        companyAdvisories: inspection.companyAdvisories,
         residentName: inspection.residentName,
         signatureData: inspection.signatureData
       });

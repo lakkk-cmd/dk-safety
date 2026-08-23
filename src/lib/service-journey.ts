@@ -89,6 +89,7 @@ export function residentSessionNotRequired(pathname: string): boolean {
 
   if (/^\/verify\/[^/]+$/.test(pathname)) return true;
   if (/^\/diagnosis\/[^/]+$/.test(pathname)) return true;
+  if (/^\/unit-inspection\/[^/]+$/.test(pathname)) return true;
 
   if (pathname === "/payment/success" || pathname === "/payment/fail") return true;
 

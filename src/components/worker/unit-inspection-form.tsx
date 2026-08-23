@@ -33,6 +33,8 @@ type DiagnosisEntry = {
   comment: string;
 };
 
+type CompanyAdvisoryEntry = { item: string; comment: string };
+
 const RESULT_OPTIONS: { value: ChecklistResult; label: string; activeClass: string }[] = [
   { value: "O", label: "○ 적합", activeClass: "border-dk-green bg-dk-green text-white" },
   { value: "X", label: "× 부적합", activeClass: "border-dk-red bg-dk-red text-white" },
@@ -79,6 +81,8 @@ export default function UnitInspectionForm() {
   const [loadCurrent, setLoadCurrent] = useState("");
   const [igr, setIgr] = useState("");
   const [insulationResistance, setInsulationResistance] = useState("");
+  const [outletInstallYear, setOutletInstallYear] = useState("");
+  const [switchInstallYear, setSwitchInstallYear] = useState("");
   const [etcNotes, setEtcNotes] = useState("");
 
   const [residentName, setResidentName] = useState("");
@@ -90,6 +94,7 @@ export default function UnitInspectionForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [result, setResult] = useState<{
     diagnosis: DiagnosisEntry[];
+    advisories: CompanyAdvisoryEntry[];
     apartmentName: string;
     notificationSent: boolean | null;
   } | null>(null);
@@ -186,6 +191,8 @@ export default function UnitInspectionForm() {
           loadCurrent: loadCurrent === "" ? null : Number(loadCurrent),
           igr: igr === "" ? null : Number(igr),
           insulationResistance: insulationResistance === "" ? null : Number(insulationResistance),
+          outletInstallYear: outletInstallYear === "" ? null : Number(outletInstallYear),
+          switchInstallYear: switchInstallYear === "" ? null : Number(switchInstallYear),
           etcNotes,
           residentName: inspectionType === "visit" ? residentName : null,
           residentPhone: inspectionType === "visit" ? residentPhone : null,
@@ -193,7 +200,7 @@ export default function UnitInspectionForm() {
         })
       });
       const data = (await response.json()) as {
-        inspection?: { autoDiagnosis?: DiagnosisEntry[] };
+        inspection?: { autoDiagnosis?: DiagnosisEntry[]; companyAdvisories?: CompanyAdvisoryEntry[] };
         notification?: { success?: boolean };
         message?: string;
       };
@@ -204,6 +211,7 @@ export default function UnitInspectionForm() {
       const apartmentName = apartments.find((a) => a.id === apartmentId)?.name ?? "";
       setResult({
         diagnosis: data.inspection?.autoDiagnosis ?? [],
+        advisories: data.inspection?.companyAdvisories ?? [],
         apartmentName,
         notificationSent: inspectionType === "visit" ? Boolean(data.notification?.success) : null
       });
@@ -224,6 +232,8 @@ export default function UnitInspectionForm() {
     setLoadCurrent("");
     setIgr("");
     setInsulationResistance("");
+    setOutletInstallYear("");
+    setSwitchInstallYear("");
     setEtcNotes("");
     setResidentName("");
     setResidentPhone("");
@@ -257,6 +267,19 @@ export default function UnitInspectionForm() {
             </ul>
           )}
         </SectionCard>
+        {result.advisories.length > 0 ? (
+          <SectionCard icon="🔧" title="우리집 전기주치의 자체 권장사항">
+            <p className="mb-2 text-[12px] text-amber-700">※ 직무고시·별표3 등 법적 근거가 아닌 자체 점검 기준이에요.</p>
+            <ul className="space-y-2">
+              {result.advisories.map((entry, idx) => (
+                <li key={idx} className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+                  <p className="text-sm font-bold text-amber-800">{entry.item}</p>
+                  <p className="mt-1 text-[13px] text-amber-700">{entry.comment}</p>
+                </li>
+              ))}
+            </ul>
+          </SectionCard>
+        ) : null}
         <div className="flex gap-2">
           <BigButton variant="secondary" onClick={resetForNext} className="flex-1">
             다음 세대 점검
@@ -488,6 +511,33 @@ export default function UnitInspectionForm() {
                 className="soft-input w-full text-base"
               />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="mb-2 text-[15px] font-bold text-slate-800">콘센트 설치연도</p>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={outletInstallYear}
+                  onChange={(e) => setOutletInstallYear(e.target.value)}
+                  placeholder="예: 2014 (모르면 비워두세요)"
+                  className="soft-input w-full text-base"
+                />
+              </div>
+              <div>
+                <p className="mb-2 text-[15px] font-bold text-slate-800">스위치 설치연도</p>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={switchInstallYear}
+                  onChange={(e) => setSwitchInstallYear(e.target.value)}
+                  placeholder="예: 2014 (모르면 비워두세요)"
+                  className="soft-input w-full text-base"
+                />
+              </div>
+            </div>
+            <p className="-mt-2 text-[12px] text-slate-500">
+              설치 후 10년이 지나면 회사 자체 기준으로 교체 권장 안내가 자동으로 붙어요(법적 의무 아님).
+            </p>
             <div>
               <p className="mb-2 text-[15px] font-bold text-slate-800">기타사항</p>
               <textarea

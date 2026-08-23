@@ -336,3 +336,46 @@ export function diagnoseChecklist(checklist: ChecklistEntry[]): DiagnosisEntry[]
 
   return findings;
 }
+
+export type CompanyAdvisoryEntry = {
+  item: string;
+  comment: string;
+};
+
+// 회사 자체 기준(대표님 결정, 2026-08) — 별표3은 콘센트·스위치 자체의 권장 수명연한을
+// 명시하지 않는다(누전차단기·개폐기·차단기만 15년으로 명시). 법적 근거가 아니므로
+// DiagnosisEntry(별표3 규칙엔진)와 절대 섞지 않고 CompanyAdvisoryEntry로 분리해 저장·표시한다.
+const OUTLET_SERVICE_LIFE_YEARS = 10;
+const SWITCH_SERVICE_LIFE_YEARS = 10;
+
+/**
+ * 콘센트/스위치 설치연도가 입력된 경우에만(선택값) 회사 자체 교체주기 기준으로 안내를
+ * 산출한다. 연도 미입력이면 판단하지 않는다 — 모르는 값을 임의로 추정하지 않는다.
+ */
+export function checkCompanyServiceLifeAdvisories(
+  measurements: { outletInstallYear: number | null; switchInstallYear: number | null },
+  now: Date = new Date()
+): CompanyAdvisoryEntry[] {
+  const advisories: CompanyAdvisoryEntry[] = [];
+  const currentYear = now.getFullYear();
+
+  if (typeof measurements.outletInstallYear === "number" && Number.isFinite(measurements.outletInstallYear)) {
+    const age = currentYear - measurements.outletInstallYear;
+    if (age >= OUTLET_SERVICE_LIFE_YEARS) {
+      advisories.push({
+        item: "콘센트 교체 권장",
+        comment: `설치 후 약 ${age}년 경과(회사 자체 권장 교체주기 ${OUTLET_SERVICE_LIFE_YEARS}년 초과) — 법적 의무사항은 아니며 우리집 전기주치의 자체 권장 기준입니다.`
+      });
+    }
+  }
+  if (typeof measurements.switchInstallYear === "number" && Number.isFinite(measurements.switchInstallYear)) {
+    const age = currentYear - measurements.switchInstallYear;
+    if (age >= SWITCH_SERVICE_LIFE_YEARS) {
+      advisories.push({
+        item: "스위치 교체 권장",
+        comment: `설치 후 약 ${age}년 경과(회사 자체 권장 교체주기 ${SWITCH_SERVICE_LIFE_YEARS}년 초과) — 법적 의무사항은 아니며 우리집 전기주치의 자체 권장 기준입니다.`
+      });
+    }
+  }
+  return advisories;
+}

@@ -50,6 +50,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       insulationResistance: inspection.insulationResistance,
       etcNotes: inspection.etcNotes,
       autoDiagnosis: inspection.autoDiagnosis,
+      companyAdvisories: inspection.companyAdvisories,
       residentName: inspection.residentName,
       signatureData: inspection.signatureData
     });

@@ -5,7 +5,7 @@ import path from "path";
 import React from "react";
 import { ImageResponse } from "next/og";
 import { PDFDocument, PDFImage } from "pdf-lib";
-import type { ChecklistEntry, DiagnosisEntry } from "@/lib/unit-inspection-rules";
+import type { ChecklistEntry, CompanyAdvisoryEntry, DiagnosisEntry } from "@/lib/unit-inspection-rules";
 
 const PAGE_W_PX = 1240;
 const PAGE_H_PX = 1754;
@@ -293,6 +293,8 @@ export type UnitInspectionPdfData = {
   insulationResistance: number | null;
   etcNotes: string;
   autoDiagnosis: DiagnosisEntry[];
+  /** 법적 근거 아님(회사 자체 기준) — autoDiagnosis와 반드시 구분해서 렌더링한다 */
+  companyAdvisories: CompanyAdvisoryEntry[];
   residentName: string | null;
   /** SignaturePad가 만든 base64 PNG data URL — 세대방문점검만 존재 */
   signatureData: string | null;
@@ -481,6 +483,24 @@ function UnitInspectionElement({ data }: { data: UnitInspectionPdfData }) {
                 </div>
                 <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.regulation}</div>
                 <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.comment}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* 회사 자체 기준 안내 — 별표3 자동 안전진단과 시각적으로 명확히 구분(점선 테두리 + 다른 색) */}
+      {data.companyAdvisories.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
+          <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
+            <div style={{ display: "flex", fontSize: 16, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
+            <div style={{ display: "flex", fontSize: 12, color: "#a17a3c", marginTop: 2 }}>※ 직무고시·별표3 등 법적 근거가 아닌 자체 점검 기준입니다</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", padding: "14px 16px", gap: 10 }}>
+            {data.companyAdvisories.map((entry, idx) => (
+              <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
+                <div style={{ display: "flex", fontSize: 15, color: "#8a5a12" }}>{entry.item}</div>
+                <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginTop: 2 }}>{entry.comment}</div>
               </div>
             ))}
           </div>

@@ -74,6 +74,20 @@ export default async function UnitInspectionPublicPage({ params }: { params: Pro
         )}
       </SectionCard>
 
+      {inspection.companyAdvisories.length > 0 ? (
+        <SectionCard icon="🔧" title="우리집 전기주치의 자체 권장사항">
+          <p className="mb-2 text-[12px] text-amber-700">※ 직무고시·별표3 등 법적 근거가 아닌 자체 점검 기준이에요.</p>
+          <ul className="space-y-2">
+            {inspection.companyAdvisories.map((entry, idx) => (
+              <li key={idx} className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+                <p className="text-sm font-bold text-amber-800">{entry.item}</p>
+                <p className="mt-1 text-[13px] text-amber-700">{entry.comment}</p>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      ) : null}
+
       {inspection.pdfUrl ? (
         <a
           href={inspection.pdfUrl}
