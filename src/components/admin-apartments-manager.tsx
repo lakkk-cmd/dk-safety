@@ -14,6 +14,7 @@ type Apartment = {
   electricalSafetyManagerName: string;
   insulationResistanceThresholdMohm: number | null;
   leakageCurrentThresholdMa: number | null;
+  totalUnits: number | null;
 };
 
 /** 광주 5개 구 — 관리자 목록 탭 분류 + 주소 검색 결과로부터 구 자동 판별 */
@@ -72,7 +73,8 @@ const initialForm = {
   address: "",
   electricalSafetyManagerName: "",
   insulationResistanceThresholdMohm: "",
-  leakageCurrentThresholdMa: ""
+  leakageCurrentThresholdMa: "",
+  totalUnits: ""
 };
 
 export default function AdminApartmentsManager() {
@@ -118,7 +120,8 @@ export default function AdminApartmentsManager() {
           address: form.address,
           electricalSafetyManagerName: form.electricalSafetyManagerName,
           insulationResistanceThresholdMohm: form.insulationResistanceThresholdMohm === "" ? null : Number(form.insulationResistanceThresholdMohm),
-          leakageCurrentThresholdMa: form.leakageCurrentThresholdMa === "" ? null : Number(form.leakageCurrentThresholdMa)
+          leakageCurrentThresholdMa: form.leakageCurrentThresholdMa === "" ? null : Number(form.leakageCurrentThresholdMa),
+          totalUnits: form.totalUnits === "" ? null : Number(form.totalUnits)
         })
       });
       const data = (await response.json().catch(() => ({}))) as { message?: string };
@@ -238,6 +241,15 @@ export default function AdminApartmentsManager() {
             placeholder="누설전류(IGR) 기준값(mA) — 세대점검 자동판정용"
             className="soft-input"
           />
+          <input
+            type="number"
+            step="1"
+            min="0"
+            value={form.totalUnits}
+            onChange={(e) => setForm((p) => ({ ...p, totalUnits: e.target.value }))}
+            placeholder="총세대수 — 세대전기점검 처리율 계산용"
+            className="soft-input"
+          />
         </div>
         <div className="mt-3 flex gap-2">
           <button type="button" onClick={() => void saveItem()} className="btn-primary px-4 py-2 text-sm">
@@ -304,7 +316,8 @@ export default function AdminApartmentsManager() {
               </p>
               {item.address ? <p className="mt-0.5 text-xs text-slate-500">{item.address}</p> : null}
               <p className="mt-1 text-xs text-slate-600">
-                {item.bankInfo.bankName} {item.bankInfo.accountNumber} ({item.bankInfo.accountHolder}) · 기본 {item.baseFee.toLocaleString("ko-KR")}원
+                {item.bankInfo.bankName} {item.bankInfo.accountNumber} ({item.bankInfo.accountHolder}) · 기본 {item.baseFee.toLocaleString("ko-KR")}원 · 총세대수:{" "}
+                {item.totalUnits === null ? <span className="font-semibold text-amber-600">미설정</span> : `${item.totalUnits}세대`}
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 전기선임자: {item.electricalSafetyManagerName || "미설정"} · 절연저항 기준값:{" "}
@@ -340,7 +353,8 @@ export default function AdminApartmentsManager() {
                     electricalSafetyManagerName: item.electricalSafetyManagerName,
                     insulationResistanceThresholdMohm:
                       item.insulationResistanceThresholdMohm === null ? "" : String(item.insulationResistanceThresholdMohm),
-                    leakageCurrentThresholdMa: item.leakageCurrentThresholdMa === null ? "" : String(item.leakageCurrentThresholdMa)
+                    leakageCurrentThresholdMa: item.leakageCurrentThresholdMa === null ? "" : String(item.leakageCurrentThresholdMa),
+                    totalUnits: item.totalUnits === null ? "" : String(item.totalUnits)
                   });
                 }}
                 className="ml-2 mt-2 rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"

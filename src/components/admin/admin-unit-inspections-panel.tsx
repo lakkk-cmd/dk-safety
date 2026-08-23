@@ -22,7 +22,7 @@ type UnitInspection = {
   pdfUrl: string | null;
 };
 
-type ApartmentOption = { id: string; name: string; electricalSafetyManagerName: string };
+type ApartmentOption = { id: string; name: string; electricalSafetyManagerName: string; totalUnits: number | null };
 
 const RESULT_LABEL: Record<string, string> = { O: "○", X: "×", "/": "/", "N/A": "해당없음" };
 
@@ -36,8 +36,10 @@ export default function AdminUnitInspectionsPanel() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [apartmentFilter, setApartmentFilter] = useState("전체");
+  const [dongFilter, setDongFilter] = useState("전체");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -65,16 +67,41 @@ export default function AdminUnitInspectionsPanel() {
   }, []);
 
   const apartmentNameById = useMemo(() => new Map(apartments.map((a) => [a.id, a.name])), [apartments]);
+  const apartmentByName = useMemo(() => new Map(apartments.map((a) => [a.name, a])), [apartments]);
+  const selectedApartment = apartmentFilter === "전체" ? null : (apartmentByName.get(apartmentFilter) ?? null);
 
   const apartmentTabs = useMemo(() => {
     const names = new Set(inspections.map((i) => apartmentNameById.get(i.apartmentId) ?? "미지정"));
     return ["전체", ...Array.from(names).sort((a, b) => a.localeCompare(b))];
   }, [inspections, apartmentNameById]);
 
-  const filtered = useMemo(() => {
+  // 선택된 단지 범위(동 필터 적용 전) — 처리율 계산과 동 목록 산출에 쓴다.
+  const byApartment = useMemo(() => {
     if (apartmentFilter === "전체") return inspections;
     return inspections.filter((i) => (apartmentNameById.get(i.apartmentId) ?? "미지정") === apartmentFilter);
   }, [inspections, apartmentFilter, apartmentNameById]);
+
+  const dongOptions = useMemo(() => {
+    const dongs = new Set(byApartment.map((i) => i.dong));
+    return ["전체", ...Array.from(dongs).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))];
+  }, [byApartment]);
+
+  const filtered = useMemo(() => {
+    if (dongFilter === "전체") return byApartment;
+    return byApartment.filter((i) => i.dong === dongFilter);
+  }, [byApartment, dongFilter]);
+
+  // 처리율 = 점검완료(동/호 중복제거, 최신건만 인정)한 세대수 / 총세대수. 방문·미방문 간이점검
+  // 둘 다 유효한 처리로 인정한다(가이드상 미방문 시 점검가능 항목만 하는 것도 정식 절차).
+  const distinctInspectedUnitCount = useMemo(() => {
+    const keys = new Set(byApartment.map((i) => `${i.dong}-${i.ho}`));
+    return keys.size;
+  }, [byApartment]);
+
+  const handleApartmentFilterChange = (name: string) => {
+    setApartmentFilter(name);
+    setDongFilter("전체");
+  };
 
   const issuePdf = async (id: string) => {
     setPdfLoadingId(id);
@@ -91,6 +118,38 @@ export default function AdminUnitInspectionsPanel() {
     }
   };
 
+  const bulkDownload = async () => {
+    if (!selectedApartment) return;
+    setBulkDownloading(true);
+    setMessage("");
+    try {
+      const params = new URLSearchParams({ apartmentId: selectedApartment.id });
+      if (dongFilter !== "전체") params.set("dong", dongFilter);
+      const response = await fetch(`/api/admin/unit-inspections/bulk-pdf?${params.toString()}`);
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { message?: string };
+        setMessage(data.message ?? "일괄 다운로드에 실패했습니다.");
+        return;
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const fileName = match ? decodeURIComponent(match[1]) : "세대전기점검표.zip";
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      setMessage("네트워크 오류로 일괄 다운로드에 실패했습니다.");
+    } finally {
+      setBulkDownloading(false);
+    }
+  };
+
   return (
     <section className="space-y-4">
       <div className="surface-card rounded-2xl p-4">
@@ -103,7 +162,7 @@ export default function AdminUnitInspectionsPanel() {
             <button
               key={tab}
               type="button"
-              onClick={() => setApartmentFilter(tab)}
+              onClick={() => handleApartmentFilterChange(tab)}
               className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
                 apartmentFilter === tab ? "border-dk-navy bg-dk-navy text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
               }`}
@@ -112,6 +171,42 @@ export default function AdminUnitInspectionsPanel() {
             </button>
           ))}
         </div>
+
+        {selectedApartment ? (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-3">
+            <div>
+              <p className="text-sm font-bold text-slate-800">
+                처리율:{" "}
+                {selectedApartment.totalUnits === null ? (
+                  <span className="text-amber-600">총세대수 미설정 — /admin/apartments에서 입력해주세요</span>
+                ) : (
+                  <>
+                    {distinctInspectedUnitCount} / {selectedApartment.totalUnits}세대 (
+                    {Math.min(100, Math.round((distinctInspectedUnitCount / selectedApartment.totalUnits) * 100))}%)
+                  </>
+                )}
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500">동 선택</label>
+                <select value={dongFilter} onChange={(e) => setDongFilter(e.target.value)} className="soft-input text-xs">
+                  {dongOptions.map((d) => (
+                    <option key={d} value={d}>
+                      {d === "전체" ? "전체 동" : `${d}동`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={bulkDownloading}
+              onClick={() => void bulkDownload()}
+              className="rounded-md border border-dk-navy bg-dk-navy px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+            >
+              {bulkDownloading ? "압축 중..." : "📦 발급완료 PDF 일괄 다운로드(zip)"}
+            </button>
+          </div>
+        ) : null}
 
         {message ? <p className="mt-2 text-sm text-rose-600">{message}</p> : null}
         {loading ? <p className="mt-3 text-sm text-slate-500">불러오는 중...</p> : null}

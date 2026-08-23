@@ -18,6 +18,8 @@ export type ApartmentTenant = {
   insulationResistanceThresholdMohm: number | null;
   /** 누설전류(IGR) 부적합 판정 기준값(mA) — 누전차단기 미설치/동작불량 항목 자동판정용(103). 미설정이면 null. */
   leakageCurrentThresholdMa: number | null;
+  /** 단지 총세대수 — 세대전기점검 처리율 계산용(105). 미설정이면 null. */
+  totalUnits: number | null;
   createdAt: string;
 };
 
@@ -36,6 +38,7 @@ type ApartmentRow = {
   electrical_safety_manager_name?: string | null;
   insulation_resistance_threshold_mohm?: number | null;
   leakage_current_threshold_ma?: number | null;
+  total_units?: number | null;
   created_at: string;
 };
 
@@ -69,6 +72,7 @@ function mapApartment(row: ApartmentRow): ApartmentTenant {
       typeof row.leakage_current_threshold_ma === "number" && Number.isFinite(row.leakage_current_threshold_ma)
         ? row.leakage_current_threshold_ma
         : null,
+    totalUnits: typeof row.total_units === "number" && Number.isFinite(row.total_units) ? row.total_units : null,
     createdAt: row.created_at
   };
 }
@@ -146,6 +150,7 @@ export async function pgCreateApartment(input: {
   electricalSafetyManagerName?: string;
   insulationResistanceThresholdMohm?: number | null;
   leakageCurrentThresholdMa?: number | null;
+  totalUnits?: number | null;
 }): Promise<ApartmentTenant> {
   const supabase = requireSupabaseAdmin();
   const normalizedCode = input.code.trim().toLowerCase();
@@ -165,7 +170,8 @@ export async function pgCreateApartment(input: {
       address: input.address?.trim() || "",
       electrical_safety_manager_name: input.electricalSafetyManagerName?.trim() || null,
       insulation_resistance_threshold_mohm: input.insulationResistanceThresholdMohm ?? null,
-      leakage_current_threshold_ma: input.leakageCurrentThresholdMa ?? null
+      leakage_current_threshold_ma: input.leakageCurrentThresholdMa ?? null,
+      total_units: input.totalUnits ?? null
     })
     .select("*")
     .single();
@@ -188,6 +194,7 @@ export async function pgUpdateApartment(
     electricalSafetyManagerName: string;
     insulationResistanceThresholdMohm: number | null;
     leakageCurrentThresholdMa: number | null;
+    totalUnits: number | null;
   }>
 ): Promise<ApartmentTenant | null> {
   const supabase = requireSupabaseAdmin();
@@ -208,6 +215,7 @@ export async function pgUpdateApartment(
   if (typeof patch.electricalSafetyManagerName === "string") payload.electrical_safety_manager_name = patch.electricalSafetyManagerName.trim() || null;
   if (patch.insulationResistanceThresholdMohm !== undefined) payload.insulation_resistance_threshold_mohm = patch.insulationResistanceThresholdMohm;
   if (patch.leakageCurrentThresholdMa !== undefined) payload.leakage_current_threshold_ma = patch.leakageCurrentThresholdMa;
+  if (patch.totalUnits !== undefined) payload.total_units = patch.totalUnits;
   if (Object.keys(payload).length === 0) return null;
 
   const { data, error } = await supabase.from("apartments").update(payload).eq("id", id).select("*").maybeSingle();
