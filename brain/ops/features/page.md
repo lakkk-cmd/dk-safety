@@ -3,11 +3,11 @@ title: "기능 현황 — page"
 category: features
 tags: ["project-features", "page"]
 source: "project_features"
-synced_at: "2026-08-22T20:08:50.853Z"
+synced_at: "2026-08-23T20:08:20.100Z"
 ---
 
 <!-- AUTO:START -->
-## page (57건)
+## page (58건)
 
 - **account** (`/admin/account`): 자동 감지된 페이지 (/admin/account) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -63,9 +63,9 @@ synced_at: "2026-08-22T20:08:50.853Z"
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **ledger** (`/admin/erp/ledger`): 자동 감지된 페이지 (/admin/erp/ledger) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **login** (`/hq/login`): 자동 감지된 페이지 (/hq/login) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
 - **login** (`/admin/login`): 자동 감지된 페이지 (/admin/login) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **login** (`/hq/login`): 자동 감지된 페이지 (/hq/login) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **materials** (`/admin/materials`): 자동 감지된 페이지 (/admin/materials) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -90,6 +90,8 @@ synced_at: "2026-08-22T20:08:50.853Z"
 - **settlement** (`/admin/erp/settlement`): 자동 감지된 페이지 (/admin/erp/settlement) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **technicians** (`/admin/technicians`): 자동 감지된 페이지 (/admin/technicians) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **unit-inspections** (`/admin/unit-inspections`): 자동 감지된 페이지 (/admin/unit-inspections) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **vendors** (`/admin/erp/vendors`): 자동 감지된 페이지 (/admin/erp/vendors) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
