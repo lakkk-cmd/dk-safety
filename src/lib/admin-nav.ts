@@ -140,7 +140,7 @@ export const adminSidebarNavItems: AdminNavItem[] = [
   },
   {
     href: "/admin/unit-inspections",
-    label: "세대전기점검",
+    label: "세대전기점검(직무고시)",
     description: "직무고시 별지15호 점검기록표 조회·PDF 발급",
     icon: ClipboardCheck,
     moduleGroup: "ext"

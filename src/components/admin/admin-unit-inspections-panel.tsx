@@ -94,8 +94,8 @@ export default function AdminUnitInspectionsPanel() {
   return (
     <section className="space-y-4">
       <div className="surface-card rounded-2xl p-4">
-        <p className="warranty-badge">세대전기점검 조회</p>
-        <h2 className="text-lg font-bold">세대전기점검표 목록</h2>
+        <p className="warranty-badge">세대전기점검(직무고시) 조회</p>
+        <h2 className="text-lg font-bold">세대전기점검(직무고시)표 목록</h2>
         <p className="mt-1 text-xs text-slate-600">직무고시 별지 15호 서식 — 워커가 제출한 점검 기록을 조회하고 PDF를 발급합니다.</p>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
