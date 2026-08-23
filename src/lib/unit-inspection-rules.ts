@@ -218,10 +218,19 @@ export function buildChecklistTemplate(inspectionType: "visit" | "unvisited_simp
  * 절연저항 실측값으로 절연(누전) 2항목을 자동 판정한다 — 워커가 버튼을 누르지 않아도 되는
  * 유일한 자동판정 케이스(2026-08 확정). 부하전류/누설전류(IGR)가 담당하는 항목은 아직
  * 기준값이 확정되지 않아 별도 자동판정 없이 수동 확인 대상으로 남아있다.
+ *
+ * 기준값(thresholdMohm)은 전역 상수가 아니라 단지별로 관리자가 직접 입력한 값이다 —
+ * 「전기설비 검사 및 점검의 방법·절차 등에 관한 고시」 별표3의 절연저항 기준은 세대 누전차단기
+ * "회로 하나"를 기준으로 만들어졌는데, 총괄분전반처럼 여러 회로를 한번에 재면 병렬합성저항
+ * (1/R총 = 1/R1+...+1/Rn)이라 항상 더 낮게 나온다. 단지마다 세대당 회로 개수가 다르므로
+ * "정상"으로 볼 기준값도 단지마다 달라야 한다(2026-08 실사용 피드백, apartments 102 참고).
+ * threshold가 아직 설정 안 된 단지는 자동판정을 하지 않고 해당없음("/")으로 남긴다 —
+ * 잘못된 전역 기준값을 몰래 대신 쓰는 것보다 "판정 보류"가 안전하다.
  */
-export function autoJudgeInsulationItem(insulationResistance: number | null): ChecklistResult {
+export function autoJudgeInsulationItem(insulationResistance: number | null, thresholdMohm: number | null): ChecklistResult {
   if (typeof insulationResistance !== "number" || !Number.isFinite(insulationResistance)) return "/";
-  return insulationResistance < INSULATION_KEC_MIN_MOHM ? "X" : "O";
+  if (typeof thresholdMohm !== "number" || !Number.isFinite(thresholdMohm)) return "/";
+  return insulationResistance < thresholdMohm ? "X" : "O";
 }
 
 /**
@@ -232,7 +241,7 @@ export function autoJudgeInsulationItem(insulationResistance: number | null): Ch
 export function applyChecklistResults(
   inspectionType: "visit" | "unvisited_simple",
   overrides: { id: ChecklistItemId; result: ChecklistResult; note: string }[],
-  measurements: { insulationResistance: number | null }
+  measurements: { insulationResistance: number | null; insulationResistanceThresholdMohm: number | null }
 ): ChecklistEntry[] {
   const template = buildChecklistTemplate(inspectionType);
   const overrideMap = new Map(overrides.map((o) => [o.id, o]));
@@ -242,7 +251,9 @@ export function applyChecklistResults(
     const isNotApplicable = inspectionType === "unvisited_simple" && !def.simpleInspectable;
     if (isNotApplicable) return entry; // 미방문 간이점검의 비실측 항목은 덮어쓸 수 없음 — 항상 N/A
     if (!def.requiresManualCheck) {
-      return { ...entry, result: autoJudgeInsulationItem(measurements.insulationResistance), note: "실측값 기준 자동판정" };
+      const result = autoJudgeInsulationItem(measurements.insulationResistance, measurements.insulationResistanceThresholdMohm);
+      const note = measurements.insulationResistanceThresholdMohm === null ? "단지 기준값 미설정 — 관리자 설정 필요" : "실측값 기준 자동판정";
+      return { ...entry, result, note };
     }
     const override = overrideMap.get(entry.id);
     if (!override) return entry;
@@ -252,68 +263,39 @@ export function applyChecklistResults(
 
 export type DiagnosisEntry = {
   item: string;
-  verdict: "부적합" | "기준치 미달 의심";
+  verdict: "부적합";
   regulation: string;
   actionTypes: string[];
   comment: string;
 };
 
-// 400V 미만·대지전압 150V 이하 구간의 가장 낮은 법정 기준값(2020.12.31 이전 사업승인 건 기준) —
-// 이보다 낮으면 어떤 시공 시기 기준을 적용해도 부적합.
-const INSULATION_LEGACY_FLOOR_MOHM = 0.1;
-// KEC 시행(2022.1.1~) 기준 SELV/PELV 최소값 — 이 미만이면 최신 기준으로도 미달 의심.
-const INSULATION_KEC_MIN_MOHM = 0.5;
-
 /**
- * 체크리스트의 부적합(X) 항목 + 절연저항 실측값을 별표3 규칙표와 대조해 자동 안전진단을
- * 산출한다. 부하전류/IGR은 분기회로 정격용량 대비 판정이 필요해(현장마다 다름) 고정 임계값을
- * 두지 않고 실측값만 기록한다 — 과부하 최종 판단은 전기선임자가 현장 정격을 보고 내린다.
+ * 체크리스트의 부적합(X) 항목을 별표3 규칙표와 대조해 자동 안전진단을 산출한다. 절연 2항목은
+ * applyChecklistResults가 이미 단지별 기준값으로 O/X를 확정해 넘겨주므로, 여기서는 그 결과가
+ * X인 경우만 그대로 안내하면 된다 — 별도 임계치 로직이 필요 없다. 부하전류/누설전류(IGR)는
+ * 분기회로 정격용량 대비 판정이 필요해(현장마다 다름) 고정 임계값을 두지 않고 실측값만
+ * 기록한다 — 과부하 최종 판단은 전기선임자가 현장 정격을 보고 내린다.
  */
-export function diagnoseChecklist(
-  checklist: ChecklistEntry[],
-  measurements: { insulationResistance: number | null }
-): DiagnosisEntry[] {
+export function diagnoseChecklist(checklist: ChecklistEntry[]): DiagnosisEntry[] {
   const findings: DiagnosisEntry[] = [];
 
   for (const entry of checklist) {
     if (entry.result !== "X") continue;
     const def = getChecklistItemDef(entry.id);
     if (!def) continue;
-    // 절연 2항목은 아래 insulationResistance 임계치 블록이 더 정밀한 코멘트(부적합/기준치 미달
-    // 의심 구분)로 이미 다룬다 — 여기서 또 push하면 같은 항목이 두 번 나온다.
-    if (!def.requiresManualCheck) continue;
     findings.push({
       item: def.label,
       verdict: "부적합",
       regulation: def.regulation,
       actionTypes: def.actionTypes,
       comment:
-        entry.note ||
-        `${def.category} 항목이 부적합으로 확인되었습니다. ${
-          def.actionTypes.includes("개선") ? "조속한 개선(수리)이 필요합니다." : "세대에 통지가 필요합니다."
-        }`
+        entry.note === "실측값 기준 자동판정"
+          ? "실측 절연저항이 이 단지의 기준값에 못 미칩니다. 누전·감전 위험이 있어 조속한 정밀점검이 필요합니다."
+          : entry.note ||
+            `${def.category} 항목이 부적합으로 확인되었습니다. ${
+              def.actionTypes.includes("개선") ? "조속한 개선(수리)이 필요합니다." : "세대에 통지가 필요합니다."
+            }`
     });
-  }
-
-  const ir = measurements.insulationResistance;
-  if (typeof ir === "number" && Number.isFinite(ir)) {
-    if (ir < INSULATION_LEGACY_FLOOR_MOHM) {
-      findings.push({
-        item: `절연저항 실측값 ${ir}MΩ`,
-        verdict: "부적합",
-        regulation: "별표3-1-가 (구축 시기별 기준값 중 최저치 0.1MΩ 기준)",
-        actionTypes: ["통지"],
-        comment: "실측 절연저항이 가장 낮은 법정 기준치(0.1MΩ)에도 못 미칩니다. 누전·감전 위험이 높아 세대방문 정밀점검이 시급합니다."
-      });
-    } else if (ir < INSULATION_KEC_MIN_MOHM) {
-      findings.push({
-        item: `절연저항 실측값 ${ir}MΩ`,
-        verdict: "기준치 미달 의심",
-        regulation: "별표3-1-가 (전로 사용전압별 기준값 — 건축 시기에 따라 0.1~1.0MΩ)",
-        actionTypes: ["통지"],
-        comment: "건축(사업승인) 시기에 따라 적용 기준이 달라, 세대방문 정밀점검으로 정확한 판정이 필요합니다."
-      });
-    }
   }
 
   return findings;

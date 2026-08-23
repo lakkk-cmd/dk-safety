@@ -11,6 +11,8 @@ type Apartment = {
   baseFee: number;
   district: string;
   address: string;
+  electricalSafetyManagerName: string;
+  insulationResistanceThresholdMohm: number | null;
 };
 
 /** 광주 5개 구 — 관리자 목록 탭 분류 + 주소 검색 결과로부터 구 자동 판별 */
@@ -66,7 +68,9 @@ const initialForm = {
   accountHolder: "대경이엔피",
   baseFee: 150000,
   district: "",
-  address: ""
+  address: "",
+  electricalSafetyManagerName: "",
+  insulationResistanceThresholdMohm: ""
 };
 
 export default function AdminApartmentsManager() {
@@ -109,7 +113,9 @@ export default function AdminApartmentsManager() {
           bankInfo: { bankName: form.bankName, accountNumber: form.accountNumber, accountHolder: form.accountHolder || form.name },
           baseFee: form.baseFee,
           district: form.district,
-          address: form.address
+          address: form.address,
+          electricalSafetyManagerName: form.electricalSafetyManagerName,
+          insulationResistanceThresholdMohm: form.insulationResistanceThresholdMohm === "" ? null : Number(form.insulationResistanceThresholdMohm)
         })
       });
       const data = (await response.json().catch(() => ({}))) as { message?: string };
@@ -207,6 +213,20 @@ export default function AdminApartmentsManager() {
             placeholder="기본 출장비"
             className="soft-input"
           />
+          <input
+            value={form.electricalSafetyManagerName}
+            onChange={(e) => setForm((p) => ({ ...p, electricalSafetyManagerName: e.target.value }))}
+            placeholder="전기선임자 성명 (세대점검표 서명란용)"
+            className="soft-input"
+          />
+          <input
+            type="number"
+            step="0.01"
+            value={form.insulationResistanceThresholdMohm}
+            onChange={(e) => setForm((p) => ({ ...p, insulationResistanceThresholdMohm: e.target.value }))}
+            placeholder="절연저항 기준값(MΩ) — 세대점검 자동판정용"
+            className="soft-input"
+          />
         </div>
         <div className="mt-3 flex gap-2">
           <button type="button" onClick={() => void saveItem()} className="btn-primary px-4 py-2 text-sm">
@@ -275,6 +295,14 @@ export default function AdminApartmentsManager() {
               <p className="mt-1 text-xs text-slate-600">
                 {item.bankInfo.bankName} {item.bankInfo.accountNumber} ({item.bankInfo.accountHolder}) · 기본 {item.baseFee.toLocaleString("ko-KR")}원
               </p>
+              <p className="mt-1 text-xs text-slate-500">
+                전기선임자: {item.electricalSafetyManagerName || "미설정"} · 절연저항 기준값:{" "}
+                {item.insulationResistanceThresholdMohm === null ? (
+                  <span className="font-semibold text-amber-600">미설정(세대점검 자동판정 불가)</span>
+                ) : (
+                  `${item.insulationResistanceThresholdMohm}MΩ`
+                )}
+              </p>
               <button type="button" onClick={() => void removeItem(item.id)} className="mt-2 rounded-md border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-700">
                 삭제
               </button>
@@ -291,7 +319,10 @@ export default function AdminApartmentsManager() {
                     accountHolder: item.bankInfo.accountHolder,
                     baseFee: item.baseFee,
                     district: item.district,
-                    address: item.address
+                    address: item.address,
+                    electricalSafetyManagerName: item.electricalSafetyManagerName,
+                    insulationResistanceThresholdMohm:
+                      item.insulationResistanceThresholdMohm === null ? "" : String(item.insulationResistanceThresholdMohm)
                   });
                 }}
                 className="ml-2 mt-2 rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"

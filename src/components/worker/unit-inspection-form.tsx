@@ -17,7 +17,12 @@ import {
 
 type InspectionType = "visit" | "unvisited_simple";
 
-type ApartmentOption = { id: string; name: string; electrical_safety_manager_name: string | null };
+type ApartmentOption = {
+  id: string;
+  name: string;
+  electrical_safety_manager_name: string | null;
+  insulation_resistance_threshold_mohm: number | null;
+};
 
 type DiagnosisEntry = {
   item: string;
@@ -98,6 +103,8 @@ export default function UnitInspectionForm() {
     [inspectionType]
   );
   const isLastStep = step === stepLabels.length - 1;
+  const selectedApartment = apartments.find((a) => a.id === apartmentId) ?? null;
+  const insulationThresholdConfigured = selectedApartment?.insulation_resistance_threshold_mohm != null;
 
   const visibleGroups = useMemo(
     () =>
@@ -321,9 +328,17 @@ export default function UnitInspectionForm() {
                     return (
                       <div key={id}>
                         <p className="mb-1 text-[14px] font-semibold text-slate-800">{def.label}</p>
-                        <p className="rounded-xl bg-dk-sky px-3 py-2 text-[13px] text-dk-navy">
-                          ⚡ 실측값(다음 단계의 절연저항) 기준으로 자동 판정됩니다 — 여기서 누를 필요 없어요.
-                        </p>
+                        {insulationThresholdConfigured ? (
+                          <p className="rounded-xl bg-dk-sky px-3 py-2 text-[13px] text-dk-navy">
+                            ⚡ 실측값(다음 단계의 절연저항, 이 단지 기준값 {selectedApartment?.insulation_resistance_threshold_mohm}MΩ) 기준으로
+                            자동 판정됩니다 — 여기서 누를 필요 없어요.
+                          </p>
+                        ) : (
+                          <p className="rounded-xl bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
+                            ⚠️ 이 단지는 절연저항 기준값이 아직 설정되지 않아 자동 판정이 보류됩니다(해당없음 처리). 관리자에게
+                            단지 설정을 요청해주세요.
+                          </p>
+                        )}
                       </div>
                     );
                   }

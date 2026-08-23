@@ -121,7 +121,10 @@ export async function POST(request: Request) {
   const igr = toNullableNumber(body.igr);
   const insulationResistance = toNullableNumber(body.insulationResistance);
   const etcNotes = toStringField(body.etcNotes);
-  const checklistItems = applyChecklistResults(inspectionType, overrides, { insulationResistance });
+  const checklistItems = applyChecklistResults(inspectionType, overrides, {
+    insulationResistance,
+    insulationResistanceThresholdMohm: apartment.insulationResistanceThresholdMohm
+  });
 
   const residentNameRaw = toStringField(body.residentName).trim();
   const signatureDataRaw = toStringField(body.signatureData).trim();

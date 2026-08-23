@@ -25,6 +25,8 @@ export async function POST(request: Request) {
     baseFee?: number;
     district?: string;
     address?: string;
+    electricalSafetyManagerName?: string;
+    insulationResistanceThresholdMohm?: number | null;
   };
   const name = body.name?.trim() ?? "";
   const code = body.code?.trim().toLowerCase() ?? "";
@@ -43,7 +45,10 @@ export async function POST(request: Request) {
       },
       baseFee: typeof body.baseFee === "number" ? body.baseFee : 50000,
       district: body.district ?? "",
-      address: body.address ?? ""
+      address: body.address ?? "",
+      electricalSafetyManagerName: body.electricalSafetyManagerName ?? "",
+      insulationResistanceThresholdMohm:
+        typeof body.insulationResistanceThresholdMohm === "number" ? body.insulationResistanceThresholdMohm : null
     });
     return NextResponse.json({ apartment }, { status: 201 });
   } catch (error) {

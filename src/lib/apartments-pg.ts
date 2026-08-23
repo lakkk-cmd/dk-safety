@@ -12,6 +12,10 @@ export type ApartmentTenant = {
   district: string;
   /** 실제 소재지 주소(도로명/지번) — 미지정이면 빈 문자열 */
   address: string;
+  /** 단지 전기선임자 성명 — 세대전기점검표 문서 명의/서명란에 자동 삽입(100) */
+  electricalSafetyManagerName: string;
+  /** 절연저항 부적합 판정 기준값(MΩ) — 세대 누전차단기 회로 구성에 맞춰 단지별로 다름(102). 미설정이면 null. */
+  insulationResistanceThresholdMohm: number | null;
   createdAt: string;
 };
 
@@ -27,6 +31,8 @@ type ApartmentRow = {
   base_fee: number;
   district?: string | null;
   address?: string | null;
+  electrical_safety_manager_name?: string | null;
+  insulation_resistance_threshold_mohm?: number | null;
   created_at: string;
 };
 
@@ -51,6 +57,11 @@ function mapApartment(row: ApartmentRow): ApartmentTenant {
     baseFee: Number.isFinite(row.base_fee) ? Number(row.base_fee) : 50000,
     district: row.district?.trim() ?? "",
     address: row.address?.trim() ?? "",
+    electricalSafetyManagerName: row.electrical_safety_manager_name?.trim() ?? "",
+    insulationResistanceThresholdMohm:
+      typeof row.insulation_resistance_threshold_mohm === "number" && Number.isFinite(row.insulation_resistance_threshold_mohm)
+        ? row.insulation_resistance_threshold_mohm
+        : null,
     createdAt: row.created_at
   };
 }
@@ -125,6 +136,8 @@ export async function pgCreateApartment(input: {
   baseFee: number;
   district?: string;
   address?: string;
+  electricalSafetyManagerName?: string;
+  insulationResistanceThresholdMohm?: number | null;
 }): Promise<ApartmentTenant> {
   const supabase = requireSupabaseAdmin();
   const normalizedCode = input.code.trim().toLowerCase();
@@ -141,7 +154,9 @@ export async function pgCreateApartment(input: {
       bank_info: input.bankInfo,
       base_fee: Math.max(50000, Math.round(input.baseFee)),
       district: input.district?.trim() || "",
-      address: input.address?.trim() || ""
+      address: input.address?.trim() || "",
+      electrical_safety_manager_name: input.electricalSafetyManagerName?.trim() || null,
+      insulation_resistance_threshold_mohm: input.insulationResistanceThresholdMohm ?? null
     })
     .select("*")
     .single();
@@ -161,6 +176,8 @@ export async function pgUpdateApartment(
     baseFee: number;
     district: string;
     address: string;
+    electricalSafetyManagerName: string;
+    insulationResistanceThresholdMohm: number | null;
   }>
 ): Promise<ApartmentTenant | null> {
   const supabase = requireSupabaseAdmin();
@@ -178,6 +195,8 @@ export async function pgUpdateApartment(
   if (typeof patch.baseFee === "number") payload.base_fee = Math.max(50000, Math.round(patch.baseFee));
   if (typeof patch.district === "string") payload.district = patch.district.trim();
   if (typeof patch.address === "string") payload.address = patch.address.trim();
+  if (typeof patch.electricalSafetyManagerName === "string") payload.electrical_safety_manager_name = patch.electricalSafetyManagerName.trim() || null;
+  if (patch.insulationResistanceThresholdMohm !== undefined) payload.insulation_resistance_threshold_mohm = patch.insulationResistanceThresholdMohm;
   if (Object.keys(payload).length === 0) return null;
 
   const { data, error } = await supabase.from("apartments").update(payload).eq("id", id).select("*").maybeSingle();

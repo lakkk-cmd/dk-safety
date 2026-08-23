@@ -17,6 +17,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     baseFee?: number;
     district?: string;
     address?: string;
+    electricalSafetyManagerName?: string;
+    insulationResistanceThresholdMohm?: number | null;
   };
   try {
     const apartment = await pgUpdateApartment(id, {
@@ -32,7 +34,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         : undefined,
       baseFee: body.baseFee,
       district: body.district,
-      address: body.address
+      address: body.address,
+      electricalSafetyManagerName: body.electricalSafetyManagerName,
+      insulationResistanceThresholdMohm: body.insulationResistanceThresholdMohm
     });
     if (!apartment) return NextResponse.json({ message: "수정할 항목이 없습니다." }, { status: 400 });
     return NextResponse.json({ apartment });

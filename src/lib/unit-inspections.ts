@@ -72,9 +72,7 @@ function mapUnitInspection(row: UnitInspectionRow): UnitInspection {
 /** 세대전기점검 기록 생성 — 저장 직전 별표3 규칙엔진으로 auto_diagnosis를 산출해 함께 저장한다 */
 export async function pgCreateUnitInspection(workerId: string, input: UnitInspectionInput): Promise<UnitInspection> {
   const supabase = requireSupabaseAdmin();
-  const autoDiagnosis = diagnoseChecklist(input.checklistItems, {
-    insulationResistance: input.insulationResistance
-  });
+  const autoDiagnosis = diagnoseChecklist(input.checklistItems);
 
   const { data, error } = await supabase
     .from("unit_electrical_inspections")
