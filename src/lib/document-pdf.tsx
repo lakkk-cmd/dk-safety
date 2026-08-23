@@ -313,7 +313,41 @@ function groupChecklistByCategory(items: ChecklistEntry[]): { category: string; 
   return groups;
 }
 
-function UnitInspectionElement({ data }: { data: UnitInspectionPdfData }) {
+/**
+ * 자동 안전진단·회사 자체 권장사항 블록은 항목 개수·문구 길이에 따라 높이가 달라진다 — 이
+ * 두 블록을 담는 컨테이너를 PAGE_H_PX 고정 높이로 렌더링하면(과거 방식), 부적합 항목이 많은
+ * 실제 점검건에서 콘텐츠가 고정 캔버스 높이를 넘어서고, satori의 flex 기본 shrink 동작으로
+ * 줄들이 서로 짓눌려 겹쳐 보이는 버그가 발생한다(2026-08-23 실제 발급 PDF에서 발견). renderDocumentPdf/
+ * renderAdminReportPdf와 동일하게 콘텐츠 길이 기반 동적 높이를 계산해 이 문제를 근본적으로 막는다.
+ */
+function estimateAutoDiagnosisBlockHeight(entries: DiagnosisEntry[]): number {
+  if (entries.length === 0) return 0;
+  const HEADER = 46;
+  const BOX_PADDING = 32;
+  const entriesHeight = entries.reduce((sum, e) => {
+    const itemLine = 26;
+    const regulationHeight = estimateTextHeightPx(e.regulation, 58, 24);
+    const commentHeight = estimateTextHeightPx(e.comment, 58, 24);
+    return sum + itemLine + regulationHeight + commentHeight + 8;
+  }, 0);
+  const gaps = (entries.length - 1) * 14;
+  return HEADER + BOX_PADDING + entriesHeight + gaps;
+}
+
+function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): number {
+  if (entries.length === 0) return 0;
+  const HEADER = 70;
+  const BOX_PADDING = 28;
+  const entriesHeight = entries.reduce((sum, e) => {
+    const itemLine = 21;
+    const commentHeight = estimateTextHeightPx(e.comment, 60, 22);
+    return sum + itemLine + commentHeight + 2;
+  }, 0);
+  const gaps = (entries.length - 1) * 10;
+  return HEADER + BOX_PADDING + entriesHeight + gaps;
+}
+
+function UnitInspectionElement({ data, heightPx }: { data: UnitInspectionPdfData; heightPx: number }) {
   const groups = groupChecklistByCategory(data.checklistItems);
   const inkColor = "#201e19";
   const mutedColor = "#5c574a";
@@ -329,7 +363,7 @@ function UnitInspectionElement({ data }: { data: UnitInspectionPdfData }) {
         display: "flex",
         flexDirection: "column",
         width: PAGE_W_PX,
-        height: PAGE_H_PX,
+        height: heightPx,
         backgroundColor: "#ffffff",
         fontFamily: "NotoSansKR",
         color: inkColor,
@@ -543,12 +577,23 @@ function UnitInspectionElement({ data }: { data: UnitInspectionPdfData }) {
   );
 }
 
-/** 세대전기점검표를 직무고시 별지 15호 서식 그대로 A4 한 장 PDF로 렌더링한다. */
+/**
+ * 세대전기점검표를 직무고시 별지 15호 서식 그대로 렌더링한다. PAGE_H_PX는 부적합/권장사항이
+ * 없는 기본 서식(표+기타사항+서명란)만 담을 때 딱 맞도록 튜닝된 값이라, 그 값을 그대로 베이스로
+ * 쓰고 자동 안전진단·회사 자체 권장사항 블록이 실제로 차지할 높이만 더한다 — 내용이 한 장을
+ * 넘으면 addSlicedPages가 자동으로 2페이지로 슬라이스한다.
+ */
 export async function renderUnitInspectionPdf(data: UnitInspectionPdfData): Promise<Uint8Array> {
-  const png = await renderElementToPng(<UnitInspectionElement data={data} />, PAGE_W_PX, PAGE_H_PX);
+  const extraHeight =
+    estimateAutoDiagnosisBlockHeight(data.autoDiagnosis) +
+    estimateCompanyAdvisoryBlockHeight(data.companyAdvisories) +
+    (data.etcNotes ? estimateTextHeightPx(data.etcNotes, 70, 24) : 0);
+  const heightPx = PAGE_H_PX + extraHeight;
+
+  const png = await renderElementToPng(<UnitInspectionElement data={data} heightPx={heightPx} />, PAGE_W_PX, heightPx);
   const pdfDoc = await PDFDocument.create();
   const image = await pngToImageWithPdfDoc(pdfDoc, png);
-  addSlicedPages(pdfDoc, image, PAGE_W_PX, PAGE_H_PX);
+  addSlicedPages(pdfDoc, image, PAGE_W_PX, heightPx);
   return pdfDoc.save();
 }
 
