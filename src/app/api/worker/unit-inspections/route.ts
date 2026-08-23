@@ -6,6 +6,7 @@ import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import {
   applyChecklistResults,
   CHECKLIST_ITEMS,
+  MANUAL_CHECK_ITEM_IDS,
   SIMPLE_INSPECTION_ITEM_IDS,
   type ChecklistItemId,
   type ChecklistResult
@@ -16,6 +17,7 @@ import { verifyWorkerSessionToken } from "@/lib/worker-auth";
 const VALID_ITEM_IDS = new Set<ChecklistItemId>(CHECKLIST_ITEMS.map((d) => d.id));
 const VALID_RESULTS = new Set<ChecklistResult>(["O", "X", "/", "N/A"]);
 const SIMPLE_INSPECTABLE_IDS = new Set<ChecklistItemId>(SIMPLE_INSPECTION_ITEM_IDS);
+const MANUAL_CHECK_IDS = new Set<ChecklistItemId>(MANUAL_CHECK_ITEM_IDS);
 
 function toStringField(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -99,12 +101,27 @@ export async function POST(request: Request) {
     }
     overrides.push({ id, result, note });
   }
-  const checklistItems = applyChecklistResults(inspectionType, overrides);
+
+  // 현장에서 육안·수기로 직접 확인해야 하는 항목은 반드시 워커가 값을 보내야 다음 단계로
+  // 진행된 것으로 본다 — 클라이언트 단계이동 검사와 별개로 서버에서도 한 번 더 막는다
+  // (defense in depth, 다른 API들과 동일한 원칙).
+  const overriddenIds = new Set(overrides.map((o) => o.id));
+  const requiredManualIds = CHECKLIST_ITEMS.filter(
+    (d) => MANUAL_CHECK_IDS.has(d.id) && (inspectionType === "visit" || SIMPLE_INSPECTABLE_IDS.has(d.id))
+  ).map((d) => d.id);
+  const missingManualIds = requiredManualIds.filter((id) => !overriddenIds.has(id));
+  if (missingManualIds.length > 0) {
+    return NextResponse.json(
+      { message: `현장에서 직접 확인해야 하는 항목이 누락되었습니다 (${missingManualIds.length}개).` },
+      { status: 400 }
+    );
+  }
 
   const loadCurrent = toNullableNumber(body.loadCurrent);
   const igr = toNullableNumber(body.igr);
   const insulationResistance = toNullableNumber(body.insulationResistance);
   const etcNotes = toStringField(body.etcNotes);
+  const checklistItems = applyChecklistResults(inspectionType, overrides, { insulationResistance });
 
   const residentNameRaw = toStringField(body.residentName).trim();
   const signatureDataRaw = toStringField(body.signatureData).trim();

@@ -31,6 +31,12 @@ export type ChecklistItemDef = {
   label: string; // 확인 사항
   /** 세대미방문 간이점검(EPS실)에서도 실측 가능한 3항목만 true — 나머지 9개는 서식에 N/A로 채운다 */
   simpleInspectable: boolean;
+  /**
+   * true면 워커가 현장에서 직접 ○/×를 눌러야만 다음 단계로 진행 가능(육안·수기 확인 필요).
+   * false는 실측값(현재는 절연저항만)으로 자동 판정되어 버튼 없이 통과 — autoJudgeInsulationItem 참고.
+   * 부하전류·누설전류(IGR)가 어떤 항목을 자동 판정하는지는 아직 확정되지 않아 전부 true로 둔다.
+   */
+  requiresManualCheck: boolean;
   regulation: string; // 별표3 근거규정
   actionTypes: ("통지" | "구두" | "개선")[];
   confidence: "exact" | "best_fit";
@@ -43,6 +49,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전", "화재", "전력손실"],
     label: "주회로 및 각 분기회로 절연저항 기준치 미만",
     simpleInspectable: true,
+    requiresManualCheck: false,
     regulation: "별표3-1-가 (전기설비기술기준 5,27,52 / KEC 131,132)",
     actionTypes: ["통지"],
     confidence: "exact"
@@ -53,6 +60,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전", "화재", "전력손실"],
     label: "전기기계기구의 절연저항 기준치 미만",
     simpleInspectable: true,
+    requiresManualCheck: false,
     regulation: "별표3-1-다 (전기설비기술기준 5,27,52 / KEC 131,132)",
     actionTypes: ["통지"],
     confidence: "exact"
@@ -63,6 +71,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전", "합선", "화재"],
     label: "세대용 계량기 인입선 접촉불량 및 탄화·손상",
     simpleInspectable: true,
+    requiresManualCheck: true,
     regulation: "별표3-2 인입구배선 및 옥내배선 관련 조항 (전기설비기술기준 39 / KEC 221.1.2)",
     actionTypes: ["구두", "개선"],
     confidence: "best_fit"
@@ -73,6 +82,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전", "합선", "화재"],
     label: "전선 노후화, 열화 및 피복 손상이 심한 경우",
     simpleInspectable: false,
+    requiresManualCheck: true,
     regulation: "별표3-2-사-2) (전기설비기술기준 50,51)",
     actionTypes: ["통지"],
     confidence: "exact"
@@ -83,6 +93,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전", "합선", "화재"],
     label: "전선보호용 개폐기, 차단기 용량 과다",
     simpleInspectable: false,
+    requiresManualCheck: true,
     regulation: "별표3-4-마-2) 개폐기, 차단기 및 퓨즈 용량과다",
     actionTypes: ["구두", "개선"],
     confidence: "exact"
@@ -93,6 +104,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전", "합선", "화재"],
     label: "누전차단기 미설치 또는 동작불량, 열화 및 손상",
     simpleInspectable: false,
+    requiresManualCheck: true,
     regulation: "별표3-3-가·라 누전차단기(ELB) 점검 (KEC 234.10 외, 권장 수명연한 제조일로부터 15년)",
     actionTypes: ["구두", "개선"],
     confidence: "exact"
@@ -103,6 +115,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전", "합선", "화재"],
     label: "욕실 등에 시설하는 콘센트회로에 인체 감전보호용 누전차단기 미설치",
     simpleInspectable: false,
+    requiresManualCheck: true,
     regulation: "별표3-3-가-6) (2004.1.1. 이후 기준)",
     actionTypes: ["통지"],
     confidence: "exact"
@@ -113,6 +126,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전", "합선", "화재"],
     label: "소비전력 3kW 이상 전기기계기구에 전용개폐기 미시설",
     simpleInspectable: false,
+    requiresManualCheck: true,
     regulation: "별표3-4-다-1) (KEC 231.6)",
     actionTypes: ["통지", "개선"],
     confidence: "exact"
@@ -123,6 +137,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전", "합선", "화재"],
     label: "개폐기, 차단기, 배선기구, 접속기, 콘센트 등의 손상",
     simpleInspectable: false,
+    requiresManualCheck: true,
     regulation: "별표3-2-사-3) (KEC 123)",
     actionTypes: ["구두"],
     confidence: "exact"
@@ -133,6 +148,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전"],
     label: "금속제 분전반 접지저항 기준치 초과",
     simpleInspectable: false,
+    requiresManualCheck: true,
     regulation: "별표3-5-가-1) (전기설비기술기준 6)",
     actionTypes: ["통지"],
     confidence: "exact"
@@ -143,6 +159,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전"],
     label: "전기기계기구(에어컨, 세탁기 등) 접지 미시설",
     simpleInspectable: false,
+    requiresManualCheck: true,
     regulation: "별표3-5-가-2)-가) 가정용 (KEC 142.7)",
     actionTypes: ["구두"],
     confidence: "exact"
@@ -153,6 +170,7 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전"],
     label: "옥내 전로에 접지선 미설치",
     simpleInspectable: false,
+    requiresManualCheck: true,
     regulation: "별표3-5-가-3) 옥내전로 접지극 콘센트·접지시설 관련 (KEC 234.5)",
     actionTypes: ["통지"],
     confidence: "best_fit"
@@ -160,6 +178,11 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
 ];
 
 export const SIMPLE_INSPECTION_ITEM_IDS: ChecklistItemId[] = CHECKLIST_ITEMS.filter((i) => i.simpleInspectable).map(
+  (i) => i.id
+);
+
+/** 워커가 현장에서 직접 ○/×를 눌러야 하는 항목 — 화면의 필수입력 검사가 이 목록을 기준으로 다음 단계 진행을 막는다 */
+export const MANUAL_CHECK_ITEM_IDS: ChecklistItemId[] = CHECKLIST_ITEMS.filter((i) => i.requiresManualCheck).map(
   (i) => i.id
 );
 
@@ -192,12 +215,24 @@ export function buildChecklistTemplate(inspectionType: "visit" | "unvisited_simp
 }
 
 /**
+ * 절연저항 실측값으로 절연(누전) 2항목을 자동 판정한다 — 워커가 버튼을 누르지 않아도 되는
+ * 유일한 자동판정 케이스(2026-08 확정). 부하전류/누설전류(IGR)가 담당하는 항목은 아직
+ * 기준값이 확정되지 않아 별도 자동판정 없이 수동 확인 대상으로 남아있다.
+ */
+export function autoJudgeInsulationItem(insulationResistance: number | null): ChecklistResult {
+  if (typeof insulationResistance !== "number" || !Number.isFinite(insulationResistance)) return "/";
+  return insulationResistance < INSULATION_KEC_MIN_MOHM ? "X" : "O";
+}
+
+/**
  * 워커가 입력한 항목별 결과(id+result+note)를 서버 신뢰 템플릿에 병합한다. category/riskFactors/
- * item 텍스트는 항상 CHECKLIST_ITEMS 기준으로 재구성해 클라이언트 위·변조를 막는다.
+ * item 텍스트는 항상 CHECKLIST_ITEMS 기준으로 재구성해 클라이언트 위·변조를 막는다. requiresManualCheck
+ * 가 false인 항목(현재 절연 2항목)은 클라이언트가 뭘 보내든 무시하고 실측값으로 서버가 다시 판정한다.
  */
 export function applyChecklistResults(
   inspectionType: "visit" | "unvisited_simple",
-  overrides: { id: ChecklistItemId; result: ChecklistResult; note: string }[]
+  overrides: { id: ChecklistItemId; result: ChecklistResult; note: string }[],
+  measurements: { insulationResistance: number | null }
 ): ChecklistEntry[] {
   const template = buildChecklistTemplate(inspectionType);
   const overrideMap = new Map(overrides.map((o) => [o.id, o]));
@@ -206,6 +241,9 @@ export function applyChecklistResults(
     if (!def) return entry;
     const isNotApplicable = inspectionType === "unvisited_simple" && !def.simpleInspectable;
     if (isNotApplicable) return entry; // 미방문 간이점검의 비실측 항목은 덮어쓸 수 없음 — 항상 N/A
+    if (!def.requiresManualCheck) {
+      return { ...entry, result: autoJudgeInsulationItem(measurements.insulationResistance), note: "실측값 기준 자동판정" };
+    }
     const override = overrideMap.get(entry.id);
     if (!override) return entry;
     return { ...entry, result: override.result, note: override.note.trim() };
@@ -241,6 +279,9 @@ export function diagnoseChecklist(
     if (entry.result !== "X") continue;
     const def = getChecklistItemDef(entry.id);
     if (!def) continue;
+    // 절연 2항목은 아래 insulationResistance 임계치 블록이 더 정밀한 코멘트(부적합/기준치 미달
+    // 의심 구분)로 이미 다룬다 — 여기서 또 push하면 같은 항목이 두 번 나온다.
+    if (!def.requiresManualCheck) continue;
     findings.push({
       item: def.label,
       verdict: "부적합",

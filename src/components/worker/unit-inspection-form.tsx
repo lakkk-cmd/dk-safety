@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import SignaturePad from "@/components/worker/signature-pad";
 import {
   CHECKLIST_ITEMS,
+  MANUAL_CHECK_ITEM_IDS,
   SIMPLE_INSPECTION_ITEM_IDS,
   type ChecklistItemId,
   type ChecklistResult
@@ -33,6 +34,7 @@ const RESULT_OPTIONS: { value: ChecklistResult; label: string; activeClass: stri
 ];
 
 const SIMPLE_INSPECTABLE_SET = new Set<ChecklistItemId>(SIMPLE_INSPECTION_ITEM_IDS);
+const MANUAL_CHECK_SET = new Set<ChecklistItemId>(MANUAL_CHECK_ITEM_IDS);
 
 function groupByCategory() {
   const groups: { category: string; ids: ChecklistItemId[] }[] = [];
@@ -57,8 +59,10 @@ export default function UnitInspectionForm() {
   const [ho, setHo] = useState("");
   const [inspectionType, setInspectionType] = useState<InspectionType>("visit");
 
-  const [results, setResults] = useState<Record<ChecklistItemId, ChecklistResult>>(
-    () => Object.fromEntries(CHECKLIST_ITEMS.map((d) => [d.id, "/"])) as Record<ChecklistItemId, ChecklistResult>
+  // 초기값 null = "아직 안 눌렀음". "/"(해당없음)는 워커가 실제로 그 버튼을 눌렀을 때만 들어간다 —
+  // 그래야 "미입력"과 "해당없음으로 확인함"이 구분된다.
+  const [results, setResults] = useState<Record<ChecklistItemId, ChecklistResult | null>>(
+    () => Object.fromEntries(CHECKLIST_ITEMS.map((d) => [d.id, null])) as Record<ChecklistItemId, ChecklistResult | null>
   );
   const [notes, setNotes] = useState<Record<ChecklistItemId, string>>(
     () => Object.fromEntries(CHECKLIST_ITEMS.map((d) => [d.id, ""])) as Record<ChecklistItemId, string>
@@ -104,8 +108,15 @@ export default function UnitInspectionForm() {
     [inspectionType]
   );
 
+  const requiredManualIdsForType = useMemo(
+    () => CHECKLIST_ITEMS.filter((d) => MANUAL_CHECK_SET.has(d.id) && (inspectionType === "visit" || SIMPLE_INSPECTABLE_SET.has(d.id))).map((d) => d.id),
+    [inspectionType]
+  );
+  const uncheckedManualIds = requiredManualIdsForType.filter((id) => results[id] === null);
+
   const stepValid = (idx: number): boolean => {
     if (idx === 0) return Boolean(apartmentId && dong.trim() && ho.trim());
+    if (idx === 1) return uncheckedManualIds.length === 0;
     if (idx === stepLabels.length - 1 && inspectionType === "visit") {
       return Boolean(residentName.trim() && signatureData);
     }
@@ -114,7 +125,9 @@ export default function UnitInspectionForm() {
 
   const goNext = () => {
     if (!stepValid(step)) {
-      setMessage(step === 0 ? "단지·동·호를 모두 입력해주세요." : "필수 항목을 입력해주세요.");
+      if (step === 0) setMessage("단지·동·호를 모두 입력해주세요.");
+      else if (step === 1) setMessage(`현장에서 직접 확인해야 하는 항목이 ${uncheckedManualIds.length}개 남았어요. ○/×/  중 하나를 눌러주세요.`);
+      else setMessage("필수 항목을 입력해주세요.");
       return;
     }
     setMessage(null);
@@ -129,9 +142,9 @@ export default function UnitInspectionForm() {
     setSubmitting(true);
     setMessage(null);
     try {
-      const checklistResults = CHECKLIST_ITEMS.filter(
-        (d) => inspectionType === "visit" || SIMPLE_INSPECTABLE_SET.has(d.id)
-      ).map((d) => ({ id: d.id, result: results[d.id], note: notes[d.id] }));
+      // 절연 2항목(requiresManualCheck: false)은 서버가 절연저항 실측값으로 자동판정하므로
+      // 보낼 필요가 없다 — 수동확인이 필요한 항목만 담는다(우린 이미 stepValid로 전부 채워졌음을 확인함).
+      const checklistResults = requiredManualIdsForType.map((id) => ({ id, result: results[id]!, note: notes[id] }));
 
       const response = await fetch("/api/worker/unit-inspections", {
         method: "POST",
@@ -169,7 +182,7 @@ export default function UnitInspectionForm() {
     setStep(0);
     setDong("");
     setHo("");
-    setResults(Object.fromEntries(CHECKLIST_ITEMS.map((d) => [d.id, "/"])) as Record<ChecklistItemId, ChecklistResult>);
+    setResults(Object.fromEntries(CHECKLIST_ITEMS.map((d) => [d.id, null])) as Record<ChecklistItemId, ChecklistResult | null>);
     setNotes(Object.fromEntries(CHECKLIST_ITEMS.map((d) => [d.id, ""])) as Record<ChecklistItemId, string>);
     setLoadCurrent("");
     setIgr("");
@@ -304,9 +317,21 @@ export default function UnitInspectionForm() {
               <div className="space-y-4">
                 {group.ids.map((id) => {
                   const def = CHECKLIST_ITEMS.find((d) => d.id === id)!;
+                  if (!def.requiresManualCheck) {
+                    return (
+                      <div key={id}>
+                        <p className="mb-1 text-[14px] font-semibold text-slate-800">{def.label}</p>
+                        <p className="rounded-xl bg-dk-sky px-3 py-2 text-[13px] text-dk-navy">
+                          ⚡ 실측값(다음 단계의 절연저항) 기준으로 자동 판정됩니다 — 여기서 누를 필요 없어요.
+                        </p>
+                      </div>
+                    );
+                  }
                   return (
                     <div key={id}>
-                      <p className="mb-2 text-[14px] font-semibold text-slate-800">{def.label}</p>
+                      <p className="mb-2 text-[14px] font-semibold text-slate-800">
+                        {def.label} <span className="text-dk-red">*</span>
+                      </p>
                       <div className="grid grid-cols-3 gap-2">
                         {RESULT_OPTIONS.map((opt) => (
                           <button
@@ -352,7 +377,7 @@ export default function UnitInspectionForm() {
               />
             </div>
             <div>
-              <p className="mb-2 text-[15px] font-bold text-slate-800">IGR (MΩ)</p>
+              <p className="mb-2 text-[15px] font-bold text-slate-800">IGR · 누설전류 (mA)</p>
               <input
                 type="number"
                 inputMode="decimal"
