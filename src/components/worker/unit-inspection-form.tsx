@@ -61,6 +61,8 @@ export default function UnitInspectionForm() {
   const [loadingApartments, setLoadingApartments] = useState(true);
 
   const [apartmentId, setApartmentId] = useState("");
+  const [apartmentQuery, setApartmentQuery] = useState("");
+  const [apartmentDropdownOpen, setApartmentDropdownOpen] = useState(false);
   const [dong, setDong] = useState("");
   const [ho, setHo] = useState("");
   const [inspectionType, setInspectionType] = useState<InspectionType>("visit");
@@ -112,6 +114,18 @@ export default function UnitInspectionForm() {
   const selectedApartment = apartments.find((a) => a.id === apartmentId) ?? null;
   const insulationThresholdConfigured = selectedApartment?.insulation_resistance_threshold_mohm != null;
   const leakageThresholdConfigured = selectedApartment?.leakage_current_threshold_ma != null;
+
+  const filteredApartments = useMemo(() => {
+    const q = apartmentQuery.trim().toLowerCase();
+    if (!q) return apartments;
+    return apartments.filter((a) => a.name.toLowerCase().includes(q));
+  }, [apartments, apartmentQuery]);
+
+  const selectApartment = (apt: ApartmentOption) => {
+    setApartmentId(apt.id);
+    setApartmentQuery(apt.name);
+    setApartmentDropdownOpen(false);
+  };
 
   const visibleGroups = useMemo(
     () =>
@@ -266,21 +280,49 @@ export default function UnitInspectionForm() {
       {step === 0 ? (
         <SectionCard title="기본정보">
           <div className="space-y-4">
-            <div>
+            <div className="relative">
               <p className="mb-2 text-[15px] font-bold text-slate-800">단지 *</p>
               {loadingApartments ? (
                 <p className="text-sm text-slate-500">불러오는 중...</p>
               ) : apartments.length === 0 ? (
                 <EmptyState icon="🏢" title="등록된 단지가 없어요" description="관리자에게 단지 등록을 요청해주세요." />
               ) : (
-                <select value={apartmentId} onChange={(e) => setApartmentId(e.target.value)} className="soft-input w-full text-base">
-                  <option value="">단지를 선택하세요</option>
-                  {apartments.map((apt) => (
-                    <option key={apt.id} value={apt.id}>
-                      {apt.name}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <input
+                    value={apartmentQuery}
+                    onChange={(e) => {
+                      setApartmentQuery(e.target.value);
+                      setApartmentId("");
+                      setApartmentDropdownOpen(true);
+                    }}
+                    onFocus={() => setApartmentDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setApartmentDropdownOpen(false), 150)}
+                    placeholder="단지명을 검색하세요"
+                    className="soft-input w-full text-base"
+                  />
+                  {apartmentDropdownOpen ? (
+                    <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg">
+                      {filteredApartments.length === 0 ? (
+                        <li className="px-4 py-3 text-sm text-slate-400">검색 결과가 없어요.</li>
+                      ) : (
+                        filteredApartments.map((apt) => (
+                          <li key={apt.id}>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => selectApartment(apt)}
+                              className={`block w-full px-4 py-3 text-left text-[15px] ${
+                                apt.id === apartmentId ? "bg-dk-sky font-bold text-dk-navy" : "hover:bg-slate-50"
+                              }`}
+                            >
+                              {apt.name}
+                            </button>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  ) : null}
+                </>
               )}
             </div>
 
