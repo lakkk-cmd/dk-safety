@@ -139,6 +139,13 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     moduleGroup: "ext"
   },
   {
+    href: "/admin/unit-inspections",
+    label: "세대전기점검",
+    description: "직무고시 별지15호 점검기록표 조회·PDF 발급",
+    icon: ClipboardCheck,
+    moduleGroup: "ext"
+  },
+  {
     href: "/admin/crm/consultations",
     label: "상담관리",
     description: "전화·카카오·방문 상담 기록 입력·조회",

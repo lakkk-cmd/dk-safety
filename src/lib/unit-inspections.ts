@@ -123,6 +123,20 @@ export async function pgListUnitInspectionsForApartment(apartmentId: string): Pr
   return ((data ?? []) as UnitInspectionRow[]).map(mapUnitInspection);
 }
 
+/** 관리자 조회화면용 전체 목록 — 최근 순, 최대 200건 */
+export async function pgListAllUnitInspections(limit = 200): Promise<UnitInspection[]> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("unit_electrical_inspections")
+    .select("*")
+    .order("inspected_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    throw new Error(`세대전기점검 목록 조회 실패: ${error.message}`);
+  }
+  return ((data ?? []) as UnitInspectionRow[]).map(mapUnitInspection);
+}
+
 /**
  * PDF 발급 후 pdf_url을 되채워 넣는다. DB 트리거(prevent_issued_unit_inspection_mutation)가
  * pdf_url이 이미 채워진 행의 UPDATE를 막으므로, 이 함수는 발급 전(draft) 상태에서만 성공한다 —

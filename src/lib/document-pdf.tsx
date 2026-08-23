@@ -5,6 +5,7 @@ import path from "path";
 import React from "react";
 import { ImageResponse } from "next/og";
 import { PDFDocument, PDFImage } from "pdf-lib";
+import type { ChecklistEntry, DiagnosisEntry } from "@/lib/unit-inspection-rules";
 
 const PAGE_W_PX = 1240;
 const PAGE_H_PX = 1754;
@@ -271,6 +272,251 @@ export async function renderAdminReportPdf(params: {
   const pdfDoc = await PDFDocument.create();
   const image = await pngToImageWithPdfDoc(pdfDoc, png);
   addSlicedPages(pdfDoc, image, PAGE_W_PX, heightPx);
+  return pdfDoc.save();
+}
+
+// ── 공동주택 세대내 전기설비 점검기록표(직무고시 별지 15호 커스텀) ──────────────
+// 브랜드 문서 톤이 아니라 원본 관공서 서식을 그대로 재현해야 하는 문서라 NAVY/GOLD 브랜드 색
+// 대신 원본 서식의 흑백 + 파란 표머리 톤을 쓴다. A4 한 장에 맞도록 설계(pdf-lib 스텝은
+// addSlicedPages가 그대로 재사용 — 내용이 넘치면 자동으로 2페이지가 된다).
+
+export type UnitInspectionPdfData = {
+  apartmentName: string;
+  electricalSafetyManagerName: string;
+  dong: string;
+  ho: string;
+  inspectedAtLabel: string; // "2026년 8월 23일" 형태로 이미 포맷된 문자열
+  inspectionType: "visit" | "unvisited_simple";
+  checklistItems: ChecklistEntry[];
+  loadCurrent: number | null;
+  igr: number | null;
+  insulationResistance: number | null;
+  etcNotes: string;
+  autoDiagnosis: DiagnosisEntry[];
+  residentName: string | null;
+};
+
+function groupChecklistByCategory(items: ChecklistEntry[]): { category: string; riskFactors: string[]; items: ChecklistEntry[] }[] {
+  const groups: { category: string; riskFactors: string[]; items: ChecklistEntry[] }[] = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (last && last.category === item.category) {
+      last.items.push(item);
+    } else {
+      groups.push({ category: item.category, riskFactors: item.riskFactors, items: [item] });
+    }
+  }
+  return groups;
+}
+
+function UnitInspectionElement({ data }: { data: UnitInspectionPdfData }) {
+  const groups = groupChecklistByCategory(data.checklistItems);
+  const inkColor = "#201e19";
+  const mutedColor = "#5c574a";
+  const borderColor = "#3a3628";
+  const headerTint = "#e4eaf3";
+  const blue = "#23508f";
+  const redSoft = "#f5e3df";
+  const red = "#a93a2c";
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        width: PAGE_W_PX,
+        height: PAGE_H_PX,
+        backgroundColor: "#ffffff",
+        fontFamily: "NotoSansKR",
+        color: inkColor,
+        padding: "70px 84px",
+      }}
+    >
+      <div style={{ display: "flex", fontSize: 15, color: mutedColor }}>[별지 제15호 서식]</div>
+      <div style={{ display: "flex", justifyContent: "center", fontSize: 32, marginTop: 14, marginBottom: 24 }}>
+        공동주택 세대내 전기설비 점검기록표
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", marginBottom: 12 }}>
+        <div style={{ display: "flex", fontSize: 20, borderBottom: `1px solid ${inkColor}`, paddingBottom: 4, width: 260 }}>
+          {data.dong}동 {data.ho}호
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+          <div style={{ display: "flex", fontSize: 18, borderBottom: `1px solid ${inkColor}`, paddingBottom: 4, minWidth: 220 }}>
+            {data.residentName ?? "입주자 미확인"} 귀하
+          </div>
+          <div style={{ display: "flex", fontSize: 16, color: mutedColor }}>{data.inspectedAtLabel}</div>
+        </div>
+      </div>
+
+      {data.inspectionType === "unvisited_simple" ? (
+        <div
+          style={{
+            display: "flex",
+            backgroundColor: redSoft,
+            color: red,
+            border: `1px solid ${red}`,
+            borderRadius: 8,
+            padding: "10px 16px",
+            fontSize: 17,
+            marginBottom: 12,
+          }}
+        >
+          ☑ 세대방문미요청 — EPS실 외부점검으로 대체 실시
+        </div>
+      ) : (
+        <div style={{ display: "flex", fontSize: 17, marginBottom: 12 }}>귀하의 전기설비 안전점검 결과를 아래와 같이 알려드립니다.</div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "center", fontSize: 19, marginBottom: 14 }}>- 아&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;래 -</div>
+
+      {/* 표 헤더 */}
+      <div style={{ display: "flex", border: `1px solid ${borderColor}`, borderBottom: "none" }}>
+        <div style={{ display: "flex", width: 150, backgroundColor: headerTint, padding: "10px 8px", fontSize: 16, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
+          부적합 설비
+        </div>
+        <div style={{ display: "flex", flex: 1, backgroundColor: headerTint, padding: "10px 8px", fontSize: 16, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
+          확인 사항
+        </div>
+        <div style={{ display: "flex", width: 100, backgroundColor: headerTint, padding: "10px 8px", fontSize: 16, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
+          점검 결과
+        </div>
+        <div style={{ display: "flex", width: 160, backgroundColor: headerTint, padding: "10px 8px", fontSize: 16, justifyContent: "center" }}>
+          비고
+        </div>
+      </div>
+
+      {groups.map((group, gIdx) => (
+        <div key={gIdx} style={{ display: "flex", border: `1px solid ${borderColor}`, borderBottom: "none" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              width: 150,
+              padding: "10px 8px",
+              fontSize: 15,
+              justifyContent: "center",
+              alignItems: "center",
+              backgroundColor: "rgba(35,80,143,0.05)",
+              borderRight: `1px solid ${borderColor}`,
+            }}
+          >
+            <div style={{ display: "flex" }}>{group.category}</div>
+            <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginTop: 4 }}>{group.riskFactors.join("·")}</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+            {group.items.map((item, iIdx) => (
+              <div
+                key={iIdx}
+                style={{
+                  display: "flex",
+                  borderTop: iIdx === 0 ? "none" : `1px solid ${borderColor}`,
+                  minHeight: 44,
+                }}
+              >
+                <div style={{ display: "flex", flex: 1, padding: "10px 8px", fontSize: 15, alignItems: "center", borderRight: `1px solid ${borderColor}` }}>
+                  {item.item}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    width: 100,
+                    padding: "10px 8px",
+                    fontSize: item.result === "N/A" ? 13 : 17,
+                    color: item.result === "X" ? red : inkColor,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    borderRight: `1px solid ${borderColor}`,
+                  }}
+                >
+                  {item.result === "N/A" ? "해당없음" : item.result}
+                </div>
+                <div style={{ display: "flex", width: 160, padding: "10px 8px", fontSize: item.note.length > 8 ? 12 : 14, color: mutedColor, alignItems: "center" }}>
+                  {item.note}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* 기타사항 */}
+      <div style={{ display: "flex", border: `1px solid ${borderColor}`, marginBottom: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            width: 150,
+            backgroundColor: redSoft,
+            padding: "10px 8px",
+            fontSize: 15,
+            justifyContent: "center",
+            alignItems: "center",
+            borderRight: `1px solid ${borderColor}`,
+          }}
+        >
+          기 타 사 항
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "10px 12px" }}>
+          <div style={{ display: "flex", fontSize: 16, gap: 24 }}>
+            <div style={{ display: "flex" }}>부하전류: {data.loadCurrent ?? "-"} A</div>
+            <div style={{ display: "flex" }}>IGR·누설전류: {data.igr ?? "-"} mA</div>
+            <div style={{ display: "flex" }}>절연저항: {data.insulationResistance ?? "-"} MΩ</div>
+          </div>
+          {data.etcNotes ? <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 6 }}>{data.etcNotes}</div> : null}
+        </div>
+      </div>
+
+      {/* 자동 안전진단 */}
+      {data.autoDiagnosis.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 14 }}>
+          <div style={{ display: "flex", backgroundColor: headerTint, padding: "8px 12px", fontSize: 16 }}>자동 안전진단 결과</div>
+          <div style={{ display: "flex", flexDirection: "column", padding: "10px 14px", gap: 8 }}>
+            {data.autoDiagnosis.map((entry, idx) => (
+              <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
+                <div style={{ display: "flex", fontSize: 15 }}>
+                  {entry.item} —{" "}
+                  <span style={{ display: "flex", color: red, marginLeft: 6 }}>{entry.verdict}</span>
+                </div>
+                <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginTop: 2 }}>{entry.regulation}</div>
+                <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginTop: 2 }}>{entry.comment}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginBottom: 4 }}>
+        ※ 부적합 전기설비는 감전, 화재 등의 위험과 전력손실로 인한 전기 요금의 추가부담 등의 원인이 되오니 조속한 시일내에 수리하시기 바랍니다.
+      </div>
+      <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginBottom: 20 }}>
+        [비고] 점검결과는 ○(적합), ×(부적합), /(해당없음) 으로 표기 · 세대미방문 시 미점검 항목은 해당없음으로 표기
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${borderColor}`, paddingTop: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", fontSize: 13, color: mutedColor }}>세대 확인</div>
+          <div style={{ display: "flex", fontSize: 17, marginTop: 4 }}>
+            {data.inspectionType === "unvisited_simple" ? "— 세대 부재로 서명 불가 (미방문 간이점검) —" : (data.residentName ?? "")}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", fontSize: 13, color: mutedColor }}>담당(전기선임자)</div>
+          <div style={{ display: "flex", fontSize: 17, marginTop: 4 }}>{data.electricalSafetyManagerName || "미지정"} (인)</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, fontSize: 16 }}>
+        점검단지: {data.apartmentName}
+      </div>
+    </div>
+  );
+}
+
+/** 세대전기점검표를 직무고시 별지 15호 서식 그대로 A4 한 장 PDF로 렌더링한다. */
+export async function renderUnitInspectionPdf(data: UnitInspectionPdfData): Promise<Uint8Array> {
+  const png = await renderElementToPng(<UnitInspectionElement data={data} />, PAGE_W_PX, PAGE_H_PX);
+  const pdfDoc = await PDFDocument.create();
+  const image = await pngToImageWithPdfDoc(pdfDoc, png);
+  addSlicedPages(pdfDoc, image, PAGE_W_PX, PAGE_H_PX);
   return pdfDoc.save();
 }
 
