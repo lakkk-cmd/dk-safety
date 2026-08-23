@@ -59,7 +59,7 @@ export default async function UnitInspectionPublicPage({ params }: { params: Pro
           </div>
         </dl>
 
-        <p className="mb-2 mt-4 text-sm font-bold text-slate-800">자동 안전진단</p>
+        <p className="mb-2 mt-4 text-sm font-bold text-slate-800">AI 안전진단</p>
         {badCount === 0 ? (
           <p className="text-[15px] text-slate-700">✅ 부적합 항목이 발견되지 않았습니다.</p>
         ) : (

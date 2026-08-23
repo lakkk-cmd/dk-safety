@@ -314,7 +314,7 @@ function groupChecklistByCategory(items: ChecklistEntry[]): { category: string; 
 }
 
 /**
- * 자동 안전진단·회사 자체 권장사항 블록은 항목 개수·문구 길이에 따라 높이가 달라진다 — 이
+ * AI 안전진단·회사 자체 권장사항 블록은 항목 개수·문구 길이에 따라 높이가 달라진다 — 이
  * 두 블록을 담는 컨테이너를 PAGE_H_PX 고정 높이로 렌더링하면(과거 방식), 부적합 항목이 많은
  * 실제 점검건에서 콘텐츠가 고정 캔버스 높이를 넘어서고, satori의 flex 기본 shrink 동작으로
  * 줄들이 서로 짓눌려 겹쳐 보이는 버그가 발생한다(2026-08-23 실제 발급 PDF에서 발견). renderDocumentPdf/
@@ -347,7 +347,28 @@ function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): nu
   return HEADER + BOX_PADDING + entriesHeight + gaps;
 }
 
-function UnitInspectionElement({ data, heightPx }: { data: UnitInspectionPdfData; heightPx: number }) {
+/**
+ * 헤더~표~기타사항까지(= AI 안전진단/회사 자체 권장사항 블록 시작 직전)의 대략적인 높이.
+ * satori에는 실제 렌더링 후 위치를 알려주는 측정 API가 없어서, 이 값은 CSS 스타일(폰트
+ * 크기·padding·margin)을 손으로 합산해 튜닝한 추정치다 — 표는 항상 12항목 고정이라
+ * 변동폭이 작지만, 기타사항 텍스트만 길이에 따라 estimateTextHeightPx로 보정한다.
+ */
+function estimateHeightBeforeDiagnosisBlock(data: UnitInspectionPdfData, etcNotesExtra: number): number {
+  const HEADER_INTRO = 371; // [별지 서식]~제목~동호/성명~안내문~"-아래-"
+  const TABLE = 798; // 표 헤더 + 12항목 행(minHeight 62 기준)
+  const ETC_BOX_BASE = 82; // 기타사항 박스(실측값 한 줄만 있을 때)
+  return HEADER_INTRO + TABLE + ETC_BOX_BASE + etcNotesExtra;
+}
+
+function UnitInspectionElement({
+  data,
+  heightPx,
+  pageBreakSpacerPx,
+}: {
+  data: UnitInspectionPdfData;
+  heightPx: number;
+  pageBreakSpacerPx: number;
+}) {
   const groups = groupChecklistByCategory(data.checklistItems);
   const inkColor = "#201e19";
   const mutedColor = "#5c574a";
@@ -504,10 +525,14 @@ function UnitInspectionElement({ data, heightPx }: { data: UnitInspectionPdfData
         </div>
       </div>
 
-      {/* 자동 안전진단 */}
+      {/* AI 안전진단/회사 자체 권장사항 블록이 표 중간에서 페이지가 잘리면 보기 안 좋으므로,
+          내용이 있으면 스페이서로 통째로 다음 페이지로 넘긴다(2026-08-24, 대표님 요청). */}
+      {pageBreakSpacerPx > 0 ? <div style={{ display: "flex", height: pageBreakSpacerPx }} /> : null}
+
+      {/* AI 안전진단 */}
       {data.autoDiagnosis.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
-          <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 17 }}>자동 안전진단 결과</div>
+          <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 17 }}>AI 안전진단 결과</div>
           <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
             {data.autoDiagnosis.map((entry, idx) => (
               <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
@@ -523,7 +548,7 @@ function UnitInspectionElement({ data, heightPx }: { data: UnitInspectionPdfData
         </div>
       ) : null}
 
-      {/* 회사 자체 기준 안내 — 별표3 자동 안전진단과 시각적으로 명확히 구분(점선 테두리 + 다른 색) */}
+      {/* 회사 자체 기준 안내 — 별표3 AI 안전진단과 시각적으로 명확히 구분(점선 테두리 + 다른 색) */}
       {data.companyAdvisories.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
           <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
@@ -580,17 +605,29 @@ function UnitInspectionElement({ data, heightPx }: { data: UnitInspectionPdfData
 /**
  * 세대전기점검표를 직무고시 별지 15호 서식 그대로 렌더링한다. PAGE_H_PX는 부적합/권장사항이
  * 없는 기본 서식(표+기타사항+서명란)만 담을 때 딱 맞도록 튜닝된 값이라, 그 값을 그대로 베이스로
- * 쓰고 자동 안전진단·회사 자체 권장사항 블록이 실제로 차지할 높이만 더한다 — 내용이 한 장을
- * 넘으면 addSlicedPages가 자동으로 2페이지로 슬라이스한다.
+ * 쓰고 AI 안전진단·회사 자체 권장사항 블록이 실제로 차지할 높이만 더한다. 이 블록이 있으면
+ * 표 중간에서 페이지가 잘려 보기 안 좋으므로(2026-08-24), 남는 페이지1 여백만큼 스페이서를
+ * 넣어 블록 전체를 페이지 2로 통째로 넘긴다 — addSlicedPages는 그 늘어난 높이를 그대로
+ * 여러 페이지로 슬라이스한다.
  */
 export async function renderUnitInspectionPdf(data: UnitInspectionPdfData): Promise<Uint8Array> {
+  const etcNotesExtra = data.etcNotes ? estimateTextHeightPx(data.etcNotes, 70, 24) : 0;
+  const hasDiagnosisContent = data.autoDiagnosis.length > 0 || data.companyAdvisories.length > 0;
+  const pageBreakSpacerPx = hasDiagnosisContent
+    ? Math.max(0, PAGE_H_PX - estimateHeightBeforeDiagnosisBlock(data, etcNotesExtra))
+    : 0;
   const extraHeight =
     estimateAutoDiagnosisBlockHeight(data.autoDiagnosis) +
     estimateCompanyAdvisoryBlockHeight(data.companyAdvisories) +
-    (data.etcNotes ? estimateTextHeightPx(data.etcNotes, 70, 24) : 0);
+    etcNotesExtra +
+    pageBreakSpacerPx;
   const heightPx = PAGE_H_PX + extraHeight;
 
-  const png = await renderElementToPng(<UnitInspectionElement data={data} heightPx={heightPx} />, PAGE_W_PX, heightPx);
+  const png = await renderElementToPng(
+    <UnitInspectionElement data={data} heightPx={heightPx} pageBreakSpacerPx={pageBreakSpacerPx} />,
+    PAGE_W_PX,
+    heightPx
+  );
   const pdfDoc = await PDFDocument.create();
   const image = await pngToImageWithPdfDoc(pdfDoc, png);
   addSlicedPages(pdfDoc, image, PAGE_W_PX, heightPx);

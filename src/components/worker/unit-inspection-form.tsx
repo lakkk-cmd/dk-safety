@@ -573,7 +573,7 @@ export default function UnitInspectionForm() {
                 inputMode="tel"
                 className="soft-input w-full text-base"
               />
-              <p className="mt-1 text-[12px] text-slate-500">점검 완료 즉시 이 번호로 자동 안전진단 결과를 문자로 보내드려요.</p>
+              <p className="mt-1 text-[12px] text-slate-500">점검 완료 즉시 이 번호로 AI 안전진단 결과를 문자로 보내드려요.</p>
             </div>
             <div>
               <p className="mb-2 text-[15px] font-bold text-slate-800">서명 *</p>

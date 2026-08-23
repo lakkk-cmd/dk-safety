@@ -312,7 +312,7 @@ export default function AdminUnitInspectionsPanel() {
 
                     {item.autoDiagnosis.length > 0 ? (
                       <div className="rounded-lg bg-rose-50 p-3">
-                        <p className="text-xs font-bold text-rose-700">자동 안전진단</p>
+                        <p className="text-xs font-bold text-rose-700">AI 안전진단</p>
                         <ul className="mt-1 space-y-1.5">
                           {item.autoDiagnosis.map((d, idx) => (
                             <li key={idx} className="text-xs text-rose-800">
