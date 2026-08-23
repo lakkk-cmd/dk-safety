@@ -52,6 +52,11 @@ export async function sendFieldReportNotification(params: {
 
   if (pfId && templateId) {
     try {
+      // 등록된 카카오 템플릿의 버튼(linkMo)이 "https://#{리포트링크}"로 스킴을 이미 포함하고
+      // 있어서, 변수에 스킴 포함 완전한 URL을 넣으면 "https://https://..." 형태로 깨진다 —
+      // 세대전기점검 알림에서 실제로 확인된 버그(2026-08-24)와 동일 템플릿을 재사용하므로
+      // 여기도 동일하게 스킴을 뺀 값만 넣는다.
+      const linkWithoutScheme = params.reportUrl.replace(/^https?:\/\//, "");
       const result = await client.send({
         to,
         from: senderNumber,
@@ -63,7 +68,7 @@ export async function sendFieldReportNotification(params: {
             고객명: params.customerName,
             세대주소: params.apartmentAddress,
             위험등급: params.riskLevel ?? "확인중",
-            리포트링크: params.reportUrl
+            리포트링크: linkWithoutScheme
           }
         }
       });

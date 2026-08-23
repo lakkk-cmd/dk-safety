@@ -52,6 +52,11 @@ export async function sendUnitInspectionNotification(params: {
 
   if (pfId && templateId) {
     try {
+      // 등록된 카카오 템플릿의 버튼(linkMo)이 "https://#{리포트링크}"로 스킴을 이미 포함하고
+      // 있어서, 변수에 스킴 포함 완전한 URL을 넣으면 "https://https://..." 형태로 깨진다 —
+      // 실제 발급된 알림톡 링크를 클릭하면 홈으로 튕기던 버그의 원인(2026-08-24 확인,
+      // getKakaoAlimtalkTemplate로 실제 템플릿 조회해 검증). 변수에는 스킴을 뺀 값만 넣는다.
+      const linkWithoutScheme = params.reportUrl.replace(/^https?:\/\//, "");
       const result = await client.send({
         to,
         from: senderNumber,
@@ -63,7 +68,7 @@ export async function sendUnitInspectionNotification(params: {
             고객명: params.residentName,
             세대주소: params.apartmentName,
             위험등급: params.badCount > 0 ? "확인필요" : "안전",
-            리포트링크: params.reportUrl
+            리포트링크: linkWithoutScheme
           }
         }
       });
