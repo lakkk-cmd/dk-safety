@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
+import { createConsultationLog } from "@/lib/crm-db";
+import { renderUnitInspectionPdf } from "@/lib/document-pdf";
+import { SUPABASE_DOCUMENTS_BUCKET } from "@/lib/document-generator";
 import { WORKER_AUTH_COOKIE } from "@/lib/site-config";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
+import { uploadBinaryObject } from "@/lib/supabase-server";
 import {
   applyChecklistResults,
   CHECKLIST_ITEMS,
@@ -11,7 +15,8 @@ import {
   type ChecklistItemId,
   type ChecklistResult
 } from "@/lib/unit-inspection-rules";
-import { pgCreateUnitInspection, pgListUnitInspectionsForApartment, type UnitInspectionInput } from "@/lib/unit-inspections";
+import { sendUnitInspectionNotification, type SendChannelResult } from "@/lib/unit-inspection-notification";
+import { pgCreateUnitInspection, pgListUnitInspectionsForApartment, pgSaveUnitInspectionPdf, type UnitInspectionInput } from "@/lib/unit-inspections";
 import { verifyWorkerSessionToken } from "@/lib/worker-auth";
 
 const VALID_ITEM_IDS = new Set<ChecklistItemId>(CHECKLIST_ITEMS.map((d) => d.id));
@@ -130,8 +135,14 @@ export async function POST(request: Request) {
 
   const residentNameRaw = toStringField(body.residentName).trim();
   const signatureDataRaw = toStringField(body.signatureData).trim();
-  if (inspectionType === "visit" && (!residentNameRaw || !signatureDataRaw)) {
-    return NextResponse.json({ message: "세대방문점검은 세대 성명과 서명이 필요합니다." }, { status: 400 });
+  const residentPhoneRaw = toStringField(body.residentPhone).trim();
+  if (inspectionType === "visit") {
+    if (!residentNameRaw || !signatureDataRaw) {
+      return NextResponse.json({ message: "세대방문점검은 세대 성명과 서명이 필요합니다." }, { status: 400 });
+    }
+    if (!/^01[0-9]-?\d{3,4}-?\d{4}$/.test(residentPhoneRaw)) {
+      return NextResponse.json({ message: "세대 연락처 형식이 올바르지 않습니다." }, { status: 400 });
+    }
   }
 
   const input: UnitInspectionInput = {
@@ -145,14 +156,76 @@ export async function POST(request: Request) {
     insulationResistance,
     etcNotes,
     residentName: inspectionType === "visit" ? residentNameRaw : null,
-    signatureData: inspectionType === "visit" ? signatureDataRaw : null
+    signatureData: inspectionType === "visit" ? signatureDataRaw : null,
+    residentPhone: inspectionType === "visit" ? residentPhoneRaw : null
   };
 
+  let inspection;
   try {
-    const inspection = await pgCreateUnitInspection(session.workerId, input);
-    return NextResponse.json({ inspection });
+    inspection = await pgCreateUnitInspection(session.workerId, input);
   } catch (error) {
     const message = error instanceof Error ? error.message : "저장에 실패했습니다.";
     return NextResponse.json({ message }, { status: 500 });
   }
+
+  // 방문점검만 즉시 PDF 발급 + 세대 문자 발송 + CRM 접점 기록 — 실패해도 점검 저장 자체는
+  // 이미 성공했으니 200으로 응답하고, notification 필드로 워커 화면에 실패를 알린다.
+  let notification: SendChannelResult | null = null;
+  if (inspectionType === "visit") {
+    try {
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://dkansim.com").replace(/\/$/, "");
+      const inspectedAtLabel = new Date(inspection.inspectedAt).toLocaleDateString("ko-KR", {
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
+      const pdfBytes = await renderUnitInspectionPdf({
+        apartmentName: apartment.name,
+        electricalSafetyManagerName: apartment.electricalSafetyManagerName,
+        dong: inspection.dong,
+        ho: inspection.ho,
+        inspectedAtLabel,
+        inspectionType: inspection.inspectionType,
+        checklistItems: inspection.checklistItems,
+        loadCurrent: inspection.loadCurrent,
+        igr: inspection.igr,
+        insulationResistance: inspection.insulationResistance,
+        etcNotes: inspection.etcNotes,
+        autoDiagnosis: inspection.autoDiagnosis,
+        residentName: inspection.residentName,
+        signatureData: inspection.signatureData
+      });
+      const pdfUrl = await uploadBinaryObject({
+        bucket: SUPABASE_DOCUMENTS_BUCKET,
+        objectPath: `unit-inspections/${inspection.dong}-${inspection.ho}-${inspection.id}.pdf`,
+        contentType: "application/pdf",
+        data: pdfBytes
+      });
+      inspection = await pgSaveUnitInspectionPdf(inspection.id, pdfUrl);
+
+      const reportUrl = `${appUrl}/unit-inspection/${inspection.id}`;
+      notification = await sendUnitInspectionNotification({
+        phone: residentPhoneRaw,
+        residentName: residentNameRaw,
+        apartmentName: apartment.name,
+        badCount: inspection.autoDiagnosis.length,
+        reportUrl
+      });
+
+      await createConsultationLog({
+        customer_phone: residentPhoneRaw,
+        customer_name: residentNameRaw,
+        channel: "visit",
+        content: `세대전기점검(직무고시) — ${apartment.name} ${inspection.dong}동 ${inspection.ho}호`,
+        next_contact_at: null,
+        status: inspection.autoDiagnosis.length > 0 ? "follow_up" : "resolved",
+        result: inspection.autoDiagnosis.length > 0 ? `부적합 ${inspection.autoDiagnosis.length}건 — 수리 안내 필요` : "특이사항 없음",
+        worker_id: session.workerId
+      });
+    } catch (error) {
+      console.error("[worker/unit-inspections] PDF 발급/문자 발송/CRM 기록 실패:", error);
+    }
+  }
+
+  return NextResponse.json({ inspection, notification });
 }

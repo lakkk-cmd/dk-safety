@@ -13,9 +13,10 @@ export type UnitInspectionInput = {
   igr: number | null;
   insulationResistance: number | null;
   etcNotes: string;
-  /** 세대방문점검만 필수 — 미방문 간이점검은 둘 다 null */
+  /** 세대방문점검만 필수 — 미방문 간이점검은 전부 null */
   residentName: string | null;
   signatureData: string | null;
+  residentPhone: string | null;
 };
 
 export type UnitInspection = UnitInspectionInput & {
@@ -43,6 +44,7 @@ type UnitInspectionRow = {
   auto_diagnosis: unknown;
   resident_name: string | null;
   signature_data: string | null;
+  resident_phone: string | null;
   pdf_url: string | null;
   created_at: string;
 };
@@ -64,6 +66,7 @@ function mapUnitInspection(row: UnitInspectionRow): UnitInspection {
     autoDiagnosis: (Array.isArray(row.auto_diagnosis) ? row.auto_diagnosis : []) as DiagnosisEntry[],
     residentName: row.resident_name,
     signatureData: row.signature_data,
+    residentPhone: row.resident_phone,
     pdfUrl: row.pdf_url,
     createdAt: row.created_at
   };
@@ -89,7 +92,8 @@ export async function pgCreateUnitInspection(workerId: string, input: UnitInspec
       etc_notes: input.etcNotes.trim(),
       auto_diagnosis: autoDiagnosis,
       resident_name: input.residentName,
-      signature_data: input.signatureData
+      signature_data: input.signatureData,
+      resident_phone: input.residentPhone
     })
     .select("*")
     .single();
@@ -108,6 +112,11 @@ export async function pgGetUnitInspection(id: string): Promise<UnitInspection | 
   }
   if (!data) return null;
   return mapUnitInspection(data as UnitInspectionRow);
+}
+
+/** 공개 조회 — 문자/카카오 알림톡 결과링크(`/unit-inspection/[id]`)용. 워커 인증 검증 없이 id만으로 조회한다(`/verify/[warrantyNumber]`, `/diagnosis/[id]`와 동일한 노출 모델). */
+export async function pgGetUnitInspectionPublic(id: string): Promise<UnitInspection | null> {
+  return pgGetUnitInspection(id);
 }
 
 export async function pgListUnitInspectionsForApartment(apartmentId: string): Promise<UnitInspection[]> {

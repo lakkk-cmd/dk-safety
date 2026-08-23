@@ -80,12 +80,17 @@ export default function UnitInspectionForm() {
   const [etcNotes, setEtcNotes] = useState("");
 
   const [residentName, setResidentName] = useState("");
+  const [residentPhone, setResidentPhone] = useState("");
   const [signatureData, setSignatureData] = useState<string | null>(null);
 
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [result, setResult] = useState<{ diagnosis: DiagnosisEntry[]; apartmentName: string } | null>(null);
+  const [result, setResult] = useState<{
+    diagnosis: DiagnosisEntry[];
+    apartmentName: string;
+    notificationSent: boolean | null;
+  } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -127,7 +132,7 @@ export default function UnitInspectionForm() {
     if (idx === 0) return Boolean(apartmentId && dong.trim() && ho.trim());
     if (idx === 1) return uncheckedManualIds.length === 0;
     if (idx === stepLabels.length - 1 && inspectionType === "visit") {
-      return Boolean(residentName.trim() && signatureData);
+      return Boolean(residentName.trim() && signatureData && /^01[0-9]-?\d{3,4}-?\d{4}$/.test(residentPhone.trim()));
     }
     return true;
   };
@@ -136,7 +141,7 @@ export default function UnitInspectionForm() {
     if (!stepValid(step)) {
       if (step === 0) setMessage("단지·동·호를 모두 입력해주세요.");
       else if (step === 1) setMessage(`현장에서 직접 확인해야 하는 항목이 ${uncheckedManualIds.length}개 남았어요. ○/×/  중 하나를 눌러주세요.`);
-      else setMessage("필수 항목을 입력해주세요.");
+      else setMessage("세대 성명·연락처·서명을 모두 입력해주세요.");
       return;
     }
     setMessage(null);
@@ -145,7 +150,7 @@ export default function UnitInspectionForm() {
 
   const submit = async () => {
     if (!stepValid(step)) {
-      setMessage("세대 성명과 서명을 입력해주세요.");
+      setMessage("세대 성명·연락처·서명을 모두 입력해주세요.");
       return;
     }
     setSubmitting(true);
@@ -169,16 +174,25 @@ export default function UnitInspectionForm() {
           insulationResistance: insulationResistance === "" ? null : Number(insulationResistance),
           etcNotes,
           residentName: inspectionType === "visit" ? residentName : null,
+          residentPhone: inspectionType === "visit" ? residentPhone : null,
           signatureData: inspectionType === "visit" ? signatureData : null
         })
       });
-      const data = (await response.json()) as { inspection?: { autoDiagnosis?: DiagnosisEntry[] }; message?: string };
+      const data = (await response.json()) as {
+        inspection?: { autoDiagnosis?: DiagnosisEntry[] };
+        notification?: { success?: boolean };
+        message?: string;
+      };
       if (!response.ok) {
         setMessage(data.message ?? "저장에 실패했습니다.");
         return;
       }
       const apartmentName = apartments.find((a) => a.id === apartmentId)?.name ?? "";
-      setResult({ diagnosis: data.inspection?.autoDiagnosis ?? [], apartmentName });
+      setResult({
+        diagnosis: data.inspection?.autoDiagnosis ?? [],
+        apartmentName,
+        notificationSent: inspectionType === "visit" ? Boolean(data.notification?.success) : null
+      });
     } catch {
       setMessage("네트워크 오류가 발생했습니다.");
     } finally {
@@ -198,6 +212,7 @@ export default function UnitInspectionForm() {
     setInsulationResistance("");
     setEtcNotes("");
     setResidentName("");
+    setResidentPhone("");
     setSignatureData(null);
   };
 
@@ -205,6 +220,15 @@ export default function UnitInspectionForm() {
     return (
       <div className="space-y-4">
         <SectionCard icon="✅" title={`${result.apartmentName} ${dong}동 ${ho}호 점검 저장 완료`}>
+          {result.notificationSent === true ? (
+            <p className="mb-3 rounded-xl bg-dk-green/10 px-3 py-2 text-sm font-semibold text-dk-green">
+              📱 세대에 결과 문자를 발송했어요.
+            </p>
+          ) : result.notificationSent === false ? (
+            <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
+              ⚠️ 점검은 저장됐지만 세대 문자 발송에는 실패했어요 — 관리자에게 알려주세요.
+            </p>
+          ) : null}
           {result.diagnosis.length === 0 ? (
             <p className="text-[15px] text-slate-600">부적합 항목이 발견되지 않았습니다.</p>
           ) : (
@@ -447,6 +471,17 @@ export default function UnitInspectionForm() {
                 placeholder="세대 거주자 성명"
                 className="soft-input w-full text-base"
               />
+            </div>
+            <div>
+              <p className="mb-2 text-[15px] font-bold text-slate-800">세대 연락처 *</p>
+              <input
+                value={residentPhone}
+                onChange={(e) => setResidentPhone(e.target.value)}
+                placeholder="010-1234-5678"
+                inputMode="tel"
+                className="soft-input w-full text-base"
+              />
+              <p className="mt-1 text-[12px] text-slate-500">점검 완료 즉시 이 번호로 자동 안전진단 결과를 문자로 보내드려요.</p>
             </div>
             <div>
               <p className="mb-2 text-[15px] font-bold text-slate-800">서명 *</p>
