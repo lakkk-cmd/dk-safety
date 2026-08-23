@@ -159,6 +159,13 @@ export default function WorkerDashboard({ apkUrl }: { apkUrl?: string | null }) 
         </a>
       ) : null}
 
+      <Link
+        href="/worker/unit-inspection"
+        className="flex items-center justify-center gap-2 rounded-2xl bg-dk-blue px-4 py-3 text-center text-[15px] font-bold text-white shadow-[0_8px_20px_rgba(26,92,255,0.28)]"
+      >
+        🏠 세대전기점검 입력
+      </Link>
+
       {emergencyItems.length > 0 ? (
         <div className="rounded-2xl bg-dk-red px-4 py-3 text-white shadow-[0_10px_24px_rgba(229,62,62,0.35)]">
           <p className="text-sm font-bold">🔴 긴급 출동 요청 {emergencyItems.length}건</p>

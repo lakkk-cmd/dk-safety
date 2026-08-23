@@ -32,3 +32,4 @@ mobile/*/android/local.properties
 mobile/*/android/capacitor-cordova-android-plugins/
 mobile/*/android/app/src/main/assets/public/
 mobile/*/android/app/src/main/assets/capacitor.config.json
+.playwright-mcp/
