@@ -2,6 +2,7 @@ import { requireSupabaseAdmin } from "@/lib/supabase-pg";
 import {
   checkCompanyServiceLifeAdvisories,
   diagnoseChecklist,
+  reissueWithFixedWording,
   type ChecklistEntry,
   type CompanyAdvisoryEntry,
   type DiagnosisEntry
@@ -64,6 +65,16 @@ type UnitInspectionRow = {
 };
 
 function mapUnitInspection(row: UnitInspectionRow): UnitInspection {
+  const checklistItems = (Array.isArray(row.checklist_items) ? row.checklist_items : []) as ChecklistEntry[];
+  const autoDiagnosis = (Array.isArray(row.auto_diagnosis) ? row.auto_diagnosis : []) as DiagnosisEntry[];
+  const companyAdvisories = (Array.isArray(row.company_advisories) ? row.company_advisories : []) as CompanyAdvisoryEntry[];
+  // pdf_url 발급 후에는 DB 트리거가 원본 UPDATE를 막으므로(전기안전관리법 제24조 보존 요건),
+  // 2026-08-24 문구 정리 이전에 저장된 레거시 텍스트("기준 자동판정", "법적 의무사항은 아니며
+  // 우리집 전기주치의 자체 권장 기준입니다" 등)가 원본 행에 그대로 남아있는 건들이 있다. 원본은
+  // 절대 고치지 않되, 조회(=화면 표시) 시점에는 항상 최신 문구로 보정해서 내보낸다 — 관리자
+  // 상세보기·공개 조회 페이지·워커앱 제출결과 등 이 데이터를 읽는 모든 곳이 같은 값을 쓰므로,
+  // 여기 한 곳만 고치면 전부 일관되게 반영된다(PDF 재발급 API의 fixLegacyWording과 동일 로직 재사용).
+  const fixed = reissueWithFixedWording(checklistItems, autoDiagnosis, companyAdvisories);
   return {
     id: row.id,
     apartmentId: row.apartment_id,
@@ -72,18 +83,18 @@ function mapUnitInspection(row: UnitInspectionRow): UnitInspection {
     inspectionType: row.inspection_type as UnitInspectionType,
     inspectorWorkerId: row.inspector_worker_id,
     inspectedAt: row.inspected_at,
-    checklistItems: (Array.isArray(row.checklist_items) ? row.checklist_items : []) as ChecklistEntry[],
+    checklistItems: fixed.checklistItems,
     loadCurrent: row.load_current,
     igr: row.igr,
     insulationResistance: row.insulation_resistance,
     etcNotes: row.etc_notes,
-    autoDiagnosis: (Array.isArray(row.auto_diagnosis) ? row.auto_diagnosis : []) as DiagnosisEntry[],
+    autoDiagnosis: fixed.autoDiagnosis,
     residentName: row.resident_name,
     signatureData: row.signature_data,
     residentPhone: row.resident_phone,
     outletInstallYear: row.outlet_install_year,
     switchInstallYear: row.switch_install_year,
-    companyAdvisories: (Array.isArray(row.company_advisories) ? row.company_advisories : []) as CompanyAdvisoryEntry[],
+    companyAdvisories: fixed.companyAdvisories,
     pdfUrl: row.pdf_url,
     createdAt: row.created_at
   };

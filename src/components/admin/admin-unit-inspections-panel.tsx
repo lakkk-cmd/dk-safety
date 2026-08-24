@@ -536,7 +536,6 @@ export default function AdminUnitInspectionsPanel() {
                                         {item.companyAdvisories.length > 0 ? (
                                           <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-3">
                                             <p className="text-xs font-bold text-amber-800">우리집 전기주치의 자체 권장사항</p>
-                                            <p className="mt-0.5 text-[11px] text-amber-600">※ 직무고시·별표3 등 법적 근거가 아닌 자체 점검 기준</p>
                                             <ul className="mt-1 space-y-1.5">
                                               {item.companyAdvisories.map((d, idx) => (
                                                 <li key={idx} className="text-xs text-amber-800">
