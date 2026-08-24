@@ -14,7 +14,7 @@ type PageProps = {
 
 export default async function AdminCustomersPage({ searchParams }: PageProps) {
   const sp = (await searchParams) ?? {};
-  const initialView = sp.view === "crm" ? "crm" : "pipeline";
+  const initialView = sp.view === "crm" ? "crm" : sp.view === "unit-inspection" ? "unit-inspection" : "pipeline";
 
   if (!isSupabaseReservationsDbReady()) {
     return (
@@ -51,7 +51,8 @@ export default async function AdminCustomersPage({ searchParams }: PageProps) {
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-700">
               <strong className="text-slate-900">예약별 보기</strong>는 접수 시 등록한 고객·주소·일정을 기준으로 연결된{" "}
               <strong className="text-slate-900">주문·입금·배정·현장·보증</strong> 상태를 추적하고, <strong className="text-slate-900">고객별 보기</strong>는
-              같은 전화번호로 묶어 재상담 일정·잠재고객까지 관리합니다.
+              같은 전화번호로 묶어 재상담 일정·잠재고객까지 관리하며, <strong className="text-slate-900">직무고시별 보기</strong>는 세대전기점검표를
+              아파트·동·호 기준으로 조회·PDF 발급합니다.
             </p>
           </div>
           <AdminLogoutButton />

@@ -116,10 +116,13 @@ export const adminSidebarNavItems: AdminNavItem[] = [
   // ── CRM (고객에게 노출되거나 고객 1:1 관계와 직결된 것) ──────────────────────
   // 고객관리(CRM)는 2026-07-19에 고객관리(/admin/customers "고객별 보기" 탭)로 통합됨 —
   // 같은 reservations 데이터를 예약 단위/전화번호 단위로 나눠 보여주던 화면 2개였음.
+  // 2026-08-24: 세대전기점검(직무고시, /admin/unit-inspections)도 세 번째 탭("직무고시별 보기")으로
+  // 흡수 — 아파트/동/호 단위 법정점검 데이터라 reservations 축과는 다르지만 같은 "고객 관련 기록"
+  // 진입점에서 관리하는 게 자연스러워 통합함.
   {
     href: "/admin/customers",
     label: "고객(접수,예약총괄)관리",
-    description: "예약별 보기(접수·주문·배정·보증) / 고객별 보기(재상담·잠재고객) 탭 통합",
+    description: "예약별 보기(접수·주문·배정·보증) / 고객별 보기(재상담·잠재고객) / 직무고시별 보기(세대전기점검) 탭 통합",
     icon: Users,
     sectionLabel: "CRM",
     moduleGroup: "core"
@@ -136,13 +139,6 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     label: "아파트 단지 관리",
     description: "단지 코드, 명칭, 계좌·기본료",
     icon: Building2,
-    moduleGroup: "ext"
-  },
-  {
-    href: "/admin/unit-inspections",
-    label: "세대전기점검(직무고시)",
-    description: "직무고시 별지15호 점검기록표 조회·PDF 발급",
-    icon: ClipboardCheck,
     moduleGroup: "ext"
   },
   {
