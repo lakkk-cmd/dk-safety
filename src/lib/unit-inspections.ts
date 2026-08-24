@@ -219,6 +219,21 @@ export async function pgListUnitInspectionPdfCorrections(): Promise<Record<strin
   return map;
 }
 
+/** 건 하나의 문구 정정본 포인터 — 공개 조회 페이지(/unit-inspection/[id])가 고객에게 보여줄
+ *  PDF 링크를 원본 대신 정정본으로 바꿔치기할 때 쓴다. 없으면 null(원본 그대로 사용). */
+export async function pgGetUnitInspectionPdfCorrection(inspectionId: string): Promise<string | null> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("unit_inspection_pdf_corrections")
+    .select("corrected_pdf_url")
+    .eq("inspection_id", inspectionId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`점검표 문구 정정본 조회 실패: ${error.message}`);
+  }
+  return data?.corrected_pdf_url ?? null;
+}
+
 /** 문구 정정본 PDF를 새로 발급할 때마다 최신 파일로 덮어써 포인터를 갱신한다(원본 행은 미변경). */
 export async function pgSaveUnitInspectionPdfCorrection(inspectionId: string, correctedPdfUrl: string): Promise<void> {
   const supabase = requireSupabaseAdmin();

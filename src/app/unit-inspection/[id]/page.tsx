@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
-import { pgGetUnitInspectionPublic } from "@/lib/unit-inspections";
+import { pgGetUnitInspectionPdfCorrection, pgGetUnitInspectionPublic } from "@/lib/unit-inspections";
 import { StatusBadge, type RiskLevel } from "@/components/ui/status-badge";
 import { SectionCard } from "@/components/ui/section-card";
 import SiteFooter from "@/components/site-footer";
@@ -21,6 +21,11 @@ export default async function UnitInspectionPublicPage({ params }: { params: Pro
   if (!inspection) notFound();
 
   const apartment = await pgFindApartmentByIdentifier(inspection.apartmentId).catch(() => null);
+  // 원본 pdf_url은 발급 후 불변이라, 2026-08-24 문구 정리 이전 건은 그 파일 자체에 옛 문구가
+  // 그대로 남아있다. 정정본이 있으면(관리자가 "문구 수정본 재발급"을 실행한 경우) 고객에게
+  // 보여줄 링크를 그 파일로 바꿔치기한다 — 원본 행/pdf_url은 여전히 손대지 않는다.
+  const correctedPdfUrl = inspection.pdfUrl ? await pgGetUnitInspectionPdfCorrection(inspection.id).catch(() => null) : null;
+  const displayPdfUrl = correctedPdfUrl ?? inspection.pdfUrl;
   const badCount = inspection.autoDiagnosis.length;
   const level = verdictLevel(badCount);
   const inspectedAtLabel = new Date(inspection.inspectedAt).toLocaleDateString("ko-KR", {
@@ -76,7 +81,6 @@ export default async function UnitInspectionPublicPage({ params }: { params: Pro
 
       {inspection.companyAdvisories.length > 0 ? (
         <SectionCard icon="🔧" title="우리집 전기주치의 자체 권장사항">
-          <p className="mb-2 text-[12px] text-amber-700">※ 직무고시·별표3 등 법적 근거가 아닌 자체 점검 기준이에요.</p>
           <ul className="space-y-2">
             {inspection.companyAdvisories.map((entry, idx) => (
               <li key={idx} className="rounded-xl border border-amber-300 bg-amber-50 p-3">
@@ -88,9 +92,9 @@ export default async function UnitInspectionPublicPage({ params }: { params: Pro
         </SectionCard>
       ) : null}
 
-      {inspection.pdfUrl ? (
+      {displayPdfUrl ? (
         <a
-          href={inspection.pdfUrl}
+          href={displayPdfUrl}
           target="_blank"
           rel="noreferrer"
           className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-dk-blue px-3 text-[15px] font-bold text-white shadow-[0_8px_20px_rgba(26,92,255,0.28)]"
