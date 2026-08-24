@@ -348,16 +348,22 @@ function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): nu
 }
 
 /**
- * 헤더~표~기타사항까지(= AI 안전진단/회사 자체 권장사항 블록 시작 직전)의 대략적인 높이.
+ * 헤더~표~기타사항~서명란까지(= AI 안전진단/회사 자체 권장사항 블록 시작 직전)의 대략적인 높이.
  * satori에는 실제 렌더링 후 위치를 알려주는 측정 API가 없어서, 이 값은 CSS 스타일(폰트
  * 크기·padding·margin)을 손으로 합산해 튜닝한 추정치다 — 표는 항상 12항목 고정이라
  * 변동폭이 작지만, 기타사항 텍스트만 길이에 따라 estimateTextHeightPx로 보정한다.
+ * 서명란(부적합 안내문·비고·세대확인·담당·점검단지)은 2026-08-24부터 항상 1페이지 하단에
+ * 고정되므로(대표님 요청), FOOTER 높이도 여기 포함해야 다음(AI 안전진단) 블록이 정확히
+ * 2페이지 시작점에서부터 렌더링된다. FOOTER=330은 실제 렌더링 PNG에서 "AI 안전진단 결과"
+ * 헤더 바가 시작되는 y좌표를 픽셀 스캔으로 측정해 역산한 값(scripts/_tmp-pdf-check.mjs로
+ * 검증) — 손으로 합산한 다른 상수들과 달리 오차가 크게 벌어졌던 값이라 실측으로 교체했다.
  */
 function estimateHeightBeforeDiagnosisBlock(data: UnitInspectionPdfData, etcNotesExtra: number): number {
   const HEADER_INTRO = 371; // [별지 서식]~제목~동호/성명~안내문~"-아래-"
   const TABLE = 798; // 표 헤더 + 12항목 행(minHeight 62 기준)
   const ETC_BOX_BASE = 82; // 기타사항 박스(실측값 한 줄만 있을 때)
-  return HEADER_INTRO + TABLE + ETC_BOX_BASE + etcNotesExtra;
+  const FOOTER = 330; // 부적합 안내문·비고·세대확인(서명)·담당(전기선임자)·점검단지 — 실측 보정(2026-08-24)
+  return HEADER_INTRO + TABLE + ETC_BOX_BASE + FOOTER + etcNotesExtra;
 }
 
 function UnitInspectionElement({
@@ -525,47 +531,6 @@ function UnitInspectionElement({
         </div>
       </div>
 
-      {/* AI 안전진단/회사 자체 권장사항 블록이 표 중간에서 페이지가 잘리면 보기 안 좋으므로,
-          내용이 있으면 스페이서로 통째로 다음 페이지로 넘긴다(2026-08-24, 대표님 요청). */}
-      {pageBreakSpacerPx > 0 ? <div style={{ display: "flex", height: pageBreakSpacerPx }} /> : null}
-
-      {/* AI 안전진단 */}
-      {data.autoDiagnosis.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
-          <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 17 }}>AI 안전진단 결과</div>
-          <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
-            {data.autoDiagnosis.map((entry, idx) => (
-              <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", fontSize: 16 }}>
-                  {entry.item} —{" "}
-                  <span style={{ display: "flex", color: red, marginLeft: 6 }}>{entry.verdict}</span>
-                </div>
-                <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.regulation}</div>
-                <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.comment}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {/* 회사 자체 기준 안내 — 별표3 AI 안전진단과 시각적으로 명확히 구분(점선 테두리 + 다른 색) */}
-      {data.companyAdvisories.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
-          <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
-            <div style={{ display: "flex", fontSize: 16, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
-            <div style={{ display: "flex", fontSize: 12, color: "#a17a3c", marginTop: 2 }}>※ 직무고시·별표3 등 법적 근거가 아닌 자체 점검 기준입니다</div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", padding: "14px 16px", gap: 10 }}>
-            {data.companyAdvisories.map((entry, idx) => (
-              <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", fontSize: 15, color: "#8a5a12" }}>{entry.item}</div>
-                <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginTop: 2 }}>{entry.comment}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
       <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginBottom: 8 }}>
         ※ 부적합 전기설비는 감전, 화재 등의 위험과 전력손실로 인한 전기 요금의 추가부담 등의 원인이 되오니 조속한 시일내에 수리하시기 바랍니다.
       </div>
@@ -598,6 +563,48 @@ function UnitInspectionElement({
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18, fontSize: 17 }}>
         점검단지: {data.apartmentName}
       </div>
+
+      {/* AI 안전진단/회사 자체 권장사항 블록이 표 중간에서 페이지가 잘리면 보기 안 좋으므로,
+          내용이 있으면 스페이서로 통째로 다음 페이지로 넘긴다(2026-08-24, 대표님 요청). 서명란
+          (부적합 안내문·세대확인·담당·점검단지)은 항상 1페이지 하단에 고정하고, AI 안전진단/
+          회사 자체 권장사항만 2페이지로 넘긴다(2026-08-24 재조정 — 대표님 요청). */}
+      {pageBreakSpacerPx > 0 ? <div style={{ display: "flex", height: pageBreakSpacerPx }} /> : null}
+
+      {/* AI 안전진단 */}
+      {data.autoDiagnosis.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
+          <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 17 }}>AI 안전진단 결과</div>
+          <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
+            {data.autoDiagnosis.map((entry, idx) => (
+              <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
+                <div style={{ display: "flex", fontSize: 16 }}>
+                  {entry.item} —{" "}
+                  <span style={{ display: "flex", color: red, marginLeft: 6 }}>{entry.verdict}</span>
+                </div>
+                <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.regulation}</div>
+                <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.comment}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* 회사 자체 기준 안내 — 별표3 AI 안전진단과 시각적으로 명확히 구분(점선 테두리 + 다른 색) */}
+      {data.companyAdvisories.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
+          <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
+            <div style={{ display: "flex", fontSize: 16, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", padding: "14px 16px", gap: 10 }}>
+            {data.companyAdvisories.map((entry, idx) => (
+              <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
+                <div style={{ display: "flex", fontSize: 15, color: "#8a5a12" }}>{entry.item}</div>
+                <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginTop: 2 }}>{entry.comment}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
