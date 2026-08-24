@@ -10,6 +10,7 @@ export const maxDuration = 60;
 const NAME_HEADERS = ["이름", "성명", "고객명", "name"];
 const PHONE_HEADERS = ["연락처", "전화번호", "휴대폰", "휴대폰번호", "phone"];
 const MEMO_HEADERS = ["메모", "비고", "note", "memo"];
+const ADDRESS_HEADERS = ["주소", "address"];
 
 function normalizeHeader(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
   const nameCol = findColumn(headerRow, NAME_HEADERS);
   const phoneCol = findColumn(headerRow, PHONE_HEADERS);
   const memoCol = findColumn(headerRow, MEMO_HEADERS);
+  const addressCol = findColumn(headerRow, ADDRESS_HEADERS);
 
   if (nameCol === -1 || phoneCol === -1) {
     return NextResponse.json(
@@ -74,6 +76,7 @@ export async function POST(request: NextRequest) {
     const name = String(values[nameCol] ?? "").trim();
     const phone = String(values[phoneCol] ?? "").trim();
     const memo = memoCol !== -1 ? String(values[memoCol] ?? "").trim() : "";
+    const address = addressCol !== -1 ? String(values[addressCol] ?? "").trim() : "";
 
     if (!name || !phone) {
       skipped.push({ row: rowNumber, reason: "이름 또는 연락처 누락" });
@@ -90,6 +93,8 @@ export async function POST(request: NextRequest) {
         status: "pending",
         result: null,
         worker_id: null,
+        source: "excel_import",
+        address: address || null,
       });
       created += 1;
     } catch (e) {

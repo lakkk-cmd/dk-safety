@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   if (!isSupabaseReservationsDbReady()) return NextResponse.json({ error: "Supabase DB 미연결" }, { status: 503 });
 
   try {
-    const body = (await req.json()) as { name?: string; phone?: string; memo?: string };
+    const body = (await req.json()) as { name?: string; phone?: string; memo?: string; address?: string };
     const name = body.name?.trim();
     const phone = body.phone?.trim();
     if (!name || !phone) {
@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
       status: "pending",
       result: null,
       worker_id: null,
+      source: "manual_lead",
+      address: body.address?.trim() || null,
     });
     return NextResponse.json({ log });
   } catch (e) {

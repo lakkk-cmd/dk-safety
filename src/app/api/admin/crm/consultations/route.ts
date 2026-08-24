@@ -76,6 +76,8 @@ export async function POST(req: NextRequest) {
       status: (body.status ?? "pending") as "pending" | "resolved" | "follow_up",
       result: body.result ?? null,
       worker_id: body.worker_id ?? null,
+      source: "consultation",
+      address: null,
     });
 
     // 재상담 알림 자동 생성

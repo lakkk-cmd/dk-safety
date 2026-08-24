@@ -225,7 +225,9 @@ export async function POST(request: Request) {
         next_contact_at: null,
         status: inspection.autoDiagnosis.length > 0 ? "follow_up" : "resolved",
         result: inspection.autoDiagnosis.length > 0 ? `부적합 ${inspection.autoDiagnosis.length}건 — 수리 안내 필요` : "특이사항 없음",
-        worker_id: session.workerId
+        worker_id: session.workerId,
+        source: "unit_inspection",
+        address: `${apartment.name} ${inspection.dong}동 ${inspection.ho}호`
       });
     } catch (error) {
       console.error("[worker/unit-inspections] PDF 발급/문자 발송/CRM 기록 실패:", error);

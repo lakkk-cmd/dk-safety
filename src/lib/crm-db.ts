@@ -1,5 +1,14 @@
 import { getSupabaseAdmin } from "@/lib/supabase-pg";
 
+export type ConsultationSource = "unit_inspection" | "manual_lead" | "excel_import" | "consultation";
+
+export const CONSULTATION_SOURCE_LABEL: Record<ConsultationSource, string> = {
+  unit_inspection: "세대전기점검",
+  manual_lead: "관리자 직접등록",
+  excel_import: "엑셀 일괄등록",
+  consultation: "상담 기록"
+};
+
 export type ConsultationLog = {
   id: string;
   customer_phone: string;
@@ -11,6 +20,11 @@ export type ConsultationLog = {
   result: string | null;
   worker_id: string | null;
   created_at: string;
+  /** 이 고객이 시스템에 처음 등록된 경로 — channel(상담 수단)과는 별개 개념. 2026-08-24 이전 레거시
+   *  행은 패턴 매칭으로 소급 분류했고, 그마저 안 걸리면 null(확인불가)로 남는다. */
+  source: ConsultationSource | null;
+  /** 등록 시점에 알 수 있었던 주소. 모르면 null. */
+  address: string | null;
 };
 
 export type FollowUpReminder = {
@@ -31,6 +45,10 @@ export type CustomerSummary = {
   serviceCount: number;
   lastServiceDate: string | null;
   nextFollowUp: string | null;
+  /** "예약"(reservations에 예약 이력이 있음) 또는 ConsultationSource 라벨. 둘 다 없으면 null(확인불가). */
+  registeredVia: string | null;
+  /** 이 고객이 시스템에 처음 등록된 시각 — 예약 고객은 최초 예약 생성일, 잠재고객은 최초 상담기록 생성일. */
+  registeredAt: string | null;
 };
 
 function sb() {
@@ -111,17 +129,17 @@ export async function listCustomerSummary(search?: string): Promise<CustomerSumm
   const client = sb();
   let q = client
     .from("reservations")
-    .select("name, phone, address, preferred_date")
+    .select("name, phone, address, preferred_date, created_at")
     .order("preferred_date", { ascending: false });
   if (search) {
-    q = q.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+    q = q.or(`name.ilike.%${search}%,phone.ilike.%${search}%,address.ilike.%${search}%`);
   }
   const { data, error } = await q;
   if (error) throw new Error(error.message);
 
   // Group by phone
   const map = new Map<string, CustomerSummary>();
-  for (const r of (data ?? []) as { name: string; phone: string; address: string; preferred_date: string }[]) {
+  for (const r of (data ?? []) as { name: string; phone: string; address: string; preferred_date: string; created_at: string }[]) {
     if (!r.phone) continue;
     if (!map.has(r.phone)) {
       map.set(r.phone, {
@@ -131,6 +149,8 @@ export async function listCustomerSummary(search?: string): Promise<CustomerSumm
         serviceCount: 0,
         lastServiceDate: null,
         nextFollowUp: null,
+        registeredVia: "예약",
+        registeredAt: r.created_at
       });
     }
     const entry = map.get(r.phone)!;
@@ -138,27 +158,40 @@ export async function listCustomerSummary(search?: string): Promise<CustomerSumm
     if (!entry.lastServiceDate || r.preferred_date > entry.lastServiceDate) {
       entry.lastServiceDate = r.preferred_date;
     }
+    if (!entry.registeredAt || r.created_at < entry.registeredAt) {
+      entry.registeredAt = r.created_at; // 최초 예약 시각 = 이 고객의 등록일
+    }
   }
 
   // 예약은 아직 없고 상담 기록(잠재고객 등록 포함)만 있는 사람도 고객 목록에 포함시킨다 —
-  // 그렇지 않으면 "명함만 등록해둔" 잠재고객이 목록에서 아예 안 보이게 된다.
+  // 그렇지 않으면 "명함만 등록해둔" 잠재고객이 목록에서 아예 안 보이게 된다. 등록경로/등록일/주소를
+  // 보여주기 위해(2026-08-24), 오름차순으로 읽어 각 전화번호의 "처음" 상담기록(=최초 등록 시점)을
+  // 취한다 — 나중 상담(재방문 등)이 처음 등록 정보를 덮어쓰지 않도록.
   let cq = client
     .from("consultation_logs")
-    .select("customer_name, customer_phone")
-    .order("created_at", { ascending: false });
+    .select("customer_name, customer_phone, address, source, created_at")
+    .order("created_at", { ascending: true });
   if (search) {
-    cq = cq.or(`customer_name.ilike.%${search}%,customer_phone.ilike.%${search}%`);
+    cq = cq.or(`customer_name.ilike.%${search}%,customer_phone.ilike.%${search}%,address.ilike.%${search}%`);
   }
   const { data: consultRows } = await cq;
-  for (const c of (consultRows ?? []) as { customer_name: string; customer_phone: string }[]) {
+  for (const c of (consultRows ?? []) as {
+    customer_name: string;
+    customer_phone: string;
+    address: string | null;
+    source: ConsultationSource | null;
+    created_at: string;
+  }[]) {
     if (!c.customer_phone || map.has(c.customer_phone)) continue;
     map.set(c.customer_phone, {
       phone: c.customer_phone,
       name: c.customer_name,
-      address: null,
+      address: c.address ?? null,
       serviceCount: 0,
       lastServiceDate: null,
       nextFollowUp: null,
+      registeredVia: c.source ? CONSULTATION_SOURCE_LABEL[c.source] : null,
+      registeredAt: c.created_at
     });
   }
 

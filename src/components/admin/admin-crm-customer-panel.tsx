@@ -10,6 +10,11 @@ function formatDate(s: string | null) {
   return new Date(s).toLocaleDateString("ko-KR");
 }
 
+function formatDateTime(s: string | null) {
+  if (!s) return "-";
+  return new Date(s).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 /**
  * 고객별(전화번호 단위) 보기 — 예약별 보기(AdminCustomerCarePanel)와 같은 페이지의 다른 탭.
  * 2026-07-19: 별도 페이지(/admin/crm/customers)였던 것을 /admin/customers 탭으로 통합.
@@ -24,6 +29,7 @@ export default function AdminCrmCustomerPanel() {
   const [leadFormOpen, setLeadFormOpen] = useState(false);
   const [leadName, setLeadName] = useState("");
   const [leadPhone, setLeadPhone] = useState("");
+  const [leadAddress, setLeadAddress] = useState("");
   const [leadMemo, setLeadMemo] = useState("");
   const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [leadMessage, setLeadMessage] = useState<string | null>(null);
@@ -69,6 +75,7 @@ export default function AdminCrmCustomerPanel() {
         body: JSON.stringify({
           name: leadName.trim(),
           phone: leadPhone.trim(),
+          address: leadAddress.trim(),
           memo: leadMemo.trim(),
         }),
       });
@@ -79,6 +86,7 @@ export default function AdminCrmCustomerPanel() {
       }
       setLeadName("");
       setLeadPhone("");
+      setLeadAddress("");
       setLeadMemo("");
       setLeadFormOpen(false);
       await load(query);
@@ -119,7 +127,9 @@ export default function AdminCrmCustomerPanel() {
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm text-slate-600 dark:text-slate-400">예약 이력 기반 고객 목록 · 재상담 일정 확인 (전화번호당 1행 — 잠재고객 포함)</p>
-          <p className="mt-1 text-xs text-slate-400">엑셀 첫 행에 &quot;이름&quot;, &quot;연락처&quot;(필수) · &quot;메모&quot;(선택) 열이 있으면 됩니다.</p>
+          <p className="mt-1 text-xs text-slate-400">
+            엑셀 첫 행에 &quot;이름&quot;, &quot;연락처&quot;(필수) · &quot;주소&quot;, &quot;메모&quot;(선택) 열이 있으면 됩니다.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -182,6 +192,12 @@ export default function AdminCrmCustomerPanel() {
             />
           </div>
           <input
+            value={leadAddress}
+            onChange={(e) => setLeadAddress(e.target.value)}
+            placeholder="주소 (선택)"
+            className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-950"
+          />
+          <input
             value={leadMemo}
             onChange={(e) => setLeadMemo(e.target.value)}
             placeholder="메모 (선택 — 예: 명함 받은 경로, 관심 항목)"
@@ -203,7 +219,7 @@ export default function AdminCrmCustomerPanel() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="이름 또는 연락처 검색"
+          placeholder="이름, 연락처, 주소로 검색"
           className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-950"
         />
         <button type="submit" className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700">
@@ -224,6 +240,8 @@ export default function AdminCrmCustomerPanel() {
                 <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">고객명</th>
                 <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">연락처</th>
                 <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">주소</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">등록경로</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">등록일</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-600 dark:text-slate-300">점검 횟수</th>
                 <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">최근 서비스</th>
                 <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">재상담 예정</th>
@@ -232,14 +250,18 @@ export default function AdminCrmCustomerPanel() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="py-12 text-center text-slate-500">불러오는 중...</td></tr>
+                <tr><td colSpan={9} className="py-12 text-center text-slate-500">불러오는 중...</td></tr>
               ) : customers.length === 0 ? (
-                <tr><td colSpan={7} className="py-12 text-center text-slate-400">고객 데이터가 없습니다.</td></tr>
+                <tr><td colSpan={9} className="py-12 text-center text-slate-400">고객 데이터가 없습니다.</td></tr>
               ) : customers.map((c) => (
                 <tr key={c.phone} className="border-b border-slate-100 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900">
                   <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{c.name}</td>
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{c.phone}</td>
                   <td className="max-w-[200px] truncate px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{c.address ?? "-"}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
+                    {c.registeredVia ?? <span className="italic text-slate-400">확인불가</span>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{formatDateTime(c.registeredAt)}</td>
                   <td className="px-4 py-3 text-center">
                     {c.serviceCount === 0 ? (
                       <span className="inline-flex items-center justify-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-700">
