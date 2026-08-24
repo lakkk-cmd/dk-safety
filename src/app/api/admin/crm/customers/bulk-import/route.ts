@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { createConsultationLog } from "@/lib/crm-db";
+import { normalizePhone } from "@/lib/reservation-validation";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 
 export const dynamic = "force-dynamic";
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     try {
       await createConsultationLog({
-        customer_phone: phone,
+        customer_phone: normalizePhone(phone),
         customer_name: name,
         channel: "visit",
         content: memo || "엑셀 일괄등록",

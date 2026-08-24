@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { createConsultationLog } from "@/lib/crm-db";
+import { normalizePhone } from "@/lib/reservation-validation";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     }
 
     const log = await createConsultationLog({
-      customer_phone: phone,
+      customer_phone: normalizePhone(phone),
       customer_name: name,
       channel: "visit",
       content: body.memo?.trim() || "잠재고객 명함 등록",

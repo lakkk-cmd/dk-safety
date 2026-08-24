@@ -17,6 +17,7 @@ import {
 } from "@/lib/unit-inspection-rules";
 import { sendUnitInspectionNotification, type SendChannelResult } from "@/lib/unit-inspection-notification";
 import { pgCreateUnitInspection, pgListUnitInspectionsForApartment, pgSaveUnitInspectionPdf, type UnitInspectionInput } from "@/lib/unit-inspections";
+import { normalizePhone } from "@/lib/reservation-validation";
 import { verifyWorkerSessionToken } from "@/lib/worker-auth";
 
 const VALID_ITEM_IDS = new Set<ChecklistItemId>(CHECKLIST_ITEMS.map((d) => d.id));
@@ -218,7 +219,7 @@ export async function POST(request: Request) {
       });
 
       await createConsultationLog({
-        customer_phone: residentPhoneRaw,
+        customer_phone: normalizePhone(residentPhoneRaw),
         customer_name: residentNameRaw,
         channel: "visit",
         content: `세대전기점검(직무고시) — ${apartment.name} ${inspection.dong}동 ${inspection.ho}호`,

@@ -8,6 +8,7 @@ import {
   createFollowUpReminder,
 } from "@/lib/crm-db";
 import { validateConsultation, GEMINI_ENABLED } from "@/lib/cross-validate";
+import { normalizePhone } from "@/lib/reservation-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -67,8 +68,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const customerPhone = normalizePhone(body.customer_phone);
     const log = await createConsultationLog({
-      customer_phone: body.customer_phone,
+      customer_phone: customerPhone,
       customer_name: body.customer_name,
       channel: (body.channel ?? "phone") as "phone" | "kakao" | "visit" | "sms",
       content: body.content,
@@ -85,9 +87,9 @@ export async function POST(req: NextRequest) {
       await createFollowUpReminder({
         consultation_id: log.id,
         customer_name: body.customer_name,
-        customer_phone: body.customer_phone,
+        customer_phone: customerPhone,
         remind_at: body.next_contact_at,
-        message: `[재상담] ${body.customer_name}님 (${body.customer_phone}) - ${body.content.slice(0, 50)}`,
+        message: `[재상담] ${body.customer_name}님 (${customerPhone}) - ${body.content.slice(0, 50)}`,
         status: "pending",
       });
     }

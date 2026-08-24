@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase-pg";
+import { normalizePhone } from "@/lib/reservation-validation";
 
 export type ConsultationSource = "unit_inspection" | "manual_lead" | "excel_import" | "consultation";
 
@@ -137,13 +138,15 @@ export async function listCustomerSummary(search?: string): Promise<CustomerSumm
   const { data, error } = await q;
   if (error) throw new Error(error.message);
 
-  // Group by phone
+  // Group by phone — 표시 형식이 뒤섞이면(하이픈 유무) 같은 사람이 서로 다른 키로 잡혀 행이
+  // 갈라지므로, 맵 키·표시값 둘 다 항상 normalizePhone()을 거친 값을 쓴다(2026-08-24).
   const map = new Map<string, CustomerSummary>();
   for (const r of (data ?? []) as { name: string; phone: string; address: string; preferred_date: string; created_at: string }[]) {
     if (!r.phone) continue;
-    if (!map.has(r.phone)) {
-      map.set(r.phone, {
-        phone: r.phone,
+    const phone = normalizePhone(r.phone);
+    if (!map.has(phone)) {
+      map.set(phone, {
+        phone,
         name: r.name,
         address: r.address ?? null,
         serviceCount: 0,
@@ -153,7 +156,7 @@ export async function listCustomerSummary(search?: string): Promise<CustomerSumm
         registeredAt: r.created_at
       });
     }
-    const entry = map.get(r.phone)!;
+    const entry = map.get(phone)!;
     entry.serviceCount += 1;
     if (!entry.lastServiceDate || r.preferred_date > entry.lastServiceDate) {
       entry.lastServiceDate = r.preferred_date;
@@ -182,9 +185,11 @@ export async function listCustomerSummary(search?: string): Promise<CustomerSumm
     source: ConsultationSource | null;
     created_at: string;
   }[]) {
-    if (!c.customer_phone || map.has(c.customer_phone)) continue;
-    map.set(c.customer_phone, {
-      phone: c.customer_phone,
+    if (!c.customer_phone) continue;
+    const phone = normalizePhone(c.customer_phone);
+    if (map.has(phone)) continue;
+    map.set(phone, {
+      phone,
       name: c.customer_name,
       address: c.address ?? null,
       serviceCount: 0,
