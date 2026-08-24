@@ -7,7 +7,7 @@ import { getKstDateTime } from "@/lib/agent-schedule";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { uploadBinaryObject } from "@/lib/supabase-server";
 import { reissueWithFixedWording } from "@/lib/unit-inspection-rules";
-import { pgGetUnitInspection } from "@/lib/unit-inspections";
+import { pgGetUnitInspection, pgSaveUnitInspectionPdfCorrection } from "@/lib/unit-inspections";
 
 /**
  * 이미 pdf_url이 발급된 건은 DB 트리거(전기안전관리법 제24조 4년 보존 요건)가 원본 레코드
@@ -69,7 +69,9 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       data: pdfBytes
     });
 
-    // 원본 행(pdf_url 등)은 의도적으로 건드리지 않는다 — DB에 쓰지 않고 새 URL만 반환.
+    // 원본 행(pdf_url 등)은 의도적으로 건드리지 않는다 — 별도 오버레이 테이블에만 포인터를 남긴다.
+    await pgSaveUnitInspectionPdfCorrection(inspection.id, correctedPdfUrl);
+
     return NextResponse.json({ correctedPdfUrl });
   } catch (error) {
     const message = error instanceof Error ? error.message : "수정본 PDF 생성에 실패했습니다.";

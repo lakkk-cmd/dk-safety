@@ -79,7 +79,7 @@ export default function AdminUnitInspectionsPanel() {
         fetch("/api/admin/unit-inspections", { cache: "no-store" }),
         fetch("/api/admin/apartments", { cache: "no-store" })
       ]);
-      const inspData = (await inspRes.json()) as { inspections?: UnitInspection[]; message?: string };
+      const inspData = (await inspRes.json()) as { inspections?: UnitInspection[]; pdfCorrections?: Record<string, string>; message?: string };
       const aptData = (await aptRes.json()) as { apartments?: ApartmentOption[]; message?: string };
       if (!inspRes.ok) {
         setMessage(inspData.message ?? "점검 목록 조회 실패");
@@ -87,6 +87,7 @@ export default function AdminUnitInspectionsPanel() {
       }
       setInspections(inspData.inspections ?? []);
       setApartments(aptData.apartments ?? []);
+      setCorrectedPdfUrls(inspData.pdfCorrections ?? {});
       setMessage("");
     } finally {
       setLoading(false);
@@ -436,7 +437,19 @@ export default function AdminUnitInspectionsPanel() {
                                         >
                                           {isRecordOpen ? "접기" : "상세보기"}
                                         </button>
-                                        {item.pdfUrl ? (
+                                        {correctedPdfUrls[item.id] ? (
+                                          // 문구가 수정된 새 파일이 있으면 그게 곧 "그 건의 PDF"다 — 구버전 원본
+                                          // 링크는 더 이상 노출하지 않는다(스토리지 원본 파일 자체는 법적 보존
+                                          // 요건 때문에 그대로 남아있지만, 화면에서는 이걸로 대체해 보여준다).
+                                          <a
+                                            href={correctedPdfUrls[item.id]}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+                                          >
+                                            PDF 다운로드
+                                          </a>
+                                        ) : item.pdfUrl ? (
                                           <a
                                             href={item.pdfUrl}
                                             target="_blank"
@@ -460,21 +473,11 @@ export default function AdminUnitInspectionsPanel() {
                                             type="button"
                                             disabled={reissueLoadingId === item.id}
                                             onClick={() => void reissuePdf(item.id)}
-                                            title="원본은 그대로 두고, 2026-08-24 문구 정리를 적용한 수정본만 새 파일로 재발급합니다"
+                                            title="원본 파일은 법적 보존 요건상 그대로 두고, 최신 문구를 적용한 새 PDF로 화면 표시를 교체합니다"
                                             className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 disabled:opacity-50"
                                           >
                                             {reissueLoadingId === item.id ? "재발급 중..." : "문구 수정본 재발급"}
                                           </button>
-                                        ) : null}
-                                        {correctedPdfUrls[item.id] ? (
-                                          <a
-                                            href={correctedPdfUrls[item.id]}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="rounded-md border border-amber-400 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800"
-                                          >
-                                            수정본 PDF 다운로드
-                                          </a>
                                         ) : null}
                                       </div>
                                     </div>

@@ -188,3 +188,33 @@ export async function pgSaveUnitInspectionPdf(id: string, pdfUrl: string): Promi
   }
   return mapUnitInspection(data as UnitInspectionRow);
 }
+
+/**
+ * 발급 후 문구 정정본 포인터 전체 조회 — unit_electrical_inspections 원본은 불변이라 건드릴
+ * 수 없으므로, 별도 테이블(migration 107)에 "이 건의 대표 PDF는 이 파일"이라는 오버레이만
+ * 관리한다. { [inspectionId]: correctedPdfUrl } 형태로 반환해 관리자 화면이 원본 pdfUrl 대신
+ * 이 값을 우선 보여줄 수 있게 한다.
+ */
+export async function pgListUnitInspectionPdfCorrections(): Promise<Record<string, string>> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase.from("unit_inspection_pdf_corrections").select("inspection_id, corrected_pdf_url");
+  if (error) {
+    throw new Error(`점검표 문구 정정본 목록 조회 실패: ${error.message}`);
+  }
+  const map: Record<string, string> = {};
+  for (const row of (data ?? []) as { inspection_id: string; corrected_pdf_url: string }[]) {
+    map[row.inspection_id] = row.corrected_pdf_url;
+  }
+  return map;
+}
+
+/** 문구 정정본 PDF를 새로 발급할 때마다 최신 파일로 덮어써 포인터를 갱신한다(원본 행은 미변경). */
+export async function pgSaveUnitInspectionPdfCorrection(inspectionId: string, correctedPdfUrl: string): Promise<void> {
+  const supabase = requireSupabaseAdmin();
+  const { error } = await supabase
+    .from("unit_inspection_pdf_corrections")
+    .upsert({ inspection_id: inspectionId, corrected_pdf_url: correctedPdfUrl, created_at: new Date().toISOString() });
+  if (error) {
+    throw new Error(`점검표 문구 정정본 저장 실패: ${error.message}`);
+  }
+}

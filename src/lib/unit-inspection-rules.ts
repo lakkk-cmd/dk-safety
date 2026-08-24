@@ -364,7 +364,7 @@ export function checkCompanyServiceLifeAdvisories(
     if (age >= OUTLET_SERVICE_LIFE_YEARS) {
       advisories.push({
         item: "콘센트 교체 권장",
-        comment: `설치 후 약 ${age}년 경과(회사 자체 권장 교체주기 ${OUTLET_SERVICE_LIFE_YEARS}년 초과) — 우리집 전기주치의 권장 기준입니다.`
+        comment: `설치 후 약 ${age}년 경과(권장 교체주기 ${OUTLET_SERVICE_LIFE_YEARS}년 초과) — 화재예방을 위한 우리집 전기주치의 권장 기준입니다.`
       });
     }
   }
@@ -373,7 +373,7 @@ export function checkCompanyServiceLifeAdvisories(
     if (age >= SWITCH_SERVICE_LIFE_YEARS) {
       advisories.push({
         item: "스위치 교체 권장",
-        comment: `설치 후 약 ${age}년 경과(회사 자체 권장 교체주기 ${SWITCH_SERVICE_LIFE_YEARS}년 초과) — 우리집 전기주치의 권장 기준입니다.`
+        comment: `설치 후 약 ${age}년 경과(권장 교체주기 ${SWITCH_SERVICE_LIFE_YEARS}년 초과) — 화재예방을 위한 우리집 전기주치의 권장 기준입니다.`
       });
     }
   }
@@ -381,18 +381,26 @@ export function checkCompanyServiceLifeAdvisories(
 }
 
 /**
- * 2026-08-24 문구 정리("기준 자동판정"→"기준 AI판정", "법적 의무사항은 아니며 ~ 자체 권장
- * 기준입니다"→"~ 권장 기준입니다") 이전에 이미 pdf_url이 발급된 건은 전기안전관리법 제24조
- * 4년 보존 요건에 따라 DB 트리거가 UPDATE 자체를 막아 원본 레코드를 고칠 수 없다(보증서와
- * 동일한 불변 아카이브 설계). 대신 원본은 그대로 두고, 새 문구를 적용한 "수정본" PDF를 별도
- * 파일로만 재발급할 때 쓰는 순수 문자열 치환 함수 — 실측값 재판정(autoJudge 재호출)이 아니라
- * 이미 저장된 결과(O/X/N/A)는 그대로 두고 문구만 고치는 것이므로, 그사이 단지 기준값이
- * 바뀌었어도 원래 판정이 달라지지 않는다.
+ * 2026-08-24 문구 정리(여러 차례에 걸쳐 진행됨 — "기준 자동판정"→"기준 AI판정", "법적 의무사항은
+ * 아니며 ~ 자체 권장 기준입니다"→"~ 권장 기준입니다", "(회사 자체 권장 교체주기 N년 초과)"→
+ * "(권장 교체주기 N년 초과)", "우리집 전기주치의 권장 기준입니다"→"화재예방을 위한 우리집
+ * 전기주치의 권장 기준입니다") 이전에 이미 pdf_url이 발급된 건은 전기안전관리법 제24조 4년
+ * 보존 요건에 따라 DB 트리거가 UPDATE 자체를 막아 원본 레코드를 고칠 수 없다(보증서와 동일한
+ * 불변 아카이브 설계). 대신 원본은 그대로 두고, 새 문구를 적용한 "수정본" PDF를 별도 파일로만
+ * 재발급할 때 쓰는 순수 문자열 치환 함수 — 실측값 재판정(autoJudge 재호출)이 아니라 이미
+ * 저장된 결과(O/X/N/A)는 그대로 두고 문구만 고치는 것이므로, 그사이 단지 기준값이 바뀌었어도
+ * 원래 판정이 달라지지 않는다. 문구 정리가 여러 라운드에 걸쳐 있었으므로, 원본이든 이전 라운드에
+ * 이미 한 번 재발급된 텍스트든 어느 상태에서 시작해도 최종 문구로 수렴하도록 짰다(멱등).
  */
 function fixLegacyWording(text: string): string {
-  return text
-    .replace(/기준 자동판정/g, "기준 AI판정")
-    .replace(/법적 의무사항은 아니며 우리집 전기주치의 자체 권장 기준입니다\.?/g, "우리집 전기주치의 권장 기준입니다.");
+  let t = text;
+  t = t.replace(/기준 자동판정/g, "기준 AI판정");
+  t = t.replace(/회사 자체 권장 교체주기/g, "권장 교체주기");
+  // "법적 의무사항은 아니며 우리집 전기주치의 자체 권장 기준입니다"(원본) /
+  // "우리집 전기주치의 권장 기준입니다"(1차 수정본) 둘 다 최종 문구로 수렴시킨다.
+  t = t.replace(/(법적 의무사항은 아니며 )?우리집 전기주치의( 자체)? 권장 기준입니다\.?/g, "화재예방을 위한 우리집 전기주치의 권장 기준입니다.");
+  t = t.replace(/(화재예방을 위한 )+/g, "화재예방을 위한 "); // 재실행 시 접두어 중복 방지
+  return t;
 }
 
 export function reissueWithFixedWording(
