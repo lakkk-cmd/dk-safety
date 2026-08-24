@@ -141,6 +141,15 @@ export const adminSidebarNavItems: AdminNavItem[] = [
     icon: Building2,
     moduleGroup: "ext"
   },
+  // 2026-08-24: 고객관리 탭("직무고시별 보기")으로 흡수했다가, 대표님 요청으로 사이드바
+  // 바로가기를 원상복구함 — /admin/unit-inspections는 여전히 그 탭으로 리다이렉트됨.
+  {
+    href: "/admin/unit-inspections",
+    label: "세대전기점검(직무고시)",
+    description: "직무고시 별지15호 점검기록표 조회·PDF 발급",
+    icon: ClipboardCheck,
+    moduleGroup: "ext"
+  },
   {
     href: "/admin/crm/consultations",
     label: "상담관리",
