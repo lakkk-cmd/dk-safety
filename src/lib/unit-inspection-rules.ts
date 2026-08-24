@@ -379,3 +379,30 @@ export function checkCompanyServiceLifeAdvisories(
   }
   return advisories;
 }
+
+/**
+ * 2026-08-24 문구 정리("기준 자동판정"→"기준 AI판정", "법적 의무사항은 아니며 ~ 자체 권장
+ * 기준입니다"→"~ 권장 기준입니다") 이전에 이미 pdf_url이 발급된 건은 전기안전관리법 제24조
+ * 4년 보존 요건에 따라 DB 트리거가 UPDATE 자체를 막아 원본 레코드를 고칠 수 없다(보증서와
+ * 동일한 불변 아카이브 설계). 대신 원본은 그대로 두고, 새 문구를 적용한 "수정본" PDF를 별도
+ * 파일로만 재발급할 때 쓰는 순수 문자열 치환 함수 — 실측값 재판정(autoJudge 재호출)이 아니라
+ * 이미 저장된 결과(O/X/N/A)는 그대로 두고 문구만 고치는 것이므로, 그사이 단지 기준값이
+ * 바뀌었어도 원래 판정이 달라지지 않는다.
+ */
+function fixLegacyWording(text: string): string {
+  return text
+    .replace(/기준 자동판정/g, "기준 AI판정")
+    .replace(/법적 의무사항은 아니며 우리집 전기주치의 자체 권장 기준입니다\.?/g, "우리집 전기주치의 권장 기준입니다.");
+}
+
+export function reissueWithFixedWording(
+  checklistItems: ChecklistEntry[],
+  autoDiagnosis: DiagnosisEntry[],
+  companyAdvisories: CompanyAdvisoryEntry[]
+): { checklistItems: ChecklistEntry[]; autoDiagnosis: DiagnosisEntry[]; companyAdvisories: CompanyAdvisoryEntry[] } {
+  return {
+    checklistItems: checklistItems.map((c) => ({ ...c, note: fixLegacyWording(c.note) })),
+    autoDiagnosis: autoDiagnosis.map((d) => ({ ...d, comment: fixLegacyWording(d.comment) })),
+    companyAdvisories: companyAdvisories.map((a) => ({ ...a, comment: fixLegacyWording(a.comment) }))
+  };
+}

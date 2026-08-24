@@ -69,6 +69,8 @@ export default function AdminUnitInspectionsPanel() {
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
   const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
   const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [reissueLoadingId, setReissueLoadingId] = useState<string | null>(null);
+  const [correctedPdfUrls, setCorrectedPdfUrls] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
@@ -192,6 +194,24 @@ export default function AdminUnitInspectionsPanel() {
       setInspections((prev) => prev.map((i) => (i.id === id ? { ...i, pdfUrl: data.pdfUrl ?? i.pdfUrl } : i)));
     } finally {
       setPdfLoadingId(null);
+    }
+  };
+
+  // 이미 발급된 건은 DB 트리거가 원본 수정을 막으므로, 2026-08-24 문구 정리를 적용한 "수정본"만
+  // 새 파일로 재발급한다 — 원본 pdfUrl은 그대로 두고 별도 링크로만 보여준다.
+  const reissuePdf = async (id: string) => {
+    setReissueLoadingId(id);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/admin/unit-inspections/${id}/reissue-pdf`, { method: "POST" });
+      const data = (await response.json()) as { correctedPdfUrl?: string; message?: string };
+      if (!response.ok || !data.correctedPdfUrl) {
+        setMessage(data.message ?? "수정본 PDF 생성에 실패했습니다.");
+        return;
+      }
+      setCorrectedPdfUrls((prev) => ({ ...prev, [id]: data.correctedPdfUrl! }));
+    } finally {
+      setReissueLoadingId(null);
     }
   };
 
@@ -435,6 +455,27 @@ export default function AdminUnitInspectionsPanel() {
                                             {pdfLoadingId === item.id ? "발급 중..." : "PDF 발급"}
                                           </button>
                                         )}
+                                        {item.pdfUrl && !correctedPdfUrls[item.id] ? (
+                                          <button
+                                            type="button"
+                                            disabled={reissueLoadingId === item.id}
+                                            onClick={() => void reissuePdf(item.id)}
+                                            title="원본은 그대로 두고, 2026-08-24 문구 정리를 적용한 수정본만 새 파일로 재발급합니다"
+                                            className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 disabled:opacity-50"
+                                          >
+                                            {reissueLoadingId === item.id ? "재발급 중..." : "문구 수정본 재발급"}
+                                          </button>
+                                        ) : null}
+                                        {correctedPdfUrls[item.id] ? (
+                                          <a
+                                            href={correctedPdfUrls[item.id]}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="rounded-md border border-amber-400 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800"
+                                          >
+                                            수정본 PDF 다운로드
+                                          </a>
+                                        ) : null}
                                       </div>
                                     </div>
 
