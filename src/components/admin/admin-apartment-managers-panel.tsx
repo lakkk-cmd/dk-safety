@@ -17,7 +17,15 @@ type ApartmentManager = {
   createdAt: string;
 };
 
-type ApartmentOption = { id: string; name: string; totalUnits: number | null };
+type ApartmentOption = {
+  id: string;
+  name: string;
+  totalUnits: number | null;
+  insulationResistanceThresholdMohm: number | null;
+  leakageCurrentThresholdMa: number | null;
+};
+
+type ThresholdDraft = { insulation: string; leakage: string };
 
 function formatDate(iso: string | null): string {
   if (!iso) return "이력 없음";
@@ -33,6 +41,7 @@ export default function AdminApartmentManagersPanel() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [approvedSearch, setApprovedSearch] = useState("");
   const [approvedSort, setApprovedSort] = useState<"recent_login" | "apartment_name">("recent_login");
+  const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, ThresholdDraft>>({});
 
   const load = async () => {
     setLoading(true);
@@ -40,7 +49,7 @@ export default function AdminApartmentManagersPanel() {
       const [pendingRes, approvedRes, aptRes] = await Promise.all([
         fetch("/api/admin/apartment-managers?status=pending", { cache: "no-store" }),
         fetch("/api/admin/apartment-managers?status=approved", { cache: "no-store" }),
-        fetch("/api/apt-manager/apartments-search", { cache: "no-store" })
+        fetch("/api/admin/apartments", { cache: "no-store" })
       ]);
       const pendingData = (await pendingRes.json()) as { managers?: ApartmentManager[] };
       const approvedData = (await approvedRes.json()) as { managers?: ApartmentManager[] };
@@ -58,6 +67,7 @@ export default function AdminApartmentManagersPanel() {
   }, []);
 
   const apartmentNameById = new Map(apartments.map((a) => [a.id, a.name]));
+  const apartmentById = new Map(apartments.map((a) => [a.id, a]));
 
   const visibleApproved = useMemo(() => {
     const q = approvedSearch.trim().toLowerCase();
@@ -85,11 +95,26 @@ export default function AdminApartmentManagersPanel() {
     return sorted;
   }, [approved, approvedSearch, approvedSort, apartmentNameById]);
 
+  const setDraft = (managerId: string, patch: Partial<ThresholdDraft>) => {
+    setThresholdDrafts((prev) => ({
+      ...prev,
+      [managerId]: { insulation: prev[managerId]?.insulation ?? "", leakage: prev[managerId]?.leakage ?? "", ...patch }
+    }));
+  };
+
   const approve = async (id: string) => {
     setBusyId(id);
     setMessage("");
     try {
-      const response = await fetch(`/api/admin/apartment-managers/${id}/approve`, { method: "POST" });
+      const draft = thresholdDrafts[id];
+      const response = await fetch(`/api/admin/apartment-managers/${id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          insulationResistanceThresholdMohm: draft?.insulation ? Number(draft.insulation) : undefined,
+          leakageCurrentThresholdMa: draft?.leakage ? Number(draft.leakage) : undefined
+        })
+      });
       const data = (await response.json()) as { message?: string; smsSent?: boolean };
       if (!response.ok) {
         setMessage(data.message ?? "승인에 실패했습니다.");
@@ -147,10 +172,15 @@ export default function AdminApartmentManagersPanel() {
           <ul className="mt-2 space-y-2">
             {pending.map((m) => {
               const isNew = !m.apartmentId;
+              const linkedApartment = m.apartmentId ? apartmentById.get(m.apartmentId) : undefined;
               const apartmentLabel = isNew
                 ? `${m.apartmentNameRequested} (신규요청 · 예상 ${m.totalUnitsRequested ?? "?"}세대)`
-                : apartmentNameById.get(m.apartmentId!) ?? "알 수 없음";
-              const totalUnits = isNew ? m.totalUnitsRequested : apartments.find((a) => a.id === m.apartmentId)?.totalUnits;
+                : (linkedApartment?.name ?? "알 수 없음");
+              const totalUnits = isNew ? m.totalUnitsRequested : linkedApartment?.totalUnits;
+              // 신규요청은 단지 자체가 없으니 무조건 미설정, 기존단지는 둘 중 하나라도 비어있으면 물어봐야 함.
+              const thresholdsMissing =
+                isNew || linkedApartment?.insulationResistanceThresholdMohm == null || linkedApartment?.leakageCurrentThresholdMa == null;
+              const draft = thresholdDrafts[m.id] ?? { insulation: "", leakage: "" };
               return (
                 <li key={m.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -167,6 +197,31 @@ export default function AdminApartmentManagersPanel() {
                     </p>
                   ) : null}
                   <p className="mt-1 text-[11px] text-slate-400">신청일시: {formatDate(m.createdAt)}</p>
+
+                  {thresholdsMissing ? (
+                    <div className="mt-2 rounded-lg border border-dk-amber/40 bg-dk-gold/10 p-2">
+                      <p className="text-[11px] font-bold text-dk-amber">
+                        ⚠️ 이 단지는 판정 기준값이 없어요 — 실존확인 통화하면서 회로 구성을 확인해 채워주세요(비워두고 승인해도 됨).
+                      </p>
+                      <div className="mt-1.5 flex gap-2">
+                        <input
+                          value={draft.insulation}
+                          onChange={(e) => setDraft(m.id, { insulation: e.target.value })}
+                          placeholder="절연저항 기준값(MΩ)"
+                          inputMode="decimal"
+                          className="soft-input h-8 flex-1 text-xs"
+                        />
+                        <input
+                          value={draft.leakage}
+                          onChange={(e) => setDraft(m.id, { leakage: e.target.value })}
+                          placeholder="누설전류 기준값(mA)"
+                          inputMode="decimal"
+                          className="soft-input h-8 flex-1 text-xs"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="mt-2 flex gap-2">
                     <button
                       type="button"
