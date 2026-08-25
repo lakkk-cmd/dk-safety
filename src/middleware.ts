@@ -143,8 +143,17 @@ export async function middleware(request: NextRequest) {
     const token =
       response?.cookies.get(APT_MANAGER_AUTH_COOKIE)?.value ?? request.cookies.get(APT_MANAGER_AUTH_COOKIE)?.value;
     if (!(await verifyApartmentManagerSessionTokenEdge(token))) {
-      const loginUrl = new URL("/apt-manager/login", request.url);
-      loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+      // inspect.dkansim.com은 이미 /apt-manager로 rewrite된 상태라, 리다이렉트 pathname/next에
+      // 그 rewrite된 경로를 그대로 쓰면 다음 요청에서 미들웨어가 /apt-manager를 또 붙여
+      // /apt-manager/apt-manager/... 무한루프가 된다(/hq 케이스와 동일한 함정, 반드시
+      // rewrite 전의 원본 경로(originalPathname)를 써야 한다).
+      const originalTarget = `${originalPathname}${request.nextUrl.search}`;
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = rewriteUrl ? "/login" : "/apt-manager/login";
+      loginUrl.search = "";
+      if (originalTarget && originalTarget !== loginUrl.pathname) {
+        loginUrl.searchParams.set("next", originalTarget);
+      }
       return withFirstVisitCookie(NextResponse.redirect(loginUrl), isFirstVisit);
     }
   }
