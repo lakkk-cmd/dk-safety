@@ -40,6 +40,8 @@ type Props = {
   simpleSwapFee: number;
   /** 점검/수리 예약금 — /admin/pricing(payment_settings.base_dispatch_fee)에서 서버가 조회해 전달 */
   baseDispatchFee: number;
+  /** 긴급/야간 출동 예약금 — /admin/pricing(pricing_catalog의 emergency_dispatch)에서 서버가 조회해 전달 */
+  emergencyDispatchFee: number;
 };
 
 type RequestKind = "repair" | "emergency";
@@ -78,7 +80,7 @@ function tipBadgeClass(category: string) {
   }
 }
 
-export default function ApartmentMainActions({ apartment, urlProfile, electricalTips = [], simpleSwapFee, baseDispatchFee }: Props) {
+export default function ApartmentMainActions({ apartment, urlProfile, electricalTips = [], simpleSwapFee, baseDispatchFee, emergencyDispatchFee }: Props) {
   const [modalKind, setModalKind] = useState<RequestKind | null>(null);
   const [consultModalOpen, setConsultModalOpen] = useState(false);
   const [repairModalOpen, setRepairModalOpen] = useState(false);
@@ -247,29 +249,29 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
       <button
         type="button"
         onClick={() => startRequest("repair")}
-        className="flex w-full items-center justify-between rounded-2xl border border-dk-blue/40 bg-blue-50 px-4 py-3 text-left shadow-sm transition hover:bg-blue-100"
+        className="flex w-full items-center justify-between rounded-2xl bg-gradient-to-r from-dk-blue to-dk-navy px-4 py-3 text-left text-white shadow-[0_14px_36px_rgba(26,92,255,0.3)] transition hover:brightness-105"
       >
         <div>
-          <p className="text-base font-extrabold text-slate-900">🔧 점검·수리</p>
-          <p className="mt-0.5 text-xs font-semibold text-slate-600">
+          <p className="text-base font-extrabold">🔧 점검·수리</p>
+          <p className="mt-0.5 text-xs font-semibold text-white/90">
             방문 점검 후 정확한 원인 진단 · 예약금 {baseDispatchFee.toLocaleString("ko-KR")}원부터
           </p>
         </div>
-        <span className="rounded-full bg-dk-blue/15 px-3 py-1 text-xs font-bold text-slate-800">예약 접수 →</span>
+        <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white">예약 접수 →</span>
       </button>
 
       <button
         type="button"
         onClick={() => setSimpleSwapModalOpen(true)}
-        className="flex w-full items-center justify-between rounded-2xl border border-dk-gold/50 bg-amber-50 px-4 py-3 text-left shadow-sm transition hover:bg-amber-100"
+        className="flex w-full items-center justify-between rounded-2xl bg-gradient-to-r from-dk-amber to-[#7c3d10] px-4 py-3 text-left text-white shadow-[0_14px_36px_rgba(221,107,32,0.3)] transition hover:brightness-105"
       >
         <div>
-          <p className="text-base font-extrabold text-slate-900">🔩 단순 기구교체</p>
-          <p className="mt-0.5 text-xs font-semibold text-slate-600">
+          <p className="text-base font-extrabold">🔩 단순 기구교체</p>
+          <p className="mt-0.5 text-xs font-semibold text-white/90">
             점검 없이 바로 교체 · 공임 {simpleSwapFee.toLocaleString("ko-KR")}원부터 (재료비 별도)
           </p>
         </div>
-        <span className="rounded-full bg-dk-gold/20 px-3 py-1 text-xs font-bold text-slate-800">바로 접수 →</span>
+        <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white">바로 접수 →</span>
       </button>
 
       <button
@@ -280,7 +282,9 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-lg font-extrabold">🚨 긴급출동</p>
-            <p className="mt-0.5 text-sm text-white/90">지금 당장 위험하다면</p>
+            <p className="mt-0.5 text-sm text-white/90">
+              지금 당장 위험하다면 · 예약금 {emergencyDispatchFee.toLocaleString("ko-KR")}원부터
+            </p>
           </div>
           <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold">즉시 접수 →</span>
         </div>

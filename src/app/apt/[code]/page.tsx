@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { pgFindApartmentByCode } from "@/lib/apartments-pg";
 import ApartmentMainActions, { type ElectricalTipPublic } from "@/components/reservation/apartment-main-actions";
 import { readPaymentSettings } from "@/lib/payment-settings";
+import { readEmergencyDispatchFee } from "@/lib/pricing-catalog";
 import { isSupabaseReservationsDbReady, requireSupabaseAdmin } from "@/lib/supabase-pg";
 
 function firstQuery(v: string | string[] | undefined): string {
@@ -29,6 +30,7 @@ export default async function ApartmentHomePage({
   };
 
   const paymentSettings = await readPaymentSettings();
+  const emergencyDispatchFee = await readEmergencyDispatchFee();
 
   let electricalTips: ElectricalTipPublic[] = [];
   try {
@@ -53,6 +55,7 @@ export default async function ApartmentHomePage({
       electricalTips={electricalTips}
       simpleSwapFee={paymentSettings.simpleSwapFee}
       baseDispatchFee={paymentSettings.baseDispatchFee}
+      emergencyDispatchFee={emergencyDispatchFee}
     />
   );
 }
