@@ -19,6 +19,17 @@ function withFirstVisitCookie(res: NextResponse, isFirstVisit: boolean) {
   return res;
 }
 
+/** 서브도메인 host rewrite를 멱등하게 만든다 — 앱 코드(Link href, redirect(), window.location.href
+ * 등)가 이미 접두사 붙은 절대경로("/apt-manager/pending" 등)를 쓰는 경우가 있는데, 그 경로가
+ * 같은 서브도메인으로 다시 요청되면(리다이렉트/클라이언트 네비게이션) 접두사를 또 붙여
+ * "/apt-manager/apt-manager/..."가 되어 깨진다(2026-08-25, inspect.dkansim.com 가입 완료 후
+ * 리다이렉트가 로그인 화면으로 튕기던 버그로 발견). 이미 접두사가 붙어있으면 그대로 둔다. */
+function hostRewritePath(prefix: string, pathname: string): string {
+  if (pathname === "/") return prefix;
+  if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return pathname;
+  return `${prefix}${pathname}`;
+}
+
 export async function middleware(request: NextRequest) {
   const originalPathname = request.nextUrl.pathname;
   if (/\.[^/]+$/.test(originalPathname)) {
@@ -33,23 +44,23 @@ export async function middleware(request: NextRequest) {
 
   if (host.startsWith(HQ_HOST_PREFIX)) {
     rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = `/hq${pathname === "/" ? "" : pathname}`;
+    rewriteUrl.pathname = hostRewritePath("/hq", pathname);
     pathname = rewriteUrl.pathname;
   } else if (host.startsWith(REPORT_HOST_PREFIX)) {
     rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = `/report${pathname === "/" ? "" : pathname}`;
+    rewriteUrl.pathname = hostRewritePath("/report", pathname);
     pathname = rewriteUrl.pathname;
   } else if (host.startsWith(AGENT_HOST_PREFIX)) {
     rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = `/agent${pathname === "/" ? "" : pathname}`;
+    rewriteUrl.pathname = hostRewritePath("/agent", pathname);
     pathname = rewriteUrl.pathname;
   } else if (host.startsWith(CONTENTS_HOST_PREFIX)) {
     rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = `/contents${pathname === "/" ? "" : pathname}`;
+    rewriteUrl.pathname = hostRewritePath("/contents", pathname);
     pathname = rewriteUrl.pathname;
   } else if (host.startsWith(INSPECT_HOST_PREFIX)) {
     rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = `/apt-manager${pathname === "/" ? "" : pathname}`;
+    rewriteUrl.pathname = hostRewritePath("/apt-manager", pathname);
     pathname = rewriteUrl.pathname;
   }
 
