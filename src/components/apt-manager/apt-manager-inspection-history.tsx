@@ -40,6 +40,8 @@ export default function AptManagerInspectionHistory() {
   const [dongFilter, setDongFilter] = useState("전체");
   const [search, setSearch] = useState("");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -89,6 +91,37 @@ export default function AptManagerInspectionHistory() {
   const processedCount = groups.length;
   const rate = totalUnits && totalUnits > 0 ? Math.round((processedCount / totalUnits) * 100) : null;
 
+  const bulkDownload = async () => {
+    setBulkDownloading(true);
+    setBulkMessage("");
+    try {
+      const params = new URLSearchParams();
+      if (dongFilter !== "전체") params.set("dong", dongFilter);
+      const response = await fetch(`/api/apt-manager/unit-inspections/bulk-pdf?${params.toString()}`);
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { message?: string };
+        setBulkMessage(data.message ?? "일괄 다운로드에 실패했습니다.");
+        return;
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const fileName = match ? decodeURIComponent(match[1]) : "세대전기점검표.zip";
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      setBulkMessage("네트워크 오류로 일괄 다운로드에 실패했습니다.");
+    } finally {
+      setBulkDownloading(false);
+    }
+  };
+
   if (loading) {
     return <p className="py-10 text-center text-sm text-slate-500">불러오는 중...</p>;
   }
@@ -120,6 +153,20 @@ export default function AptManagerInspectionHistory() {
           className="soft-input flex-[2] text-sm"
         />
       </div>
+
+      <button
+        type="button"
+        disabled={bulkDownloading}
+        onClick={() => void bulkDownload()}
+        className="w-full rounded-xl border border-dk-blue py-2.5 text-sm font-bold text-dk-blue disabled:opacity-50"
+      >
+        {bulkDownloading
+          ? "압축 중..."
+          : dongFilter === "전체"
+            ? "📦 전체 점검표 PDF 일괄 다운로드(zip)"
+            : `📦 ${dongFilter}동 점검표 PDF 일괄 다운로드(zip)`}
+      </button>
+      {bulkMessage ? <p className="text-center text-xs text-rose-600">{bulkMessage}</p> : null}
 
       {filteredGroups.length === 0 ? (
         <EmptyState icon="📋" title="아직 점검 기록이 없어요" description="점검입력 탭에서 첫 점검을 등록해보세요." />
