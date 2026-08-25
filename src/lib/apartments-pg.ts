@@ -22,6 +22,8 @@ export type ApartmentTenant = {
   totalUnits: number | null;
   /** 정식계약(contract) vs 세대전기점검 무료앱만 쓰는 단지(free_app)(109). */
   partnershipType: "contract" | "free_app";
+  /** 단지 준공일 — 법적 판정 기준 아님, 노후도 참고용(110). 미설정이면 null. */
+  completionDate: string | null;
   createdAt: string;
 };
 
@@ -42,6 +44,7 @@ type ApartmentRow = {
   leakage_current_threshold_ma?: number | null;
   total_units?: number | null;
   partnership_type?: string | null;
+  completion_date?: string | null;
   created_at: string;
 };
 
@@ -77,6 +80,7 @@ function mapApartment(row: ApartmentRow): ApartmentTenant {
         : null,
     totalUnits: typeof row.total_units === "number" && Number.isFinite(row.total_units) ? row.total_units : null,
     partnershipType: row.partnership_type === "free_app" ? "free_app" : "contract",
+    completionDate: row.completion_date ?? null,
     createdAt: row.created_at
   };
 }
@@ -102,6 +106,21 @@ export async function pgListApartmentsPublicForSignup(): Promise<{ id: string; n
     name: row.name,
     totalUnits: row.total_units
   }));
+}
+
+/** 세대전기점검 무료앱 가입신청 시 — 다음 우편번호 검색으로 얻은 단지명이 이미 등록된 단지와
+ * (대소문자·앞뒤공백 무시) 정확히 일치하면 그 단지에 연결한다. 안 그러면 대표님이 미리 세팅해둔
+ * 전기선임자·판정기준값이 무시된 채 같은 단지가 중복 생성된다. */
+export async function pgFindApartmentByExactName(name: string): Promise<ApartmentTenant | null> {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase.from("apartments").select("*").ilike("name", trimmed).maybeSingle();
+  if (error) {
+    throw new Error(`단지명 조회 실패: ${error.message}`);
+  }
+  if (!data) return null;
+  return mapApartment(data as ApartmentRow);
 }
 
 function apartmentsMissingColumn(err: PostgrestError, column: "code" | "apt_code"): boolean {

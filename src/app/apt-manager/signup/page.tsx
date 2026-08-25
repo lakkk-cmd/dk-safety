@@ -1,25 +1,21 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { loadDaumPostcodeScript } from "@/lib/daum-postcode-client";
 
-type ApartmentOption = { id: string; name: string; totalUnits: number | null };
+const STEP_LABELS = ["단지입력", "정보입력"] as const;
 
 function AptManagerSignupForm() {
   const searchParams = useSearchParams();
-  const qrApartmentId = searchParams.get("apartmentId") ?? "";
   const qrApartmentName = searchParams.get("apartmentName") ?? "";
 
-  const [apartments, setApartments] = useState<ApartmentOption[]>([]);
-  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const [step, setStep] = useState(0);
 
-  const [apartmentId, setApartmentId] = useState(qrApartmentId);
-  const [apartmentQuery, setApartmentQuery] = useState(qrApartmentName);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-
-  const [newApartmentName, setNewApartmentName] = useState("");
-  const [newApartmentAddress, setNewApartmentAddress] = useState("");
-  const [newTotalUnits, setNewTotalUnits] = useState("");
+  const [apartmentName, setApartmentName] = useState(qrApartmentName);
+  const [apartmentAddress, setApartmentAddress] = useState("");
+  const [completionDate, setCompletionDate] = useState("");
+  const [totalUnits, setTotalUnits] = useState("");
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -31,30 +27,51 @@ function AptManagerSignupForm() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const response = await fetch("/api/apt-manager/apartments-search", { cache: "no-store" });
-      const data = (await response.json()) as { apartments?: ApartmentOption[] };
-      if (response.ok) setApartments(data.apartments ?? []);
-    })();
-  }, []);
+  const searchAddress = async () => {
+    try {
+      await loadDaumPostcodeScript();
+      new window.daum!.Postcode({
+        oncomplete: (data) => {
+          const fullAddress = data.roadAddress || data.jibunAddress || data.address || "";
+          setApartmentAddress(fullAddress);
+          if (!apartmentName.trim() && data.apartment === "Y" && data.buildingName) {
+            setApartmentName(data.buildingName);
+          }
+        }
+      }).open();
+    } catch {
+      setMessage("주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+    }
+  };
 
-  const filtered = useMemo(() => {
-    const q = apartmentQuery.trim().toLowerCase();
-    if (!q) return apartments;
-    return apartments.filter((a) => a.name.toLowerCase().includes(q));
-  }, [apartments, apartmentQuery]);
+  const step0Valid = Boolean(apartmentName.trim() && apartmentAddress.trim() && completionDate && totalUnits.trim());
+  const step1Valid = Boolean(
+    name.trim() && /^01[0-9]-?\d{3,4}-?\d{4}$/.test(phone.trim()) && /^[a-zA-Z0-9_-]{4,20}$/.test(loginId.trim()) &&
+      password.length >= 8 && password === passwordConfirm
+  );
+
+  const goNext = () => {
+    if (!step0Valid) {
+      setMessage("단지명·단지주소·준공일·세대수를 모두 입력해주세요.");
+      return;
+    }
+    setMessage(null);
+    setStep(1);
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    setMessage(null);
-
-    if (mode === "existing" && !apartmentId) {
-      setMessage("단지를 선택해주세요.");
+    if (!step0Valid) {
+      setMessage("단지입력 탭을 먼저 모두 채워주세요.");
+      setStep(0);
       return;
     }
-    if (mode === "new" && (!newApartmentName.trim() || !newTotalUnits.trim())) {
-      setMessage("단지명과 예상 세대수를 입력해주세요.");
+    if (!name.trim() || !/^01[0-9]-?\d{3,4}-?\d{4}$/.test(phone.trim())) {
+      setMessage("이름과 연락처를 올바르게 입력해주세요.");
+      return;
+    }
+    if (!/^[a-zA-Z0-9_-]{4,20}$/.test(loginId.trim())) {
+      setMessage("아이디는 영문/숫자/_/- 4~20자로 입력해주세요.");
       return;
     }
     if (password.length < 8) {
@@ -67,6 +84,7 @@ function AptManagerSignupForm() {
     }
 
     setLoading(true);
+    setMessage(null);
     try {
       const response = await fetch("/api/apt-manager/signup", {
         method: "POST",
@@ -76,10 +94,10 @@ function AptManagerSignupForm() {
           phone,
           loginId,
           password,
-          apartmentId: mode === "existing" ? apartmentId : "",
-          apartmentNameRequested: mode === "new" ? newApartmentName : "",
-          apartmentAddressRequested: mode === "new" ? newApartmentAddress : "",
-          totalUnitsRequested: mode === "new" ? newTotalUnits : undefined
+          apartmentName,
+          apartmentAddress,
+          completionDate,
+          totalUnits
         })
       });
       const data = (await response.json()) as { message?: string };
@@ -106,92 +124,65 @@ function AptManagerSignupForm() {
       <h1 className="mt-2 text-2xl font-black text-slate-950">공동주택 세대 전기설비점검 가입 신청</h1>
       <p className="mt-2 text-sm text-slate-600">단지 전기안전관리자만 신청해주세요. 신청 후 대표님이 관리사무소로 실존확인 전화드려요.</p>
 
-      <form className="mt-6 space-y-4" onSubmit={submit}>
-        <div>
-          <div className="mb-2 flex gap-2">
-            <button
-              type="button"
-              onClick={() => setMode("existing")}
-              className={`flex-1 rounded-xl border-2 py-2 text-sm font-bold ${mode === "existing" ? "border-dk-blue bg-dk-sky text-dk-navy" : "border-slate-200 text-slate-500"}`}
-            >
-              단지 선택
+      <div className="mt-6 flex gap-2">
+        {STEP_LABELS.map((label, idx) => (
+          <div
+            key={label}
+            className={`flex-1 rounded-xl border-2 py-2 text-center text-sm font-bold ${
+              step === idx
+                ? "border-dk-blue bg-dk-sky text-dk-navy"
+                : idx < step
+                  ? "border-dk-blue/40 bg-white text-dk-blue"
+                  : "border-slate-200 bg-slate-50 text-slate-400"
+            }`}
+          >
+            {idx + 1}. {label}
+          </div>
+        ))}
+      </div>
+
+      {message ? <p className="mt-4 text-sm text-rose-700">{message}</p> : null}
+
+      {step === 0 ? (
+        <div className="mt-4 space-y-3">
+          <button type="button" onClick={() => void searchAddress()} className="btn-primary w-full py-3 text-sm">
+            🔍 단지 주소 검색
+          </button>
+          <input value={apartmentName} onChange={(e) => setApartmentName(e.target.value)} placeholder="단지명" className="soft-input w-full" />
+          <input value={apartmentAddress} onChange={(e) => setApartmentAddress(e.target.value)} placeholder="단지 주소 (검색 버튼으로 채워짐)" className="soft-input w-full" />
+          <div>
+            <p className="mb-1 text-xs font-semibold text-slate-500">준공일</p>
+            <input type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} className="soft-input w-full" />
+          </div>
+          <input
+            value={totalUnits}
+            onChange={(e) => setTotalUnits(e.target.value)}
+            placeholder="세대수"
+            inputMode="numeric"
+            className="soft-input w-full"
+          />
+          <button type="button" onClick={goNext} className="btn-primary w-full py-3 text-sm">
+            다음
+          </button>
+        </div>
+      ) : (
+        <form className="mt-4 space-y-3" onSubmit={submit}>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="이름" className="soft-input w-full" required />
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="연락처 (예: 010-1234-5678)" inputMode="tel" className="soft-input w-full" required />
+          <input value={loginId} onChange={(e) => setLoginId(e.target.value)} placeholder="아이디 (영문/숫자 4~20자)" autoComplete="username" className="soft-input w-full" required />
+          <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호 (8자 이상)" type="password" autoComplete="new-password" className="soft-input w-full" required />
+          <input value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} placeholder="비밀번호 확인" type="password" autoComplete="new-password" className="soft-input w-full" required />
+
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setStep(0)} className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-600">
+              이전
             </button>
-            <button
-              type="button"
-              onClick={() => setMode("new")}
-              className={`flex-1 rounded-xl border-2 py-2 text-sm font-bold ${mode === "new" ? "border-dk-blue bg-dk-sky text-dk-navy" : "border-slate-200 text-slate-500"}`}
-            >
-              목록에 없어요
+            <button type="submit" disabled={loading || !step1Valid} className="btn-primary flex-1 py-3 text-sm disabled:opacity-50">
+              {loading ? "신청 중..." : "가입 신청"}
             </button>
           </div>
-
-          {mode === "existing" ? (
-            <div className="relative">
-              <input
-                value={apartmentQuery}
-                onChange={(e) => {
-                  setApartmentQuery(e.target.value);
-                  setApartmentId("");
-                  setDropdownOpen(true);
-                }}
-                onFocus={() => setDropdownOpen(true)}
-                onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
-                placeholder="단지명을 검색하세요"
-                className="soft-input w-full"
-                required
-              />
-              {dropdownOpen ? (
-                <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg">
-                  {filtered.length === 0 ? (
-                    <li className="px-4 py-3 text-sm text-slate-400">검색 결과가 없어요.</li>
-                  ) : (
-                    filtered.map((apt) => (
-                      <li key={apt.id}>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setApartmentId(apt.id);
-                            setApartmentQuery(apt.name);
-                            setDropdownOpen(false);
-                          }}
-                          className={`block w-full px-4 py-3 text-left text-[15px] ${apt.id === apartmentId ? "bg-dk-sky font-bold text-dk-navy" : "hover:bg-slate-50"}`}
-                        >
-                          {apt.name}
-                        </button>
-                      </li>
-                    ))
-                  )}
-                </ul>
-              ) : null}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <input value={newApartmentName} onChange={(e) => setNewApartmentName(e.target.value)} placeholder="단지명" className="soft-input w-full" required />
-              <input value={newApartmentAddress} onChange={(e) => setNewApartmentAddress(e.target.value)} placeholder="단지 주소 (선택)" className="soft-input w-full" />
-              <input
-                value={newTotalUnits}
-                onChange={(e) => setNewTotalUnits(e.target.value)}
-                placeholder="예상 세대수"
-                inputMode="numeric"
-                className="soft-input w-full"
-                required
-              />
-            </div>
-          )}
-        </div>
-
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="이름" className="soft-input w-full" required />
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="연락처 (예: 010-1234-5678)" inputMode="tel" className="soft-input w-full" required />
-        <input value={loginId} onChange={(e) => setLoginId(e.target.value)} placeholder="아이디 (영문/숫자 4~20자)" autoComplete="username" className="soft-input w-full" required />
-        <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호 (8자 이상)" type="password" autoComplete="new-password" className="soft-input w-full" required />
-        <input value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} placeholder="비밀번호 확인" type="password" autoComplete="new-password" className="soft-input w-full" required />
-
-        {message ? <p className="text-sm text-rose-700">{message}</p> : null}
-        <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-sm disabled:opacity-60">
-          {loading ? "신청 중..." : "가입 신청"}
-        </button>
-      </form>
+        </form>
+      )}
     </div>
   );
 }

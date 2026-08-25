@@ -16,6 +16,7 @@ export type ApartmentManager = {
   passwordResetAt: string | null;
   apartmentNameRequested: string | null;
   apartmentAddressRequested: string | null;
+  apartmentCompletionDateRequested: string | null;
   totalUnitsRequested: number | null;
   createdAt: string;
 };
@@ -34,6 +35,7 @@ type ApartmentManagerRow = {
   password_reset_at: string | null;
   apartment_name_requested: string | null;
   apartment_address_requested: string | null;
+  apartment_completion_date_requested: string | null;
   total_units_requested: number | null;
   created_at: string;
 };
@@ -53,6 +55,7 @@ function mapManager(row: ApartmentManagerRow): ApartmentManager {
     passwordResetAt: row.password_reset_at,
     apartmentNameRequested: row.apartment_name_requested,
     apartmentAddressRequested: row.apartment_address_requested,
+    apartmentCompletionDateRequested: row.apartment_completion_date_requested,
     totalUnitsRequested: row.total_units_requested,
     createdAt: row.created_at
   };
@@ -75,6 +78,7 @@ export async function pgCreateApartmentManagerSignup(input: {
   apartmentId: string | null;
   apartmentNameRequested: string | null;
   apartmentAddressRequested: string | null;
+  apartmentCompletionDateRequested: string | null;
   totalUnitsRequested: number | null;
   name: string;
   phone: string;
@@ -88,6 +92,7 @@ export async function pgCreateApartmentManagerSignup(input: {
       apartment_id: input.apartmentId,
       apartment_name_requested: input.apartmentNameRequested,
       apartment_address_requested: input.apartmentAddressRequested,
+      apartment_completion_date_requested: input.apartmentCompletionDateRequested,
       total_units_requested: input.totalUnitsRequested,
       name: input.name.trim(),
       phone: input.phone.trim(),

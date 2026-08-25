@@ -11,6 +11,8 @@ type ApartmentManager = {
   approvalStatus: "pending" | "approved" | "rejected";
   lastLoginAt: string | null;
   apartmentNameRequested: string | null;
+  apartmentAddressRequested: string | null;
+  apartmentCompletionDateRequested: string | null;
   totalUnitsRequested: number | null;
   createdAt: string;
 };
@@ -131,6 +133,11 @@ export default function AdminApartmentManagersPanel() {
                     {!isNew && totalUnits ? ` (${totalUnits}세대)` : ""}
                     {isNew ? <span className="ml-1 rounded-full bg-dk-gold/20 px-2 py-0.5 text-[10px] font-bold text-dk-amber">신규요청</span> : null}
                   </p>
+                  {isNew ? (
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      {m.apartmentAddressRequested} · 준공일 {m.apartmentCompletionDateRequested ?? "미입력"}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-[11px] text-slate-400">신청일시: {formatDate(m.createdAt)}</p>
                   <div className="mt-2 flex gap-2">
                     <button
