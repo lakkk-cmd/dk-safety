@@ -321,12 +321,11 @@ function AdminReportElement({
   );
 }
 
-/** 행정업무운영편람 간이기안문 양식으로 내부 보고서 PDF를 렌더링한다. */
-export async function renderAdminReportPdf(params: {
+async function buildAdminReportPng(params: {
   title: string;
   meta: AdminReportMeta;
   sections: DocumentSection[];
-}): Promise<Uint8Array> {
+}): Promise<{ png: Buffer; heightPx: number }> {
   const sections = params.sections.map((s) => ({ heading: s.heading, body: sanitizeForOfficialDocument(s.body) }));
   const sectionsHeight = sections.reduce((sum, s) => sum + 24 + 10 + estimateTextHeightPx(s.body) + 26, 0);
   const heightPx = Math.max(PAGE_H_PX, 420 + sectionsHeight + 120);
@@ -336,11 +335,32 @@ export async function renderAdminReportPdf(params: {
     PAGE_W_PX,
     heightPx,
   );
+  return { png, heightPx };
+}
+
+/** 행정업무운영편람 간이기안문 양식으로 내부 보고서 PDF를 렌더링한다. */
+export async function renderAdminReportPdf(params: {
+  title: string;
+  meta: AdminReportMeta;
+  sections: DocumentSection[];
+}): Promise<Uint8Array> {
+  const { png, heightPx } = await buildAdminReportPng(params);
 
   const pdfDoc = await PDFDocument.create();
   const image = await pngToImageWithPdfDoc(pdfDoc, png);
   addSlicedPages(pdfDoc, image, PAGE_W_PX, heightPx);
   return pdfDoc.save();
+}
+
+/** PDF로 슬라이싱하기 전, 세로로 긴 PNG 원본 그대로를 돌려준다 — 화면 미리보기·스크린샷
+ * 검증용(PDF는 브라우저 샌드박스/뷰어에 따라 렌더링이 막힐 수 있지만 이미지는 항상 뜬다). */
+export async function renderAdminReportPreviewPng(params: {
+  title: string;
+  meta: AdminReportMeta;
+  sections: DocumentSection[];
+}): Promise<Buffer> {
+  const { png } = await buildAdminReportPng(params);
+  return png;
 }
 
 // ── 공동주택 세대내 전기설비 점검기록표(직무고시 별지 15호 커스텀) ──────────────
