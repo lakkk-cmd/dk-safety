@@ -3,16 +3,16 @@ title: "에이전트 메모리 — openrouter_usage_last_total_usd"
 category: agent-memory
 tags: ["agent-memory", "openrouter_usage_last_total_usd"]
 source: "agent_memory (key=openrouter_usage_last_total_usd)"
-synced_at: "2026-08-23T20:08:21.448Z"
+synced_at: "2026-08-24T20:15:21.679Z"
 ---
 
 <!-- AUTO:START -->
 ## openrouter_usage_last_total_usd
 
-마지막 갱신: 2026-07-26T22:00:20.810529+00:00
+마지막 갱신: 2026-08-23T22:05:28.305139+00:00
 
 ```json
-13.26477386
+13.27741966
 ```
 
 관련: [[index]]
