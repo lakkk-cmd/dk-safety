@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ADMIN_AUTH_COOKIE, RESIDENT_AUTH_COOKIE, WORKER_AUTH_COOKIE } from "@/lib/site-config";
+import { ADMIN_AUTH_COOKIE, APT_MANAGER_AUTH_COOKIE, RESIDENT_AUTH_COOKIE, WORKER_AUTH_COOKIE } from "@/lib/site-config";
 import { residentSessionNotRequired } from "@/lib/service-journey";
 import { verifyWorkerSessionTokenEdge } from "@/lib/worker-session-verify-edge";
+import { verifyApartmentManagerSessionTokenEdge } from "@/lib/apt-manager-session-verify-edge";
 
 const FIRST_VISIT_COOKIE = "dk_first_visit_checked";
 const HQ_HOST_PREFIX = "hq.";
 const REPORT_HOST_PREFIX = "report.";
 const AGENT_HOST_PREFIX = "agent.";
 const CONTENTS_HOST_PREFIX = "contents.";
+const INSPECT_HOST_PREFIX = "inspect.";
 
 function withFirstVisitCookie(res: NextResponse, isFirstVisit: boolean) {
   if (isFirstVisit) {
@@ -44,6 +46,10 @@ export async function middleware(request: NextRequest) {
   } else if (host.startsWith(CONTENTS_HOST_PREFIX)) {
     rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = `/contents${pathname === "/" ? "" : pathname}`;
+    pathname = rewriteUrl.pathname;
+  } else if (host.startsWith(INSPECT_HOST_PREFIX)) {
+    rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = `/apt-manager${pathname === "/" ? "" : pathname}`;
     pathname = rewriteUrl.pathname;
   }
 
@@ -126,6 +132,24 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isWorkerRoute || isAdminRoute) {
+    return response ?? baseResponse();
+  }
+
+  const isAptManagerRoute = pathname.startsWith("/apt-manager");
+  const isAptManagerPublic =
+    pathname === "/apt-manager/login" || pathname === "/apt-manager/signup" || pathname === "/apt-manager/pending";
+
+  if (isAptManagerRoute && !isAptManagerPublic) {
+    const token =
+      response?.cookies.get(APT_MANAGER_AUTH_COOKIE)?.value ?? request.cookies.get(APT_MANAGER_AUTH_COOKIE)?.value;
+    if (!(await verifyApartmentManagerSessionTokenEdge(token))) {
+      const loginUrl = new URL("/apt-manager/login", request.url);
+      loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+      return withFirstVisitCookie(NextResponse.redirect(loginUrl), isFirstVisit);
+    }
+  }
+
+  if (isAptManagerRoute) {
     return response ?? baseResponse();
   }
 

@@ -20,6 +20,8 @@ export type ApartmentTenant = {
   leakageCurrentThresholdMa: number | null;
   /** 단지 총세대수 — 세대전기점검 처리율 계산용(105). 미설정이면 null. */
   totalUnits: number | null;
+  /** 정식계약(contract) vs 세대전기점검 무료앱만 쓰는 단지(free_app)(109). */
+  partnershipType: "contract" | "free_app";
   createdAt: string;
 };
 
@@ -39,6 +41,7 @@ type ApartmentRow = {
   insulation_resistance_threshold_mohm?: number | null;
   leakage_current_threshold_ma?: number | null;
   total_units?: number | null;
+  partnership_type?: string | null;
   created_at: string;
 };
 
@@ -73,6 +76,7 @@ function mapApartment(row: ApartmentRow): ApartmentTenant {
         ? row.leakage_current_threshold_ma
         : null,
     totalUnits: typeof row.total_units === "number" && Number.isFinite(row.total_units) ? row.total_units : null,
+    partnershipType: row.partnership_type === "free_app" ? "free_app" : "contract",
     createdAt: row.created_at
   };
 }
@@ -84,6 +88,20 @@ export async function pgListApartments(): Promise<ApartmentTenant[]> {
     throw new Error(`아파트 목록 조회 실패: ${error.message}`);
   }
   return ((data ?? []) as ApartmentRow[]).map(mapApartment);
+}
+
+/** 세대전기점검 무료앱 가입신청 화면(공개)용 — 계좌정보 등 민감값 없이 이름/세대수만 노출. */
+export async function pgListApartmentsPublicForSignup(): Promise<{ id: string; name: string; totalUnits: number | null }[]> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase.from("apartments").select("id, name, total_units").order("name", { ascending: true });
+  if (error) {
+    throw new Error(`아파트 목록 조회 실패: ${error.message}`);
+  }
+  return ((data ?? []) as { id: string; name: string; total_units: number | null }[]).map((row) => ({
+    id: row.id,
+    name: row.name,
+    totalUnits: row.total_units
+  }));
 }
 
 function apartmentsMissingColumn(err: PostgrestError, column: "code" | "apt_code"): boolean {
@@ -195,6 +213,7 @@ export async function pgUpdateApartment(
     insulationResistanceThresholdMohm: number | null;
     leakageCurrentThresholdMa: number | null;
     totalUnits: number | null;
+    partnershipType: "contract" | "free_app";
   }>
 ): Promise<ApartmentTenant | null> {
   const supabase = requireSupabaseAdmin();
@@ -216,6 +235,7 @@ export async function pgUpdateApartment(
   if (patch.insulationResistanceThresholdMohm !== undefined) payload.insulation_resistance_threshold_mohm = patch.insulationResistanceThresholdMohm;
   if (patch.leakageCurrentThresholdMa !== undefined) payload.leakage_current_threshold_ma = patch.leakageCurrentThresholdMa;
   if (patch.totalUnits !== undefined) payload.total_units = patch.totalUnits;
+  if (typeof patch.partnershipType === "string") payload.partnership_type = patch.partnershipType;
   if (Object.keys(payload).length === 0) return null;
 
   const { data, error } = await supabase.from("apartments").update(payload).eq("id", id).select("*").maybeSingle();

@@ -29,9 +29,16 @@ export type UnitInspectionInput = {
   switchInstallYear: number | null;
 };
 
+/** 이 건을 누가 입력했는지 — 대경 직원(dk_worker) 또는 전기과장 본인(apt_manager, 무료앱)(109). */
+export type UnitInspectionActor =
+  | { type: "dk_worker"; workerId: string }
+  | { type: "apt_manager"; aptManagerId: string };
+
 export type UnitInspection = UnitInspectionInput & {
   id: string;
   inspectorWorkerId: string | null;
+  inputActorType: "dk_worker" | "apt_manager";
+  aptManagerId: string | null;
   inspectedAt: string;
   autoDiagnosis: DiagnosisEntry[];
   /** 법적 근거 아님 — 별표3 규칙엔진(autoDiagnosis)과 분리해서 저장·표시한다 */
@@ -47,6 +54,8 @@ type UnitInspectionRow = {
   ho: string;
   inspection_type: string;
   inspector_worker_id: string | null;
+  input_actor_type: string;
+  apt_manager_id: string | null;
   inspected_at: string;
   checklist_items: unknown;
   load_current: number | null;
@@ -82,6 +91,8 @@ function mapUnitInspection(row: UnitInspectionRow): UnitInspection {
     ho: row.ho,
     inspectionType: row.inspection_type as UnitInspectionType,
     inspectorWorkerId: row.inspector_worker_id,
+    inputActorType: row.input_actor_type === "apt_manager" ? "apt_manager" : "dk_worker",
+    aptManagerId: row.apt_manager_id,
     inspectedAt: row.inspected_at,
     checklistItems: fixed.checklistItems,
     loadCurrent: row.load_current,
@@ -101,7 +112,7 @@ function mapUnitInspection(row: UnitInspectionRow): UnitInspection {
 }
 
 /** 세대전기점검 기록 생성 — 저장 직전 별표3 규칙엔진으로 auto_diagnosis를 산출해 함께 저장한다 */
-export async function pgCreateUnitInspection(workerId: string, input: UnitInspectionInput): Promise<UnitInspection> {
+export async function pgCreateUnitInspection(actor: UnitInspectionActor, input: UnitInspectionInput): Promise<UnitInspection> {
   const supabase = requireSupabaseAdmin();
   const autoDiagnosis = diagnoseChecklist(input.checklistItems);
   const companyAdvisories = checkCompanyServiceLifeAdvisories({
@@ -116,7 +127,9 @@ export async function pgCreateUnitInspection(workerId: string, input: UnitInspec
       dong: input.dong.trim(),
       ho: input.ho.trim(),
       inspection_type: input.inspectionType,
-      inspector_worker_id: workerId,
+      inspector_worker_id: actor.type === "dk_worker" ? actor.workerId : null,
+      input_actor_type: actor.type,
+      apt_manager_id: actor.type === "apt_manager" ? actor.aptManagerId : null,
       checklist_items: input.checklistItems,
       load_current: input.loadCurrent,
       igr: input.igr,

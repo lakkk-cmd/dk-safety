@@ -94,7 +94,10 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 | `src/lib/supabase-pg.ts` | Supabase Postgres client (`getSupabaseAdmin`, `isSupabaseReservationsDbReady`); separate flag `DK_SAFETY_USE_SUPABASE_DB` |
 | `src/lib/reservations-store.ts` | Main reservation CRUD — routes through `reservations-pg.ts` (Postgres) or local JSON |
 | `src/lib/resident-db.ts` | Resident users, sessions (HMAC-signed stateless tokens), apartments, self-diagnosis records |
-| `src/lib/apartments-pg.ts` | Multi-tenant apartment management (Supabase Postgres only) |
+| `src/lib/apartments-pg.ts` | Multi-tenant apartment management (Supabase Postgres only); `partnershipType` (`contract`/`free_app`) distinguishes free-app-only apartments (109) |
+| `src/lib/apartment-managers-pg.ts` | CRUD for `apartment_managers` (세대전기점검 무료앱 셀프서비스 계정) — signup/approve/reject/reset-password/list, calls `approve_apartment_manager_signup()` RPC for atomic new-apartment approval |
+| `src/lib/apt-manager-auth.ts` / `apt-manager-session-verify-edge.ts` / `apt-manager-session-server.ts` | 전기과장 세션 — `worker-auth.ts` 패턴 복제, 쿠키 `dk_apt_manager_auth`, TTL 30일(워커 12시간과 다름, 어쩌다 한 번 쓰는 계정이라 이탈 방지) |
+| `src/lib/apt-manager-password.ts` | 전기과장 비밀번호 해시(scrypt, `worker-pin.ts`와 동일 패턴) + 관리자용 임시비밀번호 생성 |
 | `src/lib/site-config.ts` | Global constants: cookie names, `siteConfig` object pulling env vars |
 | `src/lib/admin-auth.ts` | Admin auth: checks `dk_admin_auth` cookie value |
 | `src/lib/worker-session-server.ts` | Worker session extraction from `dk_worker_auth` cookie |
@@ -141,6 +144,7 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 - `/report` — weekly report archive + roadmap visualization (cookie-protected, shares admin auth); served at `report.dkansim.com` via host-based middleware rewrite
 - `/agent` — AI pipeline monitor: YouTube collection status, Gemini analysis status, cron logs (`agent_logs`), pipeline run history (`pipeline_logs`) (cookie-protected, shares admin auth); served at `agent.dkansim.com` via host-based middleware rewrite
 - `/contents` — content marketing command center: YouTube/Kakao/blog approval queues, Naver trend keywords, YouTube OAuth connection status (cookie-protected, shares admin auth); served at `contents.dkansim.com` via host-based middleware rewrite
+- `/apt-manager/login`, `/signup`, `/pending`, `/(dashboard)` — 세대전기점검 무료앱: 아파트 전기안전관리자(전기과장) 셀프서비스 포털, `workers`와 완전히 분리된 자체 세션(`dk_apt_manager_auth`). 대시보드는 하단 탭 3개(점검입력/점검이력/점검가이드) — 점검입력은 `unit-inspection-form.tsx`를 `lockedApartment`/`apartmentsEndpoint`/`submitEndpoint` props로 재사용(세션에 단지가 이미 고정돼 있어 단지선택 UI 없음). 서브도메인 `inspect.dkansim.com` → 내부 `/apt-manager` rewrite. 가입은 QR프리필/검색으로 기존 단지를 고르거나, 목록에 없으면 신규단지 정보를 함께 신청(승인 시 `apartments` 행이 자동 생성됨) — 승인은 매번 대표님의 관리사무소 전화 실존확인 후 `/admin/apartments`의 "전기과장 계정 관리" 패널에서 처리(승인 SMS·비밀번호 재발급 SMS는 `sendSMS()` 재사용). `/api/apt-manager/*`(공개+세션), `/api/admin/apartment-managers/*`(관리자) 참고
 - `/blog`, `/blog/[slug]` — public blog index + post detail (SEO meta tags, reservation CTA); only `published` posts are visible
 - `/api/admin/*`, `/api/worker/*`, `/api/resident/*` — REST API routes
 - `/api/admin/content/*` — content queue CRUD/approve (`youtube`, `kakao`, `blog`, `overview`, `naver-trends`, `youtube-channel-analysis`)
@@ -187,6 +191,11 @@ Located in `supabase/migrations/` (numbered 001–033). Apply with `npm run db:a
 - `061` — adds `'인건비'` to `expenses.category` CHECK constraint; `settle_worker_assignment()` Postgres function — atomically inserts into `worker_assignments` (previously unused/dead — no code called it) and `expenses` together, giving worker pay settlement (`/admin/erp/settlement`) a real, ERP-integrated implementation. `worker_assignments.reservation_id`+`worker_id` UNIQUE constraint blocks double-settling the same job.
 - `097` — `agent_reports.pdf_url` column (행정업무운영편람 양식 주간보고 PDF 링크)
 - `098` — `generated_documents.doc_type` CHECK 제약에 `admin_report` 추가 (내부 업무보고서 문서유형)
+- `109` — `apartments.partnership_type` CHECK IN ('contract','free_app'); `apartment_managers` table (세대전기점검
+  무료앱 셀프서비스 계정, `workers`와 완전 분리); `approve_apartment_manager_signup()` 함수(신규단지 요청 승인
+  시 `apartments` 행 생성 + 연결을 원자적으로 처리, `apply_site_decision()`(059)과 동일 패턴);
+  `unit_electrical_inspections.input_actor_type`/`apt_manager_id` + `unit_inspections_actor_consistency` CHECK
+  (dk_worker/apt_manager 중 정확히 하나의 FK만 채워지도록 강제)
 
 ### AI Command Center
 
@@ -252,6 +261,7 @@ Copy `.env.example` to `.env.local`. Key vars:
 | `SUPABASE_UPLOAD_BUCKET` | Bucket for field photos (default: `dk-safety-uploads`) |
 | `DK_SAFETY_USE_SUPABASE_DB` | `1` or `true` to use Postgres for reservations |
 | `WORKER_SESSION_SECRET` | HMAC secret for worker session tokens |
+| `APT_MANAGER_SESSION_SECRET` | HMAC secret for 세대전기점검 무료앱(inspect.dkansim.com) 전기과장 session tokens — must differ from `WORKER_SESSION_SECRET` |
 | `RESIDENT_SESSION_SECRET` | HMAC secret for resident session tokens |
 | `ANTHROPIC_API_KEY` | Claude API key for AI command center |
 | `ANTHROPIC_MODEL` | Claude model ID (default: `claude-sonnet-4-6`) |

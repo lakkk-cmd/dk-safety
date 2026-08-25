@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { getApartmentManagerIdFromCookies } from "@/lib/apt-manager-session-server";
+import { pgGetApartmentManager } from "@/lib/apartment-managers-pg";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { createConsultationLog } from "@/lib/crm-db";
 import { renderUnitInspectionPdf } from "@/lib/document-pdf";
 import { SUPABASE_DOCUMENTS_BUCKET } from "@/lib/document-generator";
-import { WORKER_AUTH_COOKIE } from "@/lib/site-config";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { uploadBinaryObject } from "@/lib/supabase-server";
 import {
@@ -16,9 +16,14 @@ import {
   type ChecklistResult
 } from "@/lib/unit-inspection-rules";
 import { sendUnitInspectionNotification, type SendChannelResult } from "@/lib/unit-inspection-notification";
-import { pgCreateUnitInspection, pgListUnitInspectionsForApartment, pgSaveUnitInspectionPdf, type UnitInspectionInput } from "@/lib/unit-inspections";
+import {
+  pgCreateUnitInspection,
+  pgListUnitInspectionPdfCorrections,
+  pgListUnitInspectionsForApartment,
+  pgSaveUnitInspectionPdf,
+  type UnitInspectionInput
+} from "@/lib/unit-inspections";
 import { normalizePhone } from "@/lib/reservation-validation";
-import { verifyWorkerSessionToken } from "@/lib/worker-auth";
 
 const VALID_ITEM_IDS = new Set<ChecklistItemId>(CHECKLIST_ITEMS.map((d) => d.id));
 const VALID_RESULTS = new Set<ChecklistResult>(["O", "X", "/", "N/A"]);
@@ -35,24 +40,31 @@ function toNullableNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export async function GET(request: Request) {
+/** 세션의 전기과장이 승인된 계정이고 자기 단지가 있는지 확인 — 없으면 null. 모든 핸들러가
+ *  이 함수가 돌려주는 apartmentId만 쓰고, 클라이언트가 보낸 apartmentId는 절대 신뢰하지 않는다
+ *  (단지 1곳 하드 스코프를 세션에서 강제하는 지점). */
+async function requireScopedManager() {
+  const managerId = await getApartmentManagerIdFromCookies();
+  if (!managerId) return null;
+  const manager = await pgGetApartmentManager(managerId);
+  if (!manager || manager.approvalStatus !== "approved" || !manager.apartmentId) return null;
+  return { managerId: manager.id, apartmentId: manager.apartmentId };
+}
+
+export async function GET() {
   if (!isSupabaseReservationsDbReady()) {
     return NextResponse.json({ message: "Supabase DB 모드가 아닙니다." }, { status: 400 });
   }
-  const cookieStore = await cookies();
-  const session = verifyWorkerSessionToken(cookieStore.get(WORKER_AUTH_COOKIE)?.value);
-  if (!session) {
+  const scope = await requireScopedManager();
+  if (!scope) {
     return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
   }
-
-  const apartmentId = new URL(request.url).searchParams.get("apartmentId")?.trim();
-  if (!apartmentId) {
-    return NextResponse.json({ message: "apartmentId가 필요합니다." }, { status: 400 });
-  }
-
   try {
-    const inspections = await pgListUnitInspectionsForApartment(apartmentId);
-    return NextResponse.json({ inspections });
+    const [inspections, pdfCorrections] = await Promise.all([
+      pgListUnitInspectionsForApartment(scope.apartmentId),
+      pgListUnitInspectionPdfCorrections()
+    ]);
+    return NextResponse.json({ inspections, pdfCorrections });
   } catch (error) {
     const message = error instanceof Error ? error.message : "조회에 실패했습니다.";
     return NextResponse.json({ message }, { status: 500 });
@@ -63,22 +75,17 @@ export async function POST(request: Request) {
   if (!isSupabaseReservationsDbReady()) {
     return NextResponse.json({ message: "Supabase DB 모드가 아닙니다." }, { status: 400 });
   }
-  const cookieStore = await cookies();
-  const session = verifyWorkerSessionToken(cookieStore.get(WORKER_AUTH_COOKIE)?.value);
-  if (!session) {
+  const scope = await requireScopedManager();
+  if (!scope) {
     return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-
-  const apartmentId = toStringField(body.apartmentId).trim();
-  if (!apartmentId) {
-    return NextResponse.json({ message: "단지를 선택해주세요." }, { status: 400 });
-  }
-  const apartment = await pgFindApartmentByIdentifier(apartmentId).catch(() => null);
+  const apartment = await pgFindApartmentByIdentifier(scope.apartmentId).catch(() => null);
   if (!apartment) {
-    return NextResponse.json({ message: "존재하지 않는 단지입니다." }, { status: 400 });
+    return NextResponse.json({ message: "단지 정보를 찾을 수 없습니다." }, { status: 400 });
   }
+
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
   const dong = toStringField(body.dong).trim();
   const ho = toStringField(body.ho).trim();
@@ -102,15 +109,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "체크리스트 항목 값이 올바르지 않습니다." }, { status: 400 });
     }
     if (inspectionType === "unvisited_simple" && !SIMPLE_INSPECTABLE_IDS.has(id)) {
-      // 미방문 간이점검에서 실측 불가 항목은 서버가 항상 N/A로 고정한다 — 클라이언트가 보내도 무시.
       continue;
     }
     overrides.push({ id, result, note });
   }
 
-  // 현장에서 육안·수기로 직접 확인해야 하는 항목은 반드시 워커가 값을 보내야 다음 단계로
-  // 진행된 것으로 본다 — 클라이언트 단계이동 검사와 별개로 서버에서도 한 번 더 막는다
-  // (defense in depth, 다른 API들과 동일한 원칙).
   const overriddenIds = new Set(overrides.map((o) => o.id));
   const requiredManualIds = CHECKLIST_ITEMS.filter(
     (d) => MANUAL_CHECK_IDS.has(d.id) && (inspectionType === "visit" || SIMPLE_INSPECTABLE_IDS.has(d.id))
@@ -167,14 +170,12 @@ export async function POST(request: Request) {
 
   let inspection;
   try {
-    inspection = await pgCreateUnitInspection({ type: "dk_worker", workerId: session.workerId }, input);
+    inspection = await pgCreateUnitInspection({ type: "apt_manager", aptManagerId: scope.managerId }, input);
   } catch (error) {
     const message = error instanceof Error ? error.message : "저장에 실패했습니다.";
     return NextResponse.json({ message }, { status: 500 });
   }
 
-  // 방문점검만 즉시 PDF 발급 + 세대 문자 발송 + CRM 접점 기록 — 실패해도 점검 저장 자체는
-  // 이미 성공했으니 200으로 응답하고, notification 필드로 워커 화면에 실패를 알린다.
   let notification: SendChannelResult | null = null;
   if (inspectionType === "visit") {
     try {
@@ -222,16 +223,16 @@ export async function POST(request: Request) {
         customer_phone: normalizePhone(residentPhoneRaw),
         customer_name: residentNameRaw,
         channel: "visit",
-        content: `세대전기점검(직무고시) — ${apartment.name} ${inspection.dong}동 ${inspection.ho}호`,
+        content: `세대전기점검(직무고시, 전기과장 자가입력) — ${apartment.name} ${inspection.dong}동 ${inspection.ho}호`,
         next_contact_at: null,
         status: inspection.autoDiagnosis.length > 0 ? "follow_up" : "resolved",
         result: inspection.autoDiagnosis.length > 0 ? `부적합 ${inspection.autoDiagnosis.length}건 — 수리 안내 필요` : "특이사항 없음",
-        worker_id: session.workerId,
+        worker_id: null,
         source: "unit_inspection",
         address: `${apartment.name} ${inspection.dong}동 ${inspection.ho}호`
       });
     } catch (error) {
-      console.error("[worker/unit-inspections] PDF 발급/문자 발송/CRM 기록 실패:", error);
+      console.error("[apt-manager/unit-inspections] PDF 발급/문자 발송/CRM 기록 실패:", error);
     }
   }
 

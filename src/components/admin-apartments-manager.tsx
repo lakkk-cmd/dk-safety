@@ -15,6 +15,7 @@ type Apartment = {
   insulationResistanceThresholdMohm: number | null;
   leakageCurrentThresholdMa: number | null;
   totalUnits: number | null;
+  partnershipType: "contract" | "free_app";
 };
 
 /** 광주 5개 구 — 관리자 목록 탭 분류 + 주소 검색 결과로부터 구 자동 판별 */
@@ -312,7 +313,14 @@ export default function AdminApartmentsManager() {
             <li key={item.id} className="rounded-xl border border-slate-200 p-3">
               <p className="font-semibold text-slate-900">
                 {item.name} <span className="text-xs text-slate-500">/apt/{item.code}</span>{" "}
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{districtLabel(item.district)}</span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{districtLabel(item.district)}</span>{" "}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    item.partnershipType === "free_app" ? "bg-dk-gold/20 text-dk-amber" : "bg-dk-blue/10 text-dk-blue"
+                  }`}
+                >
+                  {item.partnershipType === "free_app" ? "무료앱" : "정식계약"}
+                </span>
               </p>
               {item.address ? <p className="mt-0.5 text-xs text-slate-500">{item.address}</p> : null}
               <p className="mt-1 text-xs text-slate-600">

@@ -58,12 +58,30 @@ function groupByCategory() {
 }
 const CATEGORY_GROUPS = groupByCategory();
 
-export default function UnitInspectionForm() {
-  const [apartments, setApartments] = useState<ApartmentOption[]>([]);
-  const [loadingApartments, setLoadingApartments] = useState(true);
+type UnitInspectionFormProps = {
+  /** 단지 목록 조회 API — 기본은 워커용. 전기과장 화면은 세션에 단지가 이미 고정돼 있어 안 씀. */
+  apartmentsEndpoint?: string;
+  /** 점검 저장 API — 기본은 워커용. */
+  submitEndpoint?: string;
+  /** 지정하면 단지선택 UI를 숨기고 이 단지로 고정한다(전기과장용 — 세션에 단지가 이미 고정돼 있음). */
+  lockedApartment?: { id: string; name: string } | null;
+  /** "목록으로" 버튼이 이동할 경로. */
+  backHref?: string;
+  backLabel?: string;
+};
 
-  const [apartmentId, setApartmentId] = useState("");
-  const [apartmentQuery, setApartmentQuery] = useState("");
+export default function UnitInspectionForm({
+  apartmentsEndpoint = "/api/worker/apartments",
+  submitEndpoint = "/api/worker/unit-inspections",
+  lockedApartment = null,
+  backHref = "/worker",
+  backLabel = "목록으로"
+}: UnitInspectionFormProps = {}) {
+  const [apartments, setApartments] = useState<ApartmentOption[]>([]);
+  const [loadingApartments, setLoadingApartments] = useState(!lockedApartment);
+
+  const [apartmentId, setApartmentId] = useState(lockedApartment?.id ?? "");
+  const [apartmentQuery, setApartmentQuery] = useState(lockedApartment?.name ?? "");
   const [apartmentDropdownOpen, setApartmentDropdownOpen] = useState(false);
   const [dong, setDong] = useState("");
   const [ho, setHo] = useState("");
@@ -100,16 +118,17 @@ export default function UnitInspectionForm() {
   } | null>(null);
 
   useEffect(() => {
+    if (lockedApartment) return;
     (async () => {
       try {
-        const response = await fetch("/api/worker/apartments", { cache: "no-store" });
+        const response = await fetch(apartmentsEndpoint, { cache: "no-store" });
         const data = (await response.json()) as { apartments?: ApartmentOption[]; message?: string };
         if (response.ok) setApartments(data.apartments ?? []);
       } finally {
         setLoadingApartments(false);
       }
     })();
-  }, []);
+  }, [apartmentsEndpoint, lockedApartment]);
 
   const stepLabels = useMemo(
     () => (inspectionType === "visit" ? ["기본정보", "점검항목", "실측값", "서명"] : ["기본정보", "점검항목", "실측값"]),
@@ -179,7 +198,7 @@ export default function UnitInspectionForm() {
       // 보낼 필요가 없다 — 수동확인이 필요한 항목만 담는다(우린 이미 stepValid로 전부 채워졌음을 확인함).
       const checklistResults = requiredManualIdsForType.map((id) => ({ id, result: results[id]!, note: notes[id] }));
 
-      const response = await fetch("/api/worker/unit-inspections", {
+      const response = await fetch(submitEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -208,7 +227,7 @@ export default function UnitInspectionForm() {
         setMessage(data.message ?? "저장에 실패했습니다.");
         return;
       }
-      const apartmentName = apartments.find((a) => a.id === apartmentId)?.name ?? "";
+      const apartmentName = lockedApartment?.name ?? apartments.find((a) => a.id === apartmentId)?.name ?? "";
       setResult({
         diagnosis: data.inspection?.autoDiagnosis ?? [],
         advisories: data.inspection?.companyAdvisories ?? [],
@@ -284,9 +303,9 @@ export default function UnitInspectionForm() {
           <BigButton variant="secondary" onClick={resetForNext} className="flex-1">
             다음 세대 점검
           </BigButton>
-          <Link href="/worker" className="flex-1">
+          <Link href={backHref} className="flex-1">
             <BigButton variant="primary" className="w-full">
-              목록으로
+              {backLabel}
             </BigButton>
           </Link>
         </div>
@@ -305,7 +324,11 @@ export default function UnitInspectionForm() {
           <div className="space-y-4">
             <div className="relative">
               <p className="mb-2 text-[15px] font-bold text-slate-800">단지 *</p>
-              {loadingApartments ? (
+              {lockedApartment ? (
+                <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[15px] font-bold text-dk-navy">
+                  {lockedApartment.name}
+                </p>
+              ) : loadingApartments ? (
                 <p className="text-sm text-slate-500">불러오는 중...</p>
               ) : apartments.length === 0 ? (
                 <EmptyState icon="🏢" title="등록된 단지가 없어요" description="관리자에게 단지 등록을 요청해주세요." />
