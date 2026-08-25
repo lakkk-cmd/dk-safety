@@ -23,7 +23,7 @@ export default function AptManagerChrome({ children }: { children: ReactNode }) 
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-bold text-dk-blue">우리집 전기주치의(대경이엔피)</p>
+            <p className="text-[11px] font-bold text-dk-blue">우리집 안심전기(대경이엔피)</p>
             <p className="text-sm font-black text-slate-900">세대전기점검</p>
           </div>
           <button
