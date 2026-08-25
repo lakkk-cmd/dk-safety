@@ -226,14 +226,7 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
             </div>
           </div>
         </div>
-        <div className="relative mt-4 grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            onClick={() => startRequest("repair")}
-            className="inline-flex h-16 items-center justify-center rounded-xl bg-white/95 px-1 text-center text-lg font-black leading-tight text-slate-900 shadow-sm transition hover:bg-white"
-          >
-            🔧 점검·수리
-          </button>
+        <div className="relative mt-4 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => window.location.assign(`/resident/safety-check?tenant=${encodeURIComponent(apartment.code)}`)}
@@ -250,6 +243,20 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
           </button>
         </div>
       </section>
+
+      <button
+        type="button"
+        onClick={() => startRequest("repair")}
+        className="flex w-full items-center justify-between rounded-2xl border border-dk-blue/40 bg-blue-50 px-4 py-3 text-left shadow-sm transition hover:bg-blue-100"
+      >
+        <div>
+          <p className="text-base font-extrabold text-slate-900">🔧 점검·수리</p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-600">
+            방문 점검 후 정확한 원인 진단 · 예약금 {baseDispatchFee.toLocaleString("ko-KR")}원부터
+          </p>
+        </div>
+        <span className="rounded-full bg-dk-blue/15 px-3 py-1 text-xs font-bold text-slate-800">예약 접수 →</span>
+      </button>
 
       <button
         type="button"
