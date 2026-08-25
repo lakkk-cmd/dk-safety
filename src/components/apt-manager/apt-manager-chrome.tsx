@@ -24,7 +24,7 @@ export default function AptManagerChrome({ children }: { children: ReactNode }) 
         <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-bold text-dk-blue">우리집 안심전기(대경이엔피)</p>
-            <p className="text-sm font-black text-slate-900">세대전기점검</p>
+            <p className="text-sm font-black text-slate-900">공동주택 세대 전기설비점검</p>
           </div>
           <button
             type="button"

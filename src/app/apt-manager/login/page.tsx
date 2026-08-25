@@ -40,7 +40,7 @@ export default function AptManagerLoginPage() {
     <main className="page-fit flex max-w-md flex-col justify-center bg-slate-100">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg">
         <p className="text-xs font-semibold text-dk-blue">우리집 안심전기(대경이엔피)</p>
-        <h1 className="mt-2 text-2xl font-black text-slate-950">세대전기점검 로그인</h1>
+        <h1 className="mt-2 text-2xl font-black text-slate-950">공동주택 세대 전기설비점검 로그인</h1>
         <p className="mt-2 text-sm text-slate-600">단지 전기안전관리자 전용 계정으로 로그인합니다.</p>
 
         <form className="mt-6 space-y-3" onSubmit={submit}>
