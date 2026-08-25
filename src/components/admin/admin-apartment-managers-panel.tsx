@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type ApartmentManager = {
   id: string;
@@ -31,6 +31,8 @@ export default function AdminApartmentManagersPanel() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [approvedSearch, setApprovedSearch] = useState("");
+  const [approvedSort, setApprovedSort] = useState<"recent_login" | "apartment_name">("recent_login");
 
   const load = async () => {
     setLoading(true);
@@ -56,6 +58,32 @@ export default function AdminApartmentManagersPanel() {
   }, []);
 
   const apartmentNameById = new Map(apartments.map((a) => [a.id, a.name]));
+
+  const visibleApproved = useMemo(() => {
+    const q = approvedSearch.trim().toLowerCase();
+    const filtered = q
+      ? approved.filter((m) => {
+          const apartmentName = m.apartmentId ? (apartmentNameById.get(m.apartmentId) ?? "") : "";
+          return (
+            m.name.toLowerCase().includes(q) ||
+            m.loginId.toLowerCase().includes(q) ||
+            apartmentName.toLowerCase().includes(q)
+          );
+        })
+      : approved;
+    const sorted = [...filtered].sort((a, b) => {
+      if (approvedSort === "apartment_name") {
+        const nameA = a.apartmentId ? (apartmentNameById.get(a.apartmentId) ?? "") : "";
+        const nameB = b.apartmentId ? (apartmentNameById.get(b.apartmentId) ?? "") : "";
+        return nameA.localeCompare(nameB, "ko");
+      }
+      // recent_login: 최근 로그인순, 로그인 이력 없는 계정은 맨 뒤로
+      const timeA = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : -Infinity;
+      const timeB = b.lastLoginAt ? new Date(b.lastLoginAt).getTime() : -Infinity;
+      return timeB - timeA;
+    });
+    return sorted;
+  }, [approved, approvedSearch, approvedSort, apartmentNameById]);
 
   const approve = async (id: string) => {
     setBusyId(id);
@@ -165,28 +193,67 @@ export default function AdminApartmentManagersPanel() {
       </div>
 
       <div>
-        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">승인됨 ({approved.length})</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-bold text-slate-900 dark:text-slate-100">승인됨 ({approved.length})</p>
+          {approved.length > 0 ? (
+            <div className="flex gap-2">
+              <input
+                value={approvedSearch}
+                onChange={(e) => setApprovedSearch(e.target.value)}
+                placeholder="이름·단지·아이디 검색"
+                className="soft-input h-8 w-48 text-xs"
+              />
+              <select
+                value={approvedSort}
+                onChange={(e) => setApprovedSort(e.target.value as "recent_login" | "apartment_name")}
+                className="soft-input h-8 text-xs"
+              >
+                <option value="recent_login">최근 로그인순</option>
+                <option value="apartment_name">단지명순</option>
+              </select>
+            </div>
+          ) : null}
+        </div>
         {approved.length === 0 ? (
           <p className="mt-2 text-xs text-slate-400">승인된 계정이 없습니다.</p>
+        ) : visibleApproved.length === 0 ? (
+          <p className="mt-2 text-xs text-slate-400">검색 결과가 없습니다.</p>
         ) : (
-          <ul className="mt-2 space-y-2">
-            {approved.map((m) => (
-              <li key={m.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {m.name} · {m.apartmentId ? (apartmentNameById.get(m.apartmentId) ?? "알 수 없음") : "-"}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">아이디: {m.loginId} · 마지막 로그인: {formatDate(m.lastLoginAt)}</p>
-                <button
-                  type="button"
-                  disabled={busyId === m.id}
-                  onClick={() => void resetPassword(m.id)}
-                  className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-50"
-                >
-                  비밀번호 재발급 (SMS)
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-200/70 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                <tr>
+                  <th className="px-3 py-2">이름</th>
+                  <th className="px-3 py-2">단지</th>
+                  <th className="px-3 py-2">아이디</th>
+                  <th className="px-3 py-2">마지막 로그인</th>
+                  <th className="px-3 py-2">액션</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleApproved.map((m) => (
+                  <tr key={m.id} className="border-t border-slate-200 dark:border-slate-700">
+                    <td className="px-3 py-2 font-semibold text-slate-900 dark:text-slate-100">{m.name}</td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                      {m.apartmentId ? (apartmentNameById.get(m.apartmentId) ?? "알 수 없음") : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{m.loginId}</td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{formatDate(m.lastLoginAt)}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        disabled={busyId === m.id}
+                        onClick={() => void resetPassword(m.id)}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-50"
+                      >
+                        비밀번호 재발급 (SMS)
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
