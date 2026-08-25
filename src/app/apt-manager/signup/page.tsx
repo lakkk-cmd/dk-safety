@@ -27,6 +27,24 @@ function AptManagerSignupForm() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
+  const [loginIdCheck, setLoginIdCheck] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
+
+  const checkLoginId = async () => {
+    const trimmed = loginId.trim();
+    if (!/^[a-zA-Z0-9_-]{4,20}$/.test(trimmed)) {
+      setLoginIdCheck("invalid");
+      return;
+    }
+    setLoginIdCheck("checking");
+    try {
+      const response = await fetch(`/api/apt-manager/check-login-id?loginId=${encodeURIComponent(trimmed)}`);
+      const data = (await response.json()) as { available?: boolean };
+      setLoginIdCheck(response.ok && data.available ? "available" : "taken");
+    } catch {
+      setLoginIdCheck("idle");
+    }
+  };
+
   const searchAddress = async () => {
     try {
       await loadDaumPostcodeScript();
@@ -169,7 +187,32 @@ function AptManagerSignupForm() {
         <form className="mt-4 space-y-3" onSubmit={submit}>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="이름" className="soft-input w-full" required />
           <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="연락처 (예: 010-1234-5678)" inputMode="tel" className="soft-input w-full" required />
-          <input value={loginId} onChange={(e) => setLoginId(e.target.value)} placeholder="아이디 (영문/숫자 4~20자)" autoComplete="username" className="soft-input w-full" required />
+          <div>
+            <div className="flex gap-2">
+              <input
+                value={loginId}
+                onChange={(e) => {
+                  setLoginId(e.target.value);
+                  setLoginIdCheck("idle");
+                }}
+                placeholder="아이디 (영문/숫자 4~20자)"
+                autoComplete="username"
+                className="soft-input flex-1"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => void checkLoginId()}
+                disabled={loginIdCheck === "checking"}
+                className="shrink-0 rounded-xl border border-dk-blue px-4 text-sm font-bold text-dk-blue disabled:opacity-50"
+              >
+                {loginIdCheck === "checking" ? "확인 중..." : "중복확인"}
+              </button>
+            </div>
+            {loginIdCheck === "available" ? <p className="mt-1 text-xs font-semibold text-dk-green">사용 가능한 아이디예요.</p> : null}
+            {loginIdCheck === "taken" ? <p className="mt-1 text-xs font-semibold text-rose-600">이미 사용 중인 아이디예요.</p> : null}
+            {loginIdCheck === "invalid" ? <p className="mt-1 text-xs font-semibold text-rose-600">영문/숫자/_/- 4~20자로 입력해주세요.</p> : null}
+          </div>
           <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호 (8자 이상)" type="password" autoComplete="new-password" className="soft-input w-full" required />
           <input value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} placeholder="비밀번호 확인" type="password" autoComplete="new-password" className="soft-input w-full" required />
 
