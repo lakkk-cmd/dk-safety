@@ -156,6 +156,67 @@ export async function renderDocumentPdf(params: {
   return pdfDoc.save();
 }
 
+// ── 공문서 작성법 sanitize — AI가 생성한 본문에 마크다운 문법이 그대로 남아있으면
+// (**굵게**, ## 소제목, |표|, > 인용, --- 구분선, 이모지) 공문서로 안 보인다. chiefPrompt(agents.ts)
+// 쪽 프롬프트를 개조식·번호체계로 쓰도록 이미 지시해뒀지만, 모델이 지시를 완전히 안 따르는
+// 경우를 대비한 방어선이다(2026-08-25, 행정업무운영편람+실무서 2종 검토 후 추가). ─────────
+const KOREAN_ORDINALS = ["가", "나", "다", "라", "마", "바", "사", "아", "자", "차", "카", "타", "파", "하"];
+
+function stripInlineMarkdown(line: string): string {
+  return line
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1")
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/^>\s?/, "")
+    .replace(/[\u{1F000}-\u{1FFFF}\u{2190}-\u{21FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}️]/gu, "")
+    .trimEnd();
+}
+
+function parseTableRow(line: string): string[] {
+  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return trimmed.split("|").map((c) => c.trim());
+}
+
+/** 마크다운 표(| 항목 | 내용 |)를 공문서 관행인 "가. 항목: 내용" 콜론 나열로 바꾼다 —
+ * 표 자체가 금지는 아니지만, 강조/요약용 2열 표는 관행상 항목 나열을 쓴다. */
+function convertMarkdownTableBlock(rows: string[]): string[] {
+  const dataRows = rows.slice(2); // 헤더 행 + 구분선(---) 행 제외
+  return dataRows.map((row, idx) => {
+    const cols = parseTableRow(row);
+    const label = stripInlineMarkdown(cols[0] ?? "");
+    const value = stripInlineMarkdown(cols.slice(1).join(" ") || "");
+    const ordinal = KOREAN_ORDINALS[idx] ?? String(idx + 1);
+    return `  ${ordinal}. ${label}: ${value}`;
+  });
+}
+
+export function sanitizeForOfficialDocument(raw: string): string {
+  const rawLines = raw.split("\n");
+  const out: string[] = [];
+  let i = 0;
+  while (i < rawLines.length) {
+    const trimmed = rawLines[i].trim();
+    if (/^-{3,}$/.test(trimmed)) {
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      const block: string[] = [];
+      while (i < rawLines.length && rawLines[i].trim().startsWith("|") && rawLines[i].trim().endsWith("|")) {
+        block.push(rawLines[i]);
+        i++;
+      }
+      if (block.length >= 2) out.push(...convertMarkdownTableBlock(block));
+      continue;
+    }
+    const cleaned = stripInlineMarkdown(rawLines[i]);
+    if (cleaned.trim().length > 0 || out.length > 0) out.push(cleaned);
+    i++;
+  }
+  while (out.length > 0 && out[out.length - 1].trim().length === 0) out.pop();
+  return out.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
 // ── 행정업무운영편람 간이기안문(별지 제2호서식) 양식 — 내부 보고서 전용 ──────────
 // "보고서·계획서·검토서 등 내부적으로 결재하는 문서"에 쓰는 공식 양식(2025 행정업무운영
 // 편람 73쪽). 좌측 상단 문서등록 표시 + 우측 상단 결재란 + 제목/요약 + 작성기관 + 본문
@@ -237,11 +298,17 @@ function AdminReportElement({
               {section.heading}
             </div>
             <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
-              {section.body.split("\n").map((line, lineIdx) => (
-                <div key={lineIdx} style={{ display: "flex", fontSize: 20, color: "#334155", lineHeight: 1.6 }}>
-                  {line || " "}
-                </div>
-              ))}
+              {section.body.split("\n").map((line, lineIdx) => {
+                // 항목 구분 기호(1. 가. 1) 가))의 들여쓰기 레벨 — 편람 규정상 하위 항목은
+                // 상위 항목 위치에서 오른쪽으로 2타(≈ 1.2em) 들여쓴다.
+                const leadingSpaces = line.length - line.trimStart().length;
+                const indentLevel = Math.min(3, Math.floor(leadingSpaces / 2));
+                return (
+                  <div key={lineIdx} style={{ display: "flex", fontSize: 20, color: "#334155", lineHeight: 1.6, paddingLeft: indentLevel * 32 }}>
+                    {line.trim() || " "}
+                  </div>
+                );
+              })}
             </div>
           </div>
         ))}
@@ -260,11 +327,12 @@ export async function renderAdminReportPdf(params: {
   meta: AdminReportMeta;
   sections: DocumentSection[];
 }): Promise<Uint8Array> {
-  const sectionsHeight = params.sections.reduce((sum, s) => sum + 24 + 10 + estimateTextHeightPx(s.body) + 26, 0);
+  const sections = params.sections.map((s) => ({ heading: s.heading, body: sanitizeForOfficialDocument(s.body) }));
+  const sectionsHeight = sections.reduce((sum, s) => sum + 24 + 10 + estimateTextHeightPx(s.body) + 26, 0);
   const heightPx = Math.max(PAGE_H_PX, 420 + sectionsHeight + 120);
 
   const png = await renderElementToPng(
-    <AdminReportElement title={params.title} meta={params.meta} sections={params.sections} heightPx={heightPx} />,
+    <AdminReportElement title={params.title} meta={params.meta} sections={sections} heightPx={heightPx} />,
     PAGE_W_PX,
     heightPx,
   );

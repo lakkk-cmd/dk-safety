@@ -28,12 +28,22 @@ export const DOC_TEMPLATES: Record<
  *  양식(생산등록번호/기안·검토·결재란)을 쓰므로 별도 취급한다. */
 const ADMIN_REPORT_DOC_TYPES = new Set(["admin_report"]);
 
+/** ISO 8601 주차(1~53) — 그 해 첫 목요일이 속한 주를 1주차로 센다. */
+function isoWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
+/** 행정업무운영편람 규정: "처리과명 + 연도별 일련번호"를 붙임표로 연결(예: 정보공개과-840).
+ * 날짜·시각을 그대로 번호에 넣는 방식은 규정에 없다(2026-08-25, 공문서 작성법 검토 후 수정) —
+ * 매주 1회만 발행되는 보고서라는 특성을 살려 ISO 주차를 그 해의 일련번호로 쓴다. */
 function nextRegistrationNo(prefix: string, date = new Date()): string {
   const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  const seq = String(date.getHours() * 60 + date.getMinutes()).padStart(4, "0");
-  return `${prefix}-${y}${m}${d}-${seq}`;
+  const week = String(isoWeekNumber(date)).padStart(2, "0");
+  return `${prefix}-${y}-${week}`;
 }
 
 /** agent_reports(주간 경영진 회의)처럼 이미 만들어진 보고 내용을 간이기안문 PDF로 감쌀 때 쓴다. */
