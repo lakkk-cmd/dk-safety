@@ -108,19 +108,27 @@ export async function pgListApartmentsPublicForSignup(): Promise<{ id: string; n
   }));
 }
 
+/** 띄어쓰기·대소문자 차이를 무시하고 비교 — "유니버시아드 힐스테이트 3단지"(다음 우편번호
+ * 검색 결과)와 "유니버시아드힐스테이트3단지"(기존 등록명)처럼 같은 단지인데 띄어쓰기만 다른
+ * 경우가 실제로 있었다(2026-08-25, 실사용 중 발견 — 이 차이 때문에 매칭에 실패해 중복 단지가
+ * 생성됐다). */
+function normalizeApartmentName(name: string): string {
+  return name.replace(/\s+/g, "").toLowerCase();
+}
+
 /** 세대전기점검 무료앱 가입신청 시 — 다음 우편번호 검색으로 얻은 단지명이 이미 등록된 단지와
- * (대소문자·앞뒤공백 무시) 정확히 일치하면 그 단지에 연결한다. 안 그러면 대표님이 미리 세팅해둔
+ * (띄어쓰기·대소문자 무시) 일치하면 그 단지에 연결한다. 안 그러면 대표님이 미리 세팅해둔
  * 전기선임자·판정기준값이 무시된 채 같은 단지가 중복 생성된다. */
 export async function pgFindApartmentByExactName(name: string): Promise<ApartmentTenant | null> {
-  const trimmed = name.trim();
-  if (!trimmed) return null;
+  const normalized = normalizeApartmentName(name);
+  if (!normalized) return null;
   const supabase = requireSupabaseAdmin();
-  const { data, error } = await supabase.from("apartments").select("*").ilike("name", trimmed).maybeSingle();
+  const { data, error } = await supabase.from("apartments").select("*");
   if (error) {
     throw new Error(`단지명 조회 실패: ${error.message}`);
   }
-  if (!data) return null;
-  return mapApartment(data as ApartmentRow);
+  const match = ((data ?? []) as ApartmentRow[]).find((row) => normalizeApartmentName(row.name) === normalized);
+  return match ? mapApartment(match) : null;
 }
 
 function apartmentsMissingColumn(err: PostgrestError, column: "code" | "apt_code"): boolean {
