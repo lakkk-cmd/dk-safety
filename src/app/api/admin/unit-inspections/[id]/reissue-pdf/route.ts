@@ -7,7 +7,7 @@ import { getKstDateTime } from "@/lib/agent-schedule";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { uploadBinaryObject } from "@/lib/supabase-server";
 import { reissueWithFixedWording } from "@/lib/unit-inspection-rules";
-import { pgGetUnitInspection, pgSaveUnitInspectionPdfCorrection } from "@/lib/unit-inspections";
+import { pgGetUnitInspection, pgSaveUnitInspectionPdfCorrection, sanitizeStoragePathSegment } from "@/lib/unit-inspections";
 
 /**
  * 이미 pdf_url이 발급된 건은 DB 트리거(전기안전관리법 제24조 4년 보존 요건)가 원본 레코드
@@ -64,7 +64,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     const { dateKey } = getKstDateTime();
     const correctedPdfUrl = await uploadBinaryObject({
       bucket: SUPABASE_DOCUMENTS_BUCKET,
-      objectPath: `unit-inspections/corrected/${dateKey}-${inspection.dong}-${inspection.ho}-${inspection.id}.pdf`,
+      objectPath: `unit-inspections/corrected/${dateKey}-${sanitizeStoragePathSegment(inspection.dong)}-${sanitizeStoragePathSegment(inspection.ho)}-${inspection.id}.pdf`,
       contentType: "application/pdf",
       data: pdfBytes
     });

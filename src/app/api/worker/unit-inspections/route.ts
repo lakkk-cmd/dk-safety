@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { cookies } from "next/headers";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { createConsultationLog } from "@/lib/crm-db";
@@ -16,9 +16,13 @@ import {
   type ChecklistResult
 } from "@/lib/unit-inspection-rules";
 import { sendUnitInspectionNotification, type SendChannelResult } from "@/lib/unit-inspection-notification";
-import { pgCreateUnitInspection, pgListUnitInspectionsForApartment, pgSaveUnitInspectionPdf, type UnitInspectionInput } from "@/lib/unit-inspections";
+import { runUnitInspectionAiDiagnosisAndCorrect } from "@/lib/unit-inspection-ai-diagnosis";
+import { pgCreateUnitInspection, pgListUnitInspectionsForApartment, pgSaveUnitInspectionPdf, sanitizeStoragePathSegment, type UnitInspectionInput } from "@/lib/unit-inspections";
 import { normalizePhone } from "@/lib/reservation-validation";
 import { verifyWorkerSessionToken } from "@/lib/worker-auth";
+
+// AI 안전진단 사후보정(after())이 백그라운드에서 끝날 시간을 벌어준다(실측 25~45초 + PDF렌더/업로드).
+export const maxDuration = 120;
 
 const VALID_ITEM_IDS = new Set<ChecklistItemId>(CHECKLIST_ITEMS.map((d) => d.id));
 const VALID_RESULTS = new Set<ChecklistResult>(["O", "X", "/", "N/A"]);
@@ -203,11 +207,22 @@ export async function POST(request: Request) {
       });
       const pdfUrl = await uploadBinaryObject({
         bucket: SUPABASE_DOCUMENTS_BUCKET,
-        objectPath: `unit-inspections/${inspection.dong}-${inspection.ho}-${inspection.id}.pdf`,
+        objectPath: `unit-inspections/${sanitizeStoragePathSegment(inspection.dong)}-${sanitizeStoragePathSegment(inspection.ho)}-${inspection.id}.pdf`,
         contentType: "application/pdf",
         data: pdfBytes
       });
       inspection = await pgSaveUnitInspectionPdf(inspection.id, pdfUrl);
+
+      // AI 안전진단 확장판은 응답을 먼저 보낸 뒤 백그라운드에서 생성한다(사후보정형,
+      // 2026-08-26 대표님 결정) — 워커가 현장에서 25~45초씩 더 기다리지 않게.
+      const aiDiagnosisInspectionId = inspection.id;
+      after(async () => {
+        try {
+          await runUnitInspectionAiDiagnosisAndCorrect(aiDiagnosisInspectionId);
+        } catch (error) {
+          console.error("[worker/unit-inspections] AI 안전진단 사후보정 실패:", error);
+        }
+      });
 
       const reportUrl = `${appUrl}/unit-inspection/${inspection.id}`;
       notification = await sendUnitInspectionNotification({

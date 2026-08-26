@@ -6,6 +6,7 @@ import React from "react";
 import { ImageResponse } from "next/og";
 import { PDFDocument, PDFImage } from "pdf-lib";
 import type { ChecklistEntry, CompanyAdvisoryEntry, DiagnosisEntry } from "@/lib/unit-inspection-rules";
+import type { UnitInspectionAiDiagnosis } from "@/lib/unit-inspection-ai-diagnosis";
 
 const PAGE_W_PX = 1240;
 const PAGE_H_PX = 1754;
@@ -386,6 +387,12 @@ export type UnitInspectionPdfData = {
   residentName: string | null;
   /** SignaturePad가 만든 base64 PNG data URL — 세대방문점검만 존재 */
   signatureData: string | null;
+  /**
+   * AI 안전진단 확장판(2026-08-26, 사후보정형) — 제출 직후엔 아직 없어 null이고, 이 경우
+   * 아래 autoDiagnosis/companyAdvisories 기반의 기존 canned 렌더링으로 폴백한다. 백그라운드
+   * 생성이 끝난 뒤 정정본 PDF를 재발급할 때만 채워서 넘긴다.
+   */
+  aiDiagnosis?: UnitInspectionAiDiagnosis | null;
 };
 
 function groupChecklistByCategory(items: ChecklistEntry[]): { category: string; riskFactors: string[]; items: ChecklistEntry[] }[] {
@@ -433,6 +440,43 @@ function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): nu
   }, 0);
   const gaps = (entries.length - 1) * 10;
   return HEADER + BOX_PADDING + entriesHeight + gaps;
+}
+
+/**
+ * AI 안전진단 확장판(2026-08-26) 높이 추정 — 위 두 함수와 같은 손합산 방식이지만 구조가
+ * 3블록(본문박스+회사권장박스+총평박스)으로 늘어나 별도 함수로 뺐다. okSummary/summary는
+ * 있을 때만 높이를 더한다(canned 문구 시절과 달리 항상 채워지지 않을 수 있음).
+ */
+function estimateAiDiagnosisBlockHeight(ai: UnitInspectionAiDiagnosis): number {
+  const HEADER = 46;
+  const BOX_PADDING = 32;
+  let inner = 0;
+  let rows = 0;
+  if (ai.okSummary) {
+    inner += estimateTextHeightPx(ai.okSummary, 58, 24);
+    rows += 1;
+  }
+  inner += ai.violations.reduce((sum, v) => {
+    const itemLine = 26;
+    return sum + itemLine + estimateTextHeightPx(v.explanation, 58, 24);
+  }, 0);
+  rows += ai.violations.length;
+  const gaps = Math.max(0, rows - 1) * 14;
+  const mainBoxHeight = HEADER + BOX_PADDING + inner + gaps + 22; // +22 marginBottom
+
+  let companyBoxHeight = 0;
+  if (ai.companyAdvisory.length > 0) {
+    const entriesHeight = ai.companyAdvisory.reduce((sum, e) => {
+      const itemLine = 21;
+      return sum + itemLine + estimateTextHeightPx(e.explanation, 60, 22);
+    }, 0);
+    const cgaps = (ai.companyAdvisory.length - 1) * 10;
+    companyBoxHeight = 70 + 28 + entriesHeight + cgaps + 22;
+  }
+
+  const summaryBoxHeight = ai.summary ? 30 + 28 + estimateTextHeightPx(ai.summary, 58, 24) + 22 : 0;
+
+  return mainBoxHeight + companyBoxHeight + summaryBoxHeight;
 }
 
 /**
@@ -658,41 +702,89 @@ function UnitInspectionElement({
           회사 자체 권장사항만 2페이지로 넘긴다(2026-08-24 재조정 — 대표님 요청). */}
       {pageBreakSpacerPx > 0 ? <div style={{ display: "flex", height: pageBreakSpacerPx }} /> : null}
 
-      {/* AI 안전진단 */}
-      {data.autoDiagnosis.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
-          <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 17 }}>AI 안전진단 결과</div>
-          <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
-            {data.autoDiagnosis.map((entry, idx) => (
-              <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", fontSize: 16 }}>
-                  {entry.item} —{" "}
-                  <span style={{ display: "flex", color: red, marginLeft: 6 }}>{entry.verdict}</span>
+      {data.aiDiagnosis ? (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {/* AI 안전진단 확장판(2026-08-26) — 적합은 뭉뚱그림, 부적합만 개별, 회사권장은 완전분리 */}
+          <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
+            <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 17 }}>AI 안전진단 결과</div>
+            <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
+              {data.aiDiagnosis.okSummary ? (
+                <div style={{ display: "flex", fontSize: 14, color: "#33402f", lineHeight: 1.7 }}>{data.aiDiagnosis.okSummary}</div>
+              ) : null}
+              {data.aiDiagnosis.violations.map((entry, idx) => (
+                <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
+                  <div style={{ display: "flex", fontSize: 16 }}>
+                    <span style={{ display: "flex", color: red, marginRight: 6 }}>부적합</span>
+                    {entry.item}
+                  </div>
+                  <div style={{ display: "flex", fontSize: 14, color: "#4a2a22", marginTop: 4, lineHeight: 1.7 }}>{entry.explanation}</div>
                 </div>
-                <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.regulation}</div>
-                <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.comment}</div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ) : null}
 
-      {/* 회사 자체 기준 안내 — 별표3 AI 안전진단과 시각적으로 명확히 구분(점선 테두리 + 다른 색) */}
-      {data.companyAdvisories.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
-          <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
-            <div style={{ display: "flex", fontSize: 16, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", padding: "14px 16px", gap: 10 }}>
-            {data.companyAdvisories.map((entry, idx) => (
-              <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", fontSize: 15, color: "#8a5a12" }}>{entry.item}</div>
-                <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginTop: 2 }}>{entry.comment}</div>
+          {data.aiDiagnosis.companyAdvisory.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
+              <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
+                <div style={{ display: "flex", fontSize: 16, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
               </div>
-            ))}
-          </div>
+              <div style={{ display: "flex", flexDirection: "column", padding: "14px 16px", gap: 10 }}>
+                {data.aiDiagnosis.companyAdvisory.map((entry, idx) => (
+                  <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", fontSize: 15, color: "#8a5a12" }}>{entry.item}</div>
+                    <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginTop: 2, lineHeight: 1.6 }}>{entry.explanation}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {data.aiDiagnosis.summary ? (
+            <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#eef3fb", border: "1px solid #c3d3ec", borderRadius: 4, padding: "14px 16px", marginBottom: 22 }}>
+              <div style={{ display: "flex", fontSize: 13, color: blue, marginBottom: 6 }}>종합 총평</div>
+              <div style={{ display: "flex", fontSize: 14, color: "#1c2c48", lineHeight: 1.7 }}>{data.aiDiagnosis.summary}</div>
+            </div>
+          ) : null}
         </div>
-      ) : null}
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {/* AI 안전진단 — 확장판 생성 전(제출 직후) 기본 폴백: 별표3 부적합만 규칙엔진 canned 문구로 나열 */}
+          {data.autoDiagnosis.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
+              <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 17 }}>AI 안전진단 결과</div>
+              <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
+                {data.autoDiagnosis.map((entry, idx) => (
+                  <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", fontSize: 16 }}>
+                      {entry.item} —{" "}
+                      <span style={{ display: "flex", color: red, marginLeft: 6 }}>{entry.verdict}</span>
+                    </div>
+                    <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.regulation}</div>
+                    <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.comment}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* 회사 자체 기준 안내 — 별표3 AI 안전진단과 시각적으로 명확히 구분(점선 테두리 + 다른 색) */}
+          {data.companyAdvisories.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
+              <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
+                <div style={{ display: "flex", fontSize: 16, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", padding: "14px 16px", gap: 10 }}>
+                {data.companyAdvisories.map((entry, idx) => (
+                  <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", fontSize: 15, color: "#8a5a12" }}>{entry.item}</div>
+                    <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginTop: 2 }}>{entry.comment}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
@@ -707,15 +799,16 @@ function UnitInspectionElement({
  */
 export async function renderUnitInspectionPdf(data: UnitInspectionPdfData): Promise<Uint8Array> {
   const etcNotesExtra = data.etcNotes ? estimateTextHeightPx(data.etcNotes, 70, 24) : 0;
-  const hasDiagnosisContent = data.autoDiagnosis.length > 0 || data.companyAdvisories.length > 0;
+  // aiDiagnosis가 있으면(사후보정 정정본) okSummary/summary 문단이 항상 있을 수 있어 부적합 0건
+  // 이어도 블록을 보여준다 — 기존 canned 방식은 부적합 0건이면 블록 자체를 숨겼던 것과 다르다.
+  const hasDiagnosisContent = data.aiDiagnosis ? true : data.autoDiagnosis.length > 0 || data.companyAdvisories.length > 0;
   const pageBreakSpacerPx = hasDiagnosisContent
     ? Math.max(0, PAGE_H_PX - estimateHeightBeforeDiagnosisBlock(data, etcNotesExtra))
     : 0;
-  const extraHeight =
-    estimateAutoDiagnosisBlockHeight(data.autoDiagnosis) +
-    estimateCompanyAdvisoryBlockHeight(data.companyAdvisories) +
-    etcNotesExtra +
-    pageBreakSpacerPx;
+  const diagnosisBlockHeight = data.aiDiagnosis
+    ? estimateAiDiagnosisBlockHeight(data.aiDiagnosis)
+    : estimateAutoDiagnosisBlockHeight(data.autoDiagnosis) + estimateCompanyAdvisoryBlockHeight(data.companyAdvisories);
+  const extraHeight = diagnosisBlockHeight + etcNotesExtra + pageBreakSpacerPx;
   const heightPx = PAGE_H_PX + extraHeight;
 
   const png = await renderElementToPng(

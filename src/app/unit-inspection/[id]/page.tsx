@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
-import { pgGetUnitInspectionPdfCorrection, pgGetUnitInspectionPublic } from "@/lib/unit-inspections";
+import { pgGetUnitInspectionAiDiagnosis, pgGetUnitInspectionPdfCorrection, pgGetUnitInspectionPublic } from "@/lib/unit-inspections";
 import { StatusBadge, type RiskLevel } from "@/components/ui/status-badge";
 import { SectionCard } from "@/components/ui/section-card";
 import SiteFooter from "@/components/site-footer";
@@ -26,7 +26,10 @@ export default async function UnitInspectionPublicPage({ params }: { params: Pro
   // 보여줄 링크를 그 파일로 바꿔치기한다 — 원본 행/pdf_url은 여전히 손대지 않는다.
   const correctedPdfUrl = inspection.pdfUrl ? await pgGetUnitInspectionPdfCorrection(inspection.id).catch(() => null) : null;
   const displayPdfUrl = correctedPdfUrl ?? inspection.pdfUrl;
-  const badCount = inspection.autoDiagnosis.length;
+  // AI 안전진단 확장판은 제출 후 백그라운드에서 생성된다(사후보정형) — 아직이면 null이라
+  // 기존 canned autoDiagnosis 표시로 자연스럽게 폴백한다.
+  const aiDiagnosis = await pgGetUnitInspectionAiDiagnosis(inspection.id).catch(() => null);
+  const badCount = aiDiagnosis ? aiDiagnosis.violations.length : inspection.autoDiagnosis.length;
   const level = verdictLevel(badCount);
   const inspectedAtLabel = new Date(inspection.inspectedAt).toLocaleDateString("ko-KR", {
     year: "numeric",
@@ -65,7 +68,23 @@ export default async function UnitInspectionPublicPage({ params }: { params: Pro
         </dl>
 
         <p className="mb-2 mt-4 text-sm font-bold text-slate-800">AI 안전진단</p>
-        {badCount === 0 ? (
+        {aiDiagnosis ? (
+          <>
+            {aiDiagnosis.okSummary ? <p className="mb-2.5 text-[13px] leading-relaxed text-slate-600">{aiDiagnosis.okSummary}</p> : null}
+            {aiDiagnosis.violations.length === 0 ? (
+              <p className="text-[15px] text-slate-700">✅ 부적합 항목이 발견되지 않았습니다.</p>
+            ) : (
+              <ul className="space-y-2.5">
+                {aiDiagnosis.violations.map((entry, idx) => (
+                  <li key={idx} className="rounded-xl border border-dk-red/30 bg-dk-red/5 p-3">
+                    <p className="text-sm font-bold text-dk-red">{entry.item}</p>
+                    <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{entry.explanation}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : badCount === 0 ? (
           <p className="text-[15px] text-slate-700">✅ 부적합 항목이 발견되지 않았습니다.</p>
         ) : (
           <ul className="space-y-2.5">
@@ -79,16 +98,35 @@ export default async function UnitInspectionPublicPage({ params }: { params: Pro
         )}
       </SectionCard>
 
-      {inspection.companyAdvisories.length > 0 ? (
-        <SectionCard icon="🔧" title="우리집 전기주치의 자체 권장사항">
-          <ul className="space-y-2">
-            {inspection.companyAdvisories.map((entry, idx) => (
-              <li key={idx} className="rounded-xl border border-amber-300 bg-amber-50 p-3">
-                <p className="text-sm font-bold text-amber-800">{entry.item}</p>
-                <p className="mt-1 text-[13px] text-amber-700">{entry.comment}</p>
-              </li>
-            ))}
-          </ul>
+      {aiDiagnosis
+        ? aiDiagnosis.companyAdvisory.length > 0 ? (
+            <SectionCard icon="🔧" title="우리집 전기주치의 자체 권장사항">
+              <ul className="space-y-2">
+                {aiDiagnosis.companyAdvisory.map((entry, idx) => (
+                  <li key={idx} className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+                    <p className="text-sm font-bold text-amber-800">{entry.item}</p>
+                    <p className="mt-1 text-[13px] leading-relaxed text-amber-700">{entry.explanation}</p>
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
+          ) : null
+        : inspection.companyAdvisories.length > 0 ? (
+            <SectionCard icon="🔧" title="우리집 전기주치의 자체 권장사항">
+              <ul className="space-y-2">
+                {inspection.companyAdvisories.map((entry, idx) => (
+                  <li key={idx} className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+                    <p className="text-sm font-bold text-amber-800">{entry.item}</p>
+                    <p className="mt-1 text-[13px] text-amber-700">{entry.comment}</p>
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
+          ) : null}
+
+      {aiDiagnosis?.summary ? (
+        <SectionCard icon="📋" title="종합 총평">
+          <p className="text-[13.5px] leading-relaxed text-slate-700">{aiDiagnosis.summary}</p>
         </SectionCard>
       ) : null}
 

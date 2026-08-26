@@ -10,6 +10,19 @@ import {
 
 export type UnitInspectionType = "visit" | "unvisited_simple";
 
+/**
+ * dong/ho는 워커·전기과장이 자유 텍스트로 입력하는 값이라(예: "상가1호"처럼 한글·괄호·기호가
+ * 섞일 수 있음) Supabase Storage 오브젝트 키에 그대로 넣으면 InvalidKey로 업로드가 실패할
+ * 수 있다(2026-08-26, AI 안전진단 사후보정 정정본 PDF 업로드 테스트 중 실제로 재현·발견 —
+ * 처음엔 괄호만 걸렀는데도 한글이 섞이면 여전히 InvalidKey가 나서, Supabase Storage 키는
+ * 비ASCII 자체를 거부한다는 걸 확인했다). PDF 파일명에 쓸 때는 항상 이 함수로 한 번 걸러서
+ * ASCII 영문/숫자/하이픈/언더스코어만 남긴다 — 실제 운영에서 dong/ho는 항상 숫자라 정상
+ * 케이스는 영향 없다.
+ */
+export function sanitizeStoragePathSegment(value: string): string {
+  return value.replace(/[^A-Za-z0-9_-]/g, "_");
+}
+
 export type UnitInspectionInput = {
   apartmentId: string;
   dong: string;
@@ -255,5 +268,56 @@ export async function pgSaveUnitInspectionPdfCorrection(inspectionId: string, co
     .upsert({ inspection_id: inspectionId, corrected_pdf_url: correctedPdfUrl, created_at: new Date().toISOString() });
   if (error) {
     throw new Error(`점검표 문구 정정본 저장 실패: ${error.message}`);
+  }
+}
+
+/**
+ * AI 안전진단 확장판(2026-08-26) — 원본 행이 불변이라 별도 테이블(113)에 저장한다.
+ * 아직 생성 전(백그라운드 작업 대기/실패 중)이면 null — 호출부는 이 경우 기존 규칙엔진
+ * 기반 canned 문구로 폴백해야 한다.
+ */
+export type UnitInspectionAiDiagnosisRecord = {
+  okSummary: string;
+  violations: { item: string; explanation: string }[];
+  companyAdvisory: { item: string; explanation: string }[];
+  summary: string;
+  generatedAt: string;
+};
+
+export async function pgGetUnitInspectionAiDiagnosis(inspectionId: string): Promise<UnitInspectionAiDiagnosisRecord | null> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("unit_inspection_ai_diagnoses")
+    .select("ok_summary, violations, company_advisory, summary, generated_at")
+    .eq("inspection_id", inspectionId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`AI 안전진단 조회 실패: ${error.message}`);
+  }
+  if (!data) return null;
+  return {
+    okSummary: data.ok_summary ?? "",
+    violations: Array.isArray(data.violations) ? data.violations : [],
+    companyAdvisory: Array.isArray(data.company_advisory) ? data.company_advisory : [],
+    summary: data.summary ?? "",
+    generatedAt: data.generated_at
+  };
+}
+
+export async function pgSaveUnitInspectionAiDiagnosis(
+  inspectionId: string,
+  diagnosis: { okSummary: string; violations: { item: string; explanation: string }[]; companyAdvisory: { item: string; explanation: string }[]; summary: string }
+): Promise<void> {
+  const supabase = requireSupabaseAdmin();
+  const { error } = await supabase.from("unit_inspection_ai_diagnoses").upsert({
+    inspection_id: inspectionId,
+    ok_summary: diagnosis.okSummary,
+    violations: diagnosis.violations,
+    company_advisory: diagnosis.companyAdvisory,
+    summary: diagnosis.summary,
+    generated_at: new Date().toISOString()
+  });
+  if (error) {
+    throw new Error(`AI 안전진단 저장 실패: ${error.message}`);
   }
 }

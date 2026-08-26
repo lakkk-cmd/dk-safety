@@ -167,7 +167,8 @@ export async function uploadBinaryObject(params: {
     body: new Blob([payload], { type: params.contentType || "application/octet-stream" })
   });
   if (!response.ok) {
-    throw new Error(`Supabase 파일 업로드 실패: ${response.status}`);
+    const bodyText = await response.text().catch(() => "");
+    throw new Error(`Supabase 파일 업로드 실패: ${response.status} ${bodyText}`);
   }
   const fallbackBase = `${SUPABASE_URL}/storage/v1/object/public/${params.bucket}`;
   const overrideBase =

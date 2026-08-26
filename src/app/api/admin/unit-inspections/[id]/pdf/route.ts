@@ -6,7 +6,7 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { getKstDateTime } from "@/lib/agent-schedule";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { uploadBinaryObject } from "@/lib/supabase-server";
-import { pgGetUnitInspection, pgSaveUnitInspectionPdf } from "@/lib/unit-inspections";
+import { pgGetUnitInspection, pgSaveUnitInspectionPdf, sanitizeStoragePathSegment } from "@/lib/unit-inspections";
 
 /** 이미 발급된(pdf_url 존재) 건은 재생성하지 않고 기존 URL을 그대로 반환한다 — DB 불변
  * 트리거가 재발급을 어차피 막아주지만, 여기서 한 번 더 걸러 불필요한 렌더링 비용을 아낀다. */
@@ -58,7 +58,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     const { dateKey } = getKstDateTime();
     const pdfUrl = await uploadBinaryObject({
       bucket: SUPABASE_DOCUMENTS_BUCKET,
-      objectPath: `unit-inspections/${dateKey}-${inspection.dong}-${inspection.ho}-${inspection.id}.pdf`,
+      objectPath: `unit-inspections/${dateKey}-${sanitizeStoragePathSegment(inspection.dong)}-${sanitizeStoragePathSegment(inspection.ho)}-${inspection.id}.pdf`,
       contentType: "application/pdf",
       data: pdfBytes
     });
