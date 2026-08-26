@@ -192,8 +192,8 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
         </div>
         <p className="mt-3 text-center text-[13px] text-slate-500">
           우리 단지가 없으신가요?{" "}
-          <a href="tel:01094698578" className="font-bold text-dk-blue underline">
-            010-9469-8578
+          <a href="tel:01089451111" className="font-bold text-dk-blue underline">
+            010-8945-1111
           </a>
         </p>
       </BottomSheet>

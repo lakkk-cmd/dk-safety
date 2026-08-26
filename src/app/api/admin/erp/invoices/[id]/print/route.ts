@@ -73,7 +73,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     <h3>공급자</h3>
     <p><strong>우리집 전기주치의 (대경이엔피)</strong></p>
     <p>광주광역시 서구</p>
-    <p>☎ 010-9469-8578</p>
+    <p>☎ 010-8945-1111</p>
     <p>www.dkansim.com</p>
   </div>
   <div class="info-box">
