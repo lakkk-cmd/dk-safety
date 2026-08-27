@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { APT_MANAGER_APK_URL } from "@/lib/mobile-apps";
 
 export default function AptManagerLoginPage() {
   const [loginId, setLoginId] = useState("");
@@ -73,6 +74,14 @@ export default function AptManagerLoginPage() {
             가입 신청
           </Link>
         </p>
+
+        {APT_MANAGER_APK_URL ? (
+          <p className="mt-3 text-center text-xs text-slate-400">
+            <a href={APT_MANAGER_APK_URL} className="underline">
+              📱 안드로이드 앱 다운로드(APK)
+            </a>
+          </p>
+        ) : null}
       </div>
     </main>
   );

@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        app: [admin-app, worker-app, customer-app]
+        app: [admin-app, worker-app, customer-app, apt-manager-app]
     steps:
       - uses: actions/checkout@v4
 
@@ -66,3 +66,24 @@ jobs:
             -H "x-upsert: true" \
             --data-binary "@mobile/${{ matrix.app }}/android/app/build/outputs/apk/debug/app-debug.apk" \
             --fail-with-body
+
+      # apt-manager-app만 Play Console Internal Testing 업로드용 서명된 .aab도 만든다 — 나머지
+      # 3개 앱은 아직 사이드로드 direct-link 배포만 쓰므로 release 서명이 필요 없다.
+      - name: Build signed release AAB (apt-manager-app only, for Play Console)
+        if: matrix.app == 'apt-manager-app'
+        working-directory: mobile/apt-manager-app/android
+        env:
+          APT_MANAGER_RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/apt-manager-release.keystore
+          APT_MANAGER_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.APT_MANAGER_RELEASE_KEYSTORE_PASSWORD }}
+          APT_MANAGER_RELEASE_KEY_ALIAS: ${{ secrets.APT_MANAGER_RELEASE_KEY_ALIAS }}
+          APT_MANAGER_RELEASE_KEY_PASSWORD: ${{ secrets.APT_MANAGER_RELEASE_KEY_PASSWORD }}
+        run: |
+          echo "${{ secrets.APT_MANAGER_RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "$APT_MANAGER_RELEASE_KEYSTORE_PATH"
+          ./gradlew bundleRelease --no-daemon
+
+      - name: Upload signed AAB artifact (apt-manager-app only)
+        if: matrix.app == 'apt-manager-app'
+        uses: actions/upload-artifact@v4
+        with:
+          name: apt-manager-app-release-aab
+          path: mobile/apt-manager-app/android/app/build/outputs/bundle/release/app-release.aab

@@ -1,0 +1,19 @@
+{
+  "name": "dkansim-apt-manager-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "우리집 안심전기 앱 — inspect.dkansim.com 웹뷰 래퍼 (세대전기점검 전기과장용)",
+  "scripts": {
+    "sync": "cap sync android",
+    "build:apk": "cd android && ./gradlew assembleDebug",
+    "build:aab": "cd android && ./gradlew bundleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/core": "^8.4.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
+    "typescript": "^5.6.3"
+  }
+}
