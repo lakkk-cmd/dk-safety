@@ -25,7 +25,30 @@ type ApartmentOption = {
   leakageCurrentThresholdMa: number | null;
 };
 
+type ApartmentSubscription = {
+  apartmentId: string;
+  status: "inactive" | "active" | "past_due" | "cancelled";
+  billingMethod: "toss_auto" | "bank_transfer" | null;
+  currentPeriodEnd: string | null;
+};
+
 type ThresholdDraft = { insulation: string; leakage: string };
+
+const SUBSCRIPTION_LABEL: Record<ApartmentSubscription["status"], string> = {
+  inactive: "무료",
+  active: "구독중",
+  past_due: "결제실패",
+  cancelled: "해지"
+};
+
+// 결제실패/해지는 완전 차단이 아니라 무료 한도(5건/30일)로 되돌아가는 상태다.
+
+const SUBSCRIPTION_CLASS: Record<ApartmentSubscription["status"], string> = {
+  inactive: "bg-slate-200 text-slate-600",
+  active: "bg-dk-green/10 text-dk-green",
+  past_due: "bg-dk-red/10 text-dk-red",
+  cancelled: "bg-slate-200 text-slate-600"
+};
 
 function formatDate(iso: string | null): string {
   if (!iso) return "이력 없음";
@@ -36,6 +59,7 @@ export default function AdminApartmentManagersPanel() {
   const [pending, setPending] = useState<ApartmentManager[]>([]);
   const [approved, setApproved] = useState<ApartmentManager[]>([]);
   const [apartments, setApartments] = useState<ApartmentOption[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Record<string, ApartmentSubscription>>({});
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -52,10 +76,16 @@ export default function AdminApartmentManagersPanel() {
         fetch("/api/admin/apartments", { cache: "no-store" })
       ]);
       const pendingData = (await pendingRes.json()) as { managers?: ApartmentManager[] };
-      const approvedData = (await approvedRes.json()) as { managers?: ApartmentManager[] };
+      const approvedData = (await approvedRes.json()) as {
+        managers?: ApartmentManager[];
+        subscriptions?: Record<string, ApartmentSubscription>;
+      };
       const aptData = (await aptRes.json()) as { apartments?: ApartmentOption[] };
       if (pendingRes.ok) setPending(pendingData.managers ?? []);
-      if (approvedRes.ok) setApproved(approvedData.managers ?? []);
+      if (approvedRes.ok) {
+        setApproved(approvedData.managers ?? []);
+        setSubscriptions(approvedData.subscriptions ?? {});
+      }
       if (aptRes.ok) setApartments(aptData.apartments ?? []);
     } finally {
       setLoading(false);
@@ -136,6 +166,21 @@ export default function AdminApartmentManagersPanel() {
       const data = (await response.json()) as { message?: string };
       setMessage(response.ok ? "거절 처리했습니다." : (data.message ?? "거절에 실패했습니다."));
       await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** 계좌이체 입금을 확인했을 때만 누른다 — 세금계산서 발행은 앱 밖에서 기존 방식대로 처리한다. */
+  const activateSubscription = async (managerId: string, apartmentId: string) => {
+    if (!window.confirm("입금을 확인하셨나요? 확인하면 이 단지의 구독을 30일간 활성화합니다.")) return;
+    setBusyId(managerId);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/admin/apartments/${apartmentId}/activate-subscription`, { method: "POST" });
+      const data = (await response.json()) as { message?: string };
+      setMessage(response.ok ? (data.message ?? "활성화했습니다.") : (data.message ?? "활성화에 실패했습니다."));
+      if (response.ok) await load();
     } finally {
       setBusyId(null);
     }
@@ -281,31 +326,59 @@ export default function AdminApartmentManagersPanel() {
                   <th className="px-3 py-2">이름</th>
                   <th className="px-3 py-2">단지</th>
                   <th className="px-3 py-2">아이디</th>
+                  <th className="px-3 py-2">구독</th>
                   <th className="px-3 py-2">마지막 로그인</th>
                   <th className="px-3 py-2">액션</th>
                 </tr>
               </thead>
               <tbody>
-                {visibleApproved.map((m) => (
-                  <tr key={m.id} className="border-t border-slate-200 dark:border-slate-700">
-                    <td className="px-3 py-2 font-semibold text-slate-900 dark:text-slate-100">{m.name}</td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
-                      {m.apartmentId ? (apartmentNameById.get(m.apartmentId) ?? "알 수 없음") : "-"}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{m.loginId}</td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{formatDate(m.lastLoginAt)}</td>
-                    <td className="px-3 py-2">
-                      <button
-                        type="button"
-                        disabled={busyId === m.id}
-                        onClick={() => void resetPassword(m.id)}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-50"
-                      >
-                        비밀번호 재발급 (SMS)
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {visibleApproved.map((m) => {
+                  const subscription = m.apartmentId ? subscriptions[m.apartmentId] : undefined;
+                  const subscriptionStatus = subscription?.status ?? "inactive";
+                  // 카드 자동결제로 활성화된 단지는 수동 확인 버튼을 감춘다(자동청구가 이미 돌고 있음).
+                  const canActivateManually =
+                    Boolean(m.apartmentId) && !(subscriptionStatus === "active" && subscription?.billingMethod === "toss_auto");
+                  return (
+                    <tr key={m.id} className="border-t border-slate-200 dark:border-slate-700">
+                      <td className="px-3 py-2 font-semibold text-slate-900 dark:text-slate-100">{m.name}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                        {m.apartmentId ? (apartmentNameById.get(m.apartmentId) ?? "알 수 없음") : "-"}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{m.loginId}</td>
+                      <td className="px-3 py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${SUBSCRIPTION_CLASS[subscriptionStatus]}`}>
+                          {SUBSCRIPTION_LABEL[subscriptionStatus]}
+                        </span>
+                        {subscription?.currentPeriodEnd && subscriptionStatus === "active" ? (
+                          <span className="ml-1 text-[11px] text-slate-400">~{formatDate(subscription.currentPeriodEnd)}</span>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{formatDate(m.lastLoginAt)}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            type="button"
+                            disabled={busyId === m.id}
+                            onClick={() => void resetPassword(m.id)}
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-50"
+                          >
+                            비밀번호 재발급 (SMS)
+                          </button>
+                          {canActivateManually ? (
+                            <button
+                              type="button"
+                              disabled={busyId === m.id}
+                              onClick={() => void activateSubscription(m.id, m.apartmentId as string)}
+                              className="rounded-lg bg-dk-blue px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                            >
+                              계좌이체 확인
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

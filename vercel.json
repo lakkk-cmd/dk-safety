@@ -37,6 +37,10 @@
       "schedule": "0 17 * * *"
     },
     {
+      "path": "/api/cron/apartment-subscription-billing",
+      "schedule": "0 0 * * *"
+    },
+    {
       "path": "/api/agent/cron",
       "schedule": "0 23 * * *"
     }

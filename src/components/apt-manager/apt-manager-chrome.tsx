@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/apt-manager/inspect", label: "점검입력" },
   { href: "/apt-manager/history", label: "점검이력" },
-  { href: "/apt-manager/guide", label: "점검가이드" }
+  { href: "/apt-manager/guide", label: "점검가이드" },
+  { href: "/apt-manager/subscribe", label: "구독관리" }
 ] as const;
 
 export default function AptManagerChrome({ children }: { children: ReactNode }) {

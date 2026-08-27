@@ -4,9 +4,8 @@ import { pgGetApartmentManager } from "@/lib/apartment-managers-pg";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { createConsultationLog } from "@/lib/crm-db";
 import { renderUnitInspectionPdf } from "@/lib/document-pdf";
-import { SUPABASE_DOCUMENTS_BUCKET } from "@/lib/document-generator";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
-import { uploadBinaryObject } from "@/lib/supabase-server";
+import { uploadUnitInspectionPdfCopies } from "@/lib/unit-inspection-pdf-storage";
 import {
   applyChecklistResults,
   CHECKLIST_ITEMS,
@@ -207,13 +206,11 @@ export async function POST(request: Request) {
         residentName: inspection.residentName,
         signatureData: inspection.signatureData
       });
-      const pdfUrl = await uploadBinaryObject({
-        bucket: SUPABASE_DOCUMENTS_BUCKET,
+      const pdfLocations = await uploadUnitInspectionPdfCopies({
         objectPath: `unit-inspections/${sanitizeStoragePathSegment(inspection.dong)}-${sanitizeStoragePathSegment(inspection.ho)}-${inspection.id}.pdf`,
-        contentType: "application/pdf",
-        data: pdfBytes
+        pdfBytes
       });
-      inspection = await pgSaveUnitInspectionPdf(inspection.id, pdfUrl);
+      inspection = await pgSaveUnitInspectionPdf(inspection.id, pdfLocations);
 
       // AI 안전진단 확장판은 응답을 먼저 보낸 뒤 백그라운드에서 생성한다(사후보정형,
       // 2026-08-26 대표님 결정) — 전기과장이 현장에서 25~45초씩 더 기다리지 않게.

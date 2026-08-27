@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { renderUnitInspectionPdf } from "@/lib/document-pdf";
-import { SUPABASE_DOCUMENTS_BUCKET } from "@/lib/document-generator";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { getKstDateTime } from "@/lib/agent-schedule";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
-import { uploadBinaryObject } from "@/lib/supabase-server";
+import { uploadUnitInspectionPdfCopies } from "@/lib/unit-inspection-pdf-storage";
 import { reissueWithFixedWording } from "@/lib/unit-inspection-rules";
 import { pgGetUnitInspection, pgSaveUnitInspectionPdfCorrection, sanitizeStoragePathSegment } from "@/lib/unit-inspections";
 
@@ -62,17 +61,18 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     });
 
     const { dateKey } = getKstDateTime();
-    const correctedPdfUrl = await uploadBinaryObject({
-      bucket: SUPABASE_DOCUMENTS_BUCKET,
+    const corrected = await uploadUnitInspectionPdfCopies({
       objectPath: `unit-inspections/corrected/${dateKey}-${sanitizeStoragePathSegment(inspection.dong)}-${sanitizeStoragePathSegment(inspection.ho)}-${inspection.id}.pdf`,
-      contentType: "application/pdf",
-      data: pdfBytes
+      pdfBytes
     });
 
     // 원본 행(pdf_url 등)은 의도적으로 건드리지 않는다 — 별도 오버레이 테이블에만 포인터를 남긴다.
-    await pgSaveUnitInspectionPdfCorrection(inspection.id, correctedPdfUrl);
+    await pgSaveUnitInspectionPdfCorrection(inspection.id, {
+      correctedPdfUrl: corrected.pdfUrl,
+      correctedPdfPrivatePath: corrected.pdfPrivatePath
+    });
 
-    return NextResponse.json({ correctedPdfUrl });
+    return NextResponse.json({ correctedPdfUrl: corrected.pdfUrl });
   } catch (error) {
     const message = error instanceof Error ? error.message : "수정본 PDF 생성에 실패했습니다.";
     return NextResponse.json({ message }, { status: 500 });

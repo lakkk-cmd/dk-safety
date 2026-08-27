@@ -57,6 +57,8 @@ export type UnitInspection = UnitInspectionInput & {
   /** 법적 근거 아님 — 별표3 규칙엔진(autoDiagnosis)과 분리해서 저장·표시한다 */
   companyAdvisories: CompanyAdvisoryEntry[];
   pdfUrl: string | null;
+  /** 비공개 버킷 사본 경로(114) — 전기과장 다운로드 게이트가 서명 URL을 발급하는 대상. 레거시 건은 null. */
+  pdfPrivatePath: string | null;
   createdAt: string;
 };
 
@@ -83,6 +85,7 @@ type UnitInspectionRow = {
   switch_install_year: number | null;
   company_advisories: unknown;
   pdf_url: string | null;
+  pdf_private_path: string | null;
   created_at: string;
 };
 
@@ -120,6 +123,7 @@ function mapUnitInspection(row: UnitInspectionRow): UnitInspection {
     switchInstallYear: row.switch_install_year,
     companyAdvisories: fixed.companyAdvisories,
     pdfUrl: row.pdf_url,
+    pdfPrivatePath: row.pdf_private_path ?? null,
     createdAt: row.created_at
   };
 }
@@ -211,12 +215,18 @@ export async function pgListAllUnitInspections(limit = 200): Promise<UnitInspect
  * PDF 발급 후 pdf_url을 되채워 넣는다. DB 트리거(prevent_issued_unit_inspection_mutation)가
  * pdf_url이 이미 채워진 행의 UPDATE를 막으므로, 이 함수는 발급 전(draft) 상태에서만 성공한다 —
  * 재호출로 pdf_url을 덮어쓸 수 없어 발급본이 사후에 바뀌는 걸 DB 레벨에서 원천 차단한다.
+ *
+ * pdf_private_path(비공개 버킷 사본, 114)는 반드시 pdf_url과 **같은 UPDATE 한 번**에 써야 한다 —
+ * 나눠서 두 번 호출하면 첫 호출로 pdf_url이 채워지는 순간 트리거가 잠겨서 두 번째가 실패한다.
  */
-export async function pgSaveUnitInspectionPdf(id: string, pdfUrl: string): Promise<UnitInspection> {
+export async function pgSaveUnitInspectionPdf(
+  id: string,
+  params: { pdfUrl: string; pdfPrivatePath: string | null }
+): Promise<UnitInspection> {
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase
     .from("unit_electrical_inspections")
-    .update({ pdf_url: pdfUrl })
+    .update({ pdf_url: params.pdfUrl, pdf_private_path: params.pdfPrivatePath })
     .eq("id", id)
     .select("*")
     .single();
@@ -224,6 +234,23 @@ export async function pgSaveUnitInspectionPdf(id: string, pdfUrl: string): Promi
     throw new Error(`세대전기점검 PDF 저장 실패: ${error?.message ?? "unknown"}`);
   }
   return mapUnitInspection(data as UnitInspectionRow);
+}
+
+/**
+ * 114 이전에 발급돼 비공개 사본이 없는 건의 lazy backfill 전용. 트리거는 "pdf_private_path가
+ * null→값으로 단독 변경되는 UPDATE"만 예외로 통과시키므로(114), 여기서 다른 컬럼을 함께 건드리면
+ * 즉시 ISSUED_UNIT_INSPECTION_IMMUTABLE로 거부된다. 재렌더링이 아니라 원본 바이트 복사 결과만 기록한다.
+ */
+export async function pgBackfillUnitInspectionPrivatePdf(id: string, pdfPrivatePath: string): Promise<void> {
+  const supabase = requireSupabaseAdmin();
+  const { error } = await supabase
+    .from("unit_electrical_inspections")
+    .update({ pdf_private_path: pdfPrivatePath })
+    .eq("id", id)
+    .is("pdf_private_path", null);
+  if (error) {
+    throw new Error(`비공개 PDF 사본 경로 저장 실패: ${error.message}`);
+  }
 }
 
 /**
@@ -261,13 +288,75 @@ export async function pgGetUnitInspectionPdfCorrection(inspectionId: string): Pr
 }
 
 /** 문구 정정본 PDF를 새로 발급할 때마다 최신 파일로 덮어써 포인터를 갱신한다(원본 행은 미변경). */
-export async function pgSaveUnitInspectionPdfCorrection(inspectionId: string, correctedPdfUrl: string): Promise<void> {
+export async function pgSaveUnitInspectionPdfCorrection(
+  inspectionId: string,
+  params: { correctedPdfUrl: string; correctedPdfPrivatePath: string | null }
+): Promise<void> {
+  const supabase = requireSupabaseAdmin();
+  const { error } = await supabase.from("unit_inspection_pdf_corrections").upsert({
+    inspection_id: inspectionId,
+    corrected_pdf_url: params.correctedPdfUrl,
+    corrected_pdf_private_path: params.correctedPdfPrivatePath,
+    created_at: new Date().toISOString()
+  });
+  if (error) {
+    throw new Error(`점검표 문구 정정본 저장 실패: ${error.message}`);
+  }
+}
+
+/** 정정본의 공개 URL + 비공개 사본 경로 — 전기과장 다운로드 게이트가 원본보다 우선해서 쓴다(114). */
+export type UnitInspectionPdfCorrectionRecord = { url: string; privatePath: string | null };
+
+export async function pgGetUnitInspectionPdfCorrectionRecord(
+  inspectionId: string
+): Promise<UnitInspectionPdfCorrectionRecord | null> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("unit_inspection_pdf_corrections")
+    .select("corrected_pdf_url, corrected_pdf_private_path")
+    .eq("inspection_id", inspectionId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`점검표 문구 정정본 조회 실패: ${error.message}`);
+  }
+  if (!data) return null;
+  return { url: data.corrected_pdf_url, privatePath: data.corrected_pdf_private_path ?? null };
+}
+
+/** 일괄 다운로드용 — 건마다 조회하면 왕복이 폭증하므로 한 번에 다 읽어 맵으로 준다. */
+export async function pgListUnitInspectionPdfCorrectionRecords(): Promise<
+  Record<string, UnitInspectionPdfCorrectionRecord>
+> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("unit_inspection_pdf_corrections")
+    .select("inspection_id, corrected_pdf_url, corrected_pdf_private_path");
+  if (error) {
+    throw new Error(`점검표 문구 정정본 목록 조회 실패: ${error.message}`);
+  }
+  const map: Record<string, UnitInspectionPdfCorrectionRecord> = {};
+  for (const row of (data ?? []) as {
+    inspection_id: string;
+    corrected_pdf_url: string;
+    corrected_pdf_private_path: string | null;
+  }[]) {
+    map[row.inspection_id] = { url: row.corrected_pdf_url, privatePath: row.corrected_pdf_private_path ?? null };
+  }
+  return map;
+}
+
+/** 정정본 비공개 사본을 뒤늦게 만들었을 때 경로만 채운다(114 이전 정정본의 lazy backfill). */
+export async function pgBackfillUnitInspectionPdfCorrectionPrivatePath(
+  inspectionId: string,
+  privatePath: string
+): Promise<void> {
   const supabase = requireSupabaseAdmin();
   const { error } = await supabase
     .from("unit_inspection_pdf_corrections")
-    .upsert({ inspection_id: inspectionId, corrected_pdf_url: correctedPdfUrl, created_at: new Date().toISOString() });
+    .update({ corrected_pdf_private_path: privatePath })
+    .eq("inspection_id", inspectionId);
   if (error) {
-    throw new Error(`점검표 문구 정정본 저장 실패: ${error.message}`);
+    throw new Error(`정정본 비공개 사본 경로 저장 실패: ${error.message}`);
   }
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 
 type ChecklistItem = { id: string; category: string; item: string; result: "O" | "X" | "/" | "N/A"; note: string };
@@ -16,6 +17,13 @@ type UnitInspection = {
   autoDiagnosis: DiagnosisEntry[];
   residentName: string | null;
   pdfUrl: string | null;
+};
+
+type QuotaSummary = {
+  subscribed: boolean;
+  remainingFree: number;
+  freeQuotaPerCycle: number;
+  cycleResetAt: string;
 };
 
 type UnitGroup = {
@@ -34,14 +42,24 @@ function formatDate(iso: string): string {
 
 export default function AptManagerInspectionHistory() {
   const [inspections, setInspections] = useState<UnitInspection[]>([]);
-  const [pdfCorrections, setPdfCorrections] = useState<Record<string, string>>({});
   const [totalUnits, setTotalUnits] = useState<number | null>(null);
+  const [quota, setQuota] = useState<QuotaSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [dongFilter, setDongFilter] = useState("전체");
   const [search, setSearch] = useState("");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [bulkMessage, setBulkMessage] = useState("");
+  const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
+  const [pdfMessage, setPdfMessage] = useState("");
+  const [quotaExhausted, setQuotaExhausted] = useState(false);
+
+  const loadQuota = async () => {
+    const response = await fetch("/api/apt-manager/subscription", { cache: "no-store" });
+    if (!response.ok) return;
+    const data = (await response.json()) as { quota?: QuotaSummary };
+    if (data.quota) setQuota(data.quota);
+  };
 
   useEffect(() => {
     (async () => {
@@ -50,18 +68,42 @@ export default function AptManagerInspectionHistory() {
           fetch("/api/apt-manager/unit-inspections", { cache: "no-store" }),
           fetch("/api/apt-manager/me", { cache: "no-store" })
         ]);
-        const inspData = (await inspRes.json()) as { inspections?: UnitInspection[]; pdfCorrections?: Record<string, string> };
+        const inspData = (await inspRes.json()) as { inspections?: UnitInspection[] };
         const meData = (await meRes.json()) as { apartment?: { totalUnits: number | null } | null };
-        if (inspRes.ok) {
-          setInspections(inspData.inspections ?? []);
-          setPdfCorrections(inspData.pdfCorrections ?? {});
-        }
+        if (inspRes.ok) setInspections(inspData.inspections ?? []);
         if (meRes.ok) setTotalUnits(meData.apartment?.totalUnits ?? null);
+        await loadQuota();
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  /** 공개 pdf_url을 직접 열지 않고 게이트 라우트를 거쳐 단기 서명 URL을 받아 연다. */
+  const openPdf = async (inspectionId: string) => {
+    setPdfBusyId(inspectionId);
+    setPdfMessage("");
+    setQuotaExhausted(false);
+    try {
+      const response = await fetch(`/api/apt-manager/unit-inspections/${inspectionId}/pdf`, { cache: "no-store" });
+      const data = (await response.json()) as { url?: string; message?: string };
+      if (response.status === 402) {
+        setQuotaExhausted(true);
+        setPdfMessage(data.message ?? "무료 다운로드를 모두 사용했습니다.");
+        return;
+      }
+      if (!response.ok || !data.url) {
+        setPdfMessage(data.message ?? "PDF를 여는 데 실패했습니다.");
+        return;
+      }
+      window.open(data.url, "_blank", "noopener,noreferrer");
+      await loadQuota();
+    } catch {
+      setPdfMessage("네트워크 오류로 PDF를 열지 못했습니다.");
+    } finally {
+      setPdfBusyId(null);
+    }
+  };
 
   const groups = useMemo(() => {
     const map = new Map<string, UnitGroup>();
@@ -94,14 +136,21 @@ export default function AptManagerInspectionHistory() {
   const bulkDownload = async () => {
     setBulkDownloading(true);
     setBulkMessage("");
+    setQuotaExhausted(false);
     try {
       const params = new URLSearchParams();
       if (dongFilter !== "전체") params.set("dong", dongFilter);
       const response = await fetch(`/api/apt-manager/unit-inspections/bulk-pdf?${params.toString()}`);
       if (!response.ok) {
         const data = (await response.json().catch(() => ({}))) as { message?: string };
+        if (response.status === 402) setQuotaExhausted(true);
         setBulkMessage(data.message ?? "일괄 다운로드에 실패했습니다.");
         return;
+      }
+      const skipped = Number(response.headers.get("X-Skipped-Count") ?? "0");
+      if (skipped > 0) {
+        setQuotaExhausted(true);
+        setBulkMessage(`무료 한도를 넘어 ${skipped}건은 zip에서 제외했어요. 구독하시면 전부 받으실 수 있어요.`);
       }
       const blob = await response.blob();
       const disposition = response.headers.get("Content-Disposition") ?? "";
@@ -115,6 +164,7 @@ export default function AptManagerInspectionHistory() {
       a.click();
       a.remove();
       URL.revokeObjectURL(objectUrl);
+      await loadQuota();
     } catch {
       setBulkMessage("네트워크 오류로 일괄 다운로드에 실패했습니다.");
     } finally {
@@ -137,6 +187,31 @@ export default function AptManagerInspectionHistory() {
         </p>
         {totalUnits === null ? <p className="mt-1 text-xs text-slate-400">총세대수가 등록되지 않아 처리율은 계산하지 않아요.</p> : null}
       </div>
+
+      {quota ? (
+        <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <p className="text-[13px] font-semibold text-slate-600">
+            {quota.subscribed ? (
+              <>
+                점검표 PDF <span className="font-bold text-dk-green">무제한</span> 이용중
+              </>
+            ) : (
+              <>
+                이번 주기 무료 다운로드{" "}
+                <span className={`font-bold ${quota.remainingFree > 0 ? "text-dk-blue" : "text-dk-red"}`}>
+                  {quota.remainingFree}
+                </span>
+                <span className="text-slate-400"> / {quota.freeQuotaPerCycle}건 남음</span>
+              </>
+            )}
+          </p>
+          {quota.subscribed ? null : (
+            <Link href="/apt-manager/subscribe" className="shrink-0 text-xs font-bold text-dk-blue underline">
+              구독하기
+            </Link>
+          )}
+        </div>
+      ) : null}
 
       <div className="flex gap-2">
         <select value={dongFilter} onChange={(e) => setDongFilter(e.target.value)} className="soft-input flex-1 text-sm">
@@ -167,6 +242,15 @@ export default function AptManagerInspectionHistory() {
             : `📦 ${dongFilter}동 점검표 PDF 일괄 다운로드(zip)`}
       </button>
       {bulkMessage ? <p className="text-center text-xs text-rose-600">{bulkMessage}</p> : null}
+      {pdfMessage ? <p className="text-center text-xs text-rose-600">{pdfMessage}</p> : null}
+      {quotaExhausted ? (
+        <Link
+          href="/apt-manager/subscribe"
+          className="block rounded-xl bg-dk-blue py-2.5 text-center text-sm font-bold text-white"
+        >
+          구독하고 PDF 무제한으로 받기
+        </Link>
+      ) : null}
 
       {filteredGroups.length === 0 ? (
         <EmptyState icon="📋" title="아직 점검 기록이 없어요" description="점검입력 탭에서 첫 점검을 등록해보세요." />
@@ -174,8 +258,6 @@ export default function AptManagerInspectionHistory() {
         <ul className="space-y-2">
           {filteredGroups.map((g) => {
             const badCount = g.latest.autoDiagnosis.length;
-            const correctedPdfUrl = pdfCorrections[g.latest.id];
-            const pdfUrl = correctedPdfUrl ?? g.latest.pdfUrl;
             const expanded = expandedKey === g.key;
             return (
               <li key={g.key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -200,10 +282,15 @@ export default function AptManagerInspectionHistory() {
                 {expanded ? (
                   <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
                     {g.latest.residentName ? <p className="text-sm text-slate-600">세대주: {g.latest.residentName}</p> : null}
-                    {pdfUrl ? (
-                      <a href={pdfUrl} target="_blank" rel="noreferrer" className="inline-block rounded-xl bg-dk-blue px-4 py-2 text-sm font-bold text-white">
-                        📄 점검표 PDF 다운로드
-                      </a>
+                    {g.latest.pdfUrl ? (
+                      <button
+                        type="button"
+                        disabled={pdfBusyId === g.latest.id}
+                        onClick={() => void openPdf(g.latest.id)}
+                        className="inline-block rounded-xl bg-dk-blue px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                      >
+                        {pdfBusyId === g.latest.id ? "준비 중..." : "📄 점검표 PDF 다운로드"}
+                      </button>
                     ) : (
                       <p className="text-xs text-slate-400">PDF가 아직 발급되지 않았어요(미방문 간이점검은 PDF를 발급하지 않아요).</p>
                     )}

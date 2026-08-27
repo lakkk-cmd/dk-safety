@@ -6,6 +6,9 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 export const SUPABASE_ENABLED = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 export const SUPABASE_DATA_BUCKET = process.env.SUPABASE_DATA_BUCKET ?? "dk-safety-data";
 export const SUPABASE_UPLOAD_BUCKET = process.env.SUPABASE_UPLOAD_BUCKET ?? "dk-safety-uploads";
+/** 비공개 버킷 — 세대전기점검표 PDF의 전기과장 다운로드용 사본. 서명 URL로만 접근한다. */
+export const SUPABASE_PRIVATE_DOCUMENTS_BUCKET =
+  process.env.SUPABASE_PRIVATE_DOCUMENTS_BUCKET ?? "dk-safety-documents-private";
 
 function assertSupabaseConfig() {
   if (!SUPABASE_ENABLED) {

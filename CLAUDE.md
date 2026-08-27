@@ -98,6 +98,10 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 | `src/lib/apartment-managers-pg.ts` | CRUD for `apartment_managers` (세대전기점검 무료앱 셀프서비스 계정) — signup/approve/reject/reset-password/list, calls `approve_apartment_manager_signup()` RPC for atomic new-apartment approval |
 | `src/lib/apt-manager-auth.ts` / `apt-manager-session-verify-edge.ts` / `apt-manager-session-server.ts` | 전기과장 세션 — `worker-auth.ts` 패턴 복제, 쿠키 `dk_apt_manager_auth`, TTL 30일(워커 12시간과 다름, 어쩌다 한 번 쓰는 계정이라 이탈 방지) |
 | `src/lib/apt-manager-password.ts` | 전기과장 비밀번호 해시(scrypt, `worker-pin.ts`와 동일 패턴) + 관리자용 임시비밀번호 생성 |
+| `src/lib/apartment-subscriptions-pg.ts` | 세대전기점검 앱 구독(114) — `pgGetApartmentSubscription`/`pgEnsureApartmentSubscription`, `pgActivateSubscriptionManual`(계좌이체 수동확인), `pgIssueTossCustomerKey`/`pgSaveTossBillingKey`, `pgRecordAutoChargeResult`/`pgListSubscriptionsDueForCharge`/`pgExpireEndedCancellations`(크론), `pgCancelSubscription`, `getSubscriptionTierPrice(totalUnits)`(≤300세대 30,000원 / >300세대 50,000원, null이면 낮은 쪽), **`pgCheckAndConsumePdfQuota()`**(핵심 게이트: 구독중 무제한 → 이미 언락된 건 무료 → 30일 롤링 주기당 무료 5건 차감) |
+| `src/lib/toss-billing.ts` | Toss 자동결제(빌링) — `issueBillingKey({authKey, customerKey})`(POST `/v1/billing/authorizations/issue`), `chargeBillingKey({billingKey, customerKey, amount, orderId, orderName})`(POST `/v1/billing/{billingKey}`, 매 시도마다 `Idempotency-Key`). Basic 인증은 `toss-agent.ts`의 `authHeader()` 재사용 |
+| `src/lib/unit-inspection-pdf-storage.ts` | 세대전기점검표 PDF 이중 저장/해석(114) — `uploadUnitInspectionPdfCopies()`(공개+비공개 버킷 동시 업로드, 비공개 실패해도 공개 발급은 계속), `resolveUnitInspectionPrivatePdfPath()`(정정본 우선, 없으면 원본; 114 이전 건은 공개본 바이트를 그대로 복사하는 lazy backfill), `createUnitInspectionPdfSignedUrl()`(5분), `readPrivatePdfBytes()`(zip용) |
+| `src/lib/toss-sdk.ts` | Toss 결제창 SDK v1 로더(`loadTossScript`) + `window.TossPayments` 전역 타입 — 일반 결제(`requestPayment`)와 자동결제 카드등록(`requestBillingAuth`)이 같은 스크립트를 공유한다 |
 | `src/lib/site-config.ts` | Global constants: cookie names, `siteConfig` object pulling env vars |
 | `src/lib/admin-auth.ts` | Admin auth: checks `dk_admin_auth` cookie value |
 | `src/lib/worker-session-server.ts` | Worker session extraction from `dk_worker_auth` cookie |
@@ -144,7 +148,13 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 - `/report` — weekly report archive + roadmap visualization (cookie-protected, shares admin auth); served at `report.dkansim.com` via host-based middleware rewrite
 - `/agent` — AI pipeline monitor: YouTube collection status, Gemini analysis status, cron logs (`agent_logs`), pipeline run history (`pipeline_logs`) (cookie-protected, shares admin auth); served at `agent.dkansim.com` via host-based middleware rewrite
 - `/contents` — content marketing command center: YouTube/Kakao/blog approval queues, Naver trend keywords, YouTube OAuth connection status (cookie-protected, shares admin auth); served at `contents.dkansim.com` via host-based middleware rewrite
-- `/apt-manager/login`, `/signup`, `/pending`, `/(dashboard)` — 세대전기점검 무료앱: 아파트 전기안전관리자(전기과장) 셀프서비스 포털, `workers`와 완전히 분리된 자체 세션(`dk_apt_manager_auth`). 대시보드는 하단 탭 3개(점검입력/점검이력/점검가이드) — 점검입력은 `unit-inspection-form.tsx`를 `lockedApartment`/`apartmentsEndpoint`/`submitEndpoint` props로 재사용(세션에 단지가 이미 고정돼 있어 단지선택 UI 없음). 서브도메인 `inspect.dkansim.com` → 내부 `/apt-manager` rewrite. 가입은 QR프리필/검색으로 기존 단지를 고르거나, 목록에 없으면 신규단지 정보를 함께 신청(승인 시 `apartments` 행이 자동 생성됨) — 승인은 매번 대표님의 관리사무소 전화 실존확인 후 `/admin/apartments`의 "전기과장 계정 관리" 패널에서 처리(승인 SMS·비밀번호 재발급 SMS는 `sendSMS()` 재사용). `/api/apt-manager/*`(공개+세션), `/api/admin/apartment-managers/*`(관리자) 참고
+- `/apt-manager/login`, `/signup`, `/pending`, `/(dashboard)` — 세대전기점검 앱(2026-08-27 구독제 전환, 그 전엔 완전 무료앱): 아파트 전기안전관리자(전기과장) 셀프서비스 포털, `workers`와 완전히 분리된 자체 세션(`dk_apt_manager_auth`). 대시보드는 하단 탭 4개(점검입력/점검이력/점검가이드/구독관리) — 점검입력은 `unit-inspection-form.tsx`를 `lockedApartment`/`apartmentsEndpoint`/`submitEndpoint` props로 재사용(세션에 단지가 이미 고정돼 있어 단지선택 UI 없음). 서브도메인 `inspect.dkansim.com` → 내부 `/apt-manager` rewrite. 가입은 QR프리필/검색으로 기존 단지를 고르거나, 목록에 없으면 신규단지 정보를 함께 신청(승인 시 `apartments` 행이 자동 생성됨) — 승인은 매번 대표님의 관리사무소 전화 실존확인 후 `/admin/apartments`의 "전기과장 계정 관리" 패널에서 처리(승인 SMS·비밀번호 재발급 SMS는 `sendSMS()` 재사용). `/api/apt-manager/*`(공개+세션), `/api/admin/apartment-managers/*`(관리자) 참고
+
+  **구독제(freemium) 게이트 (114, 2026-08-27)**: 점검입력·AI판정·거주자 SMS/카카오 발송은 연체 여부와 무관하게 **항상 무료**이고, **전기과장의 점검표 PDF 다운로드에만** 게이트가 걸린다. 무료 한도는 가입일(`apartment_subscriptions.free_quota_anchor_at`) 기준 30일 롤링 주기당 5건이며, 카운트 단위가 "점검건"이라 한 번 언락한 건의 재다운로드는 영구 무료다(`apartment_pdf_downloads`의 `(apartment_id, unit_inspection_id)` unique가 강제). 구독료는 스냅샷하지 않고 매 청구 시점의 `apartments.total_units`로 재계산한다. 결제는 Toss 자동결제(빌링키) 또는 계좌이체 수동확인 중 단지가 선택하며, **세금계산서 발행은 스코프 밖**(대표님이 기존 방식대로 별도 처리)이다. 연체/결제실패는 유예 없이 즉시 `past_due`로 떨어져 PDF만 잠긴다.
+
+  강제 방식은 **완전 비공개화(서명 URL)**다 — 기존 `pdf_url`은 공개 버킷의 영구 공개 링크라 서버를 거치지 않아 게이트를 걸 지점 자체가 없었다. 그래서 같은 바이트를 비공개 버킷(`SUPABASE_PRIVATE_DOCUMENTS_BUCKET`)에도 사본으로 올리고(`unit_electrical_inspections.pdf_private_path`), 전기과장 다운로드는 `GET /api/apt-manager/unit-inspections/[id]/pdf`가 쿼터 검사 후 5분짜리 서명 URL을 발급하는 경로로만 나간다(초과 시 402 + `{remainingFree, cycleResetAt}`). 일괄 zip(`bulk-pdf`)도 항목마다 같은 게이트를 순차로 돌려 통과분만 담고 제외 건수를 `X-Skipped-Count` 헤더로 알린다. **거주민이 문자/카카오로 받는 공개 결과페이지 `/unit-inspection/[id]`와 그 `pdf_url`은 절대 건드리지 않는다** — 법적 의무 이행 경로라 계속 무료·무마찰이어야 한다.
+
+  주의: `unit_electrical_inspections`는 `pdf_url`이 채워지는 순간 트리거가 UPDATE/DELETE를 전부 막으므로, `pgSaveUnitInspectionPdf(id, {pdfUrl, pdfPrivatePath})`는 두 컬럼을 반드시 **한 번의 UPDATE**로 써야 한다. 114 이전 발급분의 lazy backfill을 위해 트리거는 "`pdf_private_path`가 null→값으로 **단독** 변경되는 UPDATE"만 예외로 통과시킨다(`to_jsonb` 비교로 다른 컬럼 동반 변경을 차단).
 - `/blog`, `/blog/[slug]` — public blog index + post detail (SEO meta tags, reservation CTA); only `published` posts are visible
 - `/api/admin/*`, `/api/worker/*`, `/api/resident/*` — REST API routes
 - `/api/admin/content/*` — content queue CRUD/approve (`youtube`, `kakao`, `blog`, `overview`, `naver-trends`, `youtube-channel-analysis`)
@@ -196,6 +206,12 @@ Located in `supabase/migrations/` (numbered 001–033). Apply with `npm run db:a
   시 `apartments` 행 생성 + 연결을 원자적으로 처리, `apply_site_decision()`(059)과 동일 패턴);
   `unit_electrical_inspections.input_actor_type`/`apt_manager_id` + `unit_inspections_actor_consistency` CHECK
   (dk_worker/apt_manager 중 정확히 하나의 FK만 채워지도록 강제)
+- `114` — 세대전기점검 앱 구독제 전환: `apartment_subscriptions`(단지 1:1, `status`/`billing_method`/`toss_*`/
+  `current_period_end`/`next_billing_at`/`free_quota_anchor_at`), `apartment_pdf_downloads`(언락 이력 겸 쿼터
+  카운터, `(apartment_id, unit_inspection_id)` unique), `unit_electrical_inspections.pdf_private_path`,
+  `unit_inspection_pdf_corrections.corrected_pdf_private_path`. `prevent_issued_unit_inspection_mutation()`를
+  "pdf_private_path 단독 null→값 UPDATE"만 허용하도록 완화(lazy backfill용, 나머지 컬럼은 여전히 전부 불변),
+  `approve_apartment_manager_signup()`이 승인 시 구독행을 `on conflict do nothing`으로 생성
 
 ### AI Command Center
 
@@ -259,6 +275,7 @@ Copy `.env.example` to `.env.local`. Key vars:
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only service key (never expose to client) |
 | `SUPABASE_DATA_BUCKET` | Bucket for JSON data (default: `dk-safety-data`) |
 | `SUPABASE_UPLOAD_BUCKET` | Bucket for field photos (default: `dk-safety-uploads`) |
+| `SUPABASE_PRIVATE_DOCUMENTS_BUCKET` | (Optional) 비공개 버킷 — 세대전기점검표 PDF의 전기과장 다운로드용 사본 (default: `dk-safety-documents-private`). 구독 게이트를 서버에서 강제하려면 반드시 private이어야 하며, 거주민이 받는 공개 `pdf_url`은 기존 `SUPABASE_DOCUMENTS_BUCKET` 그대로다. `npm run storage:ensure`로 생성 |
 | `DK_SAFETY_USE_SUPABASE_DB` | `1` or `true` to use Postgres for reservations |
 | `WORKER_SESSION_SECRET` | HMAC secret for worker session tokens |
 | `APT_MANAGER_SESSION_SECRET` | HMAC secret for 세대전기점검 무료앱(inspect.dkansim.com) 전기과장 session tokens — must differ from `WORKER_SESSION_SECRET` |

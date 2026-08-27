@@ -11,9 +11,8 @@
 import { callClaudeCustom, extractJsonBlock } from "@/lib/agents";
 import { getKstDateTime } from "@/lib/agent-schedule";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
-import { SUPABASE_DOCUMENTS_BUCKET } from "@/lib/document-generator";
 import { renderUnitInspectionPdf } from "@/lib/document-pdf";
-import { uploadBinaryObject } from "@/lib/supabase-server";
+import { uploadUnitInspectionPdfCopies } from "@/lib/unit-inspection-pdf-storage";
 import type { ChecklistEntry, CompanyAdvisoryEntry, DiagnosisEntry } from "@/lib/unit-inspection-rules";
 import { pgGetUnitInspection, pgSaveUnitInspectionAiDiagnosis, pgSaveUnitInspectionPdfCorrection, sanitizeStoragePathSegment } from "@/lib/unit-inspections";
 
@@ -163,11 +162,12 @@ export async function runUnitInspectionAiDiagnosisAndCorrect(inspectionId: strin
   });
 
   const { dateKey } = getKstDateTime();
-  const correctedPdfUrl = await uploadBinaryObject({
-    bucket: SUPABASE_DOCUMENTS_BUCKET,
+  const corrected = await uploadUnitInspectionPdfCopies({
     objectPath: `unit-inspections/corrected/${dateKey}-${sanitizeStoragePathSegment(inspection.dong)}-${sanitizeStoragePathSegment(inspection.ho)}-${inspection.id}.pdf`,
-    contentType: "application/pdf",
-    data: pdfBytes
+    pdfBytes
   });
-  await pgSaveUnitInspectionPdfCorrection(inspectionId, correctedPdfUrl);
+  await pgSaveUnitInspectionPdfCorrection(inspectionId, {
+    correctedPdfUrl: corrected.pdfUrl,
+    correctedPdfPrivatePath: corrected.pdfPrivatePath
+  });
 }

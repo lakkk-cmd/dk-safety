@@ -58,6 +58,7 @@ const dataId = process.env.SUPABASE_DATA_BUCKET ?? "dk-safety-data";
 const videoId = process.env.SUPABASE_VIDEO_BUCKET ?? "dk-safety-video-assets";
 const knowledgeId = process.env.SUPABASE_KNOWLEDGE_BUCKET ?? "knowledge-pdfs";
 const documentsId = process.env.SUPABASE_DOCUMENTS_BUCKET ?? "dk-safety-documents";
+const privateDocsId = process.env.SUPABASE_PRIVATE_DOCUMENTS_BUCKET ?? "dk-safety-documents-private";
 const apksId = process.env.SUPABASE_APK_BUCKET ?? "dk-safety-apks";
 
 const buckets = await listBuckets();
@@ -92,6 +93,14 @@ if (!ids.has(documentsId)) {
   await createBucket(documentsId, true);
 } else {
   console.log("문서 버킷 이미 있음:", documentsId);
+}
+
+// 세대전기점검표 PDF의 전기과장 다운로드용 사본 — 구독 게이트를 서버에서 강제하려면 공개
+// URL이 존재하면 안 되므로 반드시 비공개 버킷이어야 한다(서명 URL로만 접근).
+if (!ids.has(privateDocsId)) {
+  await createBucket(privateDocsId, false);
+} else {
+  console.log("비공개 문서 버킷 이미 있음:", privateDocsId);
 }
 
 if (!ids.has(apksId)) {
