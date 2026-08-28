@@ -292,7 +292,7 @@ export default function AptManagerInspectionHistory() {
                         {pdfBusyId === g.latest.id ? "준비 중..." : "📄 점검표 PDF 다운로드"}
                       </button>
                     ) : (
-                      <p className="text-xs text-slate-400">PDF가 아직 발급되지 않았어요(미방문 간이점검은 PDF를 발급하지 않아요).</p>
+                      <p className="text-xs text-slate-400">PDF가 아직 발급되지 않았어요. 잠시 후 다시 확인해주세요.</p>
                     )}
                   </div>
                 ) : null}

@@ -180,49 +180,52 @@ export async function POST(request: Request) {
     return NextResponse.json({ message }, { status: 500 });
   }
 
+  // PDF는 방문/미방문 관계없이 항상 즉시 발급한다 — 직무고시 서류라 미방문 간이점검도
+  // 관리사무소가 다운로드할 수 있어야 한다(2026-08-28 버그 수정: 예전엔 방문점검만 발급했음).
+  // 세대 문자 발송·CRM 접점 기록은 방문점검만 — 미방문 간이점검은 세대주 연락처 자체를 안 받는다.
   let notification: SendChannelResult | null = null;
-  if (inspectionType === "visit") {
-    try {
-      const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://dkansim.com").replace(/\/$/, "");
-      const inspectedAtLabel = new Date(inspection.inspectedAt).toLocaleDateString("ko-KR", {
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-      });
-      const pdfBytes = await renderUnitInspectionPdf({
-        apartmentName: apartment.name,
-        electricalSafetyManagerName: apartment.electricalSafetyManagerName,
-        dong: inspection.dong,
-        ho: inspection.ho,
-        inspectedAtLabel,
-        inspectionType: inspection.inspectionType,
-        checklistItems: inspection.checklistItems,
-        loadCurrent: inspection.loadCurrent,
-        igr: inspection.igr,
-        insulationResistance: inspection.insulationResistance,
-        etcNotes: inspection.etcNotes,
-        autoDiagnosis: inspection.autoDiagnosis,
-        companyAdvisories: inspection.companyAdvisories,
-        residentName: inspection.residentName,
-        signatureData: inspection.signatureData
-      });
-      const pdfLocations = await uploadUnitInspectionPdfCopies({
-        objectPath: `unit-inspections/${sanitizeStoragePathSegment(inspection.dong)}-${sanitizeStoragePathSegment(inspection.ho)}-${inspection.id}.pdf`,
-        pdfBytes
-      });
-      inspection = await pgSaveUnitInspectionPdf(inspection.id, pdfLocations);
+  try {
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://dkansim.com").replace(/\/$/, "");
+    const inspectedAtLabel = new Date(inspection.inspectedAt).toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    });
+    const pdfBytes = await renderUnitInspectionPdf({
+      apartmentName: apartment.name,
+      electricalSafetyManagerName: apartment.electricalSafetyManagerName,
+      dong: inspection.dong,
+      ho: inspection.ho,
+      inspectedAtLabel,
+      inspectionType: inspection.inspectionType,
+      checklistItems: inspection.checklistItems,
+      loadCurrent: inspection.loadCurrent,
+      igr: inspection.igr,
+      insulationResistance: inspection.insulationResistance,
+      etcNotes: inspection.etcNotes,
+      autoDiagnosis: inspection.autoDiagnosis,
+      companyAdvisories: inspection.companyAdvisories,
+      residentName: inspection.residentName,
+      signatureData: inspection.signatureData
+    });
+    const pdfLocations = await uploadUnitInspectionPdfCopies({
+      objectPath: `unit-inspections/${sanitizeStoragePathSegment(inspection.dong)}-${sanitizeStoragePathSegment(inspection.ho)}-${inspection.id}.pdf`,
+      pdfBytes
+    });
+    inspection = await pgSaveUnitInspectionPdf(inspection.id, pdfLocations);
 
-      // AI 안전진단 확장판은 응답을 먼저 보낸 뒤 백그라운드에서 생성한다(사후보정형,
-      // 2026-08-26 대표님 결정) — 전기과장이 현장에서 25~45초씩 더 기다리지 않게.
-      const aiDiagnosisInspectionId = inspection.id;
-      after(async () => {
-        try {
-          await runUnitInspectionAiDiagnosisAndCorrect(aiDiagnosisInspectionId);
-        } catch (error) {
-          console.error("[apt-manager/unit-inspections] AI 안전진단 사후보정 실패:", error);
-        }
-      });
+    // AI 안전진단 확장판은 응답을 먼저 보낸 뒤 백그라운드에서 생성한다(사후보정형,
+    // 2026-08-26 대표님 결정) — 전기과장이 현장에서 25~45초씩 더 기다리지 않게.
+    const aiDiagnosisInspectionId = inspection.id;
+    after(async () => {
+      try {
+        await runUnitInspectionAiDiagnosisAndCorrect(aiDiagnosisInspectionId);
+      } catch (error) {
+        console.error("[apt-manager/unit-inspections] AI 안전진단 사후보정 실패:", error);
+      }
+    });
 
+    if (inspectionType === "visit") {
       const reportUrl = `${appUrl}/unit-inspection/${inspection.id}`;
       notification = await sendUnitInspectionNotification({
         phone: residentPhoneRaw,
@@ -244,9 +247,9 @@ export async function POST(request: Request) {
         source: "unit_inspection",
         address: `${apartment.name} ${inspection.dong}동 ${inspection.ho}호`
       });
-    } catch (error) {
-      console.error("[apt-manager/unit-inspections] PDF 발급/문자 발송/CRM 기록 실패:", error);
     }
+  } catch (error) {
+    console.error("[apt-manager/unit-inspections] PDF 발급/문자 발송/CRM 기록 실패:", error);
   }
 
   return NextResponse.json({ inspection, notification });
