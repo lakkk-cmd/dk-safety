@@ -1,11 +1,20 @@
 /**
- * 세대전기점검표 PDF 이중 저장 — 공개 버킷(거주민 결과페이지 /unit-inspection/[id]가 쓰는 pdf_url)과
- * 비공개 버킷 사본(전기과장 다운로드 게이트가 서명 URL을 발급하는 대상)에 같은 바이트를 올린다.
- * 거주민 경로는 이 변경과 무관하게 그대로 무료·무마찰로 유지되어야 하므로 공개 버킷을 비공개로
- * 바꾸지 않고 사본을 따로 두는 방식을 쓴다(114).
+ * 세대전기점검표 PDF 저장 — 공개 버킷(거주민 결과페이지 /unit-inspection/[id]가 쓰는 pdf_url)에는
+ * 발급 즉시 올린다. 비공개 버킷 사본(전기과장 다운로드 게이트가 서명 URL을 발급하는 대상)은
+ * 더 이상 이 시점에 즉시 만들지 않는다(2026-08-28) — 대부분의 건은 전기과장이 실제로 다운로드
+ * 요청을 한 번도 안 하므로(거주민 발송만으로 끝) 매번 미리 만들어두면 불필요한 저장공간과
+ * 업로드가 낭비된다. 대신 첫 다운로드 요청 시 `resolveUnitInspectionPrivatePdfPath()`의 lazy
+ * backfill(원래 114 이전 옛 건을 위해 만든 로직)이 공개본 바이트를 그대로 복사해 만든다 — 재렌더링이
+ * 아니라 바이트 복사라서 4년 보존 원본과 동일하다. 거주민 경로는 이 변경과 무관하게 그대로
+ * 무료·무마찰로 유지된다.
  */
 import { SUPABASE_DOCUMENTS_BUCKET } from "@/lib/document-generator";
-import { createSignedObjectUrl, SUPABASE_PRIVATE_DOCUMENTS_BUCKET, uploadBinaryObject } from "@/lib/supabase-server";
+import {
+  createSignedObjectUrl,
+  deleteStorageObjects,
+  SUPABASE_PRIVATE_DOCUMENTS_BUCKET,
+  uploadBinaryObject
+} from "@/lib/supabase-server";
 import {
   pgBackfillUnitInspectionPdfCorrectionPrivatePath,
   pgBackfillUnitInspectionPrivatePdf,
@@ -19,9 +28,9 @@ const SIGNED_URL_TTL_SEC = 300;
 export type UnitInspectionPdfLocations = { pdfUrl: string; pdfPrivatePath: string | null };
 
 /**
- * 비공개 사본 업로드가 실패해도 공개 발급은 진행한다 — 점검표 발급과 거주민 알림은 법적 의무
- * 이행 경로라 결제 부가기능 때문에 막히면 안 된다. 사본이 없는 건은 다운로드 시점의 lazy
- * backfill(`/api/apt-manager/unit-inspections/[id]/pdf`)이 공개본을 복사해 메꾼다.
+ * 공개 버킷에만 즉시 올린다. 비공개 사본은 만들지 않는다 — 다운로드 시점의 lazy
+ * backfill(`resolveUnitInspectionPrivatePdfPath`, `/api/apt-manager/unit-inspections/[id]/pdf`가 호출)이
+ * 필요할 때만 공개본을 복사해 채운다.
  */
 export async function uploadUnitInspectionPdfCopies(params: {
   objectPath: string;
@@ -34,20 +43,7 @@ export async function uploadUnitInspectionPdfCopies(params: {
     data: params.pdfBytes
   });
 
-  let pdfPrivatePath: string | null = null;
-  try {
-    await uploadBinaryObject({
-      bucket: SUPABASE_PRIVATE_DOCUMENTS_BUCKET,
-      objectPath: params.objectPath,
-      contentType: "application/pdf",
-      data: params.pdfBytes
-    });
-    pdfPrivatePath = params.objectPath;
-  } catch (error) {
-    console.error("[unit-inspection-pdf-storage] 비공개 사본 업로드 실패(공개 발급은 계속 진행):", error);
-  }
-
-  return { pdfUrl, pdfPrivatePath };
+  return { pdfUrl, pdfPrivatePath: null };
 }
 
 /**
@@ -97,6 +93,43 @@ async function copyPublicPdfToPrivateBucket(publicUrl: string, objectPath: strin
     data: bytes
   });
   return true;
+}
+
+function extractObjectPathFromPublicUrl(publicUrl: string, bucket: string): string | null {
+  const marker = `/object/public/${bucket}/`;
+  const idx = publicUrl.indexOf(marker);
+  if (idx === -1) return null;
+  return publicUrl.slice(idx + marker.length);
+}
+
+/**
+ * 시연전용단지(demo) 점검기록 삭제 전용 — 공개/비공개 버킷에 저장된 PDF 파일(원본 + 문구
+ * 정정본)을 전부 정리한다. DB 행 삭제는 호출부가 따로 한다(불변성 트리거가 partnership_type
+ * ='demo' 단지의 DELETE만 예외로 허용하므로, 116).
+ */
+export async function deleteUnitInspectionPdfFiles(params: {
+  pdfUrl: string | null;
+  pdfPrivatePath: string | null;
+  correction?: { url: string; privatePath: string | null } | null;
+}): Promise<void> {
+  const publicPaths = new Set<string>();
+  const privatePaths = new Set<string>();
+
+  if (params.pdfUrl) {
+    const path = extractObjectPathFromPublicUrl(params.pdfUrl, SUPABASE_DOCUMENTS_BUCKET);
+    if (path) publicPaths.add(path);
+  }
+  if (params.correction?.url) {
+    const path = extractObjectPathFromPublicUrl(params.correction.url, SUPABASE_DOCUMENTS_BUCKET);
+    if (path) publicPaths.add(path);
+  }
+  if (params.pdfPrivatePath) privatePaths.add(params.pdfPrivatePath);
+  if (params.correction?.privatePath) privatePaths.add(params.correction.privatePath);
+
+  await Promise.all([
+    publicPaths.size > 0 ? deleteStorageObjects(SUPABASE_DOCUMENTS_BUCKET, Array.from(publicPaths)) : Promise.resolve(),
+    privatePaths.size > 0 ? deleteStorageObjects(SUPABASE_PRIVATE_DOCUMENTS_BUCKET, Array.from(privatePaths)) : Promise.resolve()
+  ]);
 }
 
 export async function createUnitInspectionPdfSignedUrl(objectPath: string): Promise<string> {

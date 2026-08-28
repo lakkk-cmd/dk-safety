@@ -27,7 +27,13 @@ type UnitInspection = {
   pdfUrl: string | null;
 };
 
-type ApartmentOption = { id: string; name: string; electricalSafetyManagerName: string; totalUnits: number | null };
+type ApartmentOption = {
+  id: string;
+  name: string;
+  electricalSafetyManagerName: string;
+  totalUnits: number | null;
+  partnershipType: "contract" | "free_app" | "demo";
+};
 
 type TypeFilter = "all" | "visit" | "unvisited_simple";
 
@@ -71,6 +77,8 @@ export default function AdminUnitInspectionsPanel() {
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [reissueLoadingId, setReissueLoadingId] = useState<string | null>(null);
   const [correctedPdfUrls, setCorrectedPdfUrls] = useState<Record<string, string>>({});
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [resettingDemo, setResettingDemo] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -99,6 +107,7 @@ export default function AdminUnitInspectionsPanel() {
   }, []);
 
   const apartmentNameById = useMemo(() => new Map(apartments.map((a) => [a.id, a.name])), [apartments]);
+  const apartmentById = useMemo(() => new Map(apartments.map((a) => [a.id, a])), [apartments]);
   const apartmentByName = useMemo(() => new Map(apartments.map((a) => [a.name, a])), [apartments]);
   const selectedApartment = apartmentFilter === "전체" ? null : (apartmentByName.get(apartmentFilter) ?? null);
 
@@ -216,6 +225,40 @@ export default function AdminUnitInspectionsPanel() {
     }
   };
 
+  /** 시연전용단지(demo) 점검기록만 가능 — 서버가 partnership_type을 다시 검증하고, DB 불변성
+   * 트리거도 demo 단지가 아니면 DELETE 자체를 거부한다(116). */
+  const deleteRecord = async (id: string) => {
+    if (!window.confirm("이 점검기록을 삭제할까요? 되돌릴 수 없습니다.")) return;
+    setDeletingId(id);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/admin/unit-inspections/${id}`, { method: "DELETE" });
+      const data = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        setMessage(data.message ?? "삭제에 실패했습니다.");
+        return;
+      }
+      await load();
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const resetDemoApartment = async () => {
+    if (!selectedApartment) return;
+    if (!window.confirm(`${selectedApartment.name}의 점검기록을 전부 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    setResettingDemo(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/admin/apartments/${selectedApartment.id}/reset-demo-inspections`, { method: "POST" });
+      const data = (await response.json()) as { message?: string };
+      setMessage(data.message ?? (response.ok ? "초기화했습니다." : "초기화에 실패했습니다."));
+      if (response.ok) await load();
+    } finally {
+      setResettingDemo(false);
+    }
+  };
+
   const bulkDownload = async () => {
     if (!selectedApartment) return;
     setBulkDownloading(true);
@@ -304,14 +347,27 @@ export default function AdminUnitInspectionsPanel() {
                 </select>
               </div>
             </div>
-            <button
-              type="button"
-              disabled={bulkDownloading}
-              onClick={() => void bulkDownload()}
-              className="rounded-md border border-dk-navy bg-dk-navy px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-            >
-              {bulkDownloading ? "압축 중..." : "📦 발급완료 PDF 일괄 다운로드(zip)"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={bulkDownloading}
+                onClick={() => void bulkDownload()}
+                className="rounded-md border border-dk-navy bg-dk-navy px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {bulkDownloading ? "압축 중..." : "📦 발급완료 PDF 일괄 다운로드(zip)"}
+              </button>
+              {selectedApartment.partnershipType === "demo" ? (
+                <button
+                  type="button"
+                  disabled={resettingDemo}
+                  onClick={() => void resetDemoApartment()}
+                  title="시연전용단지 전용 — 이 단지의 점검기록을 전부 삭제합니다"
+                  className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 disabled:opacity-50"
+                >
+                  {resettingDemo ? "초기화 중..." : "🗑️ 시연단지 전체 초기화"}
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
@@ -477,6 +533,17 @@ export default function AdminUnitInspectionsPanel() {
                                             className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 disabled:opacity-50"
                                           >
                                             {reissueLoadingId === item.id ? "재발급 중..." : "문구 수정본 재발급"}
+                                          </button>
+                                        ) : null}
+                                        {apartmentById.get(item.apartmentId)?.partnershipType === "demo" ? (
+                                          <button
+                                            type="button"
+                                            disabled={deletingId === item.id}
+                                            onClick={() => void deleteRecord(item.id)}
+                                            title="시연전용단지 전용 — 이 점검기록을 삭제합니다"
+                                            className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 disabled:opacity-50"
+                                          >
+                                            {deletingId === item.id ? "삭제 중..." : "삭제"}
                                           </button>
                                         ) : null}
                                       </div>

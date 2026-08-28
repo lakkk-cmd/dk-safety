@@ -20,8 +20,8 @@ export type ApartmentTenant = {
   leakageCurrentThresholdMa: number | null;
   /** 단지 총세대수 — 세대전기점검 처리율 계산용(105). 미설정이면 null. */
   totalUnits: number | null;
-  /** 정식계약(contract) vs 세대전기점검 무료앱만 쓰는 단지(free_app)(109). */
-  partnershipType: "contract" | "free_app";
+  /** 정식계약(contract) vs 세대전기점검 무료앱만 쓰는 단지(free_app) vs 영업 시연 전용 단지(demo)(109, 116). */
+  partnershipType: "contract" | "free_app" | "demo";
   /** 단지 준공일 — 법적 판정 기준 아님, 노후도 참고용(110). 미설정이면 null. */
   completionDate: string | null;
   createdAt: string;
@@ -79,7 +79,7 @@ function mapApartment(row: ApartmentRow): ApartmentTenant {
         ? row.leakage_current_threshold_ma
         : null,
     totalUnits: typeof row.total_units === "number" && Number.isFinite(row.total_units) ? row.total_units : null,
-    partnershipType: row.partnership_type === "free_app" ? "free_app" : "contract",
+    partnershipType: row.partnership_type === "free_app" ? "free_app" : row.partnership_type === "demo" ? "demo" : "contract",
     completionDate: row.completion_date ?? null,
     createdAt: row.created_at
   };
@@ -92,6 +92,16 @@ export async function pgListApartments(): Promise<ApartmentTenant[]> {
     throw new Error(`아파트 목록 조회 실패: ${error.message}`);
   }
   return ((data ?? []) as ApartmentRow[]).map(mapApartment);
+}
+
+export async function pgGetApartment(id: string): Promise<ApartmentTenant | null> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase.from("apartments").select("*").eq("id", id).maybeSingle();
+  if (error) {
+    throw new Error(`아파트 조회 실패: ${error.message}`);
+  }
+  if (!data) return null;
+  return mapApartment(data as ApartmentRow);
 }
 
 /** 세대전기점검 무료앱 가입신청 화면(공개)용 — 계좌정보 등 민감값 없이 이름/세대수만 노출. */
@@ -240,7 +250,7 @@ export async function pgUpdateApartment(
     insulationResistanceThresholdMohm: number | null;
     leakageCurrentThresholdMa: number | null;
     totalUnits: number | null;
-    partnershipType: "contract" | "free_app";
+    partnershipType: "contract" | "free_app" | "demo";
   }>
 ): Promise<ApartmentTenant | null> {
   const supabase = requireSupabaseAdmin();

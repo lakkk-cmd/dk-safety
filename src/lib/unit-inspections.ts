@@ -197,6 +197,19 @@ export async function pgListUnitInspectionsForApartment(apartmentId: string): Pr
   return ((data ?? []) as UnitInspectionRow[]).map(mapUnitInspection);
 }
 
+/**
+ * 시연전용단지(demo) 점검기록 삭제 전용. 불변성 트리거(prevent_issued_unit_inspection_mutation, 116)가
+ * apartment_id의 partnership_type이 'demo'가 아니면 이 DELETE 자체를 거부하므로, 호출부가 별도로
+ * 권한 검증을 안 해도 실고객 단지 데이터는 DB 레벨에서 보호된다.
+ */
+export async function pgDeleteUnitInspection(id: string): Promise<void> {
+  const supabase = requireSupabaseAdmin();
+  const { error } = await supabase.from("unit_electrical_inspections").delete().eq("id", id);
+  if (error) {
+    throw new Error(`세대전기점검 기록 삭제 실패: ${error.message}`);
+  }
+}
+
 /** 관리자 조회화면용 전체 목록 — 최근 순, 최대 200건 */
 export async function pgListAllUnitInspections(limit = 200): Promise<UnitInspection[]> {
   const supabase = requireSupabaseAdmin();
