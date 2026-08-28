@@ -66,6 +66,10 @@ export default function AdminApartmentManagersPanel() {
   const [approvedSearch, setApprovedSearch] = useState("");
   const [approvedSort, setApprovedSort] = useState<"recent_login" | "apartment_name">("recent_login");
   const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, ThresholdDraft>>({});
+  // 신규단지 자기신고 세대수 재확인/수정(2026-08-28) — 구독요금이 세대수 구간(≤300/>300)으로
+  // 갈리므로 실존확인 통화 중 확인한 실제값으로 고칠 수 있어야 한다. 기존단지 연결 요청에는
+  // 노출하지 않는다(그쪽 total_units는 /admin/apartments에서 이미 관리 중).
+  const [totalUnitsDrafts, setTotalUnitsDrafts] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
@@ -137,12 +141,21 @@ export default function AdminApartmentManagersPanel() {
     setMessage("");
     try {
       const draft = thresholdDrafts[id];
+      const manager = pending.find((m) => m.id === id);
+      const isNew = manager ? !manager.apartmentId : false;
+      const totalUnitsDraftValue = totalUnitsDrafts[id];
+      const totalUnits = isNew
+        ? totalUnitsDraftValue !== undefined && totalUnitsDraftValue !== ""
+          ? Number(totalUnitsDraftValue)
+          : (manager?.totalUnitsRequested ?? undefined)
+        : undefined;
       const response = await fetch(`/api/admin/apartment-managers/${id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           insulationResistanceThresholdMohm: draft?.insulation ? Number(draft.insulation) : undefined,
-          leakageCurrentThresholdMa: draft?.leakage ? Number(draft.leakage) : undefined
+          leakageCurrentThresholdMa: draft?.leakage ? Number(draft.leakage) : undefined,
+          totalUnits
         })
       });
       const data = (await response.json()) as { message?: string; smsSent?: boolean };
@@ -242,6 +255,23 @@ export default function AdminApartmentManagersPanel() {
                     </p>
                   ) : null}
                   <p className="mt-1 text-[11px] text-slate-400">신청일시: {formatDate(m.createdAt)}</p>
+
+                  {isNew ? (
+                    <div className="mt-2 flex items-center gap-2">
+                      <label className="text-[11px] font-bold text-slate-500" htmlFor={`total-units-${m.id}`}>
+                        세대수 확인
+                      </label>
+                      <input
+                        id={`total-units-${m.id}`}
+                        value={totalUnitsDrafts[m.id] ?? (m.totalUnitsRequested != null ? String(m.totalUnitsRequested) : "")}
+                        onChange={(e) => setTotalUnitsDrafts((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                        placeholder="세대수"
+                        inputMode="numeric"
+                        className="soft-input h-8 w-24 text-xs"
+                      />
+                      <span className="text-[11px] text-slate-400">신청자 입력값(구독요금 구간을 정하니 통화로 재확인)</span>
+                    </div>
+                  ) : null}
 
                   {thresholdsMissing ? (
                     <div className="mt-2 rounded-lg border border-dk-amber/40 bg-dk-gold/10 p-2">

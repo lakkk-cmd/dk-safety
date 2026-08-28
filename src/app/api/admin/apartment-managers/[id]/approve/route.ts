@@ -24,9 +24,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const insulationResistanceThresholdMohm = toFiniteNumberOrUndefined(body.insulationResistanceThresholdMohm);
   const leakageCurrentThresholdMa = toFiniteNumberOrUndefined(body.leakageCurrentThresholdMa);
+  // 신규단지 자기신고 세대수 재확인/수정(2026-08-28) — 구독 요금이 세대수 기준(≤300/>300)으로
+  // 갈리므로, 실존확인 전화 중 확인한 실제 세대수로 덮어쓸 수 있게 한다. apartments 행 생성과
+  // 동시에 반영해야 해서(생성 후 UPDATE가 아니라) pgApproveApartmentManagerSignup 호출 시 넘긴다.
+  const totalUnits = toFiniteNumberOrUndefined(body.totalUnits);
 
   try {
-    await pgApproveApartmentManagerSignup(id);
+    await pgApproveApartmentManagerSignup(id, totalUnits);
     const manager = await pgGetApartmentManager(id);
 
     if (manager?.apartmentId && (insulationResistanceThresholdMohm !== undefined || leakageCurrentThresholdMa !== undefined)) {

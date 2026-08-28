@@ -143,10 +143,19 @@ export async function pgListApartmentManagers(status?: ApprovalStatus): Promise<
   return ((data ?? []) as ApartmentManagerRow[]).map(mapManager);
 }
 
-/** 신규단지 요청이면 apartments 행 생성까지 원자적으로 처리한다(migration 109 함수). */
-export async function pgApproveApartmentManagerSignup(id: string): Promise<void> {
+/**
+ * 신규단지 요청이면 apartments 행 생성까지 원자적으로 처리한다(migration 109 함수, 115에서
+ * totalUnitsOverride 파라미터 추가). 신청자가 자기신고한 세대수는 구독 요금 구간(≤300세대/
+ * >300세대)을 가르는 값이라 검증 없이 그대로 반영하면 요금을 낮게 신고하는 허점이 생긴다 —
+ * 대표님이 실존확인 전화 중 실제 세대수를 확인해 이 값으로 덮어쓸 수 있다. 기존 단지에
+ * 매니저를 연결하는 경우(apartment_id가 이미 있는 경우)는 이 값이 무시된다(함수 내부 분기).
+ */
+export async function pgApproveApartmentManagerSignup(id: string, totalUnitsOverride?: number): Promise<void> {
   const supabase = requireSupabaseAdmin();
-  const { error } = await supabase.rpc("approve_apartment_manager_signup", { p_manager_id: id });
+  const { error } = await supabase.rpc("approve_apartment_manager_signup", {
+    p_manager_id: id,
+    p_total_units_override: totalUnitsOverride ?? null,
+  });
   if (error) {
     throw new Error(`승인 처리 실패: ${error.message}`);
   }
