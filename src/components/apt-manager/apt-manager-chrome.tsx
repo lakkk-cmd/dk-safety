@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import AptManagerInstallButton from "./apt-manager-install-button";
 
 const TABS = [
   { href: "/apt-manager/inspect", label: "점검입력" },
@@ -27,13 +28,16 @@ export default function AptManagerChrome({ children }: { children: ReactNode }) 
             <p className="text-[11px] font-bold text-dk-blue">우리집 안심전기(대경이엔피)</p>
             <p className="text-sm font-black text-slate-900">공동주택 세대 전기설비점검</p>
           </div>
-          <button
-            type="button"
-            onClick={() => void logout()}
-            className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            로그아웃
-          </button>
+          <div className="flex items-center gap-1.5">
+            <AptManagerInstallButton />
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              로그아웃
+            </button>
+          </div>
         </div>
       </header>
 
