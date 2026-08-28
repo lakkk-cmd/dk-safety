@@ -429,6 +429,30 @@ function estimateAutoDiagnosisBlockHeight(entries: DiagnosisEntry[]): number {
   return HEADER + BOX_PADDING + entriesHeight + gaps;
 }
 
+/**
+ * 세대미방문 간이점검은 12항목 중 9항목을 실측하지 않아 자동으로 "해당없음(N/A)"이 되는데,
+ * AI 안전진단(generateUnitInspectionAiDiagnosis)에 넘어가는 데이터 자체가 O/X만 다뤄서 이
+ * 9항목은 AI 해설에서 아예 언급되지 않았다(2026-08-28 대표님 지적). AI에게 맡기지 않고
+ * 체크리스트 결과에서 결정적으로(항상 같은 문구로) 계산한다 — 실측하지 않은 사실을 AI가
+ * 잘못 서술할 위험이 없고, 방문점검은 N/A 항목이 원천적으로 없어(unit-inspection-rules.ts의
+ * buildChecklistTemplate) 이 함수가 자연히 null을 반환한다.
+ */
+function buildNotApplicableNote(items: ChecklistEntry[]): string | null {
+  const naItems = items.filter((i) => i.result === "N/A");
+  if (naItems.length === 0) return null;
+  const names = naItems.map((i) => i.item).join(", ");
+  return `세대미방문 간이점검으로 진행되어 다음 ${naItems.length}개 항목은 이번 점검에서 실측하지 않았습니다: ${names}. 정확한 확인을 위해서는 세대방문점검이 필요합니다.`;
+}
+
+function estimateNotApplicableNoteHeight(note: string | null): number {
+  if (!note) return 0;
+  const LABEL = 17; // fontSize 13 라벨 줄 + marginBottom 4
+  const BOX_PADDING = 24; // padding "12px 16px" 상하
+  const BORDER = 2;
+  const MARGIN_BOTTOM = 22;
+  return LABEL + BOX_PADDING + BORDER + estimateTextHeightPx(note, 58, 24) + MARGIN_BOTTOM;
+}
+
 function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): number {
   if (entries.length === 0) return 0;
   const HEADER = 70;
@@ -491,10 +515,18 @@ function estimateAiDiagnosisBlockHeight(ai: UnitInspectionAiDiagnosis): number {
  * 검증) — 손으로 합산한 다른 상수들과 달리 오차가 크게 벌어졌던 값이라 실측으로 교체했다.
  */
 function estimateHeightBeforeDiagnosisBlock(data: UnitInspectionPdfData, etcNotesExtra: number): number {
-  const HEADER_INTRO = 371; // [별지 서식]~제목~동호/성명~안내문~"-아래-"
-  const TABLE = 798; // 표 헤더 + 12항목 행(minHeight 62 기준)
+  // 아래 두 상수(HEADER_INTRO/FOOTER)는 세대방문점검 렌더링 기준으로 손합산·실측한 값인데,
+  // 미방문 간이점검은 안내 배너·서명란이 실제로 다르게 렌더링돼(549/676줄) 이 값이 안 맞아서
+  // AI 안전진단 블록이 1페이지로 넘쳐 보이는 버그가 있었다(2026-08-28 발견+수정).
+  const isUnvisitedSimple = data.inspectionType === "unvisited_simple";
+  // 안내 배너 — 방문점검은 테두리 없는 평문 한 줄, 미방문은 박스형(padding 14px×2 + border
+  // 1px×2 = 30px 추가, 549-566줄)이라 더 크다.
+  const HEADER_INTRO = 371 + (isUnvisitedSimple ? 30 : 0); // [별지 서식]~제목~동호/성명~안내문~"-아래-"
+  const TABLE = 798; // 표 헤더 + 12항목 행(minHeight 62 기준) — 두 유형 모두 항상 12행 고정, 차이 없음
   const ETC_BOX_BASE = 82; // 기타사항 박스(실측값 한 줄만 있을 때)
-  const FOOTER = 330; // 부적합 안내문·비고·세대확인(서명)·담당(전기선임자)·점검단지 — 실측 보정(2026-08-24)
+  // 서명란 — 방문점검은 세대주 성명 줄(~24px)+서명 이미지(80px)+margin(16px)이 있지만, 미방문은
+  // 안내문구 한 줄(~30px)뿐이라(676-688줄) 그만큼(약 90px) 더 짧다.
+  const FOOTER = 330 - (isUnvisitedSimple ? 90 : 0); // 부적합 안내문·비고·세대확인(서명)·담당(전기선임자)·점검단지 — 실측 보정(2026-08-24)
   return HEADER_INTRO + TABLE + ETC_BOX_BASE + FOOTER + etcNotesExtra;
 }
 
@@ -508,6 +540,7 @@ function UnitInspectionElement({
   pageBreakSpacerPx: number;
 }) {
   const groups = groupChecklistByCategory(data.checklistItems);
+  const notApplicableNote = buildNotApplicableNote(data.checklistItems);
   const inkColor = "#201e19";
   const mutedColor = "#5c574a";
   const borderColor = "#3a3628";
@@ -723,6 +756,23 @@ function UnitInspectionElement({
             </div>
           </div>
 
+          {notApplicableNote ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                backgroundColor: "#f4f4f2",
+                border: `1px solid ${borderColor}`,
+                borderRadius: 4,
+                padding: "12px 16px",
+                marginBottom: 22,
+              }}
+            >
+              <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginBottom: 4 }}>미실측 항목 안내</div>
+              <div style={{ display: "flex", fontSize: 14, color: mutedColor, lineHeight: 1.7 }}>{notApplicableNote}</div>
+            </div>
+          ) : null}
+
           {data.aiDiagnosis.companyAdvisory.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
               <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
@@ -767,6 +817,23 @@ function UnitInspectionElement({
             </div>
           ) : null}
 
+          {notApplicableNote ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                backgroundColor: "#f4f4f2",
+                border: `1px solid ${borderColor}`,
+                borderRadius: 4,
+                padding: "12px 16px",
+                marginBottom: 22,
+              }}
+            >
+              <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginBottom: 4 }}>미실측 항목 안내</div>
+              <div style={{ display: "flex", fontSize: 14, color: mutedColor, lineHeight: 1.7 }}>{notApplicableNote}</div>
+            </div>
+          ) : null}
+
           {/* 회사 자체 기준 안내 — 별표3 AI 안전진단과 시각적으로 명확히 구분(점선 테두리 + 다른 색) */}
           {data.companyAdvisories.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
@@ -799,15 +866,23 @@ function UnitInspectionElement({
  */
 export async function renderUnitInspectionPdf(data: UnitInspectionPdfData): Promise<Uint8Array> {
   const etcNotesExtra = data.etcNotes ? estimateTextHeightPx(data.etcNotes, 70, 24) : 0;
+  const notApplicableNote = buildNotApplicableNote(data.checklistItems);
+  const notApplicableNoteHeight = estimateNotApplicableNoteHeight(notApplicableNote);
   // aiDiagnosis가 있으면(사후보정 정정본) okSummary/summary 문단이 항상 있을 수 있어 부적합 0건
   // 이어도 블록을 보여준다 — 기존 canned 방식은 부적합 0건이면 블록 자체를 숨겼던 것과 다르다.
-  const hasDiagnosisContent = data.aiDiagnosis ? true : data.autoDiagnosis.length > 0 || data.companyAdvisories.length > 0;
+  // 미실측 항목 안내(notApplicableNote)만 있고 부적합·AI진단이 전부 없는 경우(간이점검에서
+  // 3항목이 모두 적합인 경우)도 페이지를 넘겨야 하므로 포함한다(2026-08-28).
+  const hasDiagnosisContent = data.aiDiagnosis
+    ? true
+    : data.autoDiagnosis.length > 0 || data.companyAdvisories.length > 0 || notApplicableNote !== null;
   const pageBreakSpacerPx = hasDiagnosisContent
     ? Math.max(0, PAGE_H_PX - estimateHeightBeforeDiagnosisBlock(data, etcNotesExtra))
     : 0;
-  const diagnosisBlockHeight = data.aiDiagnosis
-    ? estimateAiDiagnosisBlockHeight(data.aiDiagnosis)
-    : estimateAutoDiagnosisBlockHeight(data.autoDiagnosis) + estimateCompanyAdvisoryBlockHeight(data.companyAdvisories);
+  const diagnosisBlockHeight =
+    (data.aiDiagnosis
+      ? estimateAiDiagnosisBlockHeight(data.aiDiagnosis)
+      : estimateAutoDiagnosisBlockHeight(data.autoDiagnosis) + estimateCompanyAdvisoryBlockHeight(data.companyAdvisories)) +
+    notApplicableNoteHeight;
   const extraHeight = diagnosisBlockHeight + etcNotesExtra + pageBreakSpacerPx;
   const heightPx = PAGE_H_PX + extraHeight;
 
