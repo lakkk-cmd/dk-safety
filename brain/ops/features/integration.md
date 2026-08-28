@@ -3,11 +3,11 @@ title: "기능 현황 — integration"
 category: features
 tags: ["project-features", "integration"]
 source: "project_features"
-synced_at: "2026-08-26T22:32:44.307Z"
+synced_at: "2026-08-28T03:53:13.137Z"
 ---
 
 <!-- AUTO:START -->
-## integration (11건)
+## integration (12건)
 
 - **Claude API**: Anthropic Claude Sonnet — 풀 에이전트/경영진 에이전트/문서생성 — anthropic
 - **Firecrawl API**: 웹사이트 크롤링 — firecrawl
@@ -18,6 +18,7 @@ synced_at: "2026-08-26T22:32:44.307Z"
 - **Supabase**: PostgreSQL + pgvector + Storage — supabase
 - **Tavily API**: 웹 검색 자동학습 — tavily
 - **Toss Payments**: 결제 시스템 — toss
+- **Toss 자동결제(빌링키)** (`/api/cron/apartment-subscription-billing`): 단지 구독료 카드 자동결제 — requestBillingAuth로 카드 등록 후 빌링키 발급, 매일 도는 크론이 만기 도래분을 청구 — toss
 - **Vercel**: 프로덕션 배포 — vercel
 - **Voyage AI**: voyage-3 임베딩 모델 — knowledge_chunks RAG — voyage-ai
 

@@ -3,11 +3,11 @@ title: "기능 현황 — feature"
 category: features
 tags: ["project-features", "feature"]
 source: "project_features"
-synced_at: "2026-08-26T22:32:44.307Z"
+synced_at: "2026-08-28T03:53:13.137Z"
 ---
 
 <!-- AUTO:START -->
-## feature (15건)
+## feature (17건)
 
 - **9-에이전트 디렉터 파이프라인**: 총괄디렉터(단독) → 자문단 CSO/COO/CFO/CLO(판단만, 산출물 없음) → 마케터 CMO/CTO(브리핑을 워커용 가이드라인으로 변환) → 워커 유튜브PD/카카오매니저/블로그에디터(제작 전담) 순차 위임 구조. 자문단 4명은 콘텐츠 발행(CLO)/경비·청구서(CFO)/작업자배정·콘텐츠작업등록(COO)/콘텐츠전략(CSO)/견적서·계약서(CLO+CFO) 5곳에서 검증 게이트 역할도 겸함(advisory-gates.ts). — Claude API, GitHub Actions
 - **AI 문서 생성**: 점검보고서/견적서/완료확인서/안전안내문/계약서/제안서를 Claude가 작성. Gemini가 사실정확성/형식을 검증하고, 견적서·계약서·완료확인서·제안서(실제 금전·계약 문서)는 추가로 CLO(계약조건)+CFO(금액이 확정 요금 체계와 일치하는지) 검증을 통과해야 PDF+Word가 생성됨 — 반려되면 문서 자체가 만들어지지 않음. — Claude API, Gemini, pdf-lib, docx
@@ -17,10 +17,13 @@ synced_at: "2026-08-26T22:32:44.307Z"
 - **RAG 답변**: 질문 → 벡터검색 → Claude 답변 → Gemini 검증 — Voyage AI, Claude API, Gemini
 - **거짓답변 방지**: RAG 근거 없으면 배지 표시, 거짓/위험정보 감지 시 답변 차단 — Gemini, pgvector
 - **디지털 보증서**: 작업 완료 시 보증서 자동 발급 — pdf-lib, Solapi
+- **세대전기점검 앱 구독제** (`/apt-manager/subscribe`): inspect.dkansim.com 전기과장 앱의 PDF 다운로드 유료화 — 30일 롤링 주기당 무료 5건(점검건 단위, 재다운로드는 영구 무료), 초과 시 구독 필요. 구독료는 단지 총세대수 기준 ≤300세대 30,000원/월, >300세대 50,000원/월 — Next.js, Supabase, Toss Payments
+  - 메모: 점검입력/AI판정/거주자 알림 발송과 거주민 공개 결과페이지(/unit-inspection/[id])는 게이트 대상이 아니며 항상 무료다.
 - **신뢰도메인 화이트리스트**: 범주별 허용 도메인 DB 관리 — Supabase
 - **영상 합성 파이프라인**: Claude 씬 기획 → 실제 사진 우선 매칭(없으면 OpenRouter Flux 씬 이미지 생성) → Supertone/ElevenLabs/edge-tts 나레이션 → ffmpeg Ken Burns+자막 조립으로 유튜브 영상 자동 생성. dk-video-factory 로컬 워커가 처리하고, 대장이 hq.dkansim.com/videos에서 승인해야만 유튜브(비공개)에 업로드됨. 실제 업로드 성공 사례 있음(2026-07-07 첫 업로드 이후 다수).
   - 메모: Veo API 비용($10-22/영상)으로 보류. Google Flow 수동 제작으로 대체 중
 - **웹서치 자동학습**: 키워드 검색 → 신뢰도메인 필터 → 전수검증 → 저장 — Tavily, Firecrawl, Gemini
+- **점검표 PDF 서명 URL 게이트**: 전기과장 다운로드용 PDF를 비공개 버킷 사본으로 이중 저장하고 서명 URL(5분)로만 내려준다. 공개 버킷의 거주민용 pdf_url은 그대로 유지 — Supabase Storage
 - **채팅 Gemini 검토**: 풀 에이전트 답변 생성 후 Gemini 팩트체크 동기 실행 — Gemini 2.5 Flash
 - **청크 전수검증**: 웹학습 시 모든 청크 Gemini 검증 — Gemini 2.5 Flash
 - **코드 자동배포**: GitHub Actions → Vercel 자동 배포 — GitHub Actions, Vercel
