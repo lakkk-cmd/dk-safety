@@ -12,6 +12,10 @@ const PAGE_W_PX = 1240;
 const PAGE_H_PX = 1754;
 const PAGE_W_PT = 595;
 const PAGE_H_PT = 842;
+// 세대전기점검표 PDF는 관리사무소가 출력해 파일철(2공 펀치)하므로 모든 페이지 상단에 여백이
+// 필요하다(2026-08-28, 대표님 요청) — 캔버스 최상단 padding-top과 "AI 안전진단 결과" 블록을
+// 2페이지로 미는 spacer 여유분에 동일한 값을 써서 1·2페이지 모두 같은 상단 여백을 준다.
+const UNIT_INSPECTION_TOP_MARGIN_PX = 84;
 const NAVY = "#1a2744";
 const GOLD = "#C9A227";
 
@@ -419,10 +423,14 @@ function estimateAutoDiagnosisBlockHeight(entries: DiagnosisEntry[]): number {
   if (entries.length === 0) return 0;
   const HEADER = 55; // 헤더 fontSize 20→22(2026-08-28 재확대)
   const BOX_PADDING = 32;
+  // regulation/comment 실제 렌더링: 박스 padding "16px 18px" + border 1px 제외한 실사용폭
+  // ≈1082px, fontSize 19·lineHeight 1.4(≈27px/줄) — cpl 43은 실제(≈55)보다 훨씬 좁게 잡은
+  // 값이라 줄 수를 과대추정, 실측값 위주의 긴 AI 해설에서 캔버스가 실제보다 크게 잡혀
+  // 불필요한 3페이지가 생기고 2페이지 하단 여백이 사라지는 버그였다(2026-08-28 실사용 발견).
   const entriesHeight = entries.reduce((sum, e) => {
     const itemLine = 34; // fontSize 19→21
-    const regulationHeight = estimateTextHeightPx(e.regulation, 43, 32); // fontSize 17→19
-    const commentHeight = estimateTextHeightPx(e.comment, 43, 32);
+    const regulationHeight = estimateTextHeightPx(e.regulation, 55, 27);
+    const commentHeight = estimateTextHeightPx(e.comment, 55, 27);
     return sum + itemLine + regulationHeight + commentHeight + 8;
   }, 0);
   const gaps = (entries.length - 1) * 14;
@@ -450,16 +458,19 @@ function estimateNotApplicableNoteHeight(note: string | null): number {
   const BOX_PADDING = 24; // padding "12px 16px" 상하
   const BORDER = 2;
   const MARGIN_BOTTOM = 22;
-  return LABEL + BOX_PADDING + BORDER + estimateTextHeightPx(note, 43, 32) + MARGIN_BOTTOM; // fontSize 17→19
+  // 실사용폭≈1086px, fontSize19·lineHeight1.7(32px/줄) → cpl≈56(구 43은 과대추정, 위
+  // estimateAutoDiagnosisBlockHeight와 동일한 이유로 2026-08-28 재보정)
+  return LABEL + BOX_PADDING + BORDER + estimateTextHeightPx(note, 56, 32) + MARGIN_BOTTOM;
 }
 
 function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): number {
   if (entries.length === 0) return 0;
   const HEADER = 92; // fontSize 19→21(2026-08-28 재확대)
   const BOX_PADDING = 28;
+  // 실사용폭≈1085px, fontSize18·lineHeight1.6(≈29px/줄) → cpl≈58(구 44는 과대추정, 2026-08-28 재보정)
   const entriesHeight = entries.reduce((sum, e) => {
     const itemLine = 28; // fontSize 18→20
-    const commentHeight = estimateTextHeightPx(e.comment, 44, 30); // fontSize 16→18
+    const commentHeight = estimateTextHeightPx(e.comment, 58, 29);
     return sum + itemLine + commentHeight + 2;
   }, 0);
   const gaps = (entries.length - 1) * 10;
@@ -473,32 +484,37 @@ function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): nu
  */
 function estimateAiDiagnosisBlockHeight(ai: UnitInspectionAiDiagnosis): number {
   const HEADER = 55; // fontSize 20→22(2026-08-28 재확대)
-  const BOX_PADDING = 32;
+  const BOX_PADDING = 28; // padding "16px 18px"→"14px 18px"(2026-08-28, 파일철 상단여백 확보용 축소)
+  // 아래 cpl(줄당 글자수) 값들은 실제 박스 실사용폭 기준으로 재보정한 것이다(2026-08-28) —
+  // 구 43/44는 실제 렌더링 폭(≈1082~1086px)보다 훨씬 좁게 잡은 값이라, 실측값 위주로 문단이
+  // 긴 실제 AI 해설(항목당 150~250자)에서 줄 수를 과대추정 → 캔버스가 실제 필요보다 훨씬 크게
+  // 잡혀 불필요한 3페이지가 생기고, 그 여유분이 전부 3페이지로 밀려나 2페이지 하단엔 여백이
+  // 하나도 안 남는 버그로 이어졌다(실사용 테스트로 발견).
   let inner = 0;
   let rows = 0;
   if (ai.okSummary) {
-    inner += estimateTextHeightPx(ai.okSummary, 43, 32); // fontSize 17→19
+    inner += estimateTextHeightPx(ai.okSummary, 55, 32); // fontSize 19, lineHeight 1.7
     rows += 1;
   }
   inner += ai.violations.reduce((sum, v) => {
     const itemLine = 34; // fontSize 19→21
-    return sum + itemLine + estimateTextHeightPx(v.explanation, 43, 32);
+    return sum + itemLine + estimateTextHeightPx(v.explanation, 55, 32);
   }, 0);
   rows += ai.violations.length;
-  const gaps = Math.max(0, rows - 1) * 14;
-  const mainBoxHeight = HEADER + BOX_PADDING + inner + gaps + 22; // +22 marginBottom
+  const gaps = Math.max(0, rows - 1) * 10; // gap 14→10(2026-08-28, 파일철 상단여백 확보용 축소)
+  const mainBoxHeight = HEADER + BOX_PADDING + inner + gaps + 16; // marginBottom 22→16(2026-08-28)
 
   let companyBoxHeight = 0;
   if (ai.companyAdvisory.length > 0) {
     const entriesHeight = ai.companyAdvisory.reduce((sum, e) => {
       const itemLine = 28; // fontSize 18→20
-      return sum + itemLine + estimateTextHeightPx(e.explanation, 44, 30); // fontSize 16→18
+      return sum + itemLine + estimateTextHeightPx(e.explanation, 58, 29); // fontSize 18, lineHeight 1.6
     }, 0);
     const cgaps = (ai.companyAdvisory.length - 1) * 10;
     companyBoxHeight = 92 + 28 + entriesHeight + cgaps + 22; // HEADER 83→92(fontSize 19→21)
   }
 
-  const summaryBoxHeight = ai.summary ? 42 + 28 + estimateTextHeightPx(ai.summary, 43, 32) + 22 : 0; // 라벨 fontSize 16→18, 본문 17→19
+  const summaryBoxHeight = ai.summary ? 42 + 24 + estimateTextHeightPx(ai.summary, 56, 32) + 16 : 0; // 라벨 fontSize 16→18, 본문 17→19; padding 14→12·marginBottom 22→16(2026-08-28)
 
   return mainBoxHeight + companyBoxHeight + summaryBoxHeight;
 }
@@ -529,13 +545,13 @@ function estimateHeightBeforeDiagnosisBlock(data: UnitInspectionPdfData, etcNote
   const isUnvisitedSimple = data.inspectionType === "unvisited_simple";
   // 안내 배너 — 방문점검은 테두리 없는 평문 한 줄, 미방문은 박스형(padding 14px×2 + border
   // 1px×2 = 30px 추가, 582-599줄)이라 더 크다.
-  const HEADER_INTRO = 356 + (isUnvisitedSimple ? 33 : 0); // [별지 서식]~제목~동호/성명~안내문~"-아래-" (2026-08-28: 페이지 상단 padding 50→36 -14, 제목·동호·안내문·아래 각 margin 축소 -18)
+  const HEADER_INTRO = 404 + (isUnvisitedSimple ? 33 : 0); // [별지 서식]~제목~동호/성명~안내문~"-아래-" (2026-08-28: 페이지 상단 padding 50→36 -14, 제목·동호·안내문·아래 각 margin 축소 -18, 파일철용 상단여백 36→UNIT_INSPECTION_TOP_MARGIN_PX(84) +48)
   const TABLE = estimateTableHeight(data.checklistItems); // 표 헤더 + 12항목 행(비고란 줄바꿈 길이 반영)
   const ETC_BOX_BASE = 75; // 기타사항 박스(실측값 한 줄만 있을 때) — 2026-08-28: marginBottom 24→16, padding 18→14→12로 -20
   // 서명란 — 방문점검은 세대주 성명 줄(~28px)+서명 이미지(80px)+margin(16px)이 있지만, 미방문은
   // 안내문구 한 줄(~34px)뿐이라(709-721줄) 그만큼(약 90px) 더 짧다. 점검단지 줄 위 여백을
   // 18→32로 늘려(2026-08-28, 하단이 너무 빡빡해 보인다는 지적) +14 반영.
-  const FOOTER = 372 - (isUnvisitedSimple ? 90 : 0); // 부적합 안내문·비고·세대확인(서명)·담당(전기선임자)·점검단지 — 실측 보정(2026-08-24, 2026-08-28: 점검단지 marginTop 32→24 -8, 안내문 marginBottom 8→6·32→26 -8, 서명란 paddingTop 24→18 -6)
+  const FOOTER = 341 - (isUnvisitedSimple ? 90 : 0); // 부적합 안내문·비고·세대확인(서명)·담당(전기선임자)·점검단지 — 실측 보정(2026-08-24, 2026-08-28: 점검단지 marginTop 32→24 -8, 안내문 marginBottom 8→6·32→26 -8, 서명란 paddingTop 24→18 -6, ※안내문 2줄→1줄(fontSize19→18) -31)
   return HEADER_INTRO + TABLE + ETC_BOX_BASE + FOOTER + etcNotesExtra;
 }
 
@@ -593,7 +609,7 @@ function UnitInspectionElement({
         backgroundColor: "#ffffff",
         fontFamily: "NotoSansKR",
         color: inkColor,
-        padding: "36px 60px",
+        padding: `${UNIT_INSPECTION_TOP_MARGIN_PX}px 60px 36px 60px`,
       }}
     >
       <div style={{ display: "flex", fontSize: 20, color: mutedColor }}>[별지 제15호 서식]</div>
@@ -752,16 +768,16 @@ function UnitInspectionElement({
         </div>
       </div>
 
-      {/* 이 안내문은 1120px 폭에서 자동 줄바꿈이 걸리는 길이인데, satori가 display:flex(row)
-          텍스트 자식의 줄바꿈된 실제 높이를 제대로 예약하지 못해 바로 아래 [비고] 줄과 겹쳐
-          보이는 버그가 있었다(2026-08-28 스크린샷으로 발견, lineHeight·width 지정으로도 안
-          고쳐짐) — 자동 줄바꿈에 기대지 않고 문장을 직접 두 줄로 나눠 각자 독립된 한 줄짜리
-          div로 렌더링하는 방식으로 근본적으로 우회했다. */}
-      <div style={{ display: "flex", flexDirection: "column", marginBottom: 6, fontSize: 19, color: mutedColor }}>
-        <div style={{ display: "flex" }}>※ 부적합 전기설비는 감전, 화재 등의 위험과 전력손실로 인한 전기 요금의</div>
-        <div style={{ display: "flex" }}>추가부담 등의 원인이 되오니 조속한 시일내에 수리하시기 바랍니다.</div>
+      {/* 원래 fontSize 19에선 1120px 폭에 78자가 다 안 들어가 자동 줄바꿈이 걸렸고, satori가
+          display:flex(row) 텍스트 자식의 줄바꿈된 실제 높이를 제대로 예약하지 못해 바로 아래
+          [비고] 줄과 겹쳐 보이는 버그가 있었다(2026-08-28 스크린샷으로 발견). 처음엔 두 줄로
+          하드 스플릿해 우회했으나, 대표님이 폰트를 줄이더라도 한 줄로 보이길 원해(2026-08-28)
+          fontSize를 축소 — 14→16→18 순으로 매번 실제 렌더링해 확인했고, 18(원래 19에서 딱
+          1만 줄인 값)까지도 78자가 한 줄에 들어가는 걸 확인했다(scratchpad PDF로 확인). */}
+      <div style={{ display: "flex", marginBottom: 6, fontSize: 18, lineHeight: 1.3, color: mutedColor }}>
+        ※ 부적합 전기설비는 감전, 화재 등의 위험과 전력손실로 인한 전기 요금의 추가부담 등의 원인이 되오니 조속한 시일내에 수리하시기 바랍니다.
       </div>
-      <div style={{ display: "flex", fontSize: 19, color: mutedColor, marginBottom: 26 }}>
+      <div style={{ display: "flex", fontSize: 18, color: mutedColor, marginBottom: 26 }}>
         [비고] 점검결과는 O(적합), X(부적합), /(해당없음) 으로 표기 · 세대미방문 시 미점검 항목은 해당없음으로 표기
       </div>
 
@@ -805,9 +821,9 @@ function UnitInspectionElement({
       {data.aiDiagnosis ? (
         <div style={{ display: "flex", flexDirection: "column" }}>
           {/* AI 안전진단 확장판(2026-08-26) — 적합은 뭉뚱그림, 부적합만 개별, 회사권장은 완전분리 */}
-          <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
+          <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 16 }}>
             <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 22 }}>AI 안전진단 결과</div>
-            <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", padding: "14px 18px", gap: 10 }}>
               {data.aiDiagnosis.okSummary ? (
                 <div style={{ display: "flex", fontSize: 19, color: "#33402f", lineHeight: 1.7 }}>{data.aiDiagnosis.okSummary}</div>
               ) : null}
@@ -857,7 +873,7 @@ function UnitInspectionElement({
           ) : null}
 
           {data.aiDiagnosis.summary ? (
-            <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#eef3fb", border: "1px solid #c3d3ec", borderRadius: 4, padding: "14px 16px", marginBottom: 22 }}>
+            <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#eef3fb", border: "1px solid #c3d3ec", borderRadius: 4, padding: "12px 16px", marginBottom: 16 }}>
               <div style={{ display: "flex", fontSize: 18, color: blue, marginBottom: 6 }}>종합 총평</div>
               <div style={{ display: "flex", fontSize: 19, color: "#1c2c48", lineHeight: 1.7 }}>{data.aiDiagnosis.summary}</div>
             </div>
@@ -949,13 +965,12 @@ async function buildUnitInspectionPng(data: UnitInspectionPdfData): Promise<{ pn
   // 버그가 있었다(2026-08-28 발견 — 위 파일 상단 주석의 2026-08-23 버그와 동일한 근본원인).
   // heightPx는 반드시 beforeDiagnosisHeight(클램프 안 된 실측값) 기준으로 계산해야 한다.
   const beforeDiagnosisHeight = estimateHeightBeforeDiagnosisBlock(data, etcNotesExtra);
-  // ALIGN_SAFETY_PX: beforeDiagnosisHeight는 손으로 합산한 추정치라 실제 렌더링 높이와 몇십px
-  // 오차가 날 수 있다 — 추정치가 실측보다 조금이라도 크면(추정 과다) spacer가 그만큼 작게
-  // 계산돼 다음 블록(AI 안전진단 결과 타이틀)이 페이지 경계를 살짝 넘어 1페이지 하단에
-  // 걸치면서 타이틀 줄이 페이지 사이에서 잘려 보이는 문제가 있었다(2026-08-28, 표/여백을
-  // 대거 조정한 뒤 재발견). spacer에 여유를 더해 블록이 항상 2페이지 쪽으로 살짝 밀리게
-  // 한다(반대 방향 오차는 페이지1 하단에 여백만 조금 더 생길 뿐 안전함).
-  const ALIGN_SAFETY_PX = 60;
+  // ALIGN_SAFETY_PX: UNIT_INSPECTION_TOP_MARGIN_PX를 그대로 재사용한다 — 2페이지 시작 지점에도
+  // 1페이지 상단 padding과 동일한 만큼 여백을 줘야 "모든 페이지 상단 여백"이 성립한다(2026-08-28
+  // 파일철 요청). 부가효과로 beforeDiagnosisHeight 추정치가 실제보다 조금 크게 잡혀도(과거
+  // 2026-08-28 버그) 이 여백이 흡수해 다음 블록(AI 안전진단 결과 타이틀)이 페이지 경계에서
+  // 잘려 보이는 문제도 계속 방지된다.
+  const ALIGN_SAFETY_PX = UNIT_INSPECTION_TOP_MARGIN_PX;
   const pageBreakSpacerPx = hasDiagnosisContent ? Math.max(0, PAGE_H_PX - beforeDiagnosisHeight + ALIGN_SAFETY_PX) : 0;
   const diagnosisBlockHeight =
     (data.aiDiagnosis
