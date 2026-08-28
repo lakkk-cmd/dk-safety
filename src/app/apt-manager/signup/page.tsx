@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, Suspense, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { loadDaumPostcodeScript } from "@/lib/daum-postcode-client";
 
@@ -138,7 +139,10 @@ function AptManagerSignupForm() {
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg">
-      <p className="text-xs font-semibold text-dk-blue">우리집 안심전기(대경이엔피)</p>
+      <Link href="/apt-manager/login" className="text-xs font-semibold text-slate-500 hover:text-dk-blue">
+        ← 로그인 화면으로 돌아가기
+      </Link>
+      <p className="mt-3 text-xs font-semibold text-dk-blue">우리집 안심전기(대경이엔피)</p>
       <h1 className="mt-2 text-2xl font-black text-slate-950">공동주택 세대 전기설비점검 가입 신청</h1>
       <p className="mt-2 text-sm text-slate-600">단지 전기안전관리자만 신청해주세요. 신청 후 대표님이 관리사무소로 실존확인 전화드려요.</p>
 

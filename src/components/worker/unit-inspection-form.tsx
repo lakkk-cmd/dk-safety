@@ -184,9 +184,17 @@ export default function UnitInspectionForm({
     return "세대 성명·연락처·서명을 모두 입력해주세요.";
   };
 
+  // 검증 실패 문구가 화면 상단에 뜨는데, 실측값 단계처럼 아래쪽 입력칸을 채우다 바로 제출
+  // 버튼을 누르면 스크롤이 안 올라가 있어 문구를 못 보고 지나칠 수 있다(2026-08-28 지적) —
+  // 문구를 띄우면서 항상 맨 위로 스크롤해 바로 눈에 들어오게 한다.
+  const showMessage = (msg: string) => {
+    setMessage(msg);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const goNext = () => {
     if (!stepValid(step)) {
-      setMessage(validationMessageFor(step));
+      showMessage(validationMessageFor(step));
       return;
     }
     setMessage(null);
@@ -195,7 +203,7 @@ export default function UnitInspectionForm({
 
   const submit = async () => {
     if (!stepValid(step)) {
-      setMessage(validationMessageFor(step));
+      showMessage(validationMessageFor(step));
       return;
     }
     setSubmitting(true);
@@ -232,7 +240,7 @@ export default function UnitInspectionForm({
         message?: string;
       };
       if (!response.ok) {
-        setMessage(data.message ?? "저장에 실패했습니다.");
+        showMessage(data.message ?? "저장에 실패했습니다.");
         return;
       }
       const apartmentName = lockedApartment?.name ?? apartments.find((a) => a.id === apartmentId)?.name ?? "";
@@ -243,7 +251,7 @@ export default function UnitInspectionForm({
         notificationSent: inspectionType === "visit" ? Boolean(data.notification?.success) : null
       });
     } catch {
-      setMessage("네트워크 오류가 발생했습니다.");
+      showMessage("네트워크 오류가 발생했습니다.");
     } finally {
       setSubmitting(false);
     }
