@@ -417,12 +417,12 @@ function groupChecklistByCategory(items: ChecklistEntry[]): { category: string; 
  */
 function estimateAutoDiagnosisBlockHeight(entries: DiagnosisEntry[]): number {
   if (entries.length === 0) return 0;
-  const HEADER = 46;
+  const HEADER = 50; // 헤더 fontSize 17→20(2026-08-28 전체 폰트 확대)
   const BOX_PADDING = 32;
   const entriesHeight = entries.reduce((sum, e) => {
-    const itemLine = 26;
-    const regulationHeight = estimateTextHeightPx(e.regulation, 58, 24);
-    const commentHeight = estimateTextHeightPx(e.comment, 58, 24);
+    const itemLine = 31; // fontSize 16→19
+    const regulationHeight = estimateTextHeightPx(e.regulation, 48, 29); // fontSize 14→17
+    const commentHeight = estimateTextHeightPx(e.comment, 48, 29);
     return sum + itemLine + regulationHeight + commentHeight + 8;
   }, 0);
   const gaps = (entries.length - 1) * 14;
@@ -446,20 +446,20 @@ function buildNotApplicableNote(items: ChecklistEntry[]): string | null {
 
 function estimateNotApplicableNoteHeight(note: string | null): number {
   if (!note) return 0;
-  const LABEL = 17; // fontSize 13 라벨 줄 + marginBottom 4
+  const LABEL = 21; // fontSize 13→16 라벨 줄(2026-08-28 전체 폰트 확대) + marginBottom 4
   const BOX_PADDING = 24; // padding "12px 16px" 상하
   const BORDER = 2;
   const MARGIN_BOTTOM = 22;
-  return LABEL + BOX_PADDING + BORDER + estimateTextHeightPx(note, 58, 24) + MARGIN_BOTTOM;
+  return LABEL + BOX_PADDING + BORDER + estimateTextHeightPx(note, 48, 29) + MARGIN_BOTTOM; // fontSize 14→17
 }
 
 function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): number {
   if (entries.length === 0) return 0;
-  const HEADER = 70;
+  const HEADER = 83; // fontSize 16→19(2026-08-28 전체 폰트 확대)
   const BOX_PADDING = 28;
   const entriesHeight = entries.reduce((sum, e) => {
-    const itemLine = 21;
-    const commentHeight = estimateTextHeightPx(e.comment, 60, 22);
+    const itemLine = 25; // fontSize 15→18
+    const commentHeight = estimateTextHeightPx(e.comment, 49, 27); // fontSize 13→16
     return sum + itemLine + commentHeight + 2;
   }, 0);
   const gaps = (entries.length - 1) * 10;
@@ -472,17 +472,17 @@ function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): nu
  * 있을 때만 높이를 더한다(canned 문구 시절과 달리 항상 채워지지 않을 수 있음).
  */
 function estimateAiDiagnosisBlockHeight(ai: UnitInspectionAiDiagnosis): number {
-  const HEADER = 46;
+  const HEADER = 50; // fontSize 17→20(2026-08-28 전체 폰트 확대)
   const BOX_PADDING = 32;
   let inner = 0;
   let rows = 0;
   if (ai.okSummary) {
-    inner += estimateTextHeightPx(ai.okSummary, 58, 24);
+    inner += estimateTextHeightPx(ai.okSummary, 48, 29); // fontSize 14→17
     rows += 1;
   }
   inner += ai.violations.reduce((sum, v) => {
-    const itemLine = 26;
-    return sum + itemLine + estimateTextHeightPx(v.explanation, 58, 24);
+    const itemLine = 31; // fontSize 16→19
+    return sum + itemLine + estimateTextHeightPx(v.explanation, 48, 29);
   }, 0);
   rows += ai.violations.length;
   const gaps = Math.max(0, rows - 1) * 14;
@@ -491,14 +491,14 @@ function estimateAiDiagnosisBlockHeight(ai: UnitInspectionAiDiagnosis): number {
   let companyBoxHeight = 0;
   if (ai.companyAdvisory.length > 0) {
     const entriesHeight = ai.companyAdvisory.reduce((sum, e) => {
-      const itemLine = 21;
-      return sum + itemLine + estimateTextHeightPx(e.explanation, 60, 22);
+      const itemLine = 25; // fontSize 15→18
+      return sum + itemLine + estimateTextHeightPx(e.explanation, 49, 27); // fontSize 13→16
     }, 0);
     const cgaps = (ai.companyAdvisory.length - 1) * 10;
-    companyBoxHeight = 70 + 28 + entriesHeight + cgaps + 22;
+    companyBoxHeight = 83 + 28 + entriesHeight + cgaps + 22; // HEADER 70→83(fontSize 16→19)
   }
 
-  const summaryBoxHeight = ai.summary ? 30 + 28 + estimateTextHeightPx(ai.summary, 58, 24) + 22 : 0;
+  const summaryBoxHeight = ai.summary ? 37 + 28 + estimateTextHeightPx(ai.summary, 48, 29) + 22 : 0; // 라벨 fontSize 13→16, 본문 14→17
 
   return mainBoxHeight + companyBoxHeight + summaryBoxHeight;
 }
@@ -516,17 +516,23 @@ function estimateAiDiagnosisBlockHeight(ai: UnitInspectionAiDiagnosis): number {
  */
 function estimateHeightBeforeDiagnosisBlock(data: UnitInspectionPdfData, etcNotesExtra: number): number {
   // 아래 두 상수(HEADER_INTRO/FOOTER)는 세대방문점검 렌더링 기준으로 손합산·실측한 값인데,
-  // 미방문 간이점검은 안내 배너·서명란이 실제로 다르게 렌더링돼(549/676줄) 이 값이 안 맞아서
-  // AI 안전진단 블록이 1페이지로 넘쳐 보이는 버그가 있었다(2026-08-28 발견+수정).
+  // 미방문 간이점검은 안내 배너·서명란이 실제로 다르게 렌더링돼(582/709줄) 이 값이 안 맞아서
+  // AI 안전진단 블록이 1페이지로 넘쳐 보이는 버그가 있었다(2026-08-28 발견+수정). 같은 날
+  // 전체 폰트 크기를 +3 키우고(가독성 개선 요청) 페이지 여백도 줄여서(70/84→50/60px), 아래
+  // 기준값들을 실측으로 재보정했다(scripts/_tmp-pdf-check.mjs로 검증) — FOOTER는 spacer(다음
+  // 블록을 2페이지로 미는 여백) 크기만 결정할 뿐 실제 콘텐츠 위치와 무관하므로, "점검단지"
+  // 줄이 1페이지에서 넘치는 문제는 TABLE(행 높이)·페이지 패딩을 줄여서 실제 렌더링 높이
+  // 자체를 줄이는 방식으로 고쳤다(2026-08-28 재확인 — spacer를 키워도 실제 콘텐츠가 이미
+  // PAGE_H_PX를 넘으면 소용없다).
   const isUnvisitedSimple = data.inspectionType === "unvisited_simple";
   // 안내 배너 — 방문점검은 테두리 없는 평문 한 줄, 미방문은 박스형(padding 14px×2 + border
-  // 1px×2 = 30px 추가, 549-566줄)이라 더 크다.
-  const HEADER_INTRO = 371 + (isUnvisitedSimple ? 30 : 0); // [별지 서식]~제목~동호/성명~안내문~"-아래-"
-  const TABLE = 798; // 표 헤더 + 12항목 행(minHeight 62 기준) — 두 유형 모두 항상 12행 고정, 차이 없음
-  const ETC_BOX_BASE = 82; // 기타사항 박스(실측값 한 줄만 있을 때)
-  // 서명란 — 방문점검은 세대주 성명 줄(~24px)+서명 이미지(80px)+margin(16px)이 있지만, 미방문은
-  // 안내문구 한 줄(~30px)뿐이라(676-688줄) 그만큼(약 90px) 더 짧다.
-  const FOOTER = 330 - (isUnvisitedSimple ? 90 : 0); // 부적합 안내문·비고·세대확인(서명)·담당(전기선임자)·점검단지 — 실측 보정(2026-08-24)
+  // 1px×2 = 30px 추가, 582-599줄)이라 더 크다.
+  const HEADER_INTRO = 373 + (isUnvisitedSimple ? 33 : 0); // [별지 서식]~제목~동호/성명~안내문~"-아래-"
+  const TABLE = 827; // 표 헤더 + 12항목 행(minHeight 64 기준) — 두 유형 모두 항상 12행 고정, 차이 없음
+  const ETC_BOX_BASE = 90; // 기타사항 박스(실측값 한 줄만 있을 때)
+  // 서명란 — 방문점검은 세대주 성명 줄(~28px)+서명 이미지(80px)+margin(16px)이 있지만, 미방문은
+  // 안내문구 한 줄(~34px)뿐이라(709-721줄) 그만큼(약 90px) 더 짧다.
+  const FOOTER = 350 - (isUnvisitedSimple ? 90 : 0); // 부적합 안내문·비고·세대확인(서명)·담당(전기선임자)·점검단지 — 실측 보정(2026-08-24, 2026-08-28)
   return HEADER_INTRO + TABLE + ETC_BOX_BASE + FOOTER + etcNotesExtra;
 }
 
@@ -559,23 +565,23 @@ function UnitInspectionElement({
         backgroundColor: "#ffffff",
         fontFamily: "NotoSansKR",
         color: inkColor,
-        padding: "70px 84px",
+        padding: "50px 60px",
       }}
     >
-      <div style={{ display: "flex", fontSize: 15, color: mutedColor }}>[별지 제15호 서식]</div>
-      <div style={{ display: "flex", justifyContent: "center", fontSize: 34, marginTop: 20, marginBottom: 32 }}>
+      <div style={{ display: "flex", fontSize: 18, color: mutedColor }}>[별지 제15호 서식]</div>
+      <div style={{ display: "flex", justifyContent: "center", fontSize: 37, marginTop: 20, marginBottom: 32 }}>
         공동주택 세대내 전기설비 점검기록표
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", marginBottom: 20 }}>
-        <div style={{ display: "flex", fontSize: 21, borderBottom: `1px solid ${inkColor}`, paddingBottom: 6, width: 260 }}>
+        <div style={{ display: "flex", fontSize: 24, borderBottom: `1px solid ${inkColor}`, paddingBottom: 6, width: 260 }}>
           {data.dong}동 {data.ho}호
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
-          <div style={{ display: "flex", fontSize: 19, borderBottom: `1px solid ${inkColor}`, paddingBottom: 6, minWidth: 220 }}>
+          <div style={{ display: "flex", fontSize: 22, borderBottom: `1px solid ${inkColor}`, paddingBottom: 6, minWidth: 220 }}>
             {data.residentName ?? "입주자 미확인"} 귀하
           </div>
-          <div style={{ display: "flex", fontSize: 17, color: mutedColor }}>{data.inspectedAtLabel}</div>
+          <div style={{ display: "flex", fontSize: 20, color: mutedColor }}>{data.inspectedAtLabel}</div>
         </div>
       </div>
 
@@ -588,30 +594,30 @@ function UnitInspectionElement({
             border: `1px solid ${red}`,
             borderRadius: 8,
             padding: "14px 18px",
-            fontSize: 18,
+            fontSize: 21,
             marginBottom: 18,
           }}
         >
           ☑ 세대방문미요청 — EPS실 외부점검으로 대체 실시
         </div>
       ) : (
-        <div style={{ display: "flex", fontSize: 18, marginBottom: 18 }}>귀하의 전기설비 안전점검 결과를 아래와 같이 알려드립니다.</div>
+        <div style={{ display: "flex", fontSize: 21, marginBottom: 18 }}>귀하의 전기설비 안전점검 결과를 아래와 같이 알려드립니다.</div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "center", fontSize: 20, marginBottom: 20 }}>- 아&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;래 -</div>
+      <div style={{ display: "flex", justifyContent: "center", fontSize: 23, marginBottom: 20 }}>- 아&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;래 -</div>
 
       {/* 표 헤더 */}
       <div style={{ display: "flex", border: `1px solid ${borderColor}`, borderBottom: "none" }}>
-        <div style={{ display: "flex", width: 150, backgroundColor: headerTint, padding: "16px 8px", fontSize: 17, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
+        <div style={{ display: "flex", width: 150, backgroundColor: headerTint, padding: "16px 8px", fontSize: 20, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
           부적합 설비
         </div>
-        <div style={{ display: "flex", flex: 1, backgroundColor: headerTint, padding: "16px 8px", fontSize: 17, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
+        <div style={{ display: "flex", flex: 1, backgroundColor: headerTint, padding: "16px 8px", fontSize: 20, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
           확인 사항
         </div>
-        <div style={{ display: "flex", width: 100, backgroundColor: headerTint, padding: "16px 8px", fontSize: 17, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
+        <div style={{ display: "flex", width: 100, backgroundColor: headerTint, padding: "16px 8px", fontSize: 20, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
           점검 결과
         </div>
-        <div style={{ display: "flex", width: 160, backgroundColor: headerTint, padding: "16px 8px", fontSize: 17, justifyContent: "center" }}>
+        <div style={{ display: "flex", width: 160, backgroundColor: headerTint, padding: "16px 8px", fontSize: 20, justifyContent: "center" }}>
           비고
         </div>
       </div>
@@ -624,7 +630,7 @@ function UnitInspectionElement({
               flexDirection: "column",
               width: 150,
               padding: "14px 8px",
-              fontSize: 16,
+              fontSize: 19,
               justifyContent: "center",
               alignItems: "center",
               backgroundColor: "rgba(35,80,143,0.05)",
@@ -632,7 +638,7 @@ function UnitInspectionElement({
             }}
           >
             <div style={{ display: "flex" }}>{group.category}</div>
-            <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 6 }}>{group.riskFactors.join("·")}</div>
+            <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginTop: 6 }}>{group.riskFactors.join("·")}</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
             {group.items.map((item, iIdx) => (
@@ -641,10 +647,10 @@ function UnitInspectionElement({
                 style={{
                   display: "flex",
                   borderTop: iIdx === 0 ? "none" : `1px solid ${borderColor}`,
-                  minHeight: 62,
+                  minHeight: 64,
                 }}
               >
-                <div style={{ display: "flex", flex: 1, padding: "18px 8px", fontSize: 16, alignItems: "center", borderRight: `1px solid ${borderColor}` }}>
+                <div style={{ display: "flex", flex: 1, padding: "18px 8px", fontSize: 19, alignItems: "center", borderRight: `1px solid ${borderColor}` }}>
                   {item.item}
                 </div>
                 <div
@@ -652,7 +658,7 @@ function UnitInspectionElement({
                     display: "flex",
                     width: 100,
                     padding: "18px 8px",
-                    fontSize: item.result === "N/A" ? 14 : 18,
+                    fontSize: item.result === "N/A" ? 17 : 21,
                     color: item.result === "X" ? red : inkColor,
                     justifyContent: "center",
                     alignItems: "center",
@@ -661,7 +667,7 @@ function UnitInspectionElement({
                 >
                   {item.result === "N/A" ? "해당없음" : item.result}
                 </div>
-                <div style={{ display: "flex", width: 160, padding: "18px 8px", fontSize: item.note.length > 8 ? 13 : 15, color: mutedColor, alignItems: "center" }}>
+                <div style={{ display: "flex", width: 160, padding: "18px 8px", fontSize: item.note.length > 8 ? 16 : 18, color: mutedColor, alignItems: "center" }}>
                   {item.note}
                 </div>
               </div>
@@ -678,7 +684,7 @@ function UnitInspectionElement({
             width: 150,
             backgroundColor: redSoft,
             padding: "16px 8px",
-            fontSize: 16,
+            fontSize: 19,
             justifyContent: "center",
             alignItems: "center",
             borderRight: `1px solid ${borderColor}`,
@@ -687,45 +693,45 @@ function UnitInspectionElement({
           기 타 사 항
         </div>
         <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "18px 16px" }}>
-          <div style={{ display: "flex", fontSize: 17, gap: 28 }}>
+          <div style={{ display: "flex", fontSize: 20, gap: 28 }}>
             <div style={{ display: "flex" }}>부하전류: {data.loadCurrent ?? "-"} A</div>
             <div style={{ display: "flex" }}>IGR·누설전류: {data.igr ?? "-"} mA</div>
             <div style={{ display: "flex" }}>절연저항: {data.insulationResistance ?? "-"} MΩ</div>
           </div>
-          {data.etcNotes ? <div style={{ display: "flex", fontSize: 15, color: mutedColor, marginTop: 10 }}>{data.etcNotes}</div> : null}
+          {data.etcNotes ? <div style={{ display: "flex", fontSize: 18, color: mutedColor, marginTop: 10 }}>{data.etcNotes}</div> : null}
         </div>
       </div>
 
-      <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginBottom: 8 }}>
+      <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginBottom: 8 }}>
         ※ 부적합 전기설비는 감전, 화재 등의 위험과 전력손실로 인한 전기 요금의 추가부담 등의 원인이 되오니 조속한 시일내에 수리하시기 바랍니다.
       </div>
-      <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginBottom: 32 }}>
+      <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginBottom: 32 }}>
         [비고] 점검결과는 O(적합), X(부적합), /(해당없음) 으로 표기 · 세대미방문 시 미점검 항목은 해당없음으로 표기
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${borderColor}`, paddingTop: 24 }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", fontSize: 14, color: mutedColor }}>세대 확인</div>
+          <div style={{ display: "flex", fontSize: 17, color: mutedColor }}>세대 확인</div>
           {data.inspectionType === "unvisited_simple" ? (
-            <div style={{ display: "flex", fontSize: 18, marginTop: 6 }}>— 세대 부재로 서명 불가 (미방문 간이점검) —</div>
+            <div style={{ display: "flex", fontSize: 21, marginTop: 6 }}>— 세대 부재로 서명 불가 (미방문 간이점검) —</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", marginTop: 8 }}>
-              <div style={{ display: "flex", fontSize: 18 }}>{data.residentName ?? ""}</div>
+              <div style={{ display: "flex", fontSize: 21 }}>{data.residentName ?? ""}</div>
               {data.signatureData ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={data.signatureData} width={160} height={80} style={{ display: "flex", marginTop: 8 }} alt="세대 서명" />
               ) : (
-                <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 8 }}>(서명 없음)</div>
+                <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginTop: 8 }}>(서명 없음)</div>
               )}
             </div>
           )}
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", fontSize: 14, color: mutedColor }}>담당(전기선임자)</div>
-          <div style={{ display: "flex", fontSize: 18, marginTop: 8 }}>{data.electricalSafetyManagerName || "미지정"} (인)</div>
+          <div style={{ display: "flex", fontSize: 17, color: mutedColor }}>담당(전기선임자)</div>
+          <div style={{ display: "flex", fontSize: 21, marginTop: 8 }}>{data.electricalSafetyManagerName || "미지정"} (인)</div>
         </div>
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18, fontSize: 17 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18, fontSize: 20 }}>
         점검단지: {data.apartmentName}
       </div>
 
@@ -739,18 +745,18 @@ function UnitInspectionElement({
         <div style={{ display: "flex", flexDirection: "column" }}>
           {/* AI 안전진단 확장판(2026-08-26) — 적합은 뭉뚱그림, 부적합만 개별, 회사권장은 완전분리 */}
           <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
-            <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 17 }}>AI 안전진단 결과</div>
+            <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 20 }}>AI 안전진단 결과</div>
             <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
               {data.aiDiagnosis.okSummary ? (
-                <div style={{ display: "flex", fontSize: 14, color: "#33402f", lineHeight: 1.7 }}>{data.aiDiagnosis.okSummary}</div>
+                <div style={{ display: "flex", fontSize: 17, color: "#33402f", lineHeight: 1.7 }}>{data.aiDiagnosis.okSummary}</div>
               ) : null}
               {data.aiDiagnosis.violations.map((entry, idx) => (
                 <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                  <div style={{ display: "flex", fontSize: 16 }}>
+                  <div style={{ display: "flex", fontSize: 19 }}>
                     <span style={{ display: "flex", color: red, marginRight: 6 }}>부적합</span>
                     {entry.item}
                   </div>
-                  <div style={{ display: "flex", fontSize: 14, color: "#4a2a22", marginTop: 4, lineHeight: 1.7 }}>{entry.explanation}</div>
+                  <div style={{ display: "flex", fontSize: 17, color: "#4a2a22", marginTop: 4, lineHeight: 1.7 }}>{entry.explanation}</div>
                 </div>
               ))}
             </div>
@@ -768,21 +774,21 @@ function UnitInspectionElement({
                 marginBottom: 22,
               }}
             >
-              <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginBottom: 4 }}>미실측 항목 안내</div>
-              <div style={{ display: "flex", fontSize: 14, color: mutedColor, lineHeight: 1.7 }}>{notApplicableNote}</div>
+              <div style={{ display: "flex", fontSize: 16, color: mutedColor, marginBottom: 4 }}>미실측 항목 안내</div>
+              <div style={{ display: "flex", fontSize: 17, color: mutedColor, lineHeight: 1.7 }}>{notApplicableNote}</div>
             </div>
           ) : null}
 
           {data.aiDiagnosis.companyAdvisory.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
               <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
-                <div style={{ display: "flex", fontSize: 16, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
+                <div style={{ display: "flex", fontSize: 19, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", padding: "14px 16px", gap: 10 }}>
                 {data.aiDiagnosis.companyAdvisory.map((entry, idx) => (
                   <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                    <div style={{ display: "flex", fontSize: 15, color: "#8a5a12" }}>{entry.item}</div>
-                    <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginTop: 2, lineHeight: 1.6 }}>{entry.explanation}</div>
+                    <div style={{ display: "flex", fontSize: 18, color: "#8a5a12" }}>{entry.item}</div>
+                    <div style={{ display: "flex", fontSize: 16, color: mutedColor, marginTop: 2, lineHeight: 1.6 }}>{entry.explanation}</div>
                   </div>
                 ))}
               </div>
@@ -791,8 +797,8 @@ function UnitInspectionElement({
 
           {data.aiDiagnosis.summary ? (
             <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#eef3fb", border: "1px solid #c3d3ec", borderRadius: 4, padding: "14px 16px", marginBottom: 22 }}>
-              <div style={{ display: "flex", fontSize: 13, color: blue, marginBottom: 6 }}>종합 총평</div>
-              <div style={{ display: "flex", fontSize: 14, color: "#1c2c48", lineHeight: 1.7 }}>{data.aiDiagnosis.summary}</div>
+              <div style={{ display: "flex", fontSize: 16, color: blue, marginBottom: 6 }}>종합 총평</div>
+              <div style={{ display: "flex", fontSize: 17, color: "#1c2c48", lineHeight: 1.7 }}>{data.aiDiagnosis.summary}</div>
             </div>
           ) : null}
         </div>
@@ -801,16 +807,16 @@ function UnitInspectionElement({
           {/* AI 안전진단 — 확장판 생성 전(제출 직후) 기본 폴백: 별표3 부적합만 규칙엔진 canned 문구로 나열 */}
           {data.autoDiagnosis.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
-              <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 17 }}>AI 안전진단 결과</div>
+              <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 20 }}>AI 안전진단 결과</div>
               <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
                 {data.autoDiagnosis.map((entry, idx) => (
                   <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                    <div style={{ display: "flex", fontSize: 16 }}>
+                    <div style={{ display: "flex", fontSize: 19 }}>
                       {entry.item} —{" "}
                       <span style={{ display: "flex", color: red, marginLeft: 6 }}>{entry.verdict}</span>
                     </div>
-                    <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.regulation}</div>
-                    <div style={{ display: "flex", fontSize: 14, color: mutedColor, marginTop: 4 }}>{entry.comment}</div>
+                    <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginTop: 4 }}>{entry.regulation}</div>
+                    <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginTop: 4 }}>{entry.comment}</div>
                   </div>
                 ))}
               </div>
@@ -829,8 +835,8 @@ function UnitInspectionElement({
                 marginBottom: 22,
               }}
             >
-              <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginBottom: 4 }}>미실측 항목 안내</div>
-              <div style={{ display: "flex", fontSize: 14, color: mutedColor, lineHeight: 1.7 }}>{notApplicableNote}</div>
+              <div style={{ display: "flex", fontSize: 16, color: mutedColor, marginBottom: 4 }}>미실측 항목 안내</div>
+              <div style={{ display: "flex", fontSize: 17, color: mutedColor, lineHeight: 1.7 }}>{notApplicableNote}</div>
             </div>
           ) : null}
 
@@ -838,13 +844,13 @@ function UnitInspectionElement({
           {data.companyAdvisories.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
               <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
-                <div style={{ display: "flex", fontSize: 16, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
+                <div style={{ display: "flex", fontSize: 19, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", padding: "14px 16px", gap: 10 }}>
                 {data.companyAdvisories.map((entry, idx) => (
                   <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                    <div style={{ display: "flex", fontSize: 15, color: "#8a5a12" }}>{entry.item}</div>
-                    <div style={{ display: "flex", fontSize: 13, color: mutedColor, marginTop: 2 }}>{entry.comment}</div>
+                    <div style={{ display: "flex", fontSize: 18, color: "#8a5a12" }}>{entry.item}</div>
+                    <div style={{ display: "flex", fontSize: 16, color: mutedColor, marginTop: 2 }}>{entry.comment}</div>
                   </div>
                 ))}
               </div>
@@ -865,7 +871,7 @@ function UnitInspectionElement({
  * 여러 페이지로 슬라이스한다.
  */
 export async function renderUnitInspectionPdf(data: UnitInspectionPdfData): Promise<Uint8Array> {
-  const etcNotesExtra = data.etcNotes ? estimateTextHeightPx(data.etcNotes, 70, 24) : 0;
+  const etcNotesExtra = data.etcNotes ? estimateTextHeightPx(data.etcNotes, 58, 29) : 0; // fontSize 15→18(2026-08-28)
   const notApplicableNote = buildNotApplicableNote(data.checklistItems);
   const notApplicableNoteHeight = estimateNotApplicableNoteHeight(notApplicableNote);
   // aiDiagnosis가 있으면(사후보정 정정본) okSummary/summary 문단이 항상 있을 수 있어 부적합 0건
