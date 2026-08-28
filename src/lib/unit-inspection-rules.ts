@@ -217,22 +217,37 @@ export function buildChecklistTemplate(inspectionType: "visit" | "unvisited_simp
 
 /**
  * 절연저항/누설전류(IGR) 실측값으로 3개 항목(절연 2개 + 누전차단기 미설치·동작불량)을 자동
- * 판정한다 — 워커가 버튼을 누르지 않아도 되는 케이스(2026-08 확정). 부하전류가 담당하는
- * 항목은 아직 기준값이 확정되지 않아 수동 확인 대상으로 남아있다.
+ * 판정한다 — 워커가 버튼을 누르지 않아도 되는 케이스(2026-08 확정).
  *
- * 기준값은 전역 상수가 아니라 단지별로 관리자가 직접 입력한 값이다 — 별표3의 절연저항/
- * 누설전류 기준은 세대 누전차단기 "회로 하나"를 기준으로 만들어졌는데, 총괄분전반처럼 여러
- * 회로를 한번에 재면 절연저항은 병렬합성저항(1/R총 = 1/R1+...+1/Rn)이라 항상 더 낮게, 누설
- * 전류는 여러 회로분이 합산되어 더 높게 나온다. 단지마다 세대당 회로 개수가 다르므로 "정상"
- * 으로 볼 기준값도 단지마다 달라야 한다(2026-08 실사용 피드백, apartments 102/103 참고).
- * 기준값이 아직 설정 안 된 단지는 자동판정을 하지 않고 해당없음("/")으로 남긴다 — 잘못된
- * 전역 기준값을 몰래 대신 쓰는 것보다 "판정 보류"가 안전하다.
+ * 별표3의 절연저항/누설전류 기준은 세대 누전차단기 "회로 하나"를 기준으로 만들어졌는데,
+ * 분전함처럼 여러 회로를 한번에 재면 절연저항은 병렬합성저항(1/R총 = 1/R1+...+1/Rn)이라
+ * 항상 더 낮게, 누설전류는 여러 회로분이 합산되어 더 높게 나온다. 예전엔 이걸 단지마다
+ * 관리자가 수동으로 입력한 기준값으로 보정했지만(102/103), 전기과장이 단지별 기준값을
+ * 잘못 기억/오인지할 위험이 있어 2026-08-28부로 폐기했다. 대신 절연저항 0.22MΩ·누설전류
+ * 1mA를 전국 공통 고정기준으로 삼고, 세대마다 다른 분전함 회로수(circuitBreakerCount,
+ * 점검 시점에 전기과장이 직접 입력)를 곱하거나 나눠서 그 세대에 맞는 임계값을 매번 계산한다
+ * — 사람이 기준값을 따로 기억할 필요가 없다. 회로수가 입력되지 않은 건(레거시 데이터 등)은
+ * 계산 자체가 불가능하므로 해당없음("/")으로 남긴다.
  *
  * 다만 elb_missing_or_faulty는 "미설치 또는 동작불량"을 하나로 묶은 항목이라, IGR로는
  * "동작불량"만 검증 가능하고 "미설치"(차단기 자체가 없는 경우)는 실측만으로 못 잡는다 —
  * 회로에 ELB가 아예 없어도 누설전류 자체는 낮게 측정될 수 있다. 현장에서 육안으로 미설치를
  * 확인하는 절차가 별도로 필요하다는 걸 감안해야 한다.
  */
+export const BASE_INSULATION_RESISTANCE_THRESHOLD_MOHM = 0.22;
+export const BASE_LEAKAGE_CURRENT_THRESHOLD_MA = 1;
+
+/** 세대 회로수 기준 실제 판정 임계값 — 절연저항은 병렬합성저항이라 회로수만큼 나누고, 누설전류는 회로분이 합산되므로 곱한다. */
+export function computeInsulationResistanceThreshold(circuitBreakerCount: number | null): number | null {
+  if (typeof circuitBreakerCount !== "number" || !Number.isFinite(circuitBreakerCount) || circuitBreakerCount < 1) return null;
+  return BASE_INSULATION_RESISTANCE_THRESHOLD_MOHM / circuitBreakerCount;
+}
+
+export function computeLeakageCurrentThreshold(circuitBreakerCount: number | null): number | null {
+  if (typeof circuitBreakerCount !== "number" || !Number.isFinite(circuitBreakerCount) || circuitBreakerCount < 1) return null;
+  return BASE_LEAKAGE_CURRENT_THRESHOLD_MA * circuitBreakerCount;
+}
+
 export function autoJudgeInsulationItem(insulationResistance: number | null, thresholdMohm: number | null): ChecklistResult {
   if (typeof insulationResistance !== "number" || !Number.isFinite(insulationResistance)) return "/";
   if (typeof thresholdMohm !== "number" || !Number.isFinite(thresholdMohm)) return "/";
@@ -248,24 +263,27 @@ export function autoJudgeLeakageItem(igr: number | null, thresholdMa: number | n
 
 type AutoJudgeMeasurements = {
   insulationResistance: number | null;
-  insulationResistanceThresholdMohm: number | null;
   igr: number | null;
-  leakageCurrentThresholdMa: number | null;
+  circuitBreakerCount: number | null;
 };
 
 function autoJudge(id: ChecklistItemId, m: AutoJudgeMeasurements): { result: ChecklistResult; note: string } {
   if (id === "insulation_main_branch" || id === "insulation_equipment") {
-    const result = autoJudgeInsulationItem(m.insulationResistance, m.insulationResistanceThresholdMohm);
+    const threshold = computeInsulationResistanceThreshold(m.circuitBreakerCount);
+    const result = autoJudgeInsulationItem(m.insulationResistance, threshold);
     const note =
-      m.insulationResistanceThresholdMohm === null
-        ? "단지 기준값 미설정 — 관리자 설정 필요"
-        : `실측값(절연저항 ${m.insulationResistance}MΩ) 기준 AI판정`;
+      threshold === null
+        ? "회로수 미입력 — 판정 보류"
+        : `실측값(절연저항 ${m.insulationResistance}MΩ, 회로수 ${m.circuitBreakerCount}개 기준 임계값 ${threshold.toFixed(3)}MΩ) 기준 AI판정`;
     return { result, note };
   }
   if (id === "elb_missing_or_faulty") {
-    const result = autoJudgeLeakageItem(m.igr, m.leakageCurrentThresholdMa);
+    const threshold = computeLeakageCurrentThreshold(m.circuitBreakerCount);
+    const result = autoJudgeLeakageItem(m.igr, threshold);
     const note =
-      m.leakageCurrentThresholdMa === null ? "단지 기준값 미설정 — 관리자 설정 필요" : `실측값(누설전류 ${m.igr}mA) 기준 AI판정`;
+      threshold === null
+        ? "회로수 미입력 — 판정 보류"
+        : `실측값(누설전류 ${m.igr}mA, 회로수 ${m.circuitBreakerCount}개 기준 임계값 ${threshold}mA) 기준 AI판정`;
     return { result, note };
   }
   return { result: "/", note: "" };

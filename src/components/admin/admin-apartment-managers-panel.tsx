@@ -21,8 +21,6 @@ type ApartmentOption = {
   id: string;
   name: string;
   totalUnits: number | null;
-  insulationResistanceThresholdMohm: number | null;
-  leakageCurrentThresholdMa: number | null;
 };
 
 type ApartmentSubscription = {
@@ -31,8 +29,6 @@ type ApartmentSubscription = {
   billingMethod: "toss_auto" | "bank_transfer" | null;
   currentPeriodEnd: string | null;
 };
-
-type ThresholdDraft = { insulation: string; leakage: string };
 
 const SUBSCRIPTION_LABEL: Record<ApartmentSubscription["status"], string> = {
   inactive: "무료",
@@ -65,7 +61,6 @@ export default function AdminApartmentManagersPanel() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [approvedSearch, setApprovedSearch] = useState("");
   const [approvedSort, setApprovedSort] = useState<"recent_login" | "apartment_name">("recent_login");
-  const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, ThresholdDraft>>({});
   // 신규단지 자기신고 세대수 재확인/수정(2026-08-28) — 구독요금이 세대수 구간(≤300/>300)으로
   // 갈리므로 실존확인 통화 중 확인한 실제값으로 고칠 수 있어야 한다. 기존단지 연결 요청에는
   // 노출하지 않는다(그쪽 total_units는 /admin/apartments에서 이미 관리 중).
@@ -129,18 +124,10 @@ export default function AdminApartmentManagersPanel() {
     return sorted;
   }, [approved, approvedSearch, approvedSort, apartmentNameById]);
 
-  const setDraft = (managerId: string, patch: Partial<ThresholdDraft>) => {
-    setThresholdDrafts((prev) => ({
-      ...prev,
-      [managerId]: { insulation: prev[managerId]?.insulation ?? "", leakage: prev[managerId]?.leakage ?? "", ...patch }
-    }));
-  };
-
   const approve = async (id: string) => {
     setBusyId(id);
     setMessage("");
     try {
-      const draft = thresholdDrafts[id];
       const manager = pending.find((m) => m.id === id);
       const isNew = manager ? !manager.apartmentId : false;
       const totalUnitsDraftValue = totalUnitsDrafts[id];
@@ -152,11 +139,7 @@ export default function AdminApartmentManagersPanel() {
       const response = await fetch(`/api/admin/apartment-managers/${id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          insulationResistanceThresholdMohm: draft?.insulation ? Number(draft.insulation) : undefined,
-          leakageCurrentThresholdMa: draft?.leakage ? Number(draft.leakage) : undefined,
-          totalUnits
-        })
+        body: JSON.stringify({ totalUnits })
       });
       const data = (await response.json()) as { message?: string; smsSent?: boolean };
       if (!response.ok) {
@@ -235,10 +218,6 @@ export default function AdminApartmentManagersPanel() {
                 ? `${m.apartmentNameRequested} (신규요청 · 예상 ${m.totalUnitsRequested ?? "?"}세대)`
                 : (linkedApartment?.name ?? "알 수 없음");
               const totalUnits = isNew ? m.totalUnitsRequested : linkedApartment?.totalUnits;
-              // 신규요청은 단지 자체가 없으니 무조건 미설정, 기존단지는 둘 중 하나라도 비어있으면 물어봐야 함.
-              const thresholdsMissing =
-                isNew || linkedApartment?.insulationResistanceThresholdMohm == null || linkedApartment?.leakageCurrentThresholdMa == null;
-              const draft = thresholdDrafts[m.id] ?? { insulation: "", leakage: "" };
               return (
                 <li key={m.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -270,30 +249,6 @@ export default function AdminApartmentManagersPanel() {
                         className="soft-input h-8 w-24 text-xs"
                       />
                       <span className="text-[11px] text-slate-400">신청자 입력값(구독요금 구간을 정하니 통화로 재확인)</span>
-                    </div>
-                  ) : null}
-
-                  {thresholdsMissing ? (
-                    <div className="mt-2 rounded-lg border border-dk-amber/40 bg-dk-gold/10 p-2">
-                      <p className="text-[11px] font-bold text-dk-amber">
-                        ⚠️ 이 단지는 판정 기준값이 없어요 — 실존확인 통화하면서 회로 구성을 확인해 채워주세요(비워두고 승인해도 됨).
-                      </p>
-                      <div className="mt-1.5 flex gap-2">
-                        <input
-                          value={draft.insulation}
-                          onChange={(e) => setDraft(m.id, { insulation: e.target.value })}
-                          placeholder="절연저항 기준값(MΩ)"
-                          inputMode="decimal"
-                          className="soft-input h-8 flex-1 text-xs"
-                        />
-                        <input
-                          value={draft.leakage}
-                          onChange={(e) => setDraft(m.id, { leakage: e.target.value })}
-                          placeholder="누설전류 기준값(mA)"
-                          inputMode="decimal"
-                          className="soft-input h-8 flex-1 text-xs"
-                        />
-                      </div>
                     </div>
                   ) : null}
 

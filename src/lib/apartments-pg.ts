@@ -14,10 +14,6 @@ export type ApartmentTenant = {
   address: string;
   /** 단지 전기선임자 성명 — 세대전기점검표 문서 명의/서명란에 자동 삽입(100) */
   electricalSafetyManagerName: string;
-  /** 절연저항 부적합 판정 기준값(MΩ) — 세대 누전차단기 회로 구성에 맞춰 단지별로 다름(102). 미설정이면 null. */
-  insulationResistanceThresholdMohm: number | null;
-  /** 누설전류(IGR) 부적합 판정 기준값(mA) — 누전차단기 미설치/동작불량 항목 자동판정용(103). 미설정이면 null. */
-  leakageCurrentThresholdMa: number | null;
   /** 단지 총세대수 — 세대전기점검 처리율 계산용(105). 미설정이면 null. */
   totalUnits: number | null;
   /** 정식계약(contract) vs 세대전기점검 무료앱만 쓰는 단지(free_app) vs 영업 시연 전용 단지(demo)(109, 116). */
@@ -40,8 +36,6 @@ type ApartmentRow = {
   district?: string | null;
   address?: string | null;
   electrical_safety_manager_name?: string | null;
-  insulation_resistance_threshold_mohm?: number | null;
-  leakage_current_threshold_ma?: number | null;
   total_units?: number | null;
   partnership_type?: string | null;
   completion_date?: string | null;
@@ -70,14 +64,6 @@ function mapApartment(row: ApartmentRow): ApartmentTenant {
     district: row.district?.trim() ?? "",
     address: row.address?.trim() ?? "",
     electricalSafetyManagerName: row.electrical_safety_manager_name?.trim() ?? "",
-    insulationResistanceThresholdMohm:
-      typeof row.insulation_resistance_threshold_mohm === "number" && Number.isFinite(row.insulation_resistance_threshold_mohm)
-        ? row.insulation_resistance_threshold_mohm
-        : null,
-    leakageCurrentThresholdMa:
-      typeof row.leakage_current_threshold_ma === "number" && Number.isFinite(row.leakage_current_threshold_ma)
-        ? row.leakage_current_threshold_ma
-        : null,
     totalUnits: typeof row.total_units === "number" && Number.isFinite(row.total_units) ? row.total_units : null,
     partnershipType: row.partnership_type === "free_app" ? "free_app" : row.partnership_type === "demo" ? "demo" : "contract",
     completionDate: row.completion_date ?? null,
@@ -203,8 +189,6 @@ export async function pgCreateApartment(input: {
   district?: string;
   address?: string;
   electricalSafetyManagerName?: string;
-  insulationResistanceThresholdMohm?: number | null;
-  leakageCurrentThresholdMa?: number | null;
   totalUnits?: number | null;
 }): Promise<ApartmentTenant> {
   const supabase = requireSupabaseAdmin();
@@ -224,8 +208,6 @@ export async function pgCreateApartment(input: {
       district: input.district?.trim() || "",
       address: input.address?.trim() || "",
       electrical_safety_manager_name: input.electricalSafetyManagerName?.trim() || null,
-      insulation_resistance_threshold_mohm: input.insulationResistanceThresholdMohm ?? null,
-      leakage_current_threshold_ma: input.leakageCurrentThresholdMa ?? null,
       total_units: input.totalUnits ?? null
     })
     .select("*")
@@ -247,8 +229,6 @@ export async function pgUpdateApartment(
     district: string;
     address: string;
     electricalSafetyManagerName: string;
-    insulationResistanceThresholdMohm: number | null;
-    leakageCurrentThresholdMa: number | null;
     totalUnits: number | null;
     partnershipType: "contract" | "free_app" | "demo";
   }>
@@ -269,8 +249,6 @@ export async function pgUpdateApartment(
   if (typeof patch.district === "string") payload.district = patch.district.trim();
   if (typeof patch.address === "string") payload.address = patch.address.trim();
   if (typeof patch.electricalSafetyManagerName === "string") payload.electrical_safety_manager_name = patch.electricalSafetyManagerName.trim() || null;
-  if (patch.insulationResistanceThresholdMohm !== undefined) payload.insulation_resistance_threshold_mohm = patch.insulationResistanceThresholdMohm;
-  if (patch.leakageCurrentThresholdMa !== undefined) payload.leakage_current_threshold_ma = patch.leakageCurrentThresholdMa;
   if (patch.totalUnits !== undefined) payload.total_units = patch.totalUnits;
   if (typeof patch.partnershipType === "string") payload.partnership_type = patch.partnershipType;
   if (Object.keys(payload).length === 0) return null;

@@ -19,7 +19,7 @@ export async function GET() {
     const supabase = requireSupabaseAdmin();
     const { data, error } = await supabase
       .from("apartments")
-      .select("id, name, electrical_safety_manager_name, insulation_resistance_threshold_mohm, leakage_current_threshold_ma")
+      .select("id, name, electrical_safety_manager_name")
       .order("name", { ascending: true });
     if (error) {
       return NextResponse.json({ message: error.message }, { status: 500 });

@@ -18,8 +18,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     district?: string;
     address?: string;
     electricalSafetyManagerName?: string;
-    insulationResistanceThresholdMohm?: number | null;
-    leakageCurrentThresholdMa?: number | null;
     totalUnits?: number | null;
   };
   try {
@@ -38,8 +36,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       district: body.district,
       address: body.address,
       electricalSafetyManagerName: body.electricalSafetyManagerName,
-      insulationResistanceThresholdMohm: body.insulationResistanceThresholdMohm,
-      leakageCurrentThresholdMa: body.leakageCurrentThresholdMa,
       totalUnits: body.totalUnits
     });
     if (!apartment) return NextResponse.json({ message: "수정할 항목이 없습니다." }, { status: 400 });

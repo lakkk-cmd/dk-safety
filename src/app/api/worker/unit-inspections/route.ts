@@ -129,14 +129,19 @@ export async function POST(request: Request) {
   const loadCurrent = toNullableNumber(body.loadCurrent);
   const igr = toNullableNumber(body.igr);
   const insulationResistance = toNullableNumber(body.insulationResistance);
+  // 절연저항/누설전류 자동판정 임계값 계산에 반드시 필요 — 단지별 수동 기준값을 폐지하고
+  // (2026-08-28) 이 값으로 매번 계산하므로, 방문/미방문 관계없이 필수다.
+  const circuitBreakerCount = toNullableNumber(body.circuitBreakerCount);
+  if (circuitBreakerCount === null || circuitBreakerCount < 1) {
+    return NextResponse.json({ message: "분전함 차단기 회로수를 입력해주세요(1 이상)." }, { status: 400 });
+  }
   const etcNotes = toStringField(body.etcNotes);
   const outletInstallYear = toNullableNumber(body.outletInstallYear);
   const switchInstallYear = toNullableNumber(body.switchInstallYear);
   const checklistItems = applyChecklistResults(inspectionType, overrides, {
     insulationResistance,
-    insulationResistanceThresholdMohm: apartment.insulationResistanceThresholdMohm,
     igr,
-    leakageCurrentThresholdMa: apartment.leakageCurrentThresholdMa
+    circuitBreakerCount
   });
 
   const residentNameRaw = toStringField(body.residentName).trim();
@@ -160,6 +165,7 @@ export async function POST(request: Request) {
     loadCurrent,
     igr,
     insulationResistance,
+    circuitBreakerCount,
     etcNotes,
     residentName: inspectionType === "visit" ? residentNameRaw : null,
     signatureData: inspectionType === "visit" ? signatureDataRaw : null,

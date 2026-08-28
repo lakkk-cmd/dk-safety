@@ -32,6 +32,8 @@ export type UnitInspectionInput = {
   loadCurrent: number | null;
   igr: number | null;
   insulationResistance: number | null;
+  /** 분전함 차단기 회로수 — 절연저항/누설전류 자동판정 임계값 계산용(117). 방문/미방문 공통 필수. */
+  circuitBreakerCount: number | null;
   etcNotes: string;
   /** 세대방문점검만 필수 — 미방문 간이점검은 전부 null */
   residentName: string | null;
@@ -76,6 +78,7 @@ type UnitInspectionRow = {
   load_current: number | null;
   igr: number | null;
   insulation_resistance: number | null;
+  circuit_breaker_count: number | null;
   etc_notes: string;
   auto_diagnosis: unknown;
   resident_name: string | null;
@@ -114,6 +117,7 @@ function mapUnitInspection(row: UnitInspectionRow): UnitInspection {
     loadCurrent: row.load_current,
     igr: row.igr,
     insulationResistance: row.insulation_resistance,
+    circuitBreakerCount: row.circuit_breaker_count,
     etcNotes: row.etc_notes,
     autoDiagnosis: fixed.autoDiagnosis,
     residentName: row.resident_name,
@@ -151,6 +155,7 @@ export async function pgCreateUnitInspection(actor: UnitInspectionActor, input: 
       load_current: input.loadCurrent,
       igr: input.igr,
       insulation_resistance: input.insulationResistance,
+      circuit_breaker_count: input.circuitBreakerCount,
       etc_notes: input.etcNotes.trim(),
       auto_diagnosis: autoDiagnosis,
       resident_name: input.residentName,

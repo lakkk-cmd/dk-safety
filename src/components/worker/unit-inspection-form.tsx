@@ -21,8 +21,6 @@ type ApartmentOption = {
   id: string;
   name: string;
   electrical_safety_manager_name: string | null;
-  insulation_resistance_threshold_mohm: number | null;
-  leakage_current_threshold_ma: number | null;
 };
 
 type DiagnosisEntry = {
@@ -99,6 +97,7 @@ export default function UnitInspectionForm({
   const [loadCurrent, setLoadCurrent] = useState("");
   const [igr, setIgr] = useState("");
   const [insulationResistance, setInsulationResistance] = useState("");
+  const [circuitBreakerCount, setCircuitBreakerCount] = useState("");
   const [outletInstallYear, setOutletInstallYear] = useState("");
   const [switchInstallYear, setSwitchInstallYear] = useState("");
   const [etcNotes, setEtcNotes] = useState("");
@@ -135,9 +134,6 @@ export default function UnitInspectionForm({
     [inspectionType]
   );
   const isLastStep = step === stepLabels.length - 1;
-  const selectedApartment = apartments.find((a) => a.id === apartmentId) ?? null;
-  const insulationThresholdConfigured = selectedApartment?.insulation_resistance_threshold_mohm != null;
-  const leakageThresholdConfigured = selectedApartment?.leakage_current_threshold_ma != null;
 
   const filteredApartments = useMemo(() => {
     const q = apartmentQuery.trim().toLowerCase();
@@ -166,20 +162,31 @@ export default function UnitInspectionForm({
   );
   const uncheckedManualIds = requiredManualIdsForType.filter((id) => results[id] === null);
 
+  // 실측값 단계는 두 유형 모두 index 2(방문점검은 서명 단계가 하나 더 있어 마지막이 아니고,
+  // 미방문 간이점검은 여기가 마지막 단계) — 차단기 회로수는 절연저항/누설전류 자동판정 임계값
+  // 계산에 반드시 필요해 두 유형 모두 필수로 강제한다(2026-08-28, 단지별 수동 기준값 폐지).
+  const circuitBreakerCountValid = circuitBreakerCount.trim() !== "" && Number(circuitBreakerCount) >= 1;
+
   const stepValid = (idx: number): boolean => {
     if (idx === 0) return Boolean(apartmentId && dong.trim() && ho.trim());
     if (idx === 1) return uncheckedManualIds.length === 0;
+    if (idx === 2) return circuitBreakerCountValid;
     if (idx === stepLabels.length - 1 && inspectionType === "visit") {
       return Boolean(residentName.trim() && signatureData && /^01[0-9]-?\d{3,4}-?\d{4}$/.test(residentPhone.trim()));
     }
     return true;
   };
 
+  const validationMessageFor = (idx: number): string => {
+    if (idx === 0) return "단지·동·호를 모두 입력해주세요.";
+    if (idx === 1) return `현장에서 직접 확인해야 하는 항목이 ${uncheckedManualIds.length}개 남았어요. ○/×/  중 하나를 눌러주세요.`;
+    if (idx === 2) return "분전함 차단기 회로수를 입력해주세요(1 이상).";
+    return "세대 성명·연락처·서명을 모두 입력해주세요.";
+  };
+
   const goNext = () => {
     if (!stepValid(step)) {
-      if (step === 0) setMessage("단지·동·호를 모두 입력해주세요.");
-      else if (step === 1) setMessage(`현장에서 직접 확인해야 하는 항목이 ${uncheckedManualIds.length}개 남았어요. ○/×/  중 하나를 눌러주세요.`);
-      else setMessage("세대 성명·연락처·서명을 모두 입력해주세요.");
+      setMessage(validationMessageFor(step));
       return;
     }
     setMessage(null);
@@ -188,7 +195,7 @@ export default function UnitInspectionForm({
 
   const submit = async () => {
     if (!stepValid(step)) {
-      setMessage("세대 성명·연락처·서명을 모두 입력해주세요.");
+      setMessage(validationMessageFor(step));
       return;
     }
     setSubmitting(true);
@@ -210,6 +217,7 @@ export default function UnitInspectionForm({
           loadCurrent: loadCurrent === "" ? null : Number(loadCurrent),
           igr: igr === "" ? null : Number(igr),
           insulationResistance: insulationResistance === "" ? null : Number(insulationResistance),
+          circuitBreakerCount: circuitBreakerCount === "" ? null : Number(circuitBreakerCount),
           outletInstallYear: outletInstallYear === "" ? null : Number(outletInstallYear),
           switchInstallYear: switchInstallYear === "" ? null : Number(switchInstallYear),
           etcNotes,
@@ -251,6 +259,7 @@ export default function UnitInspectionForm({
     setLoadCurrent("");
     setIgr("");
     setInsulationResistance("");
+    setCircuitBreakerCount("");
     setOutletInstallYear("");
     setSwitchInstallYear("");
     setEtcNotes("");
@@ -440,27 +449,15 @@ export default function UnitInspectionForm({
                   const def = CHECKLIST_ITEMS.find((d) => d.id === id)!;
                   if (!def.requiresManualCheck) {
                     const isLeakageItem = id === "elb_missing_or_faulty";
-                    const thresholdConfigured = isLeakageItem ? leakageThresholdConfigured : insulationThresholdConfigured;
-                    const thresholdLabel = isLeakageItem
-                      ? `이 단지 기준값 ${selectedApartment?.leakage_current_threshold_ma}mA`
-                      : `이 단지 기준값 ${selectedApartment?.insulation_resistance_threshold_mohm}MΩ`;
                     const measurementLabel = isLeakageItem ? "누설전류(IGR)" : "절연저항";
-                    const missingLabel = isLeakageItem ? "누설전류(IGR)" : "절연저항";
                     return (
                       <div key={id}>
                         <p className="mb-1 text-[14px] font-semibold text-slate-800">{def.label}</p>
-                        {thresholdConfigured ? (
-                          <p className="rounded-xl bg-dk-sky px-3 py-2 text-[13px] text-dk-navy">
-                            ⚡ 실측값(다음 단계의 {measurementLabel}, {thresholdLabel}) 기준으로 자동 판정됩니다 — 여기서 누를 필요
-                            없어요.
-                            {isLeakageItem ? " 단, \"미설치\"는 실측만으로 잡히지 않으니 육안으로 함께 확인해주세요." : ""}
-                          </p>
-                        ) : (
-                          <p className="rounded-xl bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
-                            ⚠️ 이 단지는 {missingLabel} 기준값이 아직 설정되지 않아 자동 판정이 보류됩니다(해당없음 처리). 관리자에게
-                            단지 설정을 요청해주세요.
-                          </p>
-                        )}
+                        <p className="rounded-xl bg-dk-sky px-3 py-2 text-[13px] text-dk-navy">
+                          ⚡ 다음 단계에서 입력할 {measurementLabel}·차단기 회로수를 기준으로 자동 판정됩니다 — 여기서 누를 필요
+                          없어요.
+                          {isLeakageItem ? " 단, \"미설치\"는 실측만으로 잡히지 않으니 육안으로 함께 확인해주세요." : ""}
+                        </p>
                       </div>
                     );
                   }
@@ -512,6 +509,24 @@ export default function UnitInspectionForm({
                 onChange={(e) => setLoadCurrent(e.target.value)}
                 className="soft-input w-full text-base"
               />
+            </div>
+            <div>
+              <p className="mb-2 text-[15px] font-bold text-slate-800">
+                분전함 차단기 회로수 <span className="text-dk-red">*</span>
+              </p>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                value={circuitBreakerCount}
+                onChange={(e) => setCircuitBreakerCount(e.target.value)}
+                placeholder="예: 8"
+                className="soft-input w-full text-base"
+              />
+              <p className="mt-1 text-[12px] text-slate-500">
+                절연저항·누설전류 자동판정 기준을 이 회로수로 계산합니다(절연저항 0.22MΩ÷회로수, 누설전류 1mA×회로수).
+              </p>
             </div>
             <div>
               <p className="mb-2 text-[15px] font-bold text-slate-800">IGR · 누설전류 (mA)</p>

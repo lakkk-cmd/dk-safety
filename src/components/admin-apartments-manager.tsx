@@ -13,8 +13,6 @@ type Apartment = {
   district: string;
   address: string;
   electricalSafetyManagerName: string;
-  insulationResistanceThresholdMohm: number | null;
-  leakageCurrentThresholdMa: number | null;
   totalUnits: number | null;
   partnershipType: "contract" | "free_app" | "demo";
 };
@@ -41,8 +39,6 @@ const initialForm = {
   district: "",
   address: "",
   electricalSafetyManagerName: "",
-  insulationResistanceThresholdMohm: "",
-  leakageCurrentThresholdMa: "",
   totalUnits: ""
 };
 
@@ -88,8 +84,6 @@ export default function AdminApartmentsManager() {
           district: form.district,
           address: form.address,
           electricalSafetyManagerName: form.electricalSafetyManagerName,
-          insulationResistanceThresholdMohm: form.insulationResistanceThresholdMohm === "" ? null : Number(form.insulationResistanceThresholdMohm),
-          leakageCurrentThresholdMa: form.leakageCurrentThresholdMa === "" ? null : Number(form.leakageCurrentThresholdMa),
           totalUnits: form.totalUnits === "" ? null : Number(form.totalUnits)
         })
       });
@@ -196,22 +190,6 @@ export default function AdminApartmentsManager() {
           />
           <input
             type="number"
-            step="0.01"
-            value={form.insulationResistanceThresholdMohm}
-            onChange={(e) => setForm((p) => ({ ...p, insulationResistanceThresholdMohm: e.target.value }))}
-            placeholder="절연저항 기준값(MΩ) — 세대점검 자동판정용"
-            className="soft-input"
-          />
-          <input
-            type="number"
-            step="0.01"
-            value={form.leakageCurrentThresholdMa}
-            onChange={(e) => setForm((p) => ({ ...p, leakageCurrentThresholdMa: e.target.value }))}
-            placeholder="누설전류(IGR) 기준값(mA) — 세대점검 자동판정용"
-            className="soft-input"
-          />
-          <input
-            type="number"
             step="1"
             min="0"
             value={form.totalUnits}
@@ -299,20 +277,7 @@ export default function AdminApartmentsManager() {
                 {item.bankInfo.bankName} {item.bankInfo.accountNumber} ({item.bankInfo.accountHolder}) · 기본 {item.baseFee.toLocaleString("ko-KR")}원 · 총세대수:{" "}
                 {item.totalUnits === null ? <span className="font-semibold text-amber-600">미설정</span> : `${item.totalUnits}세대`}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
-                전기선임자: {item.electricalSafetyManagerName || "미설정"} · 절연저항 기준값:{" "}
-                {item.insulationResistanceThresholdMohm === null ? (
-                  <span className="font-semibold text-amber-600">미설정</span>
-                ) : (
-                  `${item.insulationResistanceThresholdMohm}MΩ`
-                )}{" "}
-                · IGR 기준값:{" "}
-                {item.leakageCurrentThresholdMa === null ? (
-                  <span className="font-semibold text-amber-600">미설정(세대점검 자동판정 불가)</span>
-                ) : (
-                  `${item.leakageCurrentThresholdMa}mA`
-                )}
-              </p>
+              <p className="mt-1 text-xs text-slate-500">전기선임자: {item.electricalSafetyManagerName || "미설정"}</p>
               <button type="button" onClick={() => void removeItem(item.id)} className="mt-2 rounded-md border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-700">
                 삭제
               </button>
@@ -331,9 +296,6 @@ export default function AdminApartmentsManager() {
                     district: item.district,
                     address: item.address,
                     electricalSafetyManagerName: item.electricalSafetyManagerName,
-                    insulationResistanceThresholdMohm:
-                      item.insulationResistanceThresholdMohm === null ? "" : String(item.insulationResistanceThresholdMohm),
-                    leakageCurrentThresholdMa: item.leakageCurrentThresholdMa === null ? "" : String(item.leakageCurrentThresholdMa),
                     totalUnits: item.totalUnits === null ? "" : String(item.totalUnits)
                   });
                 }}
