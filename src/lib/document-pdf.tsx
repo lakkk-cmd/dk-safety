@@ -417,12 +417,12 @@ function groupChecklistByCategory(items: ChecklistEntry[]): { category: string; 
  */
 function estimateAutoDiagnosisBlockHeight(entries: DiagnosisEntry[]): number {
   if (entries.length === 0) return 0;
-  const HEADER = 50; // 헤더 fontSize 17→20(2026-08-28 전체 폰트 확대)
+  const HEADER = 55; // 헤더 fontSize 20→22(2026-08-28 재확대)
   const BOX_PADDING = 32;
   const entriesHeight = entries.reduce((sum, e) => {
-    const itemLine = 31; // fontSize 16→19
-    const regulationHeight = estimateTextHeightPx(e.regulation, 48, 29); // fontSize 14→17
-    const commentHeight = estimateTextHeightPx(e.comment, 48, 29);
+    const itemLine = 34; // fontSize 19→21
+    const regulationHeight = estimateTextHeightPx(e.regulation, 43, 32); // fontSize 17→19
+    const commentHeight = estimateTextHeightPx(e.comment, 43, 32);
     return sum + itemLine + regulationHeight + commentHeight + 8;
   }, 0);
   const gaps = (entries.length - 1) * 14;
@@ -446,20 +446,20 @@ function buildNotApplicableNote(items: ChecklistEntry[]): string | null {
 
 function estimateNotApplicableNoteHeight(note: string | null): number {
   if (!note) return 0;
-  const LABEL = 21; // fontSize 13→16 라벨 줄(2026-08-28 전체 폰트 확대) + marginBottom 4
+  const LABEL = 24; // fontSize 16→18 라벨 줄(2026-08-28 재확대) + marginBottom 4
   const BOX_PADDING = 24; // padding "12px 16px" 상하
   const BORDER = 2;
   const MARGIN_BOTTOM = 22;
-  return LABEL + BOX_PADDING + BORDER + estimateTextHeightPx(note, 48, 29) + MARGIN_BOTTOM; // fontSize 14→17
+  return LABEL + BOX_PADDING + BORDER + estimateTextHeightPx(note, 43, 32) + MARGIN_BOTTOM; // fontSize 17→19
 }
 
 function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): number {
   if (entries.length === 0) return 0;
-  const HEADER = 83; // fontSize 16→19(2026-08-28 전체 폰트 확대)
+  const HEADER = 92; // fontSize 19→21(2026-08-28 재확대)
   const BOX_PADDING = 28;
   const entriesHeight = entries.reduce((sum, e) => {
-    const itemLine = 25; // fontSize 15→18
-    const commentHeight = estimateTextHeightPx(e.comment, 49, 27); // fontSize 13→16
+    const itemLine = 28; // fontSize 18→20
+    const commentHeight = estimateTextHeightPx(e.comment, 44, 30); // fontSize 16→18
     return sum + itemLine + commentHeight + 2;
   }, 0);
   const gaps = (entries.length - 1) * 10;
@@ -472,17 +472,17 @@ function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): nu
  * 있을 때만 높이를 더한다(canned 문구 시절과 달리 항상 채워지지 않을 수 있음).
  */
 function estimateAiDiagnosisBlockHeight(ai: UnitInspectionAiDiagnosis): number {
-  const HEADER = 50; // fontSize 17→20(2026-08-28 전체 폰트 확대)
+  const HEADER = 55; // fontSize 20→22(2026-08-28 재확대)
   const BOX_PADDING = 32;
   let inner = 0;
   let rows = 0;
   if (ai.okSummary) {
-    inner += estimateTextHeightPx(ai.okSummary, 48, 29); // fontSize 14→17
+    inner += estimateTextHeightPx(ai.okSummary, 43, 32); // fontSize 17→19
     rows += 1;
   }
   inner += ai.violations.reduce((sum, v) => {
-    const itemLine = 31; // fontSize 16→19
-    return sum + itemLine + estimateTextHeightPx(v.explanation, 48, 29);
+    const itemLine = 34; // fontSize 19→21
+    return sum + itemLine + estimateTextHeightPx(v.explanation, 43, 32);
   }, 0);
   rows += ai.violations.length;
   const gaps = Math.max(0, rows - 1) * 14;
@@ -491,14 +491,14 @@ function estimateAiDiagnosisBlockHeight(ai: UnitInspectionAiDiagnosis): number {
   let companyBoxHeight = 0;
   if (ai.companyAdvisory.length > 0) {
     const entriesHeight = ai.companyAdvisory.reduce((sum, e) => {
-      const itemLine = 25; // fontSize 15→18
-      return sum + itemLine + estimateTextHeightPx(e.explanation, 49, 27); // fontSize 13→16
+      const itemLine = 28; // fontSize 18→20
+      return sum + itemLine + estimateTextHeightPx(e.explanation, 44, 30); // fontSize 16→18
     }, 0);
     const cgaps = (ai.companyAdvisory.length - 1) * 10;
-    companyBoxHeight = 83 + 28 + entriesHeight + cgaps + 22; // HEADER 70→83(fontSize 16→19)
+    companyBoxHeight = 92 + 28 + entriesHeight + cgaps + 22; // HEADER 83→92(fontSize 19→21)
   }
 
-  const summaryBoxHeight = ai.summary ? 37 + 28 + estimateTextHeightPx(ai.summary, 48, 29) + 22 : 0; // 라벨 fontSize 13→16, 본문 14→17
+  const summaryBoxHeight = ai.summary ? 42 + 28 + estimateTextHeightPx(ai.summary, 43, 32) + 22 : 0; // 라벨 fontSize 16→18, 본문 17→19
 
   return mainBoxHeight + companyBoxHeight + summaryBoxHeight;
 }
@@ -523,17 +523,45 @@ function estimateHeightBeforeDiagnosisBlock(data: UnitInspectionPdfData, etcNote
   // 블록을 2페이지로 미는 여백) 크기만 결정할 뿐 실제 콘텐츠 위치와 무관하므로, "점검단지"
   // 줄이 1페이지에서 넘치는 문제는 TABLE(행 높이)·페이지 패딩을 줄여서 실제 렌더링 높이
   // 자체를 줄이는 방식으로 고쳤다(2026-08-28 재확인 — spacer를 키워도 실제 콘텐츠가 이미
-  // PAGE_H_PX를 넘으면 소용없다).
+  // PAGE_H_PX를 넘으면 소용없다). 같은 날 실제 발급 PDF 스크린샷에서 비고란(폭 160px)에
+  // AI판정 실측값 문구가 4줄까지 줄바꿈되며 표 전체 높이가 TABLE 고정값보다 훨씬 커지는
+  // 걸 발견 — 고정 상수 대신 항목별 실제 줄바꿈을 반영하는 estimateTableHeight로 교체했다.
   const isUnvisitedSimple = data.inspectionType === "unvisited_simple";
   // 안내 배너 — 방문점검은 테두리 없는 평문 한 줄, 미방문은 박스형(padding 14px×2 + border
   // 1px×2 = 30px 추가, 582-599줄)이라 더 크다.
-  const HEADER_INTRO = 373 + (isUnvisitedSimple ? 33 : 0); // [별지 서식]~제목~동호/성명~안내문~"-아래-"
-  const TABLE = 827; // 표 헤더 + 12항목 행(minHeight 64 기준) — 두 유형 모두 항상 12행 고정, 차이 없음
-  const ETC_BOX_BASE = 90; // 기타사항 박스(실측값 한 줄만 있을 때)
+  const HEADER_INTRO = 356 + (isUnvisitedSimple ? 33 : 0); // [별지 서식]~제목~동호/성명~안내문~"-아래-" (2026-08-28: 페이지 상단 padding 50→36 -14, 제목·동호·안내문·아래 각 margin 축소 -18)
+  const TABLE = estimateTableHeight(data.checklistItems); // 표 헤더 + 12항목 행(비고란 줄바꿈 길이 반영)
+  const ETC_BOX_BASE = 75; // 기타사항 박스(실측값 한 줄만 있을 때) — 2026-08-28: marginBottom 24→16, padding 18→14→12로 -20
   // 서명란 — 방문점검은 세대주 성명 줄(~28px)+서명 이미지(80px)+margin(16px)이 있지만, 미방문은
-  // 안내문구 한 줄(~34px)뿐이라(709-721줄) 그만큼(약 90px) 더 짧다.
-  const FOOTER = 350 - (isUnvisitedSimple ? 90 : 0); // 부적합 안내문·비고·세대확인(서명)·담당(전기선임자)·점검단지 — 실측 보정(2026-08-24, 2026-08-28)
+  // 안내문구 한 줄(~34px)뿐이라(709-721줄) 그만큼(약 90px) 더 짧다. 점검단지 줄 위 여백을
+  // 18→32로 늘려(2026-08-28, 하단이 너무 빡빡해 보인다는 지적) +14 반영.
+  const FOOTER = 372 - (isUnvisitedSimple ? 90 : 0); // 부적합 안내문·비고·세대확인(서명)·담당(전기선임자)·점검단지 — 실측 보정(2026-08-24, 2026-08-28: 점검단지 marginTop 32→24 -8, 안내문 marginBottom 8→6·32→26 -8, 서명란 paddingTop 24→18 -6)
   return HEADER_INTRO + TABLE + ETC_BOX_BASE + FOOTER + etcNotesExtra;
+}
+
+/**
+ * 표 전체 높이 — 예전엔 12행이 항상 minHeight 근처라고 가정한 고정 상수(TABLE)를 썼는데,
+ * 비고란(폭 160px)에 AI판정 실측값처럼 긴 문구가 들어가면 4줄까지 줄바꿈되면서 실제 표
+ * 높이가 고정값보다 훨씬 커지는 경우가 있었다(2026-08-28, 실제 발급 PDF 스크린샷에서
+ * "점검단지" 줄이 페이지 하단에 짓눌려 보이던 원인). 항목별 확인사항·비고 텍스트 길이로
+ * 각 행 높이를 추정해 합산한다.
+ */
+function estimateTableHeight(items: ChecklistEntry[]): number {
+  const HEADER_ROW = 52; // 표 헤더 행(padding "12px 8px" + fontSize 22, 2026-08-28: 16→12)
+  const ROW_V_PADDING = 24; // 각 행 padding "12px 8px" 상하(2026-08-28, 18→14→12로 축소해 "점검단지" 1페이지 고정용 여유 확보)
+  const ROW_MIN_HEIGHT = 52; // 2026-08-28: 64→58→52 (위와 동일한 이유)
+  let total = HEADER_ROW;
+  for (const item of items) {
+    const itemHeight = estimateTextHeightPx(item.item, 33, 29); // "확인 사항" 열(flex:1, fontSize 21, lineHeight 1.4)
+    const isLongNote = item.note.length > 8;
+    // "비고" 열 폭 166px(2026-08-28, "부적합 설비" 글자가 한 줄로 들어가야 해서 부적합설비 칸을
+    // 120→144로 다시 넓히고 비고 칸에서 24px 되가져옴) → 여백 8px×2 제외 실사용폭 150px,
+    // fontSize 15 기준 1글자≈15px이므로 10자/줄(구 160px 폭에선 9자/줄)
+    const noteHeight = item.note ? estimateTextHeightPx(item.note, isLongNote ? 10 : 22, isLongNote ? 20 : 22) : 0; // lineHeight 1.4→1.3(2026-08-28)
+    const contentHeight = Math.max(itemHeight, noteHeight) + ROW_V_PADDING;
+    total += Math.max(ROW_MIN_HEIGHT, contentHeight);
+  }
+  return total;
 }
 
 function UnitInspectionElement({
@@ -565,23 +593,23 @@ function UnitInspectionElement({
         backgroundColor: "#ffffff",
         fontFamily: "NotoSansKR",
         color: inkColor,
-        padding: "50px 60px",
+        padding: "36px 60px",
       }}
     >
-      <div style={{ display: "flex", fontSize: 18, color: mutedColor }}>[별지 제15호 서식]</div>
-      <div style={{ display: "flex", justifyContent: "center", fontSize: 37, marginTop: 20, marginBottom: 32 }}>
+      <div style={{ display: "flex", fontSize: 20, color: mutedColor }}>[별지 제15호 서식]</div>
+      <div style={{ display: "flex", justifyContent: "center", fontSize: 39, marginTop: 20, marginBottom: 24 }}>
         공동주택 세대내 전기설비 점검기록표
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", marginBottom: 20 }}>
-        <div style={{ display: "flex", fontSize: 24, borderBottom: `1px solid ${inkColor}`, paddingBottom: 6, width: 260 }}>
+      <div style={{ display: "flex", flexDirection: "column", marginBottom: 16 }}>
+        <div style={{ display: "flex", fontSize: 26, borderBottom: `1px solid ${inkColor}`, paddingBottom: 6, width: 260 }}>
           {data.dong}동 {data.ho}호
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
-          <div style={{ display: "flex", fontSize: 22, borderBottom: `1px solid ${inkColor}`, paddingBottom: 6, minWidth: 220 }}>
+          <div style={{ display: "flex", fontSize: 24, borderBottom: `1px solid ${inkColor}`, paddingBottom: 6, minWidth: 220 }}>
             {data.residentName ?? "입주자 미확인"} 귀하
           </div>
-          <div style={{ display: "flex", fontSize: 20, color: mutedColor }}>{data.inspectedAtLabel}</div>
+          <div style={{ display: "flex", fontSize: 22, color: mutedColor }}>{data.inspectedAtLabel}</div>
         </div>
       </div>
 
@@ -594,30 +622,32 @@ function UnitInspectionElement({
             border: `1px solid ${red}`,
             borderRadius: 8,
             padding: "14px 18px",
-            fontSize: 21,
+            fontSize: 23,
             marginBottom: 18,
           }}
         >
           ☑ 세대방문미요청 — EPS실 외부점검으로 대체 실시
         </div>
       ) : (
-        <div style={{ display: "flex", fontSize: 21, marginBottom: 18 }}>귀하의 전기설비 안전점검 결과를 아래와 같이 알려드립니다.</div>
+        <div style={{ display: "flex", fontSize: 23, lineHeight: 1.4, marginBottom: 24 }}>귀하의 전기설비 안전점검 결과를 아래와 같이 알려드립니다.</div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "center", fontSize: 23, marginBottom: 20 }}>- 아&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;래 -</div>
+      <div style={{ display: "flex", justifyContent: "center", fontSize: 25, lineHeight: 1.4, marginTop: 6, marginBottom: 14 }}>
+        - 아&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;래 -
+      </div>
 
       {/* 표 헤더 */}
       <div style={{ display: "flex", border: `1px solid ${borderColor}`, borderBottom: "none" }}>
-        <div style={{ display: "flex", width: 150, backgroundColor: headerTint, padding: "16px 8px", fontSize: 20, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
+        <div style={{ display: "flex", width: 144, backgroundColor: headerTint, padding: "12px 8px", fontSize: 22, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
           부적합 설비
         </div>
-        <div style={{ display: "flex", flex: 1, backgroundColor: headerTint, padding: "16px 8px", fontSize: 20, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
+        <div style={{ display: "flex", flex: 1, backgroundColor: headerTint, padding: "12px 8px", fontSize: 22, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
           확인 사항
         </div>
-        <div style={{ display: "flex", width: 100, backgroundColor: headerTint, padding: "16px 8px", fontSize: 20, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
+        <div style={{ display: "flex", width: 118, backgroundColor: headerTint, padding: "12px 8px", fontSize: 22, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
           점검 결과
         </div>
-        <div style={{ display: "flex", width: 160, backgroundColor: headerTint, padding: "16px 8px", fontSize: 20, justifyContent: "center" }}>
+        <div style={{ display: "flex", width: 166, backgroundColor: headerTint, padding: "12px 8px", fontSize: 22, justifyContent: "center" }}>
           비고
         </div>
       </div>
@@ -628,17 +658,17 @@ function UnitInspectionElement({
             style={{
               display: "flex",
               flexDirection: "column",
-              width: 150,
-              padding: "14px 8px",
-              fontSize: 19,
+              width: 144,
+              padding: "12px 8px",
+              fontSize: 21,
               justifyContent: "center",
               alignItems: "center",
               backgroundColor: "rgba(35,80,143,0.05)",
               borderRight: `1px solid ${borderColor}`,
             }}
           >
-            <div style={{ display: "flex" }}>{group.category}</div>
-            <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginTop: 6 }}>{group.riskFactors.join("·")}</div>
+            <div style={{ display: "flex", lineHeight: 1.4 }}>{group.category}</div>
+            <div style={{ display: "flex", fontSize: 19, lineHeight: 1.4, color: mutedColor, marginTop: 6 }}>{group.riskFactors.join("·")}</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
             {group.items.map((item, iIdx) => (
@@ -647,18 +677,19 @@ function UnitInspectionElement({
                 style={{
                   display: "flex",
                   borderTop: iIdx === 0 ? "none" : `1px solid ${borderColor}`,
-                  minHeight: 64,
+                  minHeight: 52,
                 }}
               >
-                <div style={{ display: "flex", flex: 1, padding: "18px 8px", fontSize: 19, alignItems: "center", borderRight: `1px solid ${borderColor}` }}>
+                <div style={{ display: "flex", flex: 1, padding: "12px 8px", fontSize: 21, lineHeight: 1.4, alignItems: "center", borderRight: `1px solid ${borderColor}` }}>
                   {item.item}
                 </div>
                 <div
                   style={{
                     display: "flex",
-                    width: 100,
-                    padding: "18px 8px",
-                    fontSize: item.result === "N/A" ? 17 : 21,
+                    width: 118,
+                    padding: "12px 8px",
+                    fontSize: item.result === "N/A" ? 19 : 23,
+                    lineHeight: 1.3,
                     color: item.result === "X" ? red : inkColor,
                     justifyContent: "center",
                     alignItems: "center",
@@ -667,7 +698,24 @@ function UnitInspectionElement({
                 >
                   {item.result === "N/A" ? "해당없음" : item.result}
                 </div>
-                <div style={{ display: "flex", width: 160, padding: "18px 8px", fontSize: item.note.length > 8 ? 16 : 18, color: mutedColor, alignItems: "center" }}>
+                {/* 비고란만 폰트 -1(다른 셀보다 작게) — 실측 조건문 등 긴 문구가 많아 다른 칸보다
+                    작게 둬야 넓힌 폭(166px)에서도 줄바꿈이 덜 생긴다(2026-08-28 대표님 요청,
+                    폭은 2026-08-28 "점검단지" 1페이지 고정을 위해 부적합설비 칸(150→120)에서
+                    가져와 160→190으로 확장했다가, "부적합 설비" 글자가 한 줄로 안 들어가
+                    144/166으로 재조정 — cpl(줄당 글자수)이 10으로 유지돼 표 높이엔 영향 없음).
+                    lineHeight를 명시하지 않으면 satori 기본 줄간격이 너무 좁아 줄바꿈된 문구가
+                    겹쳐 보이는 버그가 있었다(2026-08-28 스크린샷으로 발견) — 반드시 지정할 것. */}
+                <div
+                  style={{
+                    display: "flex",
+                    width: 166,
+                    padding: "12px 8px",
+                    fontSize: item.note.length > 8 ? 15 : 17,
+                    lineHeight: 1.3,
+                    color: mutedColor,
+                    alignItems: "center",
+                  }}
+                >
                   {item.note}
                 </div>
               </div>
@@ -677,61 +725,74 @@ function UnitInspectionElement({
       ))}
 
       {/* 기타사항 */}
-      <div style={{ display: "flex", border: `1px solid ${borderColor}`, marginBottom: 24 }}>
+      <div style={{ display: "flex", border: `1px solid ${borderColor}`, marginBottom: 16 }}>
         <div
           style={{
             display: "flex",
-            width: 150,
+            width: 144,
             backgroundColor: redSoft,
             padding: "16px 8px",
-            fontSize: 19,
+            fontSize: 21,
+            lineHeight: 1.3,
             justifyContent: "center",
             alignItems: "center",
+            textAlign: "center",
             borderRight: `1px solid ${borderColor}`,
           }}
         >
           기 타 사 항
         </div>
-        <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "18px 16px" }}>
-          <div style={{ display: "flex", fontSize: 20, gap: 28 }}>
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "12px 16px" }}>
+          <div style={{ display: "flex", fontSize: 22, gap: 28 }}>
             <div style={{ display: "flex" }}>부하전류: {data.loadCurrent ?? "-"} A</div>
             <div style={{ display: "flex" }}>IGR·누설전류: {data.igr ?? "-"} mA</div>
             <div style={{ display: "flex" }}>절연저항: {data.insulationResistance ?? "-"} MΩ</div>
           </div>
-          {data.etcNotes ? <div style={{ display: "flex", fontSize: 18, color: mutedColor, marginTop: 10 }}>{data.etcNotes}</div> : null}
+          {data.etcNotes ? <div style={{ display: "flex", fontSize: 20, lineHeight: 1.4, color: mutedColor, marginTop: 10 }}>{data.etcNotes}</div> : null}
         </div>
       </div>
 
-      <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginBottom: 8 }}>
-        ※ 부적합 전기설비는 감전, 화재 등의 위험과 전력손실로 인한 전기 요금의 추가부담 등의 원인이 되오니 조속한 시일내에 수리하시기 바랍니다.
+      {/* 이 안내문은 1120px 폭에서 자동 줄바꿈이 걸리는 길이인데, satori가 display:flex(row)
+          텍스트 자식의 줄바꿈된 실제 높이를 제대로 예약하지 못해 바로 아래 [비고] 줄과 겹쳐
+          보이는 버그가 있었다(2026-08-28 스크린샷으로 발견, lineHeight·width 지정으로도 안
+          고쳐짐) — 자동 줄바꿈에 기대지 않고 문장을 직접 두 줄로 나눠 각자 독립된 한 줄짜리
+          div로 렌더링하는 방식으로 근본적으로 우회했다. */}
+      <div style={{ display: "flex", flexDirection: "column", marginBottom: 6, fontSize: 19, color: mutedColor }}>
+        <div style={{ display: "flex" }}>※ 부적합 전기설비는 감전, 화재 등의 위험과 전력손실로 인한 전기 요금의</div>
+        <div style={{ display: "flex" }}>추가부담 등의 원인이 되오니 조속한 시일내에 수리하시기 바랍니다.</div>
       </div>
-      <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginBottom: 32 }}>
+      <div style={{ display: "flex", fontSize: 19, color: mutedColor, marginBottom: 26 }}>
         [비고] 점검결과는 O(적합), X(부적합), /(해당없음) 으로 표기 · 세대미방문 시 미점검 항목은 해당없음으로 표기
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${borderColor}`, paddingTop: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${borderColor}`, paddingTop: 18 }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", fontSize: 17, color: mutedColor }}>세대 확인</div>
+          <div style={{ display: "flex", fontSize: 19, color: mutedColor }}>세대 확인</div>
           {data.inspectionType === "unvisited_simple" ? (
-            <div style={{ display: "flex", fontSize: 21, marginTop: 6 }}>— 세대 부재로 서명 불가 (미방문 간이점검) —</div>
+            <div style={{ display: "flex", fontSize: 23, marginTop: 6 }}>— 세대 부재로 서명 불가 (미방문 간이점검) —</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", marginTop: 8 }}>
-              <div style={{ display: "flex", fontSize: 21 }}>{data.residentName ?? ""}</div>
+              <div style={{ display: "flex", fontSize: 23 }}>{data.residentName ?? ""}</div>
               {data.signatureData ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={data.signatureData} width={160} height={80} style={{ display: "flex", marginTop: 8 }} alt="세대 서명" />
               ) : (
-                <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginTop: 8 }}>(서명 없음)</div>
+                <div style={{ display: "flex", fontSize: 19, color: mutedColor, marginTop: 8 }}>(서명 없음)</div>
               )}
             </div>
           )}
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", fontSize: 17, color: mutedColor }}>담당(전기선임자)</div>
-          <div style={{ display: "flex", fontSize: 21, marginTop: 8 }}>{data.electricalSafetyManagerName || "미지정"} (인)</div>
+          <div style={{ display: "flex", fontSize: 19, color: mutedColor }}>담당(전기선임자)</div>
+          <div style={{ display: "flex", fontSize: 23, marginTop: 8 }}>{data.electricalSafetyManagerName || "미지정"} (인)</div>
         </div>
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18, fontSize: 20 }}>
+      {/* 페이지 하단 여백이 너무 빡빡해 보인다는 지적(2026-08-28)에 marginTop을 18→32로
+          늘렸었는데, 긴 비고 문구가 많은 실사용 데이터에서 beforeDiagnosisHeight가
+          PAGE_H_PX를 넘어 "점검단지" 줄이 2페이지로 밀려나는 문제가 재발해 24로 소폭
+          되돌렸다(여전히 원래 18보다는 여유 있음) — estimateHeightBeforeDiagnosisBlock의
+          FOOTER 상수에도 반영해야 한다(아래). */}
+      <div style={{ display: "flex", justifyContent: "flex-end", width: 1120, marginTop: 24, fontSize: 22 }}>
         점검단지: {data.apartmentName}
       </div>
 
@@ -745,18 +806,18 @@ function UnitInspectionElement({
         <div style={{ display: "flex", flexDirection: "column" }}>
           {/* AI 안전진단 확장판(2026-08-26) — 적합은 뭉뚱그림, 부적합만 개별, 회사권장은 완전분리 */}
           <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
-            <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 20 }}>AI 안전진단 결과</div>
+            <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 22 }}>AI 안전진단 결과</div>
             <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
               {data.aiDiagnosis.okSummary ? (
-                <div style={{ display: "flex", fontSize: 17, color: "#33402f", lineHeight: 1.7 }}>{data.aiDiagnosis.okSummary}</div>
+                <div style={{ display: "flex", fontSize: 19, color: "#33402f", lineHeight: 1.7 }}>{data.aiDiagnosis.okSummary}</div>
               ) : null}
               {data.aiDiagnosis.violations.map((entry, idx) => (
                 <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                  <div style={{ display: "flex", fontSize: 19 }}>
+                  <div style={{ display: "flex", fontSize: 21, lineHeight: 1.4 }}>
                     <span style={{ display: "flex", color: red, marginRight: 6 }}>부적합</span>
                     {entry.item}
                   </div>
-                  <div style={{ display: "flex", fontSize: 17, color: "#4a2a22", marginTop: 4, lineHeight: 1.7 }}>{entry.explanation}</div>
+                  <div style={{ display: "flex", fontSize: 19, color: "#4a2a22", marginTop: 4, lineHeight: 1.7 }}>{entry.explanation}</div>
                 </div>
               ))}
             </div>
@@ -774,21 +835,21 @@ function UnitInspectionElement({
                 marginBottom: 22,
               }}
             >
-              <div style={{ display: "flex", fontSize: 16, color: mutedColor, marginBottom: 4 }}>미실측 항목 안내</div>
-              <div style={{ display: "flex", fontSize: 17, color: mutedColor, lineHeight: 1.7 }}>{notApplicableNote}</div>
+              <div style={{ display: "flex", fontSize: 18, color: mutedColor, marginBottom: 4 }}>미실측 항목 안내</div>
+              <div style={{ display: "flex", fontSize: 19, color: mutedColor, lineHeight: 1.7 }}>{notApplicableNote}</div>
             </div>
           ) : null}
 
           {data.aiDiagnosis.companyAdvisory.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
               <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
-                <div style={{ display: "flex", fontSize: 19, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
+                <div style={{ display: "flex", fontSize: 21, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", padding: "14px 16px", gap: 10 }}>
                 {data.aiDiagnosis.companyAdvisory.map((entry, idx) => (
                   <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                    <div style={{ display: "flex", fontSize: 18, color: "#8a5a12" }}>{entry.item}</div>
-                    <div style={{ display: "flex", fontSize: 16, color: mutedColor, marginTop: 2, lineHeight: 1.6 }}>{entry.explanation}</div>
+                    <div style={{ display: "flex", fontSize: 20, color: "#8a5a12" }}>{entry.item}</div>
+                    <div style={{ display: "flex", fontSize: 18, color: mutedColor, marginTop: 2, lineHeight: 1.6 }}>{entry.explanation}</div>
                   </div>
                 ))}
               </div>
@@ -797,8 +858,8 @@ function UnitInspectionElement({
 
           {data.aiDiagnosis.summary ? (
             <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#eef3fb", border: "1px solid #c3d3ec", borderRadius: 4, padding: "14px 16px", marginBottom: 22 }}>
-              <div style={{ display: "flex", fontSize: 16, color: blue, marginBottom: 6 }}>종합 총평</div>
-              <div style={{ display: "flex", fontSize: 17, color: "#1c2c48", lineHeight: 1.7 }}>{data.aiDiagnosis.summary}</div>
+              <div style={{ display: "flex", fontSize: 18, color: blue, marginBottom: 6 }}>종합 총평</div>
+              <div style={{ display: "flex", fontSize: 19, color: "#1c2c48", lineHeight: 1.7 }}>{data.aiDiagnosis.summary}</div>
             </div>
           ) : null}
         </div>
@@ -807,16 +868,16 @@ function UnitInspectionElement({
           {/* AI 안전진단 — 확장판 생성 전(제출 직후) 기본 폴백: 별표3 부적합만 규칙엔진 canned 문구로 나열 */}
           {data.autoDiagnosis.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
-              <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 20 }}>AI 안전진단 결과</div>
+              <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 22 }}>AI 안전진단 결과</div>
               <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
                 {data.autoDiagnosis.map((entry, idx) => (
                   <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                    <div style={{ display: "flex", fontSize: 19 }}>
+                    <div style={{ display: "flex", fontSize: 21, lineHeight: 1.4 }}>
                       {entry.item} —{" "}
                       <span style={{ display: "flex", color: red, marginLeft: 6 }}>{entry.verdict}</span>
                     </div>
-                    <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginTop: 4 }}>{entry.regulation}</div>
-                    <div style={{ display: "flex", fontSize: 17, color: mutedColor, marginTop: 4 }}>{entry.comment}</div>
+                    <div style={{ display: "flex", fontSize: 19, lineHeight: 1.4, color: mutedColor, marginTop: 4 }}>{entry.regulation}</div>
+                    <div style={{ display: "flex", fontSize: 19, lineHeight: 1.4, color: mutedColor, marginTop: 4 }}>{entry.comment}</div>
                   </div>
                 ))}
               </div>
@@ -835,8 +896,8 @@ function UnitInspectionElement({
                 marginBottom: 22,
               }}
             >
-              <div style={{ display: "flex", fontSize: 16, color: mutedColor, marginBottom: 4 }}>미실측 항목 안내</div>
-              <div style={{ display: "flex", fontSize: 17, color: mutedColor, lineHeight: 1.7 }}>{notApplicableNote}</div>
+              <div style={{ display: "flex", fontSize: 18, color: mutedColor, marginBottom: 4 }}>미실측 항목 안내</div>
+              <div style={{ display: "flex", fontSize: 19, color: mutedColor, lineHeight: 1.7 }}>{notApplicableNote}</div>
             </div>
           ) : null}
 
@@ -844,13 +905,13 @@ function UnitInspectionElement({
           {data.companyAdvisories.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
               <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
-                <div style={{ display: "flex", fontSize: 19, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
+                <div style={{ display: "flex", fontSize: 21, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", padding: "14px 16px", gap: 10 }}>
                 {data.companyAdvisories.map((entry, idx) => (
                   <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                    <div style={{ display: "flex", fontSize: 18, color: "#8a5a12" }}>{entry.item}</div>
-                    <div style={{ display: "flex", fontSize: 16, color: mutedColor, marginTop: 2 }}>{entry.comment}</div>
+                    <div style={{ display: "flex", fontSize: 20, color: "#8a5a12" }}>{entry.item}</div>
+                    <div style={{ display: "flex", fontSize: 18, lineHeight: 1.6, color: mutedColor, marginTop: 2 }}>{entry.comment}</div>
                   </div>
                 ))}
               </div>
@@ -870,8 +931,8 @@ function UnitInspectionElement({
  * 넣어 블록 전체를 페이지 2로 통째로 넘긴다 — addSlicedPages는 그 늘어난 높이를 그대로
  * 여러 페이지로 슬라이스한다.
  */
-export async function renderUnitInspectionPdf(data: UnitInspectionPdfData): Promise<Uint8Array> {
-  const etcNotesExtra = data.etcNotes ? estimateTextHeightPx(data.etcNotes, 58, 29) : 0; // fontSize 15→18(2026-08-28)
+async function buildUnitInspectionPng(data: UnitInspectionPdfData): Promise<{ png: Buffer; heightPx: number }> {
+  const etcNotesExtra = data.etcNotes ? estimateTextHeightPx(data.etcNotes, 52, 32) : 0; // fontSize 18→20(2026-08-28)
   const notApplicableNote = buildNotApplicableNote(data.checklistItems);
   const notApplicableNoteHeight = estimateNotApplicableNoteHeight(notApplicableNote);
   // aiDiagnosis가 있으면(사후보정 정정본) okSummary/summary 문단이 항상 있을 수 있어 부적합 0건
@@ -881,26 +942,49 @@ export async function renderUnitInspectionPdf(data: UnitInspectionPdfData): Prom
   const hasDiagnosisContent = data.aiDiagnosis
     ? true
     : data.autoDiagnosis.length > 0 || data.companyAdvisories.length > 0 || notApplicableNote !== null;
-  const pageBreakSpacerPx = hasDiagnosisContent
-    ? Math.max(0, PAGE_H_PX - estimateHeightBeforeDiagnosisBlock(data, etcNotesExtra))
-    : 0;
+  // beforeDiagnosisHeight는 실제(추정) 콘텐츠 높이 — 비고란에 긴 문구가 많아 표가 예상보다
+  // 훨씬 커지면 PAGE_H_PX(1754)를 넘어설 수 있다. 예전엔 이 경우 spacer만 0으로 클램프하고
+  // heightPx 계산은 여전히 PAGE_H_PX를 기준으로 삼아서, 실제로 더 큰 콘텐츠가 고정 캔버스에
+  // 안 맞아 satori의 기본 flex-shrink 동작으로 "점검단지" 같은 작은 줄이 짓눌려 아예 안 보이는
+  // 버그가 있었다(2026-08-28 발견 — 위 파일 상단 주석의 2026-08-23 버그와 동일한 근본원인).
+  // heightPx는 반드시 beforeDiagnosisHeight(클램프 안 된 실측값) 기준으로 계산해야 한다.
+  const beforeDiagnosisHeight = estimateHeightBeforeDiagnosisBlock(data, etcNotesExtra);
+  // ALIGN_SAFETY_PX: beforeDiagnosisHeight는 손으로 합산한 추정치라 실제 렌더링 높이와 몇십px
+  // 오차가 날 수 있다 — 추정치가 실측보다 조금이라도 크면(추정 과다) spacer가 그만큼 작게
+  // 계산돼 다음 블록(AI 안전진단 결과 타이틀)이 페이지 경계를 살짝 넘어 1페이지 하단에
+  // 걸치면서 타이틀 줄이 페이지 사이에서 잘려 보이는 문제가 있었다(2026-08-28, 표/여백을
+  // 대거 조정한 뒤 재발견). spacer에 여유를 더해 블록이 항상 2페이지 쪽으로 살짝 밀리게
+  // 한다(반대 방향 오차는 페이지1 하단에 여백만 조금 더 생길 뿐 안전함).
+  const ALIGN_SAFETY_PX = 60;
+  const pageBreakSpacerPx = hasDiagnosisContent ? Math.max(0, PAGE_H_PX - beforeDiagnosisHeight + ALIGN_SAFETY_PX) : 0;
   const diagnosisBlockHeight =
     (data.aiDiagnosis
       ? estimateAiDiagnosisBlockHeight(data.aiDiagnosis)
       : estimateAutoDiagnosisBlockHeight(data.autoDiagnosis) + estimateCompanyAdvisoryBlockHeight(data.companyAdvisories)) +
     notApplicableNoteHeight;
-  const extraHeight = diagnosisBlockHeight + etcNotesExtra + pageBreakSpacerPx;
-  const heightPx = PAGE_H_PX + extraHeight;
+  const heightPx = beforeDiagnosisHeight + pageBreakSpacerPx + diagnosisBlockHeight;
 
   const png = await renderElementToPng(
     <UnitInspectionElement data={data} heightPx={heightPx} pageBreakSpacerPx={pageBreakSpacerPx} />,
     PAGE_W_PX,
     heightPx
   );
+  return { png, heightPx };
+}
+
+export async function renderUnitInspectionPdf(data: UnitInspectionPdfData): Promise<Uint8Array> {
+  const { png, heightPx } = await buildUnitInspectionPng(data);
   const pdfDoc = await PDFDocument.create();
   const image = await pngToImageWithPdfDoc(pdfDoc, png);
   addSlicedPages(pdfDoc, image, PAGE_W_PX, heightPx);
   return pdfDoc.save();
+}
+
+/** 슬라이스 전 원본 캔버스를 그대로 PNG로 반환한다 — 실제 PDF 페이지 분할과 무관하게 전체
+ * 레이아웃을 한 이미지로 빠르게 미리보기할 때 사용(수정 검토용, 대표님 확인 요청 시). */
+export async function renderUnitInspectionPreviewPng(data: UnitInspectionPdfData): Promise<Buffer> {
+  const { png } = await buildUnitInspectionPng(data);
+  return png;
 }
 
 /** 마크다운 유사 텍스트(## 헤더)를 섹션 배열로 파싱한다. */
