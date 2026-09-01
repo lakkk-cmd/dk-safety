@@ -3,7 +3,7 @@ title: "기능 현황 — feature"
 category: features
 tags: ["project-features", "feature"]
 source: "project_features"
-synced_at: "2026-08-31T23:27:37.520Z"
+synced_at: "2026-09-01T22:08:12.540Z"
 ---
 
 <!-- AUTO:START -->
@@ -17,7 +17,7 @@ synced_at: "2026-08-31T23:27:37.520Z"
 - **RAG 답변**: 질문 → 벡터검색 → Claude 답변 → Gemini 검증 — Voyage AI, Claude API, Gemini
 - **거짓답변 방지**: RAG 근거 없으면 배지 표시, 거짓/위험정보 감지 시 답변 차단 — Gemini, pgvector
 - **디지털 보증서**: 작업 완료 시 보증서 자동 발급 — pdf-lib, Solapi
-- **세대전기점검 앱 구독제** (`/apt-manager/subscribe`): inspect.dkansim.com 전기과장 앱의 PDF 다운로드 유료화 — 30일 롤링 주기당 무료 5건(점검건 단위, 재다운로드는 영구 무료), 초과 시 구독 필요. 구독료는 단지 총세대수 기준 ≤300세대 30,000원/월, >300세대 50,000원/월 — Next.js, Supabase, Toss Payments
+- **세대전기점검 앱 구독제** (`/apt-manager/subscribe`): inspect.dkansim.com 전기과장 앱의 PDF 다운로드 유료화 — 2026년 말까지는 초기 확산을 위해 구독 여부/쿼터와 무관하게 전면 무료(FREE_LAUNCH_PROMO_UNTIL=2027-01-01, apartment-subscriptions-pg.ts). 2027-01-01부터 원래 정책(30일 롤링 주기당 무료 5건, 점검건 단위, 재다운로드는 영구 무료, 초과 시 구독 필요)으로 복귀. 구독료는 단지 총세대수 기준 ≤300세대 30,000원/월, >300세대 50,000원/월. 세대 점검입력·AI 안전진단 판정·거주자 SMS/카카오 발송은 시기와 무관하게 항상 무료. — Next.js, Supabase, Toss Payments
   - 메모: 점검입력/AI판정/거주자 알림 발송과 거주민 공개 결과페이지(/unit-inspection/[id])는 게이트 대상이 아니며 항상 무료다.
 - **신뢰도메인 화이트리스트**: 범주별 허용 도메인 DB 관리 — Supabase
 - **영상 합성 파이프라인**: Claude 씬 기획 → 실제 사진 우선 매칭(없으면 OpenRouter Flux 씬 이미지 생성) → Supertone/ElevenLabs/edge-tts 나레이션 → ffmpeg Ken Burns+자막 조립으로 유튜브 영상 자동 생성. dk-video-factory 로컬 워커가 처리하고, 대장이 hq.dkansim.com/videos에서 승인해야만 유튜브(비공개)에 업로드됨. 실제 업로드 성공 사례 있음(2026-07-07 첫 업로드 이후 다수).
