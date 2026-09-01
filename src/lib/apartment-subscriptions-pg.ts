@@ -8,6 +8,14 @@ export const FREE_PDF_QUOTA_PER_CYCLE = 5;
 export const FREE_QUOTA_CYCLE_DAYS = 30;
 const CYCLE_MS = FREE_QUOTA_CYCLE_DAYS * 24 * 60 * 60 * 1000;
 
+/** 2026년 말까지 초기 확산을 위한 전면 무료배포 기간 — 이 시점 전엔 구독 여부/쿼터와 무관하게
+ *  PDF 다운로드를 전부 허용한다. 언락 기록은 그대로 남기므로 이 기간에 받은 건은 2027년 이후에도
+ *  already_unlocked 판정으로 계속 무료 재열람된다. */
+export const FREE_LAUNCH_PROMO_UNTIL = new Date("2027-01-01T00:00:00+09:00");
+export function isFreeLaunchPromoActive(): boolean {
+  return Date.now() < FREE_LAUNCH_PROMO_UNTIL.getTime();
+}
+
 export type ApartmentSubscription = {
   id: string;
   apartmentId: string;
@@ -288,6 +296,9 @@ export type PdfQuotaStatus = {
   usedThisCycle: number;
   remainingFree: number;
   cycleResetAt: string;
+  /** true면 2026년 말까지 전면 무료배포 기간 — 구독/쿼터 표시를 UI에서 무시해야 한다. */
+  promoActive: boolean;
+  promoUntil: string;
 };
 
 /** anchor로부터 30일씩 끊었을 때 지금이 속한 주기의 시작/끝. */
@@ -322,14 +333,17 @@ export async function pgGetPdfQuotaStatus(apartmentId: string): Promise<PdfQuota
     status: subscription.status,
     usedThisCycle: used,
     remainingFree: Math.max(0, FREE_PDF_QUOTA_PER_CYCLE - used),
-    cycleResetAt: end.toISOString()
+    cycleResetAt: end.toISOString(),
+    promoActive: isFreeLaunchPromoActive(),
+    promoUntil: FREE_LAUNCH_PROMO_UNTIL.toISOString()
   };
 }
 
 export type PdfQuotaDecision = {
   allowed: boolean;
-  /** subscribed=구독중 무제한 / already_unlocked=이미 받은 건(영구 무료) / free_quota=무료 한도 차감 / exhausted=한도 소진 */
-  reason: "subscribed" | "already_unlocked" | "free_quota" | "exhausted";
+  /** subscribed=구독중 무제한 / already_unlocked=이미 받은 건(영구 무료) / free_quota=무료 한도 차감 /
+   *  exhausted=한도 소진 / promo_free=2026년 말까지 전면 무료배포 기간 */
+  reason: "subscribed" | "already_unlocked" | "free_quota" | "exhausted" | "promo_free";
   remainingFree: number;
   cycleResetAt: string;
 };
@@ -356,6 +370,12 @@ export async function pgCheckAndConsumePdfQuota(
     .maybeSingle();
   if (existingError) {
     throw new Error(`다운로드 이력 조회 실패: ${existingError.message}`);
+  }
+
+  if (isFreeLaunchPromoActive()) {
+    // 언락 기록은 그대로 남긴다 — 2027년 이후 already_unlocked 판정의 근거가 된다.
+    if (!existing) await insertUnlock(apartmentId, unitInspectionId, aptManagerId);
+    return { allowed: true, reason: "promo_free", remainingFree: FREE_PDF_QUOTA_PER_CYCLE, cycleResetAt };
   }
 
   if (subscription.status === "active") {
@@ -425,7 +445,7 @@ export async function pgCheckAndConsumePdfQuotaBulk(
   const newIds: string[] = [];
   let skippedCount = 0;
 
-  if (subscription.status === "active") {
+  if (isFreeLaunchPromoActive() || subscription.status === "active") {
     for (const id of unitInspectionIds) {
       allowedIds.push(id);
       if (!unlockedIds.has(id)) newIds.push(id);

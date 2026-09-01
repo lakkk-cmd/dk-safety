@@ -152,6 +152,14 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 
   **구독제(freemium) 게이트 (114, 2026-08-27)**: 점검입력·AI판정·거주자 SMS/카카오 발송은 연체 여부와 무관하게 **항상 무료**이고, **전기과장의 점검표 PDF 다운로드에만** 게이트가 걸린다. 무료 한도는 가입일(`apartment_subscriptions.free_quota_anchor_at`) 기준 30일 롤링 주기당 5건이며, 카운트 단위가 "점검건"이라 한 번 언락한 건의 재다운로드는 영구 무료다(`apartment_pdf_downloads`의 `(apartment_id, unit_inspection_id)` unique가 강제). 구독료는 스냅샷하지 않고 매 청구 시점의 `apartments.total_units`로 재계산한다. 결제는 Toss 자동결제(빌링키) 또는 계좌이체 수동확인 중 단지가 선택하며, **세금계산서 발행은 스코프 밖**(대표님이 기존 방식대로 별도 처리)이다. 연체/결제실패는 유예 없이 즉시 `past_due`로 떨어져 PDF만 잠긴다.
 
+  **한시적 전면 무료 프로모션 (2026-09-01)**: 위 게이트는 코드상 여전히 존재하지만,
+  `apartment-subscriptions-pg.ts::isFreeLaunchPromoActive()`(`FREE_LAUNCH_PROMO_UNTIL =
+  2027-01-01T00:00:00+09:00`)가 켜져 있는 동안은 구독/쿼터와 무관하게 PDF 다운로드가 전부
+  허용된다(초기 확산 우선, "홍보가 먼저" 판단). 이 기간에도 언락 기록(`apartment_pdf_downloads`)은
+  정상 적재되므로 2027-01-01 이후에도 이 기간에 받은 건은 already_unlocked로 계속 무료다. 별도
+  배포 없이 날짜만으로 원래 정책이 자동 복귀한다 — 이 상수를 지우거나 만료일을 옮기지 않는 한
+  건드릴 코드는 없다.
+
   강제 방식은 **완전 비공개화(서명 URL)**다 — 기존 `pdf_url`은 공개 버킷의 영구 공개 링크라 서버를 거치지 않아 게이트를 걸 지점 자체가 없었다. 그래서 같은 바이트를 비공개 버킷(`SUPABASE_PRIVATE_DOCUMENTS_BUCKET`)에도 사본으로 올리고(`unit_electrical_inspections.pdf_private_path`), 전기과장 다운로드는 `GET /api/apt-manager/unit-inspections/[id]/pdf`가 쿼터 검사 후 5분짜리 서명 URL을 발급하는 경로로만 나간다(초과 시 402 + `{remainingFree, cycleResetAt}`). 일괄 zip(`bulk-pdf`)도 항목마다 같은 게이트를 순차로 돌려 통과분만 담고 제외 건수를 `X-Skipped-Count` 헤더로 알린다. **거주민이 문자/카카오로 받는 공개 결과페이지 `/unit-inspection/[id]`와 그 `pdf_url`은 절대 건드리지 않는다** — 법적 의무 이행 경로라 계속 무료·무마찰이어야 한다.
 
   주의: `unit_electrical_inspections`는 `pdf_url`이 채워지는 순간 트리거가 UPDATE/DELETE를 전부 막으므로, `pgSaveUnitInspectionPdf(id, {pdfUrl, pdfPrivatePath})`는 두 컬럼을 반드시 **한 번의 UPDATE**로 써야 한다. 114 이전 발급분의 lazy backfill을 위해 트리거는 "`pdf_private_path`가 null→값으로 **단독** 변경되는 UPDATE"만 예외로 통과시킨다(`to_jsonb` 비교로 다른 컬럼 동반 변경을 차단).

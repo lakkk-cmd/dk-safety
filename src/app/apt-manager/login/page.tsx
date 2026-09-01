@@ -43,6 +43,9 @@ export default function AptManagerLoginPage() {
         <p className="text-xs font-semibold text-dk-blue">우리집 안심전기(대경이엔피)</p>
         <h1 className="mt-2 text-2xl font-black text-slate-950">공동주택 세대 전기설비점검 로그인</h1>
         <p className="mt-2 text-sm text-slate-600">단지 전기안전관리자 전용 계정으로 로그인합니다.</p>
+        <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+          🎉 2026년 말까지는 점검표 PDF 다운로드까지 전면 무료입니다.
+        </p>
 
         <form className="mt-6 space-y-3" onSubmit={submit}>
           <input

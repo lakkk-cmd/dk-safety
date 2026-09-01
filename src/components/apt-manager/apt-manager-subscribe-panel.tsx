@@ -18,6 +18,8 @@ type QuotaState = {
   remainingFree: number;
   cycleResetAt: string;
   freeQuotaPerCycle: number;
+  promoActive: boolean;
+  promoUntil: string;
 };
 
 type ApartmentState = { name: string; totalUnits: number | null; monthlyPrice: number };
@@ -147,10 +149,17 @@ export default function AptManagerSubscribePanel() {
   const remaining = quota?.remainingFree ?? 0;
   const perCycle = quota?.freeQuotaPerCycle ?? 5;
   const remainDays = daysLeft(subscription?.currentPeriodEnd ?? null);
+  const promoActive = quota?.promoActive ?? false;
 
   return (
     <div className="space-y-4">
       {message ? <p className="rounded-xl bg-slate-100 px-3 py-2 text-[13px] text-slate-700">{message}</p> : null}
+
+      {promoActive ? (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-800">
+          🎉 2026년 말까지는 점검표 PDF 다운로드가 구독 여부와 상관없이 전면 무료입니다. 2027년부터 구독 단지만 다운로드할 수 있어요.
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-dk-blue/20 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-2">
@@ -158,7 +167,15 @@ export default function AptManagerSubscribePanel() {
           <span className={`rounded-full px-3 py-1 text-xs font-bold ${STATUS_CLASS[status]}`}>{STATUS_LABEL[status]}</span>
         </div>
 
-        {status === "active" ? (
+        {promoActive ? (
+          <>
+            <p className="mt-2 text-2xl font-black text-dk-navy">점검표 PDF 다운로드 무제한</p>
+            <p className="mt-1 text-xs text-slate-500">
+              프로모션 기간(2026년 말까지)에는 개별 · 일괄 zip 모두 제한 없이 받으실 수 있어요. 이 기간에 받은 점검건은
+              2027년 이후에도 계속 무료로 다시 받으실 수 있습니다.
+            </p>
+          </>
+        ) : status === "active" ? (
           <>
             <p className="mt-2 text-2xl font-black text-dk-navy">
               점검표 PDF 무제한
@@ -186,12 +203,16 @@ export default function AptManagerSubscribePanel() {
       <div className="rounded-2xl border border-slate-200 bg-white p-4 text-[13px] leading-relaxed text-slate-600 shadow-sm">
         <p className="text-sm font-bold text-dk-navy">계속 무료로 쓰실 수 있는 것</p>
         <p className="mt-1">세대 점검입력 · AI 안전진단 판정 · 세대 문자/카카오 결과 발송은 구독 여부와 상관없이 언제나 무료예요.</p>
-        <p className="mt-3 text-sm font-bold text-dk-navy">구독하면 달라지는 것</p>
-        <p className="mt-1">점검표 PDF 다운로드가 무제한이 됩니다(개별 · 일괄 zip 모두).</p>
+        <p className="mt-3 text-sm font-bold text-dk-navy">{promoActive ? "2027년부터 달라지는 것" : "구독하면 달라지는 것"}</p>
+        <p className="mt-1">
+          {promoActive
+            ? "2027년 1월 1일부터는 점검표 PDF 다운로드가 구독 단지만 가능해집니다. 지금 받아두신 PDF는 그 이후에도 계속 무료로 다시 받으실 수 있어요."
+            : "점검표 PDF 다운로드가 무제한이 됩니다(개별 · 일괄 zip 모두)."}
+        </p>
       </div>
 
       <div className="rounded-2xl border border-dk-blue/20 bg-white p-4 shadow-sm">
-        <p className="text-sm font-bold text-dk-navy">우리 단지 구독료</p>
+        <p className="text-sm font-bold text-dk-navy">우리 단지 구독료{promoActive ? " (2027년부터 적용)" : ""}</p>
         <p className="mt-1 text-2xl font-black text-dk-blue">
           월 {(apartment?.monthlyPrice ?? 30000).toLocaleString("ko-KR")}원
         </p>
@@ -199,6 +220,9 @@ export default function AptManagerSubscribePanel() {
           {apartment?.totalUnits ? `총 ${apartment.totalUnits}세대 기준` : "총세대수 미등록 — 300세대 이하 요금 적용중"} (300세대
           이하 30,000원 / 300세대 초과 50,000원)
         </p>
+        {promoActive ? (
+          <p className="mt-1 text-xs text-slate-400">지금 미리 등록해두시면 2027년부터 자동으로 적용돼요. 급하지 않으시면 연말 이후에 등록하셔도 됩니다.</p>
+        ) : null}
 
         {status === "active" && subscription?.billingMethod === "toss_auto" ? (
           <button
