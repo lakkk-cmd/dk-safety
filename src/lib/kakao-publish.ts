@@ -176,6 +176,22 @@ export async function notifyDailyBusinessScan(params: {
   await sendKakaoMemo(lines.join("\n"), "https://hq.dkansim.com");
 }
 
+/** hq 9-11월 영업계획 현황판 — 매주 월요일 아침 진도율 알림. 본문은 sendKakaoMemo의
+ * 200자 절단(19행)을 감안해 총 150자 이내로 짧게 유지한다(진도율 1줄 + 예산 1줄 + 링크). */
+export async function notifySalesPlanProgress(params: {
+  monthCount: number;
+  monthTarget: number;
+  budgetUsed: number | null;
+  budgetCap: number;
+}): Promise<void> {
+  const pct = Math.round((params.monthCount / params.monthTarget) * 100);
+  const lines = [`[영업계획 주간진도] 이번달 예약 ${params.monthCount}/${params.monthTarget}건 (${pct}%)`];
+  if (params.budgetUsed !== null) {
+    lines.push(`예산 ${params.budgetUsed.toLocaleString()}/${params.budgetCap.toLocaleString()}원`);
+  }
+  await sendKakaoMemo(lines.join("\n"), "https://hq.dkansim.com/sales-visit-log");
+}
+
 /** Vercel 프로덕션 배포 완료/실패 알림 — Vercel 웹훅(deployment.succeeded/deployment.error)에서 호출 */
 export async function notifyVercelDeployment(params: {
   status: "succeeded" | "error";

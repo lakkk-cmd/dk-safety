@@ -2,7 +2,10 @@ import Link from "next/link";
 import HqImprovementInline from "@/components/hq/hq-improvement-inline";
 import SystemHealthCard from "@/components/hq/system-health-card";
 import DailyScanCard from "@/components/hq/daily-scan-card";
+import SalesPlanChip from "@/components/hq/sales-plan-chip";
 import { getHqSummary } from "@/lib/hq-summary";
+import { getKstDateTime } from "@/lib/agent-schedule";
+import { SALES_PLAN_WINDOW } from "@/lib/sales-plan-constants";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +17,9 @@ function formatDateTime(value: string): string {
  *  홈은 순수 대시보드, 채팅은 hq-shell의 풀높이 레이아웃을 쓰는 전용 탭. */
 export default async function HqPage() {
   const summary = await getHqSummary();
-  const { reservations, content, pipeline, report, feedback } = summary;
+  const { reservations, content, pipeline, report, feedback, salesPlan } = summary;
+  const todayKstKey = getKstDateTime().dateKey;
+  const campaignActive = todayKstKey >= SALES_PLAN_WINDOW.start && todayKstKey <= SALES_PLAN_WINDOW.end;
 
   const pipelineStatusColor =
     pipeline.latest?.status === "success"
@@ -82,6 +87,8 @@ export default async function HqPage() {
             대장 피드백 대기 <span className="rounded-full bg-cc-gold px-1.5 py-0.5 text-cc-navy">{feedback.pending}</span>
           </Link>
         ) : null}
+
+        <SalesPlanChip salesPlan={salesPlan} campaignActive={campaignActive} />
       </div>
 
       {pipeline.latest ? (

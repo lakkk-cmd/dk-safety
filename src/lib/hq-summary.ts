@@ -4,6 +4,8 @@ import { getCurrentWeekStatus, type WeekStatus } from "@/lib/agents";
 import { getPendingApprovalCounts } from "@/lib/content-pipeline";
 import { countUnacknowledgedImprovementRequests } from "@/lib/improvement-requests";
 import { readReservations, type Reservation } from "@/lib/reservations-store";
+import { getSalesPlanSummary, type SalesPlanSummary } from "@/lib/sales-plan-summary";
+import { SALES_PLAN_MONTH_TARGET, SALES_PLAN_CAMPAIGN_TARGET } from "@/lib/sales-plan-constants";
 
 export type HqSummary = {
   today: string;
@@ -23,6 +25,10 @@ export type HqSummary = {
   report: { latest: { date_label: string; chief_summary: string | null; created_at: string; approved: boolean } | null };
   scheduleSummary: string;
   agentSupabaseReady: boolean;
+  /** 9-11월 영업계획 현황 — monthCount/campaignCount는 readiness와 무관하게 항상 채워짐(Principle 2),
+   * supplemental(방문기록/예산)만 Supabase 미연결·조회실패 시 null. 독립적으로 계산되어 이 필드의
+   * 실패가 위 다른 필드(content/pipeline/report/feedback)에 전파되지 않는다. */
+  salesPlan: SalesPlanSummary;
 };
 
 /** HQ 대시보드/헤더 알림 뱃지가 공유하는 현황 요약. */
@@ -44,6 +50,23 @@ export async function getHqSummary(): Promise<HqSummary> {
       statusCounts[r.status as keyof typeof statusCounts] += 1;
     }
     if (!r.isPaid) unpaidCount += 1;
+  }
+
+  // 독립 블록 — 아래 이 함수의 메인 Promise.all(공유 catch)에 절대 합치지 않는다.
+  // getSalesPlanSummary 내부에서 이미 supplemental 조회 실패를 자체 catch하므로 여기서 던지는 건
+  // reservations의 createdAt이 파싱 불가능한 극히 예외적인 경우뿐이다 — 그래도 이 함수 자체를
+  // 한 번 더 감싸 다른 칩(content/pipeline/report/feedback)에는 어떤 경우에도 영향이 없게 한다.
+  let salesPlan: HqSummary["salesPlan"];
+  try {
+    salesPlan = await getSalesPlanSummary(reservations);
+  } catch {
+    salesPlan = {
+      monthCount: 0,
+      monthTarget: SALES_PLAN_MONTH_TARGET,
+      campaignCount: 0,
+      campaignTarget: SALES_PLAN_CAMPAIGN_TARGET,
+      supplemental: null,
+    };
   }
 
   const ready = isAgentSupabaseReady();
@@ -108,5 +131,6 @@ export async function getHqSummary(): Promise<HqSummary> {
     report: { latest: latestReport },
     scheduleSummary,
     agentSupabaseReady: ready,
+    salesPlan,
   };
 }
