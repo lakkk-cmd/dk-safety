@@ -26,6 +26,24 @@ function thisYearRange() {
   return { from: `${now.getFullYear()}-01-01`, to: `${now.getFullYear()}-12-31` };
 }
 
+function lastYearRange() {
+  const year = new Date().getFullYear() - 1;
+  return { from: `${year}-01-01`, to: `${year}-12-31` };
+}
+
+/** "YYYY-MM" 입력값을 그 달의 1일~말일 범위로 변환 */
+function monthRange(monthValue: string) {
+  const [y, m] = monthValue.split("-").map(Number);
+  const from = `${monthValue}-01`;
+  const to = new Date(y, m, 0).toISOString().slice(0, 10);
+  return { from, to };
+}
+
+function currentMonthValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
 /** 서비스 시작 이전 날짜라 사실상 "전체 기간"과 동일 — DB에 이보다 이른 거래는 없다 */
 const ALL_TIME_FROM = "2020-01-01";
 
@@ -61,6 +79,10 @@ export default function ErpLedgerPage() {
   const [to, setTo] = useState(defaults.to);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+  const [monthValue, setMonthValue] = useState(currentMonthValue());
+  const [typeFilter, setTypeFilter] = useState<"all" | "revenue" | "expense">("all");
 
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState("기타");
@@ -88,9 +110,19 @@ export default function ErpLedgerPage() {
   }, []);
 
   useEffect(() => { void load(from, to); }, [load, from, to]);
+  useEffect(() => { setPage(1); }, [from, to, typeFilter]);
 
   const revenue = entries.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
   const expenseTotal = entries.filter((e) => e.amount < 0).reduce((s, e) => s - e.amount, 0);
+
+  // 조회된 기간(entries) 안에서 매출/지출만 추가로 좁혀보는 필터 — 상단 요약 카드(매출/지출/순이익)는
+  // 기간 전체 기준을 유지하고, 이 필터는 아래 표시되는 거래내역 목록에만 적용된다.
+  const typeFilteredEntries =
+    typeFilter === "all" ? entries : entries.filter((e) => (typeFilter === "revenue" ? e.amount > 0 : e.amount < 0));
+
+  const totalPages = Math.max(1, Math.ceil(typeFilteredEntries.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedEntries = typeFilteredEntries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const submit = async () => {
     const amt = Number(amount);
@@ -194,11 +226,27 @@ export default function ErpLedgerPage() {
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
         <span className="text-slate-400">~</span>
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <span className="text-slate-300">|</span>
+        <input
+          type="month"
+          value={monthValue}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (!v) return;
+            setMonthValue(v);
+            const range = monthRange(v);
+            setFrom(range.from);
+            setTo(range.to);
+          }}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          aria-label="월별 조회"
+        />
         <div className="ml-2 flex flex-wrap gap-1.5">
           {[
             { label: "이번 달", range: thisMonthRange() },
             { label: "지난 달", range: lastMonthRange() },
             { label: "올해", range: thisYearRange() },
+            { label: "지난해", range: lastYearRange() },
             { label: "전체", range: allTimeRange() }
           ].map((preset) => (
             <button
@@ -274,8 +322,30 @@ export default function ErpLedgerPage() {
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-slate-200 px-5 py-4">
-          <h2 className="font-bold text-slate-900">거래내역</h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-bold text-slate-900">거래내역</h2>
+            <div className="flex gap-1.5">
+              {[
+                { key: "all" as const, label: `전체 ${entries.length}` },
+                { key: "revenue" as const, label: `매출만 ${entries.filter((e) => e.amount > 0).length}` },
+                { key: "expense" as const, label: `지출만 ${entries.filter((e) => e.amount < 0).length}` }
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setTypeFilter(opt.key)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                    typeFilter === opt.key
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
             자동 기장된 항목(예약금 결제·현장 정산 잔금·경비 등)도 여기서 직접 수정·삭제할 수 있습니다. 단, 원장에서만
             지워질 뿐 예약/주문/경비 원본 데이터는 바뀌지 않습니다 — 원본이 나중에 다시 갱신되면 새 항목이 또 쌓일 수 있습니다.
           </p>
@@ -284,6 +354,10 @@ export default function ErpLedgerPage() {
           <p className="py-8 text-center text-slate-400">불러오는 중...</p>
         ) : entries.length === 0 ? (
           <p className="py-8 text-center text-slate-400">해당 기간에 거래내역이 없습니다.</p>
+        ) : typeFilteredEntries.length === 0 ? (
+          <p className="py-8 text-center text-slate-400">
+            해당 기간에 {typeFilter === "revenue" ? "매출" : "지출"} 내역이 없습니다.
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -298,7 +372,7 @@ export default function ErpLedgerPage() {
                 </tr>
               </thead>
               <tbody>
-                {entries.map((e) =>
+                {pagedEntries.map((e) =>
                   editingId === e.id ? (
                     <tr key={e.id} className="border-t border-slate-100 bg-amber-50/60">
                       <td className="px-2 py-2">
@@ -380,6 +454,35 @@ export default function ErpLedgerPage() {
             </table>
           </div>
         )}
+        {!loading && typeFilteredEntries.length > 0 ? (
+          <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3">
+            <p className="text-xs text-slate-500">
+              전체 {typeFilteredEntries.length}건 중 {(currentPage - 1) * PAGE_SIZE + 1}-
+              {Math.min(currentPage * PAGE_SIZE, typeFilteredEntries.length)}건
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              >
+                이전
+              </button>
+              <span className="px-2 text-xs font-semibold text-slate-600">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              >
+                다음
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </main>
   );
