@@ -40,7 +40,7 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
   // (기존엔 이슈마다 hero_title/hero_subtitle/hero_cta까지 3중으로 손봐야 했다. site-config로
   // 되돌리지 말 것: /api/chat/decision이 hero_* 키를 서버에서 거부하도록 되어 있다)
   const heroTitle = "우리집 전기 걱정되시나요?";
-  const heroSubtitle = "전기기사가 직접 방문해서 해결해드립니다";
+  const heroSubtitle = "전기전문가가 직접 방문해서 해결해드립니다";
   const heroCta = "🔴 지금 점검 예약하기";
   const noticeActive = config.notice_active === "true";
   const noticeText = config.notice_text ?? "";
@@ -98,8 +98,15 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
         ) : null}
 
         <section className="rounded-3xl bg-dk-navy p-6 text-center text-white">
-          <p className="text-5xl">⚡</p>
-          <h1 className="mt-3 text-[28px] font-bold leading-tight">{heroTitle}</h1>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/hero-fire-warning.jpg"
+            alt="방치된 콘센트 화재 경고 — 어디서든 전기 화재는 예방이 최선입니다"
+            className="w-full rounded-2xl shadow-lg"
+          />
+          <h1 className="mt-5 text-[34px] font-extrabold leading-tight text-dk-gold drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
+            {heroTitle}
+          </h1>
           <p className="mt-2 text-[15px] text-white/70">{heroSubtitle}</p>
 
           <div className="mt-5 space-y-2.5">
