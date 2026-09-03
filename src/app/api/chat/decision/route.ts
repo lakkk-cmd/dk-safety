@@ -54,6 +54,16 @@ export async function POST(request: Request) {
       continue;
     }
 
+    // 히어로 타이틀/서브타이틀/CTA는 상시 고정 카피로 코드에 박아뒀다(home-client.tsx) — 이슈마다
+    // 여러 필드를 손보던 것을 season_banner 하나로 통합한 재구성(2026-09)이라, 이 키들은 site_config에
+    // 써봤자 화면에 반영되지 않는다. 조용히 성공한 척 하지 않고 여기서 명확히 거부한다.
+    if (key === "hero_title" || key === "hero_subtitle" || key === "hero_cta") {
+      warnings.push(
+        `${key}: 히어로 문구는 상시 고정 카피라 채팅으로 반영되지 않습니다. 계절/이슈성 안내는 season_banner_text로 등록해주세요. (영구적인 카피 변경이 필요하면 코드 수정 요청이 필요합니다)`,
+      );
+      continue;
+    }
+
     // site_decisions INSERT + site_config UPSERT(+실패 시 롤백)를 단일 DB 함수 호출로 묶어
     // 원자적으로 처리한다 (마이그레이션 059) — 예전에는 4개의 별도 요청으로 나뉘어 있어
     // 롤백 단계 자체가 중간에 실패하면 두 테이블 상태가 어긋날 수 있었다.

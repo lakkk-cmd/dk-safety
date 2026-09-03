@@ -36,9 +36,12 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
     return apartments.filter((apt) => apt.name.includes(q));
   }, [apartments, search]);
 
-  const heroTitle = config.hero_title ?? "우리집 전기 걱정되시나요?";
-  const heroSubtitle = config.hero_subtitle ?? "전기기사가 직접 방문해서 해결해드립니다";
-  const heroCta = config.hero_cta ?? "🔴 지금 점검 예약하기";
+  // 히어로 문구는 상시 고정 카피다 — 계절/이슈성 메시지는 아래 season_banner 하나로만 교체한다
+  // (기존엔 이슈마다 hero_title/hero_subtitle/hero_cta까지 3중으로 손봐야 했다. site-config로
+  // 되돌리지 말 것: /api/chat/decision이 hero_* 키를 서버에서 거부하도록 되어 있다)
+  const heroTitle = "우리집 전기 걱정되시나요?";
+  const heroSubtitle = "전기기사가 직접 방문해서 해결해드립니다";
+  const heroCta = "🔴 지금 점검 예약하기";
   const noticeActive = config.notice_active === "true";
   const noticeText = config.notice_text ?? "";
   const seasonBannerActive = config.season_banner === "true";

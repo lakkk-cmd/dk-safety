@@ -3,6 +3,11 @@ import { pgListApartments } from "@/lib/apartments-pg";
 import { getAgentSupabase } from "@/lib/agent-db";
 import { CUSTOMER_APK_URL } from "@/lib/mobile-apps";
 
+// site_config(공지/시즌 배너)를 chat의 apply_site_decision이 "즉시 반영"이라고 안내하는데,
+// 이 페이지가 정적 프리렌더로 빌드타임에 굳어버리면 다음 배포 전까지 실제로는 반영되지 않는다
+// (2026-09, 히어로/배너 재구성 중 발견). 다른 site_config 의존 페이지들과 동일하게 강제 동적 렌더.
+export const dynamic = "force-dynamic";
+
 async function getSiteConfig(): Promise<Record<string, string>> {
   try {
     const supabase = getAgentSupabase();

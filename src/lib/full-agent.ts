@@ -131,7 +131,7 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "apply_site_decision",
     description:
-      "대화에서 확정된 결정을 site_config DB에 즉시 저장해 dkansim.com 전 페이지에 반영한다. CTA/헤드라인 변경(hero_title/hero_subtitle/hero_cta), 공지(notice_active/notice_text), 시즌 배너(season_banner/season_banner_text)가 확정됐을 때 대장 확인 없이 즉시 사용하라.\n\n주의: decision_type='pricing'(요금 변경)은 이 도구로 절대 즉시 반영되지 않는다 — 서버가 무조건 거부하고 /admin/pricing에서 대표님이 직접 반영해야 한다는 안내만 반환한다. 요금은 §5 블랙리스트 대상(항상 사람 승인)이므로 이 도구를 호출하는 것 자체는 막지 않지만, 반영은 절대 되지 않는다는 걸 알고 대장에게 안내하라.",
+      "대화에서 확정된 결정을 site_config DB에 즉시 저장해 dkansim.com 전 페이지에 반영한다. 공지(notice_active/notice_text), 시즌/이슈 배너(season_banner/season_banner_text)가 확정됐을 때 대장 확인 없이 즉시 사용하라.\n\n주의1: decision_type='pricing'(요금 변경)은 이 도구로 절대 즉시 반영되지 않는다 — 서버가 무조건 거부하고 /admin/pricing에서 대표님이 직접 반영해야 한다는 안내만 반환한다.\n주의2: hero_title/hero_subtitle/hero_cta는 상시 고정 카피로 코드에 박혀 있어(2026-09 재구성) 이 도구로 절대 반영되지 않는다 — 서버가 거부한다. 계절/이슈성 문구는 반드시 season_banner_text 하나로만 처리하라. 요금·히어로 둘 다 도구 호출 자체를 막지는 않지만, 반영은 절대 되지 않는다는 걸 알고 대장에게 안내하라.",
     input_schema: {
       type: "object",
       properties: {
@@ -291,14 +291,20 @@ create_content_draft/github_create_issue는 CMO(마케터)/CTO(기술 마케터)
 
 ## 사이트 자동 반영 규칙
 대화에서 아래 패턴이 확정(승인)되면 즉시 apply_site_decision 도구를 호출해 dkansim.com 전 페이지에 반영하라:
-- "메인 헤드라인 / 히어로 제목" 변경 → decision_type=cta, key=hero_title, target_page=main
-- "서브타이틀" 변경 → decision_type=cta, key=hero_subtitle, target_page=main
-- "메인 버튼 / CTA 버튼" 변경 → decision_type=cta, key=hero_cta, target_page=main
 - "공지 등록 / 공지 올리기" → decision_type=notice, key=notice_active, value=true + key=notice_text
 - "공지 내리기" → decision_type=notice, key=notice_active, value=false
-- "시즌 배너 / 장마 배너" → decision_type=notice, key=season_banner, value=true + key=season_banner_text
+- "시즌 배너 / 장마철 · 폭염 · 한파 등 이슈성 안내" → decision_type=notice, key=season_banner, value=true + key=season_banner_text
 - "배너 내리기" → decision_type=notice, key=season_banner, value=false
 반영 완료 후 반드시 "✅ [반영 완료] {label} → dkansim.com에 즉시 적용됐습니다" 형식으로 보고하라.
+
+## 히어로 문구(hero_title/hero_subtitle/hero_cta) — 더 이상 채팅으로 안 바꾼다 (2026-09 재구성)
+과거엔 계절/이슈가 바뀔 때마다 히어로 제목·서브타이틀·CTA·배너까지 최대 4개 필드를 매번 손봐야 했다.
+지금은 히어로 3종은 상시 고정 카피로 코드(home-client.tsx)에 박아뒀고, 이슈성 메시지는 season_banner_text
+하나로만 교체하는 구조다. 그러니 "메인 헤드라인/히어로 제목/버튼 문구 바꿔줘" 같은 요청을 받으면:
+- 그게 "이번 이슈에 맞춰 문구 바꾸기"라면 → season_banner_text로 등록하고 그렇게 안내하라.
+- 그게 "히어로 자체를 영구적으로 바꾸고 싶다"는 요청이라면 → apply_site_decision을 호출하지 말고, 코드
+  수정이 필요한 작업이라 대장이 Claude Code 세션에서 직접 요청해야 한다고 안내하라. (hero_title 등의 키로
+  호출해도 서버가 거부하며 실제로 반영되지 않는다.)
 
 ## 요금 변경 — 절대 즉시 반영 금지
 "기본 출장점검비 / 풀패키지 / 추가작업 요금" 같은 가격 변경 요청은 위 규칙과 달리 **절대 apply_site_decision으로
