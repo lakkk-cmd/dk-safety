@@ -53,7 +53,7 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
         <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="우리집 전기주치의" className="h-9 w-auto shrink-0" />
+            <img src="/logo-ivory.png" alt="우리집 전기주치의" className="h-9 w-auto shrink-0" />
             <p className="text-[15px] font-bold tracking-tight text-white">우리집 전기주치의</p>
           </div>
           <div className="flex items-center gap-2">
