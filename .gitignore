@@ -23,6 +23,11 @@ data/backups/
 public/uploads/
 test-output/
 
+# 로컬모드 fallback 데이터 — 프로덕션은 Supabase가 원본. 로컬 dev 서버 켤 때마다 갱신되며
+# 매번 커밋 diff로 뜨던 노이즈(tsconfig.tsbuildinfo는 TS incremental build 캐시라 같은 문제).
+data/activity-log.json
+tsconfig.tsbuildinfo
+
 .env*
 
 # 모바일 앱(Capacitor) 빌드 산출물 — CI가 매번 새로 생성함
