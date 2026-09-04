@@ -97,35 +97,6 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
           </div>
         ) : null}
 
-        <section className="rounded-3xl bg-dk-navy p-6 text-center text-white">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/hero-fire-warning.jpg"
-            alt="방치된 콘센트 화재 경고 — 어디서든 전기 화재는 예방이 최선입니다"
-            className="w-full rounded-2xl shadow-lg"
-          />
-          <h1 className="mt-5 text-[34px] font-extrabold leading-tight text-dk-gold drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
-            {heroTitle}
-          </h1>
-          <p className="mt-2 text-[15px] text-white/70">{heroSubtitle}</p>
-
-          <div className="mt-5 space-y-2.5">
-            <button
-              type="button"
-              onClick={() => setPickerOpen(true)}
-              className="flex min-h-[60px] w-full items-center justify-center gap-2 rounded-2xl bg-dk-blue text-lg font-bold text-white shadow-[0_10px_28px_rgba(26,92,255,0.4)]"
-            >
-              {heroCta}
-            </button>
-            <Link
-              href="/status"
-              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border-2 border-white/70 text-base font-bold text-white"
-            >
-              📋 내 점검 결과 보기
-            </Link>
-          </div>
-        </section>
-
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
           {TRUST_ITEMS.map((item) => (
             <span key={item} className="shrink-0 rounded-full bg-white px-3.5 py-2 text-[13px] font-bold text-dk-navy shadow-sm">
@@ -152,6 +123,35 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
           >
             지금 예약하기
           </button>
+        </section>
+
+        <section className="rounded-3xl bg-dk-navy p-6 text-center text-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/hero-fire-warning.jpg"
+            alt="방치된 콘센트 화재 경고 — 어디서든 전기 화재는 예방이 최선입니다"
+            className="w-full rounded-2xl shadow-lg"
+          />
+          <h1 className="mt-5 whitespace-nowrap text-[clamp(1.35rem,7vw,2.125rem)] font-extrabold leading-tight text-dk-gold drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
+            {heroTitle}
+          </h1>
+          <p className="mt-2 text-[15px] text-white/70">{heroSubtitle}</p>
+
+          <div className="mt-5 space-y-2.5">
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="flex min-h-[60px] w-full items-center justify-center gap-2 rounded-2xl bg-dk-blue text-lg font-bold text-white shadow-[0_10px_28px_rgba(26,92,255,0.4)]"
+            >
+              {heroCta}
+            </button>
+            <Link
+              href="/status"
+              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border-2 border-white/70 text-base font-bold text-white"
+            >
+              📋 내 점검 결과 보기
+            </Link>
+          </div>
         </section>
 
         <SiteFooter />
