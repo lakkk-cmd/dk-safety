@@ -3,18 +3,18 @@ title: "에이전트 메모리 — structured_v1"
 category: agent-memory
 tags: ["agent-memory", "structured_v1"]
 source: "agent_memory (key=structured_v1)"
-synced_at: "2026-09-03T21:57:22.670Z"
+synced_at: "2026-09-04T21:54:11.333Z"
 ---
 
 <!-- AUTO:START -->
 ## structured_v1
 
-마지막 갱신: 2026-08-28T23:52:47.192674+00:00
+마지막 갱신: 2026-09-04T05:12:09.361492+00:00
 
 ```json
 {
   "version": 1,
-  "updatedAt": "2026-08-28T23:52:46.479Z",
+  "updatedAt": "2026-09-04T05:12:08.058Z",
   "strategicThemes": [],
   "decisions": [],
   "openQuestions": [],
@@ -141,7 +141,7 @@ synced_at: "2026-09-03T21:57:22.670Z"
       ]
     }
   ],
-  "feedbackNotes": "[2026. 07. 25. 오전 08:50] [영상 이미지 OCR 실패] 씬 2\n큐ID: 22aad9e3-3569-4338-85af-7f9e8f15b000\n프롬프트: Extreme close-up shot of the open interior of a Korean apartment electrical panel (distribution boar\n[2026. 07. 25. 오전 08:50] [영상 이미지 OCR 실패] 씬 3\n큐ID: 22aad9e3-3569-4338-85af-7f9e8f15b000\n프롬프트: A Korean male electrician in his 40s, wearing a navy-blue work uniform with an embroidered chest pat\n[2026. 07. 25. 오전 08:50] [영상 이미지 OCR 실패] 씬 5\n큐ID: 22aad9e3-3569-4338-85af-7f9e8f15b000\n프롬프트: Wide establishing shot: A Korean male electrician in his 40s, wearing a navy-blue work uniform with \n[2026. 07. 25. 오전 08:50] [영상 이미지 OCR 실패] 씬 6\n큐ID: 22aad9e3-3569-4338-85af-7f9e8f15b000\n프롬프트: Wide establishing shot: A clean wooden table surface in a bright apartment room. A Korean male elect\n[2026. 07. 25. 오전 08:50] [영상 이미지 OCR 실패] 씬 7\n큐ID: 22aad9e3-3569-4338-85af-7f9e8f15b000\n프롬프트: Medium shot: A Korean male electrician in his 40s, wearing a navy-blue work uniform with an embroide"
+  "feedbackNotes": ""
 }
 ```
 
