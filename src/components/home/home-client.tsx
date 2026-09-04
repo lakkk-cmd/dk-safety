@@ -97,34 +97,6 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
           </div>
         ) : null}
 
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-          {TRUST_ITEMS.map((item) => (
-            <span key={item} className="shrink-0 rounded-full bg-white px-3.5 py-2 text-[13px] font-bold text-dk-navy shadow-sm">
-              {item}
-            </span>
-          ))}
-        </div>
-
-        <section className="rounded-2xl bg-white p-5 shadow-[0_4px_16px_rgba(11,31,58,0.08)]">
-          <h2 className="text-lg font-bold text-dk-navy">이런 증상 있으신가요?</h2>
-          <div className="mt-3 grid grid-cols-2 gap-2.5">
-            {SYMPTOMS.map((s) => (
-              <div key={s.text} className="rounded-2xl bg-dk-sky p-3 text-center">
-                <p className="text-2xl">{s.icon}</p>
-                <p className="mt-1.5 text-[13px] font-semibold leading-snug text-dk-navy">{s.text}</p>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-center text-[13px] text-slate-500">하나라도 해당되면 → 지금 바로 예약</p>
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            className="mt-2 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-dk-red text-base font-bold text-white"
-          >
-            지금 예약하기
-          </button>
-        </section>
-
         <section className="rounded-3xl bg-dk-navy p-6 text-center text-white">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -152,6 +124,34 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
               📋 내 점검 결과 보기
             </Link>
           </div>
+        </section>
+
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+          {TRUST_ITEMS.map((item) => (
+            <span key={item} className="shrink-0 rounded-full bg-white px-3.5 py-2 text-[13px] font-bold text-dk-navy shadow-sm">
+              {item}
+            </span>
+          ))}
+        </div>
+
+        <section className="rounded-2xl bg-white p-5 shadow-[0_4px_16px_rgba(11,31,58,0.08)]">
+          <h2 className="text-lg font-bold text-dk-navy">이런 증상 있으신가요?</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2.5">
+            {SYMPTOMS.map((s) => (
+              <div key={s.text} className="rounded-2xl bg-dk-sky p-3 text-center">
+                <p className="text-2xl">{s.icon}</p>
+                <p className="mt-1.5 text-[13px] font-semibold leading-snug text-dk-navy">{s.text}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-center text-[13px] text-slate-500">하나라도 해당되면 → 지금 바로 예약</p>
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="mt-2 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-dk-red text-base font-bold text-white"
+          >
+            지금 예약하기
+          </button>
         </section>
 
         <SiteFooter />
