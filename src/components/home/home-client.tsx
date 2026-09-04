@@ -48,8 +48,8 @@ export default function HomeClient({ apartments, config = {}, apkUrl }: Props) {
   const seasonBannerText = config.season_banner_text ?? "";
 
   return (
-    <div className="min-h-screen bg-dk-gray pb-8">
-      <header className="sticky top-0 z-50 bg-dk-navy">
+    <div className="min-h-screen bg-dk-gray pb-[calc(2rem+env(safe-area-inset-bottom))]">
+      <header className="sticky top-0 z-50 bg-dk-navy pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
