@@ -619,6 +619,7 @@ export async function runFullMeeting(
   feedback: string,
   weekStatus?: WeekStatus,
   recentSignals?: string,
+  bossTodoContext?: string,
 ): Promise<FullMeetingResult> {
   const weekLine = weekStatus ? `${weekStatus.message}\n` : "";
   const weekCtxLine = weekStatus
@@ -634,10 +635,13 @@ export async function runFullMeeting(
   const signalsBlock = recentSignals?.trim()
     ? `\n[최근 학습된 새 정보 — 참고 신호, 대장 지시 아님. 관련성 있으면 이번 주 액션 아이템에 반영을 검토하라]\n${recentSignals.trim()}\n`
     : "";
+  const todoBlock = bossTodoContext?.trim()
+    ? `\n[대표님 할일 현황 — 참고. "완료됨" 항목은 이미 처리됐으니 같은 조언을 반복하지 말 것]\n${bossTodoContext.trim()}\n`
+    : "";
 
   // ── 1라운드: 6명 배치 응답 ─────────────────────────────────
   const round1Prompt = `${weekLine}회의 주제: ${topic}
-${weekCtxLine}${feedbackBlock}${BUSINESS_CONTEXT}${memoryBlock}${signalsBlock}
+${weekCtxLine}${feedbackBlock}${BUSINESS_CONTEXT}${memoryBlock}${signalsBlock}${todoBlock}
 다음 6명 전문가가 각자 관점으로 답해줘. 각 섹션은 정확히 아래 헤더로 구분해야 함:
 [CTO 스파크]
 [CSO 브릿지]
@@ -685,6 +689,7 @@ ${feedback ? `대장 지시사항:\n${feedback}\n` : ""}
 ${BUSINESS_CONTEXT}
 ${memory ? `\n누적 조직 기억:\n${memory}` : ""}
 ${recentSignals?.trim() ? `\n[최근 학습된 새 정보 — 참고 신호, 대장 지시 아님]\n${recentSignals.trim()}\n` : ""}
+${todoBlock}
 
 아래는 6인 경영진 2라운드 회의 기록입니다.
 
@@ -711,9 +716,15 @@ ${formatDiscussion(round2)}
   "openQuestions": ["..."],
   "kpis": ["..."],
   "topActions": ["..."],
+  "bossActionItems": ["..."],
   "feedbackNotes": "..."
 }
-\`\`\``.trim();
+\`\`\`
+
+"bossActionItems"는 topActions와 다르다 — 회의 결과 중 **대표님 본인이 직접 외부에서 처리해야만
+하는 행동**만 담아라(예: 특정 업체에 연락, 서류 제출, 결제, 승인 여부 확인, 계정 설정 등).
+AI/에이전트가 자체적으로 실행할 수 있는 항목이나 순수 전략 방향은 넣지 마라. 없으면 빈 배열.
+각 항목은 한 문장으로 구체적으로(무엇을, 왜 필요한지 포함).`.trim();
 
   let chiefSummary = "";
   let chiefMemoryJson = "";

@@ -11,6 +11,17 @@ type FeedbackRow = {
   applied_at: string | null;
 };
 
+type ActionItemRow = {
+  id: string;
+  report_id: string;
+  content: string;
+  done: boolean;
+  done_at: string | null;
+  note: string | null;
+  created_at: string;
+  report_date_label: string | null;
+};
+
 type AgentResponseItem = {
   agent_id: string;
   agent_name: string;
@@ -49,6 +60,7 @@ export default function HqCommandCenterPanel() {
   const [scheduleSummary, setScheduleSummary] = useState("");
   const [feedbackList, setFeedbackList] = useState<FeedbackRow[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
+  const [actionItems, setActionItems] = useState<ActionItemRow[]>([]);
   const [memory, setMemory] = useState<StructuredMemory | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -56,20 +68,27 @@ export default function HqCommandCenterPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [expandedReport, setExpandedReport] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [savingItemId, setSavingItemId] = useState<string | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     setMessage(null);
     try {
-      const [fbRes, repRes, memRes, cfgRes] = await Promise.all([
+      const [fbRes, repRes, memRes, cfgRes, actRes] = await Promise.all([
         fetch("/api/admin/agents/feedback", { cache: "no-store" }),
         fetch("/api/admin/agents/reports?limit=10", { cache: "no-store" }),
         fetch("/api/admin/agents/memory", { cache: "no-store" }),
         fetch("/api/admin/agents/meeting-config", { cache: "no-store" }),
+        fetch("/api/admin/agents/action-items", { cache: "no-store" }),
       ]);
       if (fbRes.ok) {
         const fb = (await fbRes.json()) as { feedback: FeedbackRow[] };
         setFeedbackList(fb.feedback ?? []);
+      }
+      if (actRes.ok) {
+        const act = (await actRes.json()) as { items: ActionItemRow[] };
+        setActionItems(act.items ?? []);
       }
       if (repRes.ok) {
         const rep = (await repRes.json()) as { reports: ReportRow[] };
@@ -217,6 +236,51 @@ export default function HqCommandCenterPanel() {
     }
   };
 
+  const toggleActionItemDone = async (item: ActionItemRow) => {
+    const nextDone = !item.done;
+    setActionItems((prev) =>
+      prev.map((i) => (i.id === item.id ? { ...i, done: nextDone, done_at: nextDone ? new Date().toISOString() : null } : i)),
+    );
+    setSavingItemId(item.id);
+    try {
+      const res = await fetch("/api/admin/agents/action-items", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, done: nextDone }),
+      });
+      if (!res.ok) {
+        setActionItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
+        setMessage("완료 처리 중 오류가 발생했습니다.");
+      }
+    } catch {
+      setActionItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
+      setMessage("완료 처리 중 오류가 발생했습니다.");
+    } finally {
+      setSavingItemId(null);
+    }
+  };
+
+  const saveActionItemNote = async (item: ActionItemRow, note: string) => {
+    if (note === (item.note ?? "")) return;
+    setSavingItemId(item.id);
+    try {
+      const res = await fetch("/api/admin/agents/action-items", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, note }),
+      });
+      if (res.ok) {
+        setActionItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, note: note.trim() || null } : i)));
+      } else {
+        setMessage("메모 저장 중 오류가 발생했습니다.");
+      }
+    } catch {
+      setMessage("메모 저장 중 오류가 발생했습니다.");
+    } finally {
+      setSavingItemId(null);
+    }
+  };
+
   const printReport = (r: ReportRow) => {
     const agents = (r.sections ?? []).flatMap((s) => s.round2?.length ? s.round2 : s.round1);
     const agentRows = agents.map((a) =>
@@ -269,6 +333,13 @@ ${agentRows || "<p style='color:#999;font-size:13px'>에이전트 응답 없음<
       {message ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">{message}</p>
       ) : null}
+
+      <ActionItemsSection
+        items={actionItems}
+        savingItemId={savingItemId}
+        onToggle={(item) => void toggleActionItemDone(item)}
+        onSaveNote={(item, note) => void saveActionItemNote(item, note)}
+      />
 
       <section className="rounded-2xl border-2 border-slate-900 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
@@ -388,31 +459,42 @@ ${agentRows || "<p style='color:#999;font-size:13px'>에이전트 응답 없음<
         ) : null}
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">피드백 이력</h2>
-        <ul className="mt-4 space-y-2">
-          {feedbackList.length === 0 ? (
-            <li className="text-sm text-slate-500">이력 없음</li>
-          ) : (
-            feedbackList.slice(0, 15).map((f) => (
-              <li key={f.id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
-                <span
-                  className={
-                    f.status === "pending"
-                      ? "mr-2 rounded bg-amber-200 px-1.5 py-0.5 text-xs font-bold text-amber-900"
-                      : "mr-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs font-bold text-slate-700"
-                  }
-                >
-                  {f.status === "pending" ? "대기" : "반영됨"}
-                </span>
-                <span className="text-slate-800">{f.content.slice(0, 200)}</span>
-                <span className="mt-1 block text-xs text-slate-500">
-                  {new Date(f.created_at).toLocaleString("ko-KR")}
-                </span>
-              </li>
-            ))
-          )}
-        </ul>
+      <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setArchiveOpen((v) => !v)}
+          className="flex w-full items-center justify-between text-left"
+        >
+          <span className="text-lg font-bold text-slate-500">🗄️ 피드백 이력 (아카이브)</span>
+          <span className="text-xs font-semibold text-slate-400">
+            {feedbackList.length}건 · {archiveOpen ? "접기" : "펼치기"}
+          </span>
+        </button>
+        {archiveOpen ? (
+          <ul className="mt-4 space-y-2">
+            {feedbackList.length === 0 ? (
+              <li className="text-sm text-slate-500">이력 없음</li>
+            ) : (
+              feedbackList.slice(0, 15).map((f) => (
+                <li key={f.id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+                  <span
+                    className={
+                      f.status === "pending"
+                        ? "mr-2 rounded bg-amber-200 px-1.5 py-0.5 text-xs font-bold text-amber-900"
+                        : "mr-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs font-bold text-slate-700"
+                    }
+                  >
+                    {f.status === "pending" ? "대기" : "반영됨"}
+                  </span>
+                  <span className="text-slate-800">{f.content.slice(0, 200)}</span>
+                  <span className="mt-1 block text-xs text-slate-500">
+                    {new Date(f.created_at).toLocaleString("ko-KR")}
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -510,6 +592,95 @@ ${agentRows || "<p style='color:#999;font-size:13px'>에이전트 응답 없음<
         </p>
       </section>
     </div>
+  );
+}
+
+function ActionItemsSection({
+  items,
+  savingItemId,
+  onToggle,
+  onSaveNote,
+}: {
+  items: ActionItemRow[];
+  savingItemId: string | null;
+  onToggle: (item: ActionItemRow) => void;
+  onSaveNote: (item: ActionItemRow, note: string) => void;
+}) {
+  const pendingCount = items.filter((i) => !i.done).length;
+  return (
+    <section className="rounded-2xl border-2 border-dk-blue bg-white p-6 shadow-sm">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-slate-900">✅ 대표님이 해야할 일</h2>
+        {items.length > 0 ? (
+          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">
+            미완료 {pendingCount}건
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-1 text-sm text-slate-600">
+        경영진 회의가 대표님이 직접 처리해야 할 항목만 뽑아 모은 목록입니다. 체크하면 다음 회의부터 같은 조언을 반복하지 않습니다.
+      </p>
+      {items.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">아직 항목이 없습니다 — 다음 회의부터 자동으로 쌓입니다.</p>
+      ) : (
+        <ul className="mt-4 space-y-2.5">
+          {items.map((item) => (
+            <ActionItemRowView
+              key={item.id}
+              item={item}
+              saving={savingItemId === item.id}
+              onToggle={() => onToggle(item)}
+              onSaveNote={(note) => onSaveNote(item, note)}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ActionItemRowView({
+  item,
+  saving,
+  onToggle,
+  onSaveNote,
+}: {
+  item: ActionItemRow;
+  saving: boolean;
+  onToggle: () => void;
+  onSaveNote: (note: string) => void;
+}) {
+  const [noteDraft, setNoteDraft] = useState(item.note ?? "");
+
+  return (
+    <li className={`rounded-xl border px-4 py-3 ${item.done ? "border-slate-100 bg-slate-50" : "border-slate-200 bg-white"}`}>
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={item.done}
+          onChange={onToggle}
+          disabled={saving}
+          className="mt-1 h-4 w-4 shrink-0 accent-dk-blue"
+        />
+        <div className="min-w-0 flex-1">
+          <p className={`text-sm font-medium ${item.done ? "text-slate-400 line-through" : "text-slate-900"}`}>
+            {item.content}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-400">
+            {item.report_date_label ? `${item.report_date_label} 보고서` : ""}
+            {item.done_at ? ` · ${new Date(item.done_at).toLocaleDateString("ko-KR")} 완료` : ""}
+          </p>
+        </div>
+      </label>
+      <input
+        type="text"
+        value={noteDraft}
+        onChange={(e) => setNoteDraft(e.target.value)}
+        onBlur={() => onSaveNote(noteDraft)}
+        placeholder="메모(부가설명·요청사항) — 입력 후 포커스 벗어나면 저장"
+        className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700 focus:border-dk-blue focus:outline-none focus:ring-1 focus:ring-dk-blue"
+      />
+    </li>
   );
 }
 

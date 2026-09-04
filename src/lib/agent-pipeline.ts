@@ -18,6 +18,7 @@ import {
 } from "@/lib/agent-memory";
 import { clearPendingTopics } from "@/lib/agent-schedule";
 import { loadRecentSignalsBrief } from "@/lib/recent-signals";
+import { loadActionItemsContext, saveActionItemsForReport } from "@/lib/report-action-items";
 
 export type ReportSectionPayload = {
   topic: string;
@@ -60,6 +61,19 @@ function extractTopActions(chiefMemoryJson: string, chiefSummary: string): strin
   return lines.slice(0, 3).map((l) => l.trim());
 }
 
+function extractBossActionItems(chiefMemoryJson: string): string[] {
+  if (!chiefMemoryJson) return [];
+  try {
+    const raw = JSON.parse(chiefMemoryJson) as { bossActionItems?: unknown };
+    if (Array.isArray(raw.bossActionItems)) {
+      return raw.bossActionItems.map(String).map((s) => s.trim()).filter(Boolean).slice(0, 10);
+    }
+  } catch {
+    /* fall through */
+  }
+  return [];
+}
+
 export async function runDailyAgentPipeline(
   topics: string[],
   dateLabel: string,
@@ -76,11 +90,15 @@ export async function runDailyAgentPipeline(
   // 지식베이스 신규 학습/시장 인텔리전스/아침 스캔 성장기회를 회의 브리핑에 포함 — 실패해도
   // 회의 자체는 계속 진행되어야 하므로 조회 실패는 빈 문자열로 무시한다.
   const recentSignals = await loadRecentSignalsBrief().catch(() => "");
+  // 대표님이 체크한 할일 완료 여부를 회의가 인지하도록 — 없으면 빈 문자열(회의는 그대로 진행)
+  const bossTodoContext = await loadActionItemsContext().catch(() => "");
 
   const meetings: FullMeetingResult[] = [];
   for (const topic of topics) {
     console.log(`[agent-pipeline] Meeting: ${weekStatus.message} | ${topic}`);
-    meetings.push(await runFullMeeting(topic, memoryPrompt, feedbackText, weekStatus, recentSignals));
+    meetings.push(
+      await runFullMeeting(topic, memoryPrompt, feedbackText, weekStatus, recentSignals, bossTodoContext),
+    );
   }
 
   const sections: ReportSectionPayload[] = meetings.map((m) => ({
@@ -155,6 +173,13 @@ export async function runDailyAgentPipeline(
     .select("id")
     .single();
   if (reportErr || !reportRow) throw new Error(`agent_reports 저장 실패: ${reportErr?.message ?? "unknown"}`);
+
+  const bossActionItems = meetings.flatMap((m) => extractBossActionItems(m.chiefMemoryJson));
+  if (bossActionItems.length) {
+    await saveActionItemsForReport(reportRow.id, bossActionItems).catch((err) =>
+      console.error("[agent-pipeline] 액션아이템 저장 실패:", err),
+    );
+  }
 
   return {
     reportId: reportRow.id,

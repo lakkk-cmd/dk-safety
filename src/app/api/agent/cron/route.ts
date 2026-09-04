@@ -108,12 +108,11 @@ export async function GET(request: Request) {
     }
   }
 
-  // ④ 주간 목표 현황 → boss_feedback 기록
+  // ④ 주간 목표 현황 → agent_logs 기록
   if (isAgentSupabaseReady()) {
     try {
       const { getDailyRevenue } = await import("@/lib/toss-agent");
       const { getCurrentWeekStatus } = await import("@/lib/agents");
-      const supabase = requireAgentSupabase();
       const weekStatus = getCurrentWeekStatus();
       let dailyRevTotal = 0;
       try {
@@ -121,11 +120,10 @@ export async function GET(request: Request) {
         dailyRevTotal = dr.total;
       } catch {}
       const summary = `자동 일일 현황 보고: ${weekStatus.message} | 오늘 매출 ${dailyRevTotal.toLocaleString()}원`;
-      await supabase.from("boss_feedback").insert({
-        content: summary,
-        source: "agent_cron",
-        is_read: false,
-      });
+      // boss_feedback은 대장이 직접 쓴 피드백 전용(회의 프롬프트에 "대장 지시사항"으로 들어감) —
+      // 자동 집계 현황은 agent_logs로 분리(2026-09-04). 참고: 이 컬럼 조합(source/is_read)은
+      // boss_feedback 스키마에 존재한 적이 없어 이 insert는 예전부터 항상 실패해왔음.
+      await logAgentEvent("info", "agent-cron", summary);
       results.weekly_goal = "recorded";
     } catch (err) {
       results.weekly_goal = `failed: ${err instanceof Error ? err.message : String(err)}`;

@@ -8,6 +8,7 @@ import { BUSINESS_CONTEXT, callClaudeCustom, callClaudeRich, extractJsonBlock } 
 import { dispatchGithubWorkflow } from "@/lib/github-issues";
 import { KAKAO_MEMO_ENABLED, publishKakaoPost } from "@/lib/kakao-publish";
 import { listAvailablePhotoTags, pickLibraryPhotoForTag } from "@/lib/media-library";
+import { logAgentEvent } from "@/lib/pipeline-logs";
 import { generatePhoneUiBuffer, generateVerdictCardBuffer } from "@/lib/scene-cards";
 import { uploadBinaryObject } from "@/lib/supabase-server";
 import { submitVeoLro, VEO_COST_PER_CLIP_USD } from "@/lib/veo-pipeline";
@@ -317,13 +318,12 @@ export async function detectTextInImage(imageUrl: string): Promise<boolean> {
 // ─── 실패 알림 ────────────────────────────────────────────────────────────────
 
 export async function notifyOcrFailure(queueId: string, sceneIndex: number, prompt: string): Promise<void> {
-  const supabase = requireAgentSupabase();
   const message = `[영상 이미지 OCR 실패] 씬 ${sceneIndex + 1}\n큐ID: ${queueId}\n프롬프트: ${prompt.slice(0, 100)}`;
 
-  await supabase.from("boss_feedback").insert({
-    content: message,
-    status: "pending",
-  }).throwOnError();
+  // boss_feedback은 대장 피드백 전용(회의 프롬프트에 "대장 지시사항"으로 들어감) — 시스템이
+  // 발견한 문제는 대장이 직접 쓴 지시가 아니므로 agent_logs로 분리(2026-09-04, 경영진 보고서
+  // 개선 작업 중 발견). 확인은 /agent 파이프라인 모니터의 "Cron 실행 로그"에서.
+  await logAgentEvent("warn", "video-pipeline", message, { queueId, sceneIndex });
 
   if (KAKAO_MEMO_ENABLED) {
     await publishKakaoPost("⚠️ 영상 씬 이미지 OCR 실패", message).catch(() => undefined);

@@ -135,12 +135,14 @@ export type BossFeedbackRow = {
   applied_at: string | null;
 };
 
+/** 회의에 반영할 대장 피드백만 — 자동 기술알림(source='system', 과거 백필분)은 제외 */
 export async function loadPendingFeedback(): Promise<BossFeedbackRow[]> {
   const supabase = requireAgentSupabase();
   const { data, error } = await supabase
     .from("boss_feedback")
     .select("id, content, status, created_at, applied_at")
     .eq("status", "pending")
+    .eq("source", "user")
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as BossFeedbackRow[];

@@ -11,9 +11,11 @@ export async function GET() {
   }
   try {
     const supabase = requireAgentSupabase();
+    // 대표님이 직접 쓴 피드백만 — 자동 기술알림(source='system')은 제외(2026-09-04, /agent 로 이관)
     const { data, error } = await supabase
       .from("boss_feedback")
       .select("id, content, status, created_at, applied_at")
+      .eq("source", "user")
       .order("created_at", { ascending: false })
       .limit(50);
     if (error) return NextResponse.json({ message: error.message }, { status: 500 });
