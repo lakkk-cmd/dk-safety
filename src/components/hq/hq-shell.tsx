@@ -27,8 +27,9 @@ const NAV: NavEntry[] = [
     type: "group",
     label: "콘텐츠",
     items: [
-      { href: "/videos", label: "영상" },
-      { href: "/blog-jobs", label: "블로그" },
+      { href: "/kakao", label: "카카오" },
+      { href: "/videos", label: "영상 제작" },
+      { href: "/blog-jobs", label: "블로그 원고" },
       { href: "/intelligence", label: "인텔리전스" },
     ],
   },

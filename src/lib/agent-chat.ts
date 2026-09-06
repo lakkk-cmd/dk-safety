@@ -15,7 +15,7 @@ import { getHqSummary } from "@/lib/hq-summary";
 import { buildRestoreContext } from "@/lib/chat-restore";
 import { searchKnowledgeBase } from "@/lib/knowledge-base";
 import { searchKnowledgeChunks } from "@/lib/knowledge-chunks-search";
-import { extractAndSaveSharedMemory, loadRecentSharedMemory } from "@/lib/shared-memory";
+import { extractAndSaveSharedMemory, loadRecentSharedMemory } from "@/lib/org-memory";
 
 // ─── 총괄 + 9-에이전트 채팅 ──────────────────────────────────────────────────────
 

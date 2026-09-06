@@ -6,16 +6,15 @@ import {
   type WeekStatus,
 } from "@/lib/agents";
 import { requireAgentSupabase } from "@/lib/agent-db";
+import { loadPendingFeedback, markFeedbackApplied } from "@/lib/agent-memory";
 import {
   formatMemoryForPrompt,
-  loadAgentMemory,
-  loadPendingFeedback,
-  markFeedbackApplied,
-  mergeStructuredMemory,
+  loadRecentMemory,
   parseChiefMemoryJson,
-  saveAgentMemory,
-  type MeetingMemoryEntry,
-} from "@/lib/agent-memory";
+  saveChiefMemoryPatch,
+  saveMeetingSummary,
+  saveMemoryEntry,
+} from "@/lib/org-memory";
 import { clearPendingTopics } from "@/lib/agent-schedule";
 import { loadRecentSignalsBrief } from "@/lib/recent-signals";
 import { loadActionItemsContext, saveActionItemsForReport } from "@/lib/report-action-items";
@@ -85,8 +84,10 @@ export async function runDailyAgentPipeline(
   const feedbackText = pending.map((f) => f.content).join("\n---\n");
   const feedbackIds = pending.map((f) => f.id);
 
-  const { structured, legacy } = await loadAgentMemory();
-  const memoryPrompt = formatMemoryForPrompt(structured, legacy);
+  // 주간회의 결정사항(decision/kpi/theme/open_question)과 9-에이전트 채팅에서 감지된 사실(note)이
+  // 이제 같은 테이블을 공유한다 — 넉넉히 60건을 가져와 카테고리별로 묶어 프롬프트에 반영한다.
+  const recentMemory = await loadRecentMemory({ limit: 60 });
+  const memoryPrompt = formatMemoryForPrompt(recentMemory);
   // 지식베이스 신규 학습/시장 인텔리전스/아침 스캔 성장기회를 회의 브리핑에 포함 — 실패해도
   // 회의 자체는 계속 진행되어야 하므로 조회 실패는 빈 문자열로 무시한다.
   const recentSignals = await loadRecentSignalsBrief().catch(() => "");
@@ -108,30 +109,25 @@ export async function runDailyAgentPipeline(
     round2: mapResponses(m.round2),
   }));
 
-  let workingMemory = structured;
   for (const m of meetings) {
     const patch = parseChiefMemoryJson(m.chiefMemoryJson || m.chiefSummary);
-    const entry: MeetingMemoryEntry = {
+    await saveChiefMemoryPatch(patch);
+    await saveMeetingSummary({
       date: dateLabel,
       topic: m.topic,
       chiefSummary: m.chiefSummary.slice(0, 500),
       topActions: extractTopActions(m.chiefMemoryJson, m.chiefSummary),
-    };
-    workingMemory = mergeStructuredMemory(workingMemory, {
-      ...patch,
-      meeting: entry,
     });
   }
 
   if (feedbackText.trim()) {
-    const existingLines = workingMemory.feedbackNotes
-      ? workingMemory.feedbackNotes.split("\n").filter(Boolean)
-      : [];
-    const newLines = pending.map((f) => `[${dateLabel}] ${f.content.slice(0, 200)}`);
-    const merged = [...existingLines, ...newLines].slice(-5);
-    workingMemory = mergeStructuredMemory(workingMemory, {
-      feedbackNotes: merged.join("\n"),
-    });
+    for (const f of pending) {
+      await saveMemoryEntry({
+        category: "note",
+        sourceAgentId: "chief",
+        content: `[${dateLabel}] 대장 피드백 반영: ${f.content.slice(0, 200)}`,
+      });
+    }
   }
 
   const consolidationRaw = await runDailyConsolidation(
@@ -141,12 +137,13 @@ export async function runDailyAgentPipeline(
     weekStatus,
   );
   const dailyPatch = parseChiefMemoryJson(consolidationRaw);
-  if (dailyPatch) {
-    workingMemory = mergeStructuredMemory(workingMemory, dailyPatch);
-  }
+  await saveChiefMemoryPatch(dailyPatch);
 
-  const legacyLine = `[${dateLabel}] ${weekStatus.message} | ${meetings.map((m) => m.topic).join(", ")} — 총괄 회의 완료`;
-  await saveAgentMemory(workingMemory, legacyLine);
+  await saveMemoryEntry({
+    category: "note",
+    sourceAgentId: "chief",
+    content: `[${dateLabel}] ${weekStatus.message} | ${meetings.map((m) => m.topic).join(", ")} — 총괄 회의 완료`,
+  });
 
   if (feedbackIds.length) {
     await markFeedbackApplied(feedbackIds);

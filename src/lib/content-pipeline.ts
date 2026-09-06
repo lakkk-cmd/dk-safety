@@ -26,7 +26,7 @@ import { broadcastKakaoFriendTalkToCustomers, publishKakaoPost } from "@/lib/kak
 import { NAVER_ENABLED, collectNaverTrends, getRecentTrendKeywords } from "@/lib/naver-pipeline";
 import { finishPipelineRun, logAgentEvent, startPipelineRun } from "@/lib/pipeline-logs";
 import { sendAdminAlertSms } from "@/lib/solapi-agent";
-import { loadRecentSharedMemory } from "@/lib/shared-memory";
+import { loadRecentSharedMemory } from "@/lib/org-memory";
 import { uploadYoutubeVideo } from "@/lib/youtube-upload";
 
 /** 워커 프롬프트에 실어 보낼 "최근 공유 기억" 텍스트 — 오해 전파 방지 게이트의 일부 */
@@ -465,6 +465,44 @@ export async function getPendingApprovalCounts(): Promise<{ youtube: number; kak
     supabase.from("blog_posts").select("id", { count: "exact", head: true }).in("status", KAKAO_BLOG_APPROVAL_STATUSES),
   ]);
   return { youtube: ytRes.count ?? 0, kakao: kkRes.count ?? 0, blog: blogRes.count ?? 0 };
+}
+
+export type KakaoQueueRow = {
+  id: string;
+  title: string;
+  content: string;
+  status: string;
+  reject_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  published_at: string | null;
+};
+
+const KAKAO_QUEUE_COLUMNS = "id, title, content, status, reject_reason, created_at, updated_at, published_at";
+
+/**
+ * 카카오 전용 승인 화면(/hq/kakao)이 쓰는 목록 조회 — 승인대기 상태는 개수 제한 없이 전부,
+ * 나머지(발행됨/반려됨 등)는 최근 것부터 채운다(overview 라우트의 listQueueForOverview와
+ * 동일 이유: "최근 N개"만 가져오면 오래된 승인대기 항목이 배지 카운트와 어긋나는 문제 방지).
+ */
+export async function listKakaoQueueForApproval(recentLimit = 15): Promise<KakaoQueueRow[]> {
+  const supabase = requireAgentSupabase();
+  const [pendingRes, recentRes] = await Promise.all([
+    supabase
+      .from("content_kakao_queue")
+      .select(KAKAO_QUEUE_COLUMNS)
+      .in("status", KAKAO_BLOG_APPROVAL_STATUSES)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("content_kakao_queue")
+      .select(KAKAO_QUEUE_COLUMNS)
+      .not("status", "in", `(${KAKAO_BLOG_APPROVAL_STATUSES.join(",")})`)
+      .order("created_at", { ascending: false })
+      .limit(recentLimit),
+  ]);
+  if (pendingRes.error) throw pendingRes.error;
+  if (recentRes.error) throw recentRes.error;
+  return [...(pendingRes.data ?? []), ...(recentRes.data ?? [])] as KakaoQueueRow[];
 }
 
 export async function getContentWeeklyStats(): Promise<{

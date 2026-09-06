@@ -9,6 +9,7 @@ import { checkContentJobLoadWithCOO } from "@/lib/advisory-gates";
 import { createGithubIssue, readGithubFile } from "@/lib/github-issues";
 import { createChatImprovementRequest } from "@/lib/improvement-requests";
 import { saveKnowledgeRows } from "@/lib/knowledge-store";
+import { saveMemoryEntry, type MemoryCategory } from "@/lib/org-memory";
 import { ALLOWED_QUERY_TABLES, runSafeQuery, type QueryFilter } from "@/lib/safe-query";
 import { DOC_TEMPLATES, generateDocument } from "@/lib/document-generator";
 import { classifyTechRisk, CHAT_WHITELIST_MARKER } from "@/lib/tech-risk-rules";
@@ -635,5 +636,28 @@ export async function toolGetBlogJob(args: { job_id?: string }): Promise<string>
     return lines.join("\n");
   } catch (e) {
     return `블로그 작업 조회 실패: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
+const REMEMBER_CATEGORIES: MemoryCategory[] = ["decision", "open_question", "kpi", "theme", "note"];
+
+/** 대장이 채팅에서 확정한 결정·정책을 조직 통합 기억(agent_memory_entries)에 영구 기록한다.
+ *  이 채팅창(총괄디렉터)뿐 아니라 주간 경영진회의·daily-scan·SWOT분석도 다음 실행부터 참조한다
+ *  (2026-09-06 신설 — 예전엔 이 채팅에서만 "기억했습니다"라고 답하고 실제로는 이 대화 기록에만
+ *  남아 다른 시스템에 전혀 전달되지 않던 문제를 해결). */
+export async function toolRememberDecision(args: {
+  category?: string;
+  content?: string;
+}): Promise<string> {
+  const content = args.content?.trim();
+  if (!content) return "오류: content가 필요합니다.";
+  const category = (REMEMBER_CATEGORIES as string[]).includes(args.category ?? "")
+    ? (args.category as MemoryCategory)
+    : "decision";
+  try {
+    await saveMemoryEntry({ category, sourceAgentId: "general", content });
+    return `기록 완료 — 앞으로 주간 경영진회의·daily-scan·SWOT분석·9-에이전트 채팅 전체가 이 내용을 참조합니다: "${content}"`;
+  } catch (err) {
+    return `기록 실패: ${err instanceof Error ? err.message : String(err)}`;
   }
 }

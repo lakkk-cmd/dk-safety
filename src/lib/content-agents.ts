@@ -1,7 +1,7 @@
 import { Agent, BUSINESS_CONTEXT, callClaude, callClaudeCustom, extractJsonBlock, isNoConcernVerdict, type WeekStatus } from "@/lib/agents";
 import { checkStrategyAlignmentWithCSO } from "@/lib/advisory-gates";
 import type { PerformanceSnapshotItem } from "@/lib/content-performance";
-import { loadRecentSharedMemory } from "@/lib/shared-memory";
+import { loadRecentSharedMemory } from "@/lib/org-memory";
 
 // ─── 콘텐츠 카테고리 ───────────────────────────────────────────────────────────
 

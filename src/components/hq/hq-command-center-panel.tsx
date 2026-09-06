@@ -1,8 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { StructuredMemory } from "@/lib/agent-memory";
 import ActionItemsCard from "@/components/hq/action-items-card";
+
+type StructuredMemory = {
+  strategicThemes: string[];
+  decisions: string[];
+  kpis: string[];
+  openQuestions: string[];
+  feedbackNotes: string;
+};
 
 type FeedbackRow = {
   id: string;

@@ -32,11 +32,12 @@ import {
   toolGetVideoJob,
   toolCreateBlogJob,
   toolGetBlogJob,
+  toolRememberDecision,
 } from "@/lib/full-agent-tools";
 import { DOC_TEMPLATES } from "@/lib/document-generator";
 import { ALLOWED_QUERY_TABLES } from "@/lib/safe-query";
 import { searchKnowledgeChunksWithEvidence } from "@/lib/knowledge-chunks-search";
-import { extractAndSaveSharedMemory } from "@/lib/shared-memory";
+import { extractAndSaveSharedMemory } from "@/lib/org-memory";
 
 const MAX_TOOL_ROUNDS = 6;
 
@@ -155,6 +156,23 @@ const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: "remember_decision",
+    description:
+      "대장이 채팅에서 확정한 결정·정책·미결 질문을 조직 통합 기억에 영구 기록한다. 이렇게 저장한 내용은 이 채팅뿐 아니라 주간 경영진회의·daily-scan·SWOT분석·다른 8개 에이전트 채팅도 다음 실행부터 그대로 참조한다 — '기억했습니다'라고 답하기 전에 반드시 이 도구를 호출해서 실제로 남겨라. 단순 질의응답이나 아직 확정되지 않은 논의는 저장하지 마라.",
+    input_schema: {
+      type: "object",
+      properties: {
+        category: {
+          type: "string",
+          enum: ["decision", "open_question", "kpi", "theme", "note"],
+          description: "decision=확정된 결정/정책, open_question=아직 답이 안 나온 확인필요 사항, kpi=추적할 지표, theme=전략 방향, note=기타 참고사실. 애매하면 decision.",
+        },
+        content: { type: "string", description: "한국어 한두 문장으로 명확하게 — 무엇이 확정됐는지, 예외가 있다면 그것까지 포함" },
+      },
+      required: ["content"],
+    },
+  },
+  {
     name: "create_content_draft",
     description:
       "유튜브/카카오/블로그 콘텐츠 기획 초안을 승인 대기 큐에 등록한다 (절대 즉시 발행되지 않음 — /contents에서 대장이 검토 후 승인해야 발행됨). 실행 전 CMO(마케터) 검증을 거치며, 지시가 이상해 보이면 등록하지 않고 우려사항만 반환한다 — 그 경우 대장에게 반드시 재확인하라.",
@@ -257,6 +275,7 @@ ${SUB_AGENT_NAMES_LINE}
 7. **답변 끝에 검수 포인트 표기** — 사실관계를 인용한 답변(단순 인사·잡담 제외)의 마지막에 아래 형식으로 한 줄 요약을 붙여라:
    \`🔍 검수 포인트: [현황] 항목은 hq.dkansim.com에서 재확인 가능 / ⚠️[추정] 항목은 반드시 확인 후 사용\`
    (해당 태그가 답변에 없으면 그 부분은 생략)
+8. **"기억했습니다"는 말로만 하지 마라** — 대장이 정책·결정사항(예: "카카오는 진행해도 돼", "겸업조항 문제없음")을 확정하면, "기억했습니다"라고 답하기 전에 반드시 remember_decision 도구를 먼저 호출해 실제로 저장하라. 이 채팅 기록에만 남기고 도구를 안 부르면, 주간 경영진회의·daily-scan·SWOT분석·다른 8개 에이전트는 그 결정을 영원히 모른다(2026-09-06 이전엔 실제로 이 문제가 반복됐다).
 
 ## 작업 분류 — 매 요청마다 먼저 판단하라
 1. **디지털 작업** (코드 조회/설명, 운영 데이터 조회, 콘텐츠 기획 등록, 영상 제작 등록(create_video_job)·블로그 원고 제작 등록(create_blog_job) — 둘 다 대장 승인/수동 발행 게이트가 있어 즉시 게시되지 않음, GitHub 이슈 등록) → 도구를 직접 사용해 처리한다. 코드 변경 요청은 github_create_issue로 처리하되, auto_implement는 그 도구 설명에 적힌 위험도 기준에 따라 신중히 판단하라 — 판단이 서지 않으면 항상 false.
@@ -376,6 +395,8 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
       return toolCreateContentDraft(input);
     case "apply_site_decision":
       return toolApplySiteDecision(input as Parameters<typeof toolApplySiteDecision>[0]);
+    case "remember_decision":
+      return toolRememberDecision(input);
     case "generate_document":
       return toolGenerateDocument(input);
     case "create_video_job":

@@ -4,7 +4,7 @@ import { BUSINESS_CONTEXT, callClaudeCustom, extractJsonBlock } from "@/lib/agen
 import { requireAgentSupabase } from "@/lib/agent-db";
 import { buildBusinessSnapshot } from "@/lib/agent-chat";
 import { loadRecentSignalsBrief } from "@/lib/recent-signals";
-import { formatMemoryForPrompt, loadAgentMemory } from "@/lib/agent-memory";
+import { formatMemoryForPrompt, loadRecentMemory } from "@/lib/org-memory";
 
 export type SwotItem = { title: string; description: string };
 export type SwotAnalysis = {
@@ -80,12 +80,12 @@ function asItems(value: unknown): SwotItem[] {
 /** SWOT/TOWS를 새로 생성해 저장하고, TOWS에서 뽑힌 대표님 액션아이템을 report_action_items에
  *  함께 저장한다(swot_analysis_id로 연결 — 홈 화면의 "대표님이 해야할 일"과 같은 테이블 공유). */
 export async function runSwotAnalysis(): Promise<SwotAnalysis> {
-  const [snapshot, recentSignals, memory] = await Promise.all([
+  const [snapshot, recentSignals, recentMemory] = await Promise.all([
     buildBusinessSnapshot(),
     loadRecentSignalsBrief(90).catch(() => ""),
-    loadAgentMemory().catch(() => null),
+    loadRecentMemory({ limit: 60 }).catch(() => []),
   ]);
-  const memoryPrompt = memory ? formatMemoryForPrompt(memory.structured, memory.legacy) : "";
+  const memoryPrompt = formatMemoryForPrompt(recentMemory);
 
   const prompt = `[사업 현황 스냅샷]
 ${snapshot}
