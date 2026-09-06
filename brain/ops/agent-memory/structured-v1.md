@@ -3,20 +3,22 @@ title: "에이전트 메모리 — structured_v1"
 category: agent-memory
 tags: ["agent-memory", "structured_v1"]
 source: "agent_memory (key=structured_v1)"
-synced_at: "2026-09-05T21:44:57.476Z"
+synced_at: "2026-09-06T21:47:33.881Z"
 ---
 
 <!-- AUTO:START -->
 ## structured_v1
 
-마지막 갱신: 2026-09-04T23:44:24.431517+00:00
+마지막 갱신: 2026-09-06T04:49:28.804101+00:00
 
 ```json
 {
   "version": 1,
-  "updatedAt": "2026-09-04T23:44:23.528Z",
+  "updatedAt": "2026-09-06T04:49:27.891Z",
   "strategicThemes": [],
-  "decisions": [],
+  "decisions": [
+    "겸업 조항 확인 완료(2026-09-06, 대장 직접 확인) — 본업 취업규칙에 겸업금지 조항 없음, 공개 마케팅·예약 수락 즉시 가능. 더 이상 확인 필요 항목으로 반복 제안하지 말 것."
+  ],
   "openQuestions": [],
   "kpis": [],
   "recentMeetings": [

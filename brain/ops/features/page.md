@@ -3,11 +3,11 @@ title: "기능 현황 — page"
 category: features
 tags: ["project-features", "page"]
 source: "project_features"
-synced_at: "2026-09-05T21:44:55.912Z"
+synced_at: "2026-09-06T21:47:31.358Z"
 ---
 
 <!-- AUTO:START -->
-## page (59건)
+## page (61건)
 
 - **account** (`/admin/account`): 자동 감지된 페이지 (/admin/account) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -59,13 +59,15 @@ synced_at: "2026-09-05T21:44:55.912Z"
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **intelligence** (`/hq/intelligence`): 자동 감지된 페이지 (/hq/intelligence) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
+- **kakao** (`/hq/kakao`): 자동 감지된 페이지 (/hq/kakao) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
 - **labor-tiers** (`/admin/labor-tiers`): 자동 감지된 페이지 (/admin/labor-tiers) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **ledger** (`/admin/erp/ledger`): 자동 감지된 페이지 (/admin/erp/ledger) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
-- **login** (`/hq/login`): 자동 감지된 페이지 (/hq/login) — 설명을 채워주세요
-  - 메모: 코드베이스 자동 분석으로 등록됨
 - **login** (`/admin/login`): 자동 감지된 페이지 (/admin/login) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **login** (`/hq/login`): 자동 감지된 페이지 (/hq/login) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **materials** (`/admin/materials`): 자동 감지된 페이지 (/admin/materials) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
@@ -90,6 +92,8 @@ synced_at: "2026-09-05T21:44:55.912Z"
 - **sales-visit-log** (`/hq/sales-visit-log`): 자동 감지된 페이지 (/hq/sales-visit-log) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **settlement** (`/admin/erp/settlement`): 자동 감지된 페이지 (/admin/erp/settlement) — 설명을 채워주세요
+  - 메모: 코드베이스 자동 분석으로 등록됨
+- **swot** (`/hq/swot`): 자동 감지된 페이지 (/hq/swot) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
 - **technicians** (`/admin/technicians`): 자동 감지된 페이지 (/admin/technicians) — 설명을 채워주세요
   - 메모: 코드베이스 자동 분석으로 등록됨
