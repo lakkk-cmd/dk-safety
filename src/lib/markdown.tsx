@@ -30,7 +30,7 @@ export function renderMarkdown(content: string): ReactNode {
     ));
     if (listType === "ol") {
       elements.push(
-        <ol key={`list-${elements.length}`} className="list-decimal space-y-1 pl-5">
+        <ol key={`list-${elements.length}`} className="blog-steps">
           {items}
         </ol>,
       );

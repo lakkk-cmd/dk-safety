@@ -474,3 +474,91 @@ select.soft-input {
   border-color: #2563eb;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
+
+/* ── 블로그 포스트 브랜드 비주얼 (2026-09-06, "분전반 룩북" 가이드 적용) ──────────────
+   /blog/[slug]에서만 쓰는 클래스 — 다른 화면의 warranty-band 등 공용 클래스는 건드리지 않는다. */
+.blog-cover {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  padding: 2rem 1.75rem 1.75rem;
+  background: linear-gradient(155deg, var(--dk-navy) 0%, #16305A 100%);
+  color: #fff;
+}
+.blog-cover-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dk-gold);
+}
+.blog-cover h1 {
+  margin-top: 0.55rem;
+  line-height: 1.32;
+  max-width: 22ch;
+}
+.blog-motif {
+  position: absolute;
+  right: -8px;
+  bottom: -10px;
+  width: 116px;
+  opacity: 0.95;
+  pointer-events: none;
+}
+
+/* renderMarkdown()이 만드는 순서목록 — 계기판 톤 번호 배지 */
+.blog-article .blog-steps {
+  list-style: none;
+  margin: 1.25rem 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  counter-reset: blog-step;
+}
+.blog-article .blog-steps > li {
+  position: relative;
+  padding-left: 2.75rem;
+  min-height: 2rem;
+  color: var(--text-sub);
+  line-height: 1.6;
+}
+.blog-article .blog-steps > li::before {
+  counter-increment: blog-step;
+  content: counter(blog-step, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  background: var(--dk-sky);
+  color: var(--dk-blue);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-weight: 700;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.blog-cta-band {
+  border-radius: 1rem;
+  padding: 1.1rem 1.35rem;
+  background: var(--dk-gold);
+  color: var(--dk-navy);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.blog-cta-band .cta-btn {
+  background: var(--dk-navy);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.86rem;
+  padding: 0.7rem 1.15rem;
+  border-radius: 0.6rem;
+  white-space: nowrap;
+}
