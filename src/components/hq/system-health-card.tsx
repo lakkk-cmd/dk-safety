@@ -1,4 +1,4 @@
-import { getLatestSystemHealthReport } from "@/lib/system-health";
+import type { SystemHealthReport } from "@/lib/system-health";
 
 const SEVERITY_BADGE: Record<string, string> = {
   high: "bg-cc-red/10 text-cc-red",
@@ -6,9 +6,9 @@ const SEVERITY_BADGE: Record<string, string> = {
   low: "bg-slate-100 text-slate-600",
 };
 
-/** Full 에이전트 주간 자가점검 — 강제 알림이 아닌, 필요할 때 열어보는 카드 */
-export default async function SystemHealthCard() {
-  const report = await getLatestSystemHealthReport().catch(() => null);
+/** Full 에이전트 주간 자가점검 — 강제 알림이 아닌, 필요할 때 열어보는 카드.
+ *  report는 홈 페이지가 이상신호 유무를 상단 배너에서도 써야 해서 한 번만 조회해 props로 내려준다. */
+export default function SystemHealthCard({ report }: { report: SystemHealthReport | null }) {
   if (!report) return null;
 
   const hasFindings = report.findings.length > 0;

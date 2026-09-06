@@ -10,9 +10,13 @@ import type { SalesPlanSummary } from "@/lib/sales-plan-summary";
 export default function SalesPlanChip({
   salesPlan,
   campaignActive,
+  basePath = "",
 }: {
   salesPlan: SalesPlanSummary;
   campaignActive: boolean;
+  /** hq.dkansim.com 호스트 재작성이 없는 환경(localhost 직접 접속 등)에서 "/hq"를 붙여야 하는 경우 부모(서버
+   *  컴포넌트)가 hqBasePath()로 계산해 내려준다 — 자세한 이유는 src/lib/hq-links.ts 참고. */
+  basePath?: string;
 }) {
   const [showSupplemental, setShowSupplemental] = useState(false);
   const { monthCount, monthTarget, supplemental } = salesPlan;
@@ -44,7 +48,7 @@ export default function SalesPlanChip({
         ) : null}
       </button>
       <Link
-        href="/sales-visit-log"
+        href={`${basePath}/sales-visit-log`}
         className="flex min-h-9 items-center rounded-full border border-slate-200 px-2 text-xs font-bold text-cc-text hover:bg-cc-bg"
       >
         + 기록

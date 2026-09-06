@@ -1,8 +1,8 @@
-import { getLatestDailyBusinessScan } from "@/lib/daily-scan";
+import type { DailyBusinessScan } from "@/lib/daily-scan";
 
-/** 매일 아침 이상신호+성장기회 스캔 — 카톡으로 이미 발송되지만, hq 홈에서도 다시 볼 수 있게 */
-export default async function DailyScanCard() {
-  const report = await getLatestDailyBusinessScan().catch(() => null);
+/** 매일 아침 이상신호+성장기회 스캔 — 카톡으로 이미 발송되지만, hq 홈에서도 다시 볼 수 있게.
+ *  report는 홈 페이지가 이상신호 유무를 상단 배너에서도 써야 해서 한 번만 조회해 props로 내려준다. */
+export default function DailyScanCard({ report }: { report: DailyBusinessScan | null }) {
   if (!report) return null;
 
   const hasAnomalies = report.anomalies.length > 0;
