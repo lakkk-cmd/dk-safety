@@ -208,7 +208,14 @@ function marketIntelSystemPrompt(category: IntelCategory): string {
 ${BUSINESS_CONTEXT}
 아래 수집 데이터를 바탕으로:
 1. 트렌드 키워드 5개를 추출하라 (trendKeywords)
-2. 우리 사업에 적용 가능한 인사이트를 2~3문장으로 작성하라 (insight)
+2. insight는 "오늘 이 뉴스/트렌드를 보고 우리 사업이 실제로 뭘 해야 하는가"를 반드시 아래 3줄로
+   나눠 작성하라(각 줄 앞에 라벨을 그대로 붙일 것, 줄바꿈으로 구분):
+   영업방향: (이 트렌드로 오늘/이번 주 예약 전환을 늘리기 위해 구체적으로 할 일)
+   마케팅방향: (콘텐츠·채널·메시지를 어떻게 조정해야 하는지)
+   수익기회: (이 트렌드에서 나오는 신규 수익원·업셀·협력 기회 — 없으면 "특별한 기회 없음"이라고 명시)
+   같은 뉴스가 여러 날 반복돼도 매번 "지금 우리가 할 수 있는 구체적 행동"을 다시 생각해서 쓰고,
+   전날과 토씨까지 똑같은 문장을 복사하지 마라 — 정말 새로운 게 없으면 그 사실 자체를 insight에
+   명시하라(예: "오늘 신규 동향 없음 — 기존 전략 유지").
 3. 콘텐츠 기획안 3건을 제시하라 (contentIdeas, 각 title+brief)
 
 반드시 한국어로, 아래 JSON 형식으로만 응답하라(설명 텍스트 없이 JSON만):
@@ -257,7 +264,7 @@ export async function analyzeMarketIntelligence(category: IntelCategory, raw: Co
   const result: MarketInsight = { category, trendKeywords: [], insight: "", contentIdeas: [] };
 
   try {
-    const response = await callClaudeCustom(marketIntelSystemPrompt(category), prompt, 1200, 120_000);
+    const response = await callClaudeCustom(marketIntelSystemPrompt(category), prompt, 1800, 120_000);
     const jsonText = extractJsonBlock(response);
     if (jsonText) {
       const parsed = JSON.parse(jsonText) as Partial<MarketInsight>;

@@ -274,10 +274,11 @@ export async function callClaude(
   agentId: string,
   userPrompt: string,
   maxTokens = 600,
+  timeoutMs = 28_000,
 ): Promise<string> {
   const system = SYSTEM_PROMPTS[agentId];
   if (!system) throw new Error(`Unknown agent: ${agentId}`);
-  return fetchClaude(system, userPrompt, maxTokens, 28_000);
+  return fetchClaude(system, userPrompt, maxTokens, timeoutMs);
 }
 
 async function callClaudeDirect(
@@ -729,7 +730,10 @@ AI/에이전트가 자체적으로 실행할 수 있는 항목이나 순수 전�
   let chiefSummary = "";
   let chiefMemoryJson = "";
   try {
-    const chiefRaw = await callClaude("chief", chiefPrompt, 1200);
+    // maxTokens=1200이었을 때 공문서형 보고서 본문을 쓰는 데만 예산을 다 써서 뒤쪽 조직기억
+    // JSON 블록에 도달하기 전에 매번 잘렸다 — 그 결과 13주간 strategicThemes/decisions/
+    // openQuestions/kpis가 전부 비어있는 채로 방치됨(2026-09-06 발견). 6000+90초로 상향.
+    const chiefRaw = await callClaude("chief", chiefPrompt, 6000, 90_000);
     const jsonMatch = chiefRaw.match(/```json\s*([\s\S]*?)```/);
     chiefMemoryJson = jsonMatch?.[1]?.trim() ?? "";
     chiefSummary = chiefRaw.replace(/```json[\s\S]*?```/g, "").trim() || chiefRaw;

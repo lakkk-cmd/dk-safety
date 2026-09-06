@@ -33,11 +33,16 @@ export async function GET(request: Request) {
     );
   }
 
-  const runId = await startPipelineRun(PIPELINE);
-
+  // pipeline_logs 'started' 행을 조사 시작 "전"에 만들지 않는다 — runDailyBusinessScan()의
+  // 읽기전용 조사 툴이 그 도중 pipeline_logs를 조회하면 방금 만든 자기 자신의 미완료 행을
+  // "좀비 파이프라인"으로 오인해, 2026-08-20~09-05까지 최소 16일 연속 거짓 이상신호를
+  // 보고한 원인이었다(2026-09-06 발견·검증). 조사가 끝난 뒤 시작+종료를 한 번에 기록한다 —
+  // 서버리스 자체가 중간에 강제 종료되는 경우는 이전 코드에서도 finishPipelineRun이 실행될
+  // 기회가 없었으므로(try/catch로 못 잡음) 보호 수준은 그대로다.
   try {
     const report = await runDailyBusinessScan();
     const analysisFailed = report.summary === "분석 실패";
+    const runId = await startPipelineRun(PIPELINE);
 
     // 분석 자체가 실패했으면(조사만 하다 결론을 못 낸 경우) 의미 없는 카톡을 보내는 대신
     // 파이프라인 실패로 남겨 다음 스캔/사람 확인으로 이어지게 한다.
@@ -63,6 +68,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: !analysisFailed, pipeline: PIPELINE, report, kakaoSent });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const runId = await startPipelineRun(PIPELINE);
     await logAgentEvent("error", PIPELINE, `파이프라인 실패: ${message}`);
     await finishPipelineRun(runId, "failed", { error: message });
     await notifyPipelineFailure(PIPELINE, message).catch(() => {});
