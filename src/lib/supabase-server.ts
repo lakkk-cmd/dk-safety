@@ -152,6 +152,31 @@ export async function createSignedObjectUrl(
   return `${SUPABASE_URL}/storage/v1${data.signedURL}`;
 }
 
+/** 클라이언트가 Vercel 서버리스 함수의 본문 크기 제한(4.5MB)을 거치지 않고 브라우저에서
+ *  Supabase Storage로 직접 PUT할 수 있는 1회용 서명 업로드 URL을 발급한다(knowledge-pdf-storage.ts의
+ *  createKnowledgeUploadSignedUrl과 동일 패턴 — 버킷을 파라미터로 받게 일반화). */
+export async function createSignedUploadUrl(bucket: string, objectPath: string): Promise<string> {
+  assertSupabaseConfig();
+  const encodedPath = encodeObjectPath(objectPath);
+  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/upload/sign/${bucket}/${encodedPath}`, {
+    method: "POST",
+    headers: supabaseHeaders("application/json"),
+    body: JSON.stringify({})
+  });
+  if (!response.ok) {
+    throw new Error(`업로드 URL 생성 실패: ${response.status} ${await response.text().catch(() => "")}`);
+  }
+  const data = (await response.json()) as { url?: string };
+  if (!data.url) throw new Error("업로드 URL 생성 실패: 응답에 url이 없습니다.");
+  return `${SUPABASE_URL}/storage/v1${data.url}`;
+}
+
+/** bucket이 public일 때의 공개 접근 URL(업로드 자체는 하지 않음). */
+export function publicObjectUrl(bucket: string, objectPath: string): string {
+  const objectRel = objectPath.replace(/^\/+/, "");
+  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${objectRel}`;
+}
+
 export async function uploadBinaryObject(params: {
   bucket: string;
   objectPath: string;

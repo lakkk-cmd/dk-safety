@@ -406,38 +406,67 @@ export default function HqChatClient() {
     [selectedAgent, sending, load, messages],
   );
 
-  // 파일 업로드 공통 처리
+  // 파일 업로드 공통 처리 — 서명 URL로 브라우저가 Supabase Storage에 직접 PUT한다.
+  // (2026-09-06 발견: 예전엔 이미지=base64를 채팅 전송 본문에 직접 넣고, 비이미지=FormData로
+  // Next.js API 라우트에 그대로 흘려보냈는데, 둘 다 Vercel 서버리스 함수의 본문 크기 제한
+  // (~4.5MB)에 걸려 실패했다 — 이미지는 5MB 원본이 base64 인코딩되면 ~6.7MB로 커져서 더 쉽게
+  // 걸렸다. knowledge-pdf 업로드에서 이미 검증된 서명 URL 패턴으로 통일해 해결)
   const uploadFile = useCallback((file: File) => {
     setShowMenu(false);
     setError(null);
 
-    if (file.type.startsWith("image/")) {
-      // 이미지: 클라이언트 base64 변환 (Supabase 업로드 불필요)
-      if (file.size > 5 * 1024 * 1024) {
-        setError("이미지는 5MB 이하만 첨부 가능합니다.");
-        return;
-      }
-      const previewUrl = URL.createObjectURL(file);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const dataUrl = ev.target?.result as string;
-        const base64 = dataUrl.split(",")[1];
-        setAttachment({ base64, name: file.name, mediaType: file.type, previewUrl });
-      };
-      reader.readAsDataURL(file);
+    const isImage = file.type.startsWith("image/");
+    if (isImage && file.size > 5 * 1024 * 1024) {
+      setError("이미지는 5MB 이하만 첨부 가능합니다.");
+      return;
+    }
+    if (!isImage && file.size > 20 * 1024 * 1024) {
+      setError("파일 크기는 20MB 이하여야 합니다.");
       return;
     }
 
-    // PDF 등 비이미지: Supabase 업로드 (PDF 학습 기능 유지)
+    const previewUrl = isImage ? URL.createObjectURL(file) : undefined;
+
     void (async () => {
       setUploading(true);
       try {
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch("/api/admin/chat/upload", { method: "POST", body: form });
+        const signRes = await fetch("/api/admin/chat/upload-sign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileName: file.name }),
+        });
+        const signed = (await signRes.json()) as { path?: string; signedUrl?: string; message?: string };
+        if (!signRes.ok || !signed.path || !signed.signedUrl) {
+          setError(signed.message ?? "업로드 URL 발급에 실패했습니다.");
+          return;
+        }
+
+        const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+        const putRes = await fetch(signed.signedUrl, {
+          method: "PUT",
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${anonKey}`,
+            "Content-Type": file.type || "application/octet-stream",
+          },
+          body: file,
+        });
+        if (!putRes.ok) {
+          setError("파일 업로드에 실패했습니다.");
+          return;
+        }
+
+        const res = await fetch("/api/admin/chat/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: signed.path, fileName: file.name, contentType: file.type }),
+        });
         const data = (await res.json()) as { url?: string; mediaType?: string; message?: string; pdfLearning?: PdfLearning };
-        if (!res.ok) { setError(data.message ?? "업로드 실패"); return; }
-        setAttachment({ url: data.url!, name: file.name, mediaType: data.mediaType ?? file.type, pdfLearning: data.pdfLearning });
+        if (!res.ok || !data.url) {
+          setError(data.message ?? "업로드 실패");
+          return;
+        }
+        setAttachment({ url: data.url, name: file.name, mediaType: data.mediaType ?? file.type, previewUrl, pdfLearning: data.pdfLearning });
       } catch {
         setError("파일 업로드에 실패했습니다.");
       } finally {
