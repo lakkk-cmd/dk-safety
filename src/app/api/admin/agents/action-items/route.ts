@@ -13,22 +13,36 @@ export async function GET() {
     const supabase = requireAgentSupabase();
     const { data: items, error } = await supabase
       .from("report_action_items")
-      .select("id, report_id, content, done, done_at, note, created_at")
+      .select("id, report_id, swot_analysis_id, content, done, done_at, note, created_at")
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) return NextResponse.json({ message: error.message }, { status: 500 });
 
-    const reportIds = [...new Set((items ?? []).map((i) => i.report_id))];
-    let dateLabelById: Record<string, string> = {};
-    if (reportIds.length) {
-      const { data: reports } = await supabase
-        .from("agent_reports")
-        .select("id, date_label")
-        .in("id", reportIds);
-      dateLabelById = Object.fromEntries((reports ?? []).map((r) => [r.id, r.date_label as string]));
-    }
+    // 액션아이템은 두 출처(주간 경영진 보고서 / SWOT·TOWS 분기 분석) 중 하나에서 오므로
+    // 라벨도 두 테이블 중 실제로 채워진 쪽에서 조회한다(120_swot_analysis.sql 참고).
+    const reportIds = [...new Set((items ?? []).map((i) => i.report_id).filter(Boolean))];
+    const swotIds = [...new Set((items ?? []).map((i) => i.swot_analysis_id).filter(Boolean))];
+    const [reportsRes, swotRes] = await Promise.all([
+      reportIds.length
+        ? supabase.from("agent_reports").select("id, date_label").in("id", reportIds)
+        : Promise.resolve({ data: [] as { id: string; date_label: string }[] }),
+      swotIds.length
+        ? supabase.from("swot_analyses").select("id, quarter_label").in("id", swotIds)
+        : Promise.resolve({ data: [] as { id: string; quarter_label: string }[] }),
+    ]);
+    const dateLabelById = Object.fromEntries((reportsRes.data ?? []).map((r) => [r.id, r.date_label]));
+    const quarterLabelById = Object.fromEntries((swotRes.data ?? []).map((r) => [r.id, r.quarter_label]));
 
-    const enriched = (items ?? []).map((i) => ({ ...i, report_date_label: dateLabelById[i.report_id] ?? null }));
+    const enriched = (items ?? []).map((i) => ({
+      ...i,
+      report_date_label: i.report_id
+        ? dateLabelById[i.report_id]
+          ? `${dateLabelById[i.report_id]} 보고서`
+          : null
+        : i.swot_analysis_id
+          ? `SWOT ${quarterLabelById[i.swot_analysis_id] ?? ""} 분석`.trim()
+          : null,
+    }));
     return NextResponse.json({ items: enriched });
   } catch (error) {
     return NextResponse.json(

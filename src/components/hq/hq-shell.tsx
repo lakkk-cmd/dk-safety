@@ -14,6 +14,7 @@ type NavEntry = { type: "link"; href: string; label: string } | { type: "group";
 const NAV: NavEntry[] = [
   { type: "link", href: "/", label: "홈" },
   { type: "link", href: "/chat", label: "AI 채팅" },
+  { type: "link", href: "/swot", label: "SWOT" },
   {
     type: "group",
     label: "운영",

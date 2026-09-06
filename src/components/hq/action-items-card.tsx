@@ -153,7 +153,7 @@ function ActionItemRowView({
         <div className="min-w-0 flex-1">
           <p className={`text-sm font-medium ${item.done ? "text-slate-400 line-through" : "text-slate-900"}`}>{item.content}</p>
           <p className="mt-0.5 text-xs text-slate-400">
-            {item.report_date_label ? `${item.report_date_label} 보고서` : ""}
+            {item.report_date_label ?? ""}
             {item.done_at ? ` · ${new Date(item.done_at).toLocaleDateString("ko-KR")} 완료` : ""}
           </p>
         </div>
