@@ -1,6 +1,6 @@
 /** PDF 첨부 자동 학습 — 텍스트 추출 → 청크 분할 → knowledge 테이블 저장(듀얼 임베딩) */
 
-import { PDFParse } from "pdf-parse";
+import { loadPDFParse } from "@/lib/pdf-parse-loader";
 import { saveKnowledgeRows } from "@/lib/knowledge-store";
 
 const CHUNK_SIZE = 700;
@@ -35,6 +35,7 @@ export type PdfIngestResult = { chunksSaved: number; error?: string };
 /** PDF 버퍼를 텍스트로 추출해 knowledge 테이블에 청크별로 저장한다. 실패해도 throw하지 않고 결과로 보고한다. */
 export async function ingestPdfToKnowledgeBase(fileName: string, buffer: Buffer): Promise<PdfIngestResult> {
   let text: string;
+  const PDFParse = await loadPDFParse();
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
