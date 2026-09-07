@@ -109,6 +109,36 @@ export default function UnitInspectionForm({
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // ── 세대미방문 간이점검 전용 "연속입력 모드" ──────────────────────────────────
+  // 현장(EPS실)에서 종이 점검표처럼 동 하나 고정해두고 호만 계속 바꿔가며 빠르게 넘어가는
+  // 방식으로 바꿔달라는 실제 현장 피드백(2026-09-07)에 따라 신설. 동/차단기 회로수는 동 단위로
+  // 한 번만 입력해 고정하고, "다음"을 누르는 즉시 그 세대를 백그라운드로 저장한 뒤 화면은
+  // 바로 다음 호 입력으로 넘어간다(응답을 기다리지 않음 — 체감 속도가 종이 점검표 수준이 되도록).
+  // "전송" 버튼 개념은 없앴다 — 세대별로 이미 저장이 끝났으므로, 그 버튼은 실제로는 아무것도
+  // 새로 보내지 않고 그냥 동 재설정 화면으로 돌아가는 네비게이션 역할만 한다.
+  const [fastLoopStarted, setFastLoopStarted] = useState(false);
+  const [editingCircuitCount, setEditingCircuitCount] = useState(false);
+  const [fastHo, setFastHo] = useState("");
+  const [fastManualResults, setFastManualResults] = useState<Record<string, ChecklistResult | null>>({});
+  const [fastLoadCurrent, setFastLoadCurrent] = useState("");
+  const [fastIgr, setFastIgr] = useState("");
+  const [fastInsulationResistance, setFastInsulationResistance] = useState("");
+  type FastLogEntry = {
+    id: string;
+    ho: string;
+    status: "saving" | "done" | "error";
+    errorMessage?: string;
+    payload: {
+      ho: string;
+      circuitBreakerCount: number;
+      manualResults: Record<string, ChecklistResult | null>;
+      loadCurrent: string;
+      igr: string;
+      insulationResistance: string;
+    };
+  };
+  const [fastLog, setFastLog] = useState<FastLogEntry[]>([]);
   const [result, setResult] = useState<{
     diagnosis: DiagnosisEntry[];
     advisories: CompanyAdvisoryEntry[];
@@ -168,7 +198,10 @@ export default function UnitInspectionForm({
   const circuitBreakerCountValid = circuitBreakerCount.trim() !== "" && Number(circuitBreakerCount) >= 1;
 
   const stepValid = (idx: number): boolean => {
-    if (idx === 0) return Boolean(apartmentId && dong.trim() && ho.trim());
+    if (idx === 0) {
+      if (inspectionType === "unvisited_simple") return Boolean(apartmentId && dong.trim() && circuitBreakerCountValid);
+      return Boolean(apartmentId && dong.trim() && ho.trim());
+    }
     if (idx === 1) return uncheckedManualIds.length === 0;
     if (idx === 2) return circuitBreakerCountValid;
     if (idx === stepLabels.length - 1 && inspectionType === "visit") {
@@ -178,7 +211,11 @@ export default function UnitInspectionForm({
   };
 
   const validationMessageFor = (idx: number): string => {
-    if (idx === 0) return "단지·동·호를 모두 입력해주세요.";
+    if (idx === 0) {
+      return inspectionType === "unvisited_simple"
+        ? "단지·동·분전함 차단기 회로수를 모두 입력해주세요(회로수는 1 이상)."
+        : "단지·동·호를 모두 입력해주세요.";
+    }
     if (idx === 1) return `현장에서 직접 확인해야 하는 항목이 ${uncheckedManualIds.length}개 남았어요. ○/×/  중 하나를 눌러주세요.`;
     if (idx === 2) return "분전함 차단기 회로수를 입력해주세요(1 이상).";
     return "세대 성명·연락처·서명을 모두 입력해주세요.";
@@ -198,7 +235,100 @@ export default function UnitInspectionForm({
       return;
     }
     setMessage(null);
+    if (inspectionType === "unvisited_simple" && step === 0) {
+      setFastLoopStarted(true);
+      resetFastUnitFields();
+      return;
+    }
     setStep((s) => Math.min(s + 1, stepLabels.length - 1));
+  };
+
+  const resetFastUnitFields = () => {
+    setFastHo("");
+    setFastManualResults(Object.fromEntries(requiredManualIdsForType.map((id) => [id, null])));
+    setFastLoadCurrent("");
+    setFastIgr("");
+    setFastInsulationResistance("");
+  };
+
+  const submitFastUnit = async (payload: FastLogEntry["payload"]) => {
+    const logId = `${payload.ho}-${Date.now()}`;
+    setFastLog((log) => [{ id: logId, ho: payload.ho, status: "saving", payload }, ...log]);
+
+    const checklistResults = requiredManualIdsForType.map((id) => ({
+      id,
+      result: payload.manualResults[id] ?? "/",
+      note: ""
+    }));
+
+    try {
+      const response = await fetch(submitEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apartmentId,
+          dong,
+          ho: payload.ho,
+          inspectionType: "unvisited_simple",
+          checklistResults,
+          loadCurrent: payload.loadCurrent === "" ? null : Number(payload.loadCurrent),
+          igr: payload.igr === "" ? null : Number(payload.igr),
+          insulationResistance: payload.insulationResistance === "" ? null : Number(payload.insulationResistance),
+          circuitBreakerCount: payload.circuitBreakerCount,
+          outletInstallYear: null,
+          switchInstallYear: null,
+          etcNotes: "",
+          residentName: null,
+          residentPhone: null,
+          signatureData: null
+        })
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { message?: string };
+        setFastLog((log) =>
+          log.map((e) => (e.id === logId ? { ...e, status: "error", errorMessage: data.message ?? "저장 실패" } : e))
+        );
+        return;
+      }
+      setFastLog((log) => log.map((e) => (e.id === logId ? { ...e, status: "done" } : e)));
+    } catch {
+      setFastLog((log) => log.map((e) => (e.id === logId ? { ...e, status: "error", errorMessage: "네트워크 오류" } : e)));
+    }
+  };
+
+  const uncheckedFastManualIds = requiredManualIdsForType.filter((id) => fastManualResults[id] == null);
+
+  const handleFastNext = () => {
+    if (!fastHo.trim()) {
+      showMessage("호를 입력해주세요.");
+      return;
+    }
+    if (uncheckedFastManualIds.length > 0) {
+      showMessage("계량기 인입선 확인 결과를 눌러주세요.");
+      return;
+    }
+    setMessage(null);
+    void submitFastUnit({
+      ho: fastHo.trim(),
+      circuitBreakerCount: Number(circuitBreakerCount),
+      manualResults: fastManualResults,
+      loadCurrent: fastLoadCurrent,
+      igr: fastIgr,
+      insulationResistance: fastInsulationResistance
+    });
+    resetFastUnitFields();
+    requestAnimationFrame(() => document.getElementById("fast-ho-input")?.focus());
+  };
+
+  const retryFastEntry = (entry: FastLogEntry) => {
+    setFastLog((log) => log.filter((e) => e.id !== entry.id));
+    void submitFastUnit(entry.payload);
+  };
+
+  const changeDong = () => {
+    setFastLoopStarted(false);
+    setDong("");
+    resetFastUnitFields();
   };
 
   const submit = async () => {
@@ -330,6 +460,164 @@ export default function UnitInspectionForm({
     );
   }
 
+  if (fastLoopStarted) {
+    const fastStepValid = fastHo.trim() !== "" && uncheckedFastManualIds.length === 0;
+    return (
+      <div className="space-y-4">
+        <SectionCard title={`${dong}동 연속입력`}>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-100 px-3 py-2">
+              <button type="button" onClick={changeDong} className="text-[13px] font-bold text-dk-blue underline underline-offset-2">
+                동 변경
+              </button>
+              <span className="text-slate-300">·</span>
+              {editingCircuitCount ? (
+                <>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    step={1}
+                    value={circuitBreakerCount}
+                    onChange={(e) => setCircuitBreakerCount(e.target.value)}
+                    className="soft-input w-20 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setEditingCircuitCount(false)}
+                    className="text-[13px] font-bold text-dk-blue"
+                  >
+                    확인
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingCircuitCount(true)}
+                  className="text-[13px] font-bold text-dk-blue underline underline-offset-2"
+                >
+                  회로수 {circuitBreakerCount}개 변경
+                </button>
+              )}
+            </div>
+
+            <div>
+              <p className="mb-2 text-[15px] font-bold text-slate-800">호 *</p>
+              <input
+                id="fast-ho-input"
+                autoFocus
+                inputMode="numeric"
+                value={fastHo}
+                onChange={(e) => setFastHo(e.target.value)}
+                placeholder="예: 502"
+                className="soft-input w-full text-lg"
+              />
+            </div>
+
+            {requiredManualIdsForType.map((id) => {
+              const def = CHECKLIST_ITEMS.find((d) => d.id === id)!;
+              return (
+                <div key={id}>
+                  <p className="mb-2 text-[14px] font-semibold text-slate-800">
+                    {def.label} <span className="text-dk-red">*</span>
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {RESULT_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setFastManualResults((prev) => ({ ...prev, [id]: opt.value }))}
+                        className={`min-h-11 rounded-xl border-2 text-[13px] font-bold transition ${
+                          fastManualResults[id] === opt.value ? opt.activeClass : "border-slate-200 bg-white text-slate-500"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <p className="mb-2 text-[15px] font-bold text-slate-800">부하전류 (A)</p>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={fastLoadCurrent}
+                  onChange={(e) => setFastLoadCurrent(e.target.value)}
+                  className="soft-input w-full text-base"
+                />
+              </div>
+              <div>
+                <p className="mb-2 text-[15px] font-bold text-slate-800">IGR · 누설전류 (mA)</p>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={fastIgr}
+                  onChange={(e) => setFastIgr(e.target.value)}
+                  className="soft-input w-full text-base"
+                />
+              </div>
+              <div>
+                <p className="mb-2 text-[15px] font-bold text-slate-800">절연저항 (MΩ)</p>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={fastInsulationResistance}
+                  onChange={(e) => setFastInsulationResistance(e.target.value)}
+                  placeholder="예: 0.15"
+                  className="soft-input w-full text-base"
+                />
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+
+        {message ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{message}</p> : null}
+
+        <BigButton variant="primary" disabled={!fastStepValid} onClick={handleFastNext} className="w-full">
+          다음 (저장하고 계속)
+        </BigButton>
+
+        {fastLog.length > 0 ? (
+          <SectionCard title={`저장 현황 (${fastLog.filter((e) => e.status === "done").length}건 완료)`}>
+            <ul className="space-y-1.5">
+              {fastLog.map((entry) => (
+                <li key={entry.id} className="flex items-center justify-between text-[13px]">
+                  <span className="font-semibold text-slate-700">{dong}동 {entry.ho}호</span>
+                  {entry.status === "saving" ? (
+                    <span className="text-slate-400">저장 중...</span>
+                  ) : entry.status === "done" ? (
+                    <span className="font-bold text-dk-green">저장완료 ✓</span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <span className="font-bold text-dk-red">저장실패</span>
+                      <button
+                        type="button"
+                        onClick={() => retryFastEntry(entry)}
+                        className="rounded-lg border border-dk-red px-2 py-0.5 text-[12px] font-bold text-dk-red"
+                      >
+                        재시도
+                      </button>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </SectionCard>
+        ) : null}
+
+        <Link href={backHref} className="block">
+          <button type="button" className="min-h-14 w-full rounded-2xl border-2 border-slate-200 text-base font-bold text-slate-600">
+            {backLabel}
+          </button>
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <StepProgress steps={stepLabels} current={step} className="-mx-4" />
@@ -400,17 +688,39 @@ export default function UnitInspectionForm({
                   className="soft-input w-full text-base"
                 />
               </div>
-              <div>
-                <p className="mb-2 text-[15px] font-bold text-slate-800">호 *</p>
-                <input
-                  inputMode="numeric"
-                  value={ho}
-                  onChange={(e) => setHo(e.target.value)}
-                  placeholder="예: 502"
-                  className="soft-input w-full text-base"
-                />
-              </div>
+              {inspectionType === "unvisited_simple" ? (
+                <div>
+                  <p className="mb-2 text-[15px] font-bold text-slate-800">분전함 차단기 회로수 *</p>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    step={1}
+                    value={circuitBreakerCount}
+                    onChange={(e) => setCircuitBreakerCount(e.target.value)}
+                    placeholder="예: 8"
+                    className="soft-input w-full text-base"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <p className="mb-2 text-[15px] font-bold text-slate-800">호 *</p>
+                  <input
+                    inputMode="numeric"
+                    value={ho}
+                    onChange={(e) => setHo(e.target.value)}
+                    placeholder="예: 502"
+                    className="soft-input w-full text-base"
+                  />
+                </div>
+              )}
             </div>
+            {inspectionType === "unvisited_simple" ? (
+              <p className="-mt-2 rounded-xl bg-dk-sky px-3 py-2 text-[12px] text-dk-navy">
+                이 동에서는 같은 회로수를 계속 쓴다고 가정하고, 다음 화면부터는 호만 눌러가며 바로바로
+                점검할 수 있어요. 회로수가 다른 세대를 만나면 다음 화면에서 바로 고쳐 넣을 수 있습니다.
+              </p>
+            ) : null}
 
             <div>
               <p className="mb-2 text-[15px] font-bold text-slate-800">점검 유형 *</p>
@@ -641,7 +951,7 @@ export default function UnitInspectionForm({
         ) : null}
         {!isLastStep ? (
           <BigButton variant="primary" onClick={goNext} className="flex-[2]">
-            다음
+            {step === 0 && inspectionType === "unvisited_simple" ? "시작 (호만 눌러가며 연속입력)" : "다음"}
           </BigButton>
         ) : (
           <BigButton variant="primary" icon="📋" disabled={submitting} onClick={submit} className="flex-[2]">
