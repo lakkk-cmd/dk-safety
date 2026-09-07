@@ -11,7 +11,7 @@ export default function WorkerChrome({ children, workerId }: { children: ReactNo
 
   return (
     <div className="min-h-screen bg-slate-100 pb-28">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
           <p className="text-sm font-black text-slate-900">현장 작업</p>
           <button

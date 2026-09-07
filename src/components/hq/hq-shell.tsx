@@ -148,7 +148,7 @@ export default function HqShell({ children }: { children: React.ReactNode }) {
     <div className={`flex flex-col bg-cc-bg text-cc-text overflow-x-hidden w-full ${isChatPage ? "h-dvh" : "min-h-dvh"}`}>
       {/* overflow-x-hidden을 두지 않는다 — 걸면 세로도 암묵적으로 클리핑돼 드롭다운 메뉴가 헤더 높이 안에서
           잘린다. 자식(SubdomainNav)이 자기 가로 스크롤을 스스로 관리하므로 여기서 다시 막을 필요가 없다. */}
-      <header className="flex-shrink-0 bg-cc-navy text-white w-full">
+      <header className="flex-shrink-0 bg-cc-navy text-white w-full pt-[env(safe-area-inset-top)]">
         <div className="flex w-full items-center justify-between gap-3 px-3 py-3 md:mx-auto md:max-w-5xl md:px-6 md:py-4">
           <BrandLockup />
           <div className="flex items-center gap-3">

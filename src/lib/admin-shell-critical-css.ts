@@ -142,7 +142,7 @@ export const ADMIN_SHELL_CRITICAL_CSS = `
     position: sticky !important;
     top: 0 !important;
     z-index: 30 !important;
-    padding: 0.75rem 1rem !important;
+    padding: calc(0.75rem + env(safe-area-inset-top)) 1rem 0.75rem !important;
     background: #0B1F3A !important;
     color: #ffffff !important;
     box-sizing: border-box !important;
