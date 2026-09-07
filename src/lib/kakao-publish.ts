@@ -10,8 +10,14 @@ export const KAKAO_MEMO_ENABLED = Boolean(process.env.KAKAO_ACCESS_TOKEN?.trim()
  * 카카오톡 "나에게 보내기" API로 메모를 전송한다.
  * 카카오 채널 공개 발행 API는 비즈니스 인증이 필요해 제공되지 않으므로,
  * 대장이 알림을 받아 직접 채널에 발행/확인하는 흐름을 보조한다.
+ *
+ * 링크는 항상 hq.dkansim.com/login?next=... 형태로 보낸다 — hq/report/agent/contents
+ * 서브도메인을 미인증 상태로 바로 열면 미들웨어가 로그인 페이지로 307 리다이렉트하는데,
+ * 카카오톡 인앱브라우저에서 이 리다이렉트를 안 따라가고 엉뚱하게 공개 홈(/home)으로 떨어지는
+ * 현상이 실제 발견됨(2026-09-07) — 리다이렉트 자체가 필요 없도록 로그인 페이지를 최종 목적지로
+ * 바로 지정하고, 로그인 후에는 클라이언트에서 next로 원래 화면으로 이동시킨다.
  */
-async function sendKakaoMemo(text: string, linkUrl = "https://contents.dkansim.com"): Promise<void> {
+async function sendKakaoMemo(text: string, linkUrl = "https://hq.dkansim.com/login?next=/"): Promise<void> {
   const token = await getKakaoAccessToken();
 
   const template = JSON.stringify({
@@ -37,7 +43,7 @@ async function sendKakaoMemo(text: string, linkUrl = "https://contents.dkansim.c
 
 /** 카카오 매니저 톡톡 — 포스트 발행 (대장에게 발행 알림 전송) */
 export async function publishKakaoPost(title: string, content: string): Promise<void> {
-  await sendKakaoMemo(`[카카오 채널 발행]\n${title}\n\n${content}`);
+  await sendKakaoMemo(`[카카오 채널 발행]\n${title}\n\n${content}`, "https://hq.dkansim.com/login?next=/kakao");
 }
 
 // ─── 기존 고객 친구톡 자동 발송 ────────────────────────────────────────────────
@@ -173,7 +179,7 @@ export async function notifyDailyBusinessScan(params: {
   if (params.opportunities.length > 0) {
     lines.push(`💡 성장기회: ${params.opportunities.map((o) => o.title).join(", ")}`);
   }
-  await sendKakaoMemo(lines.join("\n"), "https://hq.dkansim.com");
+  await sendKakaoMemo(lines.join("\n"), "https://hq.dkansim.com/login?next=/");
 }
 
 /** hq 9-11월 영업계획 현황판 — 매주 월요일 아침 진도율 알림. 본문은 sendKakaoMemo의
@@ -189,7 +195,7 @@ export async function notifySalesPlanProgress(params: {
   if (params.budgetUsed !== null) {
     lines.push(`예산 ${params.budgetUsed.toLocaleString()}/${params.budgetCap.toLocaleString()}원`);
   }
-  await sendKakaoMemo(lines.join("\n"), "https://hq.dkansim.com/sales-visit-log");
+  await sendKakaoMemo(lines.join("\n"), "https://hq.dkansim.com/login?next=/sales-visit-log");
 }
 
 /** Vercel 프로덕션 배포 완료/실패 알림 — Vercel 웹훅(deployment.succeeded/deployment.error)에서 호출 */
