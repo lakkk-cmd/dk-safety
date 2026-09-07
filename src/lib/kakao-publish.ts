@@ -11,19 +11,26 @@ export const KAKAO_MEMO_ENABLED = Boolean(process.env.KAKAO_ACCESS_TOKEN?.trim()
  * 카카오 채널 공개 발행 API는 비즈니스 인증이 필요해 제공되지 않으므로,
  * 대장이 알림을 받아 직접 채널에 발행/확인하는 흐름을 보조한다.
  *
- * 링크는 항상 hq.dkansim.com/login?next=... 형태로 보낸다 — hq/report/agent/contents
- * 서브도메인을 미인증 상태로 바로 열면 미들웨어가 로그인 페이지로 307 리다이렉트하는데,
- * 카카오톡 인앱브라우저에서 이 리다이렉트를 안 따라가고 엉뚱하게 공개 홈(/home)으로 떨어지는
- * 현상이 실제 발견됨(2026-09-07) — 리다이렉트 자체가 필요 없도록 로그인 페이지를 최종 목적지로
- * 바로 지정하고, 로그인 후에는 클라이언트에서 next로 원래 화면으로 이동시킨다.
+ * 진짜 원인(2026-09-07 실기기 진단 확정): hq/report/contents 서브도메인 리다이렉트 문제가
+ * 아니었다 — 완전히 무관한 외부 도메인(구글)으로 링크를 보내도 "자세히 보기"가 똑같이
+ * dkansim.com 홈으로 떨어지는 게 재현됨. 즉 카카오 API/앱이 이 카카오 개발자 앱에 등록된
+ * 도메인(dkansim.com) 외의 web_url/mobile_web_url을 무시하고 등록 도메인 기본값으로
+ * 대체하는 것 — 우리 코드/미들웨어 문제가 아니다. 등록된 도메인 자체는 정상 통과하므로,
+ * 실제 목적지를 등록 도메인 아래 `/go?next=...` 경유지로 감싸서 그 안에서 다시
+ * 원하는 서브도메인/URL로 리다이렉트시킨다(src/app/go/page.tsx).
  */
+function wrapForKakaoLink(targetUrl: string): string {
+  return `https://dkansim.com/go?next=${encodeURIComponent(targetUrl)}`;
+}
+
 async function sendKakaoMemo(text: string, linkUrl = "https://hq.dkansim.com/login?next=/"): Promise<void> {
   const token = await getKakaoAccessToken();
+  const wrappedUrl = wrapForKakaoLink(linkUrl);
 
   const template = JSON.stringify({
     object_type: "text",
     text: text.slice(0, 200),
-    link: { web_url: linkUrl, mobile_web_url: linkUrl },
+    link: { web_url: wrappedUrl, mobile_web_url: wrappedUrl },
   });
 
   const res = await fetch(KAKAO_MEMO_URL, {
