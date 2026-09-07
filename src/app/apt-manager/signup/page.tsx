@@ -3,7 +3,8 @@
 import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { loadDaumPostcodeScript } from "@/lib/daum-postcode-client";
+import { DaumPostcodeModal } from "@/components/daum-postcode-modal";
+import type { DaumPostcodeResult } from "@/lib/daum-postcode-client";
 
 const STEP_LABELS = ["단지입력", "정보입력"] as const;
 
@@ -29,6 +30,7 @@ function AptManagerSignupForm() {
   const [done, setDone] = useState(false);
 
   const [loginIdCheck, setLoginIdCheck] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
+  const [addressSearchOpen, setAddressSearchOpen] = useState(false);
 
   const checkLoginId = async () => {
     const trimmed = loginId.trim();
@@ -46,20 +48,11 @@ function AptManagerSignupForm() {
     }
   };
 
-  const searchAddress = async () => {
-    try {
-      await loadDaumPostcodeScript();
-      new window.daum!.Postcode({
-        oncomplete: (data) => {
-          const fullAddress = data.roadAddress || data.jibunAddress || data.address || "";
-          setApartmentAddress(fullAddress);
-          if (!apartmentName.trim() && data.apartment === "Y" && data.buildingName) {
-            setApartmentName(data.buildingName);
-          }
-        }
-      }).open();
-    } catch {
-      setMessage("주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+  const handleAddressComplete = (data: DaumPostcodeResult) => {
+    const fullAddress = data.roadAddress || data.jibunAddress || data.address || "";
+    setApartmentAddress(fullAddress);
+    if (!apartmentName.trim() && data.apartment === "Y" && data.buildingName) {
+      setApartmentName(data.buildingName);
     }
   };
 
@@ -170,9 +163,14 @@ function AptManagerSignupForm() {
 
       {step === 0 ? (
         <div className="mt-4 space-y-3">
-          <button type="button" onClick={() => void searchAddress()} className="btn-primary w-full py-3 text-sm">
+          <button type="button" onClick={() => setAddressSearchOpen(true)} className="btn-primary w-full py-3 text-sm">
             🔍 단지 주소 검색
           </button>
+          <DaumPostcodeModal
+            open={addressSearchOpen}
+            onComplete={handleAddressComplete}
+            onClose={() => setAddressSearchOpen(false)}
+          />
           <input value={apartmentName} onChange={(e) => setApartmentName(e.target.value)} placeholder="단지명" className="soft-input w-full" />
           <input value={apartmentAddress} onChange={(e) => setApartmentAddress(e.target.value)} placeholder="단지 주소 (검색 버튼으로 채워짐)" className="soft-input w-full" />
           <div>

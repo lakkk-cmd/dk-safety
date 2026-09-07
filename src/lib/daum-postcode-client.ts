@@ -1,12 +1,23 @@
 "use client";
 
+export type DaumPostcodeResult = {
+  roadAddress?: string;
+  jibunAddress?: string;
+  address?: string;
+  buildingName?: string;
+  apartment?: "Y" | "N";
+};
+
 declare global {
   interface Window {
     daum?: {
       Postcode: new (options: {
-        oncomplete: (data: { roadAddress?: string; jibunAddress?: string; address?: string; buildingName?: string; apartment?: "Y" | "N" }) => void;
+        oncomplete: (data: DaumPostcodeResult) => void;
+        width?: string | number;
+        height?: string | number;
       }) => {
         open: () => void;
+        embed: (element: HTMLElement) => void;
       };
     };
   }

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { loadDaumPostcodeScript } from "@/lib/daum-postcode-client";
+import { DaumPostcodeModal } from "@/components/daum-postcode-modal";
+import type { DaumPostcodeResult } from "@/lib/daum-postcode-client";
 
 type Apartment = {
   id: string;
@@ -50,6 +51,7 @@ export default function AdminApartmentsManager() {
   const [formMessage, setFormMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [districtTab, setDistrictTab] = useState("전체");
   const [search, setSearch] = useState("");
+  const [addressSearchOpen, setAddressSearchOpen] = useState(false);
 
   const load = async () => {
     const response = await fetch("/api/admin/apartments", { cache: "no-store" });
@@ -101,23 +103,14 @@ export default function AdminApartmentsManager() {
     }
   };
 
-  const openAddressSearch = async () => {
-    try {
-      await loadDaumPostcodeScript();
-      new window.daum!.Postcode({
-        oncomplete: (data) => {
-          const fullAddress = data.roadAddress || data.jibunAddress || data.address || "";
-          setForm((p) => ({
-            ...p,
-            address: fullAddress,
-            district: deriveDistrict(fullAddress),
-            name: !p.name.trim() && data.apartment === "Y" && data.buildingName ? data.buildingName : p.name
-          }));
-        }
-      }).open();
-    } catch {
-      setFormMessage({ type: "error", text: "주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해주세요." });
-    }
+  const handleAddressComplete = (data: DaumPostcodeResult) => {
+    const fullAddress = data.roadAddress || data.jibunAddress || data.address || "";
+    setForm((p) => ({
+      ...p,
+      address: fullAddress,
+      district: deriveDistrict(fullAddress),
+      name: !p.name.trim() && data.apartment === "Y" && data.buildingName ? data.buildingName : p.name
+    }));
   };
 
   const removeItem = async (id: string) => {
@@ -165,9 +158,14 @@ export default function AdminApartmentsManager() {
           <input value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value.toLowerCase() }))} placeholder="코드 (필수, 예: moonheung)" className="soft-input" />
           <div className="flex gap-2 md:col-span-2">
             <input value={form.address} readOnly placeholder="주소 검색 버튼을 눌러 입력하세요" className="soft-input flex-1" />
-            <button type="button" onClick={() => void openAddressSearch()} className="btn-outline shrink-0 px-4 text-sm">
+            <button type="button" onClick={() => setAddressSearchOpen(true)} className="btn-outline shrink-0 px-4 text-sm">
               주소 검색
             </button>
+            <DaumPostcodeModal
+              open={addressSearchOpen}
+              onComplete={handleAddressComplete}
+              onClose={() => setAddressSearchOpen(false)}
+            />
           </div>
           {form.address ? (
             <p className="text-xs text-slate-500 md:col-span-2">감지된 구: {form.district || UNASSIGNED_DISTRICT}</p>
