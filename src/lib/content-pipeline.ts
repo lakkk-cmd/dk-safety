@@ -273,6 +273,79 @@ export async function runYoutubeDrafting(limit = 2): Promise<YoutubeDraftRunResu
   return result;
 }
 
+type KakaoPlanningRow = { id: string; title: string; content: string | null; marketer_guideline: string | null };
+
+/** planning 상태 카카오 항목 하나를 초안 완성(pending_approval/review_required)까지 진행시킨다.
+ *  runContentDrafting(주간 크론)과 draftKakaoItemById(수동 1건 실행)가 공유하는 실제 로직 —
+ *  중복 구현으로 두 경로의 검증 기준이 갈라지는 걸 막기 위해 여기 하나로 모았다. */
+async function draftKakaoQueueItem(kkRow: KakaoPlanningRow, weekStatus: WeekStatus, recentContext: string): Promise<void> {
+  const supabase = requireAgentSupabase();
+  const kkGuideline = kkRow.marketer_guideline
+    ? (JSON.parse(kkRow.marketer_guideline) as Partial<ContentGuideline>)
+    : undefined;
+  const draftRaw = await draftKakaoPost(kkRow.title, kkRow.content ?? "", weekStatus, kkGuideline, recentContext);
+  const draft = await humanizeKoreanText(draftRaw, 800);
+  // 품질게이트(마케터 가이드라인 대비 검증)를 통과해도 곧바로 발송하지 않는다 — 디렉터
+  // 파이프라인 재편 규칙에 따라 카카오 발행은 항상 대표님 승인을 거친다(/contents 또는 /hq/kakao에서
+  // 승인 클릭 → approveKakaoQueueItem이 실제 발송을 트리거).
+  let validationPassed = false;
+  if (GEMINI_ENABLED) {
+    try {
+      const validation = await validateContent({
+        title: kkRow.title,
+        content: draft,
+        contentType: "kakao",
+        guideline: kkGuideline,
+      });
+      validationPassed = validation.passed;
+    } catch (err) {
+      await logAgentEvent("warn", "content-draft", `Kakao 교차검증 실패 (건너뜀): ${errMessage(err)}`);
+    }
+  }
+  if (validationPassed) {
+    const clo = await verifyContentLegalRisk(kkRow.title, draft, "kakao");
+    if (clo.concern) {
+      validationPassed = false;
+      await logAgentEvent("warn", "content-draft", `CLO 법적 검토 반려: ${kkRow.title} — ${clo.concern}`);
+    }
+  }
+  await supabase
+    .from("content_kakao_queue")
+    .update({
+      content: draft,
+      status: validationPassed ? "pending_approval" : "review_required",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", kkRow.id);
+
+  if (validationPassed) {
+    await logAgentEvent("info", "content-draft", `카카오 포스트 품질게이트 통과, 승인 대기: ${kkRow.title}`);
+  }
+}
+
+/** hq/kakao 화면의 "지금 초안 작성" 수동 버튼 전용 — 콘텐츠 자동생성 크론이 2026-07-20부로
+ *  중단된 상태라, planning에 멈춰있는 특정 항목 하나를 대표님이 원할 때만 골라서 진행시킨다.
+ *  크론을 재개하는 게 아니라 이 한 건만 일회성으로 처리한다. */
+export async function draftKakaoItemById(id: string): Promise<{ status: string }> {
+  const supabase = requireAgentSupabase();
+  const { data: kkRow, error } = await supabase
+    .from("content_kakao_queue")
+    .select("id, title, content, marketer_guideline, status")
+    .eq("id", id)
+    .single();
+  if (error || !kkRow) throw error ?? new Error("카카오 큐 항목을 찾을 수 없습니다.");
+  if (kkRow.status !== "planning") {
+    throw new Error(`이미 초안 단계를 지난 항목입니다(현재 상태: ${kkRow.status}).`);
+  }
+
+  const weekStatus = getCurrentWeekStatus();
+  const recentContext = await loadRecentContextForWorkers();
+  await draftKakaoQueueItem(kkRow, weekStatus, recentContext);
+
+  const { data: updated } = await supabase.from("content_kakao_queue").select("status").eq("id", id).single();
+  return { status: updated?.status ?? "unknown" };
+}
+
 export async function runContentDrafting(): Promise<ContentDraftRunResult> {
   const runId = await startPipelineRun("content-draft");
   try {
@@ -293,47 +366,7 @@ export async function runContentDrafting(): Promise<ContentDraftRunResult> {
       .maybeSingle();
 
     if (kkRow) {
-      const kkGuideline = kkRow.marketer_guideline
-        ? (JSON.parse(kkRow.marketer_guideline) as Partial<ContentGuideline>)
-        : undefined;
-      const draftRaw = await draftKakaoPost(kkRow.title, kkRow.content ?? "", weekStatus, kkGuideline, recentContext);
-      const draft = await humanizeKoreanText(draftRaw, 800);
-      // 품질게이트(마케터 가이드라인 대비 검증)를 통과해도 곧바로 발송하지 않는다 — 디렉터
-      // 파이프라인 재편 규칙에 따라 카카오 발행은 항상 대표님 승인을 거친다(/contents에서
-      // 승인 클릭 → approveKakaoQueueItem이 실제 발송을 트리거).
-      let validationPassed = false;
-      if (GEMINI_ENABLED) {
-        try {
-          const validation = await validateContent({
-            title: kkRow.title,
-            content: draft,
-            contentType: "kakao",
-            guideline: kkGuideline,
-          });
-          validationPassed = validation.passed;
-        } catch (err) {
-          await logAgentEvent("warn", "content-draft", `Kakao 교차검증 실패 (건너뜀): ${errMessage(err)}`);
-        }
-      }
-      if (validationPassed) {
-        const clo = await verifyContentLegalRisk(kkRow.title, draft, "kakao");
-        if (clo.concern) {
-          validationPassed = false;
-          await logAgentEvent("warn", "content-draft", `CLO 법적 검토 반려: ${kkRow.title} — ${clo.concern}`);
-        }
-      }
-      await supabase
-        .from("content_kakao_queue")
-        .update({
-          content: draft,
-          status: validationPassed ? "pending_approval" : "review_required",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", kkRow.id);
-
-      if (validationPassed) {
-        await logAgentEvent("info", "content-draft", `카카오 포스트 품질게이트 통과, 승인 대기: ${kkRow.title}`);
-      }
+      await draftKakaoQueueItem(kkRow, weekStatus, recentContext);
       kakaoUpdated = true;
     }
 
@@ -476,9 +509,11 @@ export type KakaoQueueRow = {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  card_news_images: string[] | null;
 };
 
-const KAKAO_QUEUE_COLUMNS = "id, title, content, status, reject_reason, created_at, updated_at, published_at";
+const KAKAO_QUEUE_COLUMNS =
+  "id, title, content, status, reject_reason, created_at, updated_at, published_at, card_news_images";
 
 /**
  * 카카오 전용 승인 화면(/hq/kakao)이 쓰는 목록 조회 — 승인대기 상태는 개수 제한 없이 전부,

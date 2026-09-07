@@ -12,6 +12,7 @@ type KakaoQueueItem = {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  card_news_images: string[] | null;
 };
 
 type KakaoOverviewResponse = {
@@ -86,6 +87,45 @@ export default function KakaoApprovalPanel() {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  const handleDraftNow = async (id: string) => {
+    if (!confirm("지금 이 항목의 초안을 작성할까요? (Claude 호출 1회, 품질검증 통과 시 승인 대기 상태가 됩니다)")) return;
+    setBusyId(id);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/content/kakao/draft-now", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const json = (await res.json()) as { message?: string };
+      setMessage(json.message ?? (res.ok ? "완료" : "실패"));
+      if (res.ok) await loadAll();
+    } catch {
+      setMessage("초안 작성 중 오류가 발생했습니다.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleGenerateCardNews = async (id: string) => {
+    setBusyId(id);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/content/kakao/card-news", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const json = (await res.json()) as { message?: string };
+      setMessage(json.message ?? (res.ok ? "생성 완료" : "생성 실패"));
+      if (res.ok) await loadAll();
+    } catch {
+      setMessage("카드뉴스 생성 중 오류가 발생했습니다.");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const handleAction = async (id: string, action: "approve" | "reject" | "delete") => {
     if (action === "delete" && !confirm("이 카카오 포스트를 삭제하시겠습니까?")) return;
@@ -182,6 +222,50 @@ export default function KakaoApprovalPanel() {
                 ) : null}
                 {item.reject_reason ? <p className="mt-2 text-xs text-red-700">반려 이유: {item.reject_reason}</p> : null}
                 <p className="mt-2 text-xs text-slate-400">생성: {formatDate(item.created_at)}</p>
+
+                {item.status === "planning" ? (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                    아직 기획 단계라 승인 버튼이 없습니다. 콘텐츠 자동생성 크론이 중단된 상태라 이 항목은
+                    수동으로 초안을 완성해야 승인 대기로 넘어갑니다.
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        disabled={busyId === item.id}
+                        onClick={() => void handleDraftNow(item.id)}
+                        className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        지금 초안 작성 (승인 대기로 전환)
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {item.card_news_images && item.card_news_images.length > 0 ? (
+                  <div className="mt-3 flex gap-2 overflow-x-auto">
+                    {item.card_news_images.map((url, i) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={url}
+                        src={url}
+                        alt={`카드뉴스 ${i + 1}`}
+                        className="h-24 w-24 flex-shrink-0 rounded-lg border border-slate-200 object-cover"
+                      />
+                    ))}
+                  </div>
+                ) : null}
+
+                {item.content ? (
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      disabled={busyId === item.id}
+                      onClick={() => void handleGenerateCardNews(item.id)}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {item.card_news_images && item.card_news_images.length > 0 ? "카드뉴스 재생성" : "🖼 카드뉴스 생성"}
+                    </button>
+                  </div>
+                ) : null}
 
                 {APPROVABLE_STATUSES.includes(item.status) ? (
                   <div className="mt-3 flex flex-wrap gap-2">

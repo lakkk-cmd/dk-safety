@@ -484,6 +484,55 @@ ${formatGuidelineBlock(guideline)}${formatContextBlock(recentContext)}
   return raw.trim();
 }
 
+// ─── 카카오 카드뉴스 슬라이드 기획 (2026-09-07) ──────────────────────────────
+// 이미지 자체는 Claude가 아니라 satori(next/og) 렌더러(card-news-render.tsx)가 코드로
+// 찍어낸다 — 여기서는 "표지1 + 신호3 + 예약유도1" 5장의 텍스트만 기획한다.
+
+export type CardNewsCoverSlide = { type: "cover"; eyebrow: string; title: string; sub: string };
+export type CardNewsStepSlide = { type: "step"; stepNum: number; totalSteps: number; title: string; body: string };
+export type CardNewsCtaSlide = { type: "cta"; title: string; price: string; ctaLabel: string };
+export type CardNewsSlide = CardNewsCoverSlide | CardNewsStepSlide | CardNewsCtaSlide;
+
+/** 이미 작성된 카카오 포스트(title/content)를 브랜드 룩북 형식의 카드뉴스 5장 텍스트로 재구성한다.
+ *  카카오 포스트를 새로 쓰는 게 아니라 기존 문구를 카드 형식에 맞게 쪼개고 다듬는 작업이라
+ *  draftKakaoPost보다 좁은 프롬프트를 쓴다. */
+export async function planCardNewsSlides(title: string, content: string): Promise<CardNewsSlide[]> {
+  const prompt = `${BUSINESS_CONTEXT}
+아래는 이미 발행 예정인 카카오 채널 포스트다. 이 내용을 그대로 재사용해, 가로로 넘겨보는
+카드뉴스 5장(표지 1장 + 위험신호 3장 + 예약유도 1장) 텍스트로 재구성하라.
+
+포스트 제목: ${title}
+포스트 본문: ${content}
+
+규칙:
+- 표지: eyebrow(11자 이내 지역/상황 태그), title(후킹 문구, "\\n"으로 줄바꿈 1회 포함 가능, 20자 이내×2줄), sub(부제 한 줄, 20자 이내)
+- 위험신호 3장: 각각 title(짧은 신호 한 줄, 15자 이내), body(설명 1문장, 30자 이내)
+- 예약유도: title(예약 유도 문구 한 줄), price(가격+부가서비스, 예: "150,000원 · 점검기록표 발급"), ctaLabel(버튼 문구, 8자 이내, 예: "지금 예약하기 →")
+- 본문에 없는 가격을 지어내지 말고, 포스트에 가격 언급이 없으면 price는 "무료 상담 · dkansim.com"으로 대체하라.
+- 이모지는 절대 쓰지 마라(카드 렌더러가 흑백 폰트 글리프로만 표시해 색이 안 나온다 — 룩북처럼 텍스트만으로 표현하라).
+
+JSON 객체만 출력하라(설명 없이, slides는 정확히 5개 배열):
+\`\`\`json
+{"slides": [
+  {"type":"cover","eyebrow":"...","title":"...","sub":"..."},
+  {"type":"step","stepNum":1,"totalSteps":3,"title":"...","body":"..."},
+  {"type":"step","stepNum":2,"totalSteps":3,"title":"...","body":"..."},
+  {"type":"step","stepNum":3,"totalSteps":3,"title":"...","body":"..."},
+  {"type":"cta","title":"...","price":"...","ctaLabel":"..."}
+]}
+\`\`\``.trim();
+
+  const raw = await callContentAgent("kakao_manager", prompt, 1200);
+  // extractJsonBlock은 "{"로 시작하는 단일 객체만 잡아낸다(배열 자체를 최상위로 주면 못 잡음) —
+  // 그래서 slides 배열을 객체로 한 번 감싸 이 헬퍼를 그대로 재사용한다.
+  const jsonText = extractJsonBlock(raw);
+  const parsed = JSON.parse(jsonText) as { slides?: CardNewsSlide[] };
+  if (!Array.isArray(parsed.slides) || parsed.slides.length !== 5) {
+    throw new Error(`카드뉴스 슬라이드 기획 결과가 예상 형식(5장 배열)이 아닙니다: ${jsonText.slice(0, 200)}`);
+  }
+  return parsed.slides;
+}
+
 export type BlogDraft = { content: string; excerpt: string; metaDescription: string };
 
 export async function draftBlogPost(
