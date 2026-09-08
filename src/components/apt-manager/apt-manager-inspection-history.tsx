@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { pickRepresentativeInspection } from "@/lib/unit-inspection-representative";
 
 type ChecklistItem = { id: string; category: string; item: string; result: "O" | "X" | "/" | "N/A"; note: string };
 type DiagnosisEntry = { item: string; verdict: string; regulation: string; actionTypes: string[]; comment: string };
@@ -106,18 +107,21 @@ export default function AptManagerInspectionHistory() {
   };
 
   const groups = useMemo(() => {
-    const map = new Map<string, UnitGroup>();
+    const byUnit = new Map<string, UnitInspection[]>();
     for (const insp of inspections) {
       const key = `${insp.dong}|${insp.ho}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.records.push(insp);
-        if (new Date(insp.inspectedAt) > new Date(existing.latest.inspectedAt)) existing.latest = insp;
-      } else {
-        map.set(key, { key, dong: insp.dong, ho: insp.ho, latest: insp, records: [insp] });
-      }
+      const list = byUnit.get(key);
+      if (list) list.push(insp);
+      else byUnit.set(key, [insp]);
     }
-    return Array.from(map.values()).sort((a, b) => a.dong.localeCompare(b.dong, undefined, { numeric: true }) || a.ho.localeCompare(b.ho, undefined, { numeric: true }));
+    // 세대방문점검 우선순위 정책(2026-09-08): 단순히 날짜가 가장 최근인 기록이 아니라, 같은
+    // 세대·같은 해 안에서 방문점검이 있으면 그게 항상 대표기록이다(순서 무관).
+    const result: UnitGroup[] = [];
+    for (const [key, records] of byUnit) {
+      const [dong, ho] = key.split("|");
+      result.push({ key, dong, ho, latest: pickRepresentativeInspection(records), records });
+    }
+    return result.sort((a, b) => a.dong.localeCompare(b.dong, undefined, { numeric: true }) || a.ho.localeCompare(b.ho, undefined, { numeric: true }));
   }, [inspections]);
 
   const dongOptions = useMemo(() => ["전체", ...Array.from(new Set(groups.map((g) => g.dong))).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))], [groups]);

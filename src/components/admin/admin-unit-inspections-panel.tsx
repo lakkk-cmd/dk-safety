@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { pickRepresentativeInspection, pickSupersededIdsInCurrentYear } from "@/lib/unit-inspection-representative";
 
 type ChecklistItem = { id: string; category: string; item: string; result: "O" | "X" | "/" | "N/A"; note: string };
 type DiagnosisEntry = { item: string; verdict: string; regulation: string; actionTypes: string[]; comment: string };
@@ -49,6 +50,8 @@ type UnitGroup = {
   residentPhone: string | null;
   latest: UnitInspection;
   records: UnitInspection[];
+  /** 세대방문점검 우선순위 정책(2026-09-08) — latest(대표기록)와 같은 연도인데 밀려난 기록 id */
+  supersededIds: Set<string>;
 };
 
 const RESULT_LABEL: Record<string, string> = { O: "○", X: "×", "/": "/", "N/A": "해당없음" };
@@ -158,7 +161,10 @@ export default function AdminUnitInspectionsPanel() {
     const result: UnitGroup[] = [];
     for (const [key, records] of map) {
       records.sort((a, b) => new Date(b.inspectedAt).getTime() - new Date(a.inspectedAt).getTime());
-      const latest = records[0];
+      // 세대방문점검 우선순위 정책(2026-09-08): 그냥 최신 날짜가 아니라, 같은 세대·같은 해에
+      // 방문점검이 있으면 순서와 무관하게 그게 대표기록이다.
+      const latest = pickRepresentativeInspection(records);
+      const supersededIds = pickSupersededIdsInCurrentYear(records);
       const residentRecord = records.find((r) => r.residentName && r.residentPhone) ?? null;
       result.push({
         key,
@@ -168,7 +174,8 @@ export default function AdminUnitInspectionsPanel() {
         residentName: residentRecord?.residentName ?? null,
         residentPhone: residentRecord?.residentPhone ?? null,
         latest,
-        records
+        records,
+        supersededIds
       });
     }
     result.sort((a, b) => new Date(b.latest.inspectedAt).getTime() - new Date(a.latest.inspectedAt).getTime());
@@ -548,6 +555,13 @@ export default function AdminUnitInspectionsPanel() {
                                         ) : null}
                                       </div>
                                     </div>
+
+                                    {group.supersededIds.has(item.id) ? (
+                                      <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
+                                        이후 세대방문점검이 진행되어 올해 대표기록이 아닙니다 → {formatDate(group.latest.inspectedAt)}{" "}
+                                        {TYPE_LABEL[group.latest.inspectionType]} 기록이 대표기록입니다.
+                                      </p>
+                                    ) : null}
 
                                     {isRecordOpen ? (
                                       <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">

@@ -9,7 +9,8 @@ import { pgGetApartmentManager } from "@/lib/apartment-managers-pg";
 import { pgCheckAndConsumePdfQuota } from "@/lib/apartment-subscriptions-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { createUnitInspectionPdfSignedUrl, resolveUnitInspectionPrivatePdfPath } from "@/lib/unit-inspection-pdf-storage";
-import { pgGetUnitInspection } from "@/lib/unit-inspections";
+import { pgGetUnitInspection, pgListUnitInspectionsForApartment } from "@/lib/unit-inspections";
+import { pickRepresentativeInspection, representativeYearGroupIds } from "@/lib/unit-inspection-representative";
 
 export const maxDuration = 60;
 
@@ -42,7 +43,26 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
       return NextResponse.json({ message: "PDF가 아직 발급되지 않았습니다." }, { status: 404 });
     }
 
-    const decision = await pgCheckAndConsumePdfQuota(scope.apartmentId, inspection.id, scope.managerId);
+    // 세대방문점검 우선순위 정책(2026-09-08): 같은 세대·같은 해에 방문점검이 있으면 그게 항상
+    // 대표기록이고, 전기과장은 대표기록만 다운로드할 수 있다 — 밀려난 간이점검은 화면에서 대표
+    // 기록으로 안내되므로(apt-manager-inspection-history.tsx) 이 요청은 정상 흐름에서는 오지
+    // 않지만, 방어적으로 서버에서도 막는다.
+    const unitRecords = (await pgListUnitInspectionsForApartment(scope.apartmentId)).filter(
+      (r) => r.dong === inspection.dong && r.ho === inspection.ho
+    );
+    const representative = pickRepresentativeInspection(unitRecords);
+    if (representative.id !== inspection.id) {
+      return NextResponse.json(
+        {
+          message: "이후 세대방문점검이 진행되어 이 기록은 더 이상 대표기록이 아닙니다. 최신 방문점검 기록을 다운로드해주세요.",
+          representativeId: representative.id
+        },
+        { status: 409 }
+      );
+    }
+    const groupInspectionIds = representativeYearGroupIds(unitRecords);
+
+    const decision = await pgCheckAndConsumePdfQuota(scope.apartmentId, inspection.id, scope.managerId, groupInspectionIds);
     if (!decision.allowed) {
       return NextResponse.json(
         {

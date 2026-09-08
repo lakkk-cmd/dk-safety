@@ -9,13 +9,15 @@
 import { NextResponse } from "next/server";
 import { getApartmentManagerIdFromCookies } from "@/lib/apt-manager-session-server";
 import { pgGetApartmentManager } from "@/lib/apartment-managers-pg";
-import { pgCheckAndConsumePdfQuotaBulk } from "@/lib/apartment-subscriptions-pg";
+import { pgCheckAndConsumePdfQuotaBulk, type PdfQuotaBulkTarget } from "@/lib/apartment-subscriptions-pg";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { readPrivatePdfBytes, resolveUnitInspectionPrivatePdfPath } from "@/lib/unit-inspection-pdf-storage";
 import {
   pgListUnitInspectionPdfCorrectionRecords,
-  pgListUnitInspectionsForApartment
+  pgListUnitInspectionsForApartment,
+  type UnitInspection
 } from "@/lib/unit-inspections";
+import { pickRepresentativeInspection, representativeYearGroupIds } from "@/lib/unit-inspection-representative";
 
 export const maxDuration = 120;
 
@@ -42,23 +44,37 @@ export async function GET(request: Request) {
   try {
     const all = await pgListUnitInspectionsForApartment(scope.apartmentId);
     const scoped = dongFilter ? all.filter((i) => i.dong === dongFilter) : all;
-    const completed = scoped.filter((i) => i.pdfUrl);
 
-    // 동/호별 최신 건만 남긴다 (inspectedAt 내림차순으로 이미 정렬되어 오므로 처음 만난 것을 유지)
-    const latestByUnit = new Map<string, (typeof completed)[number]>();
-    for (const item of completed) {
+    // 세대방문점검 우선순위 정책(2026-09-08): 동/호별로 "지금 시점의 대표기록"만 zip에 담는다.
+    // 대표기록 판정은 그 세대의 전체 이력(pdf 미발급 건 포함)을 기준으로 하되, 대표기록 자체에
+    // 아직 PDF가 없으면(드문 예외) 밀려난 옛 기록으로 대신 채우지 않고 그 세대는 건너뛴다.
+    const byUnit = new Map<string, UnitInspection[]>();
+    for (const item of scoped) {
       const key = `${item.dong}-${item.ho}`;
-      if (!latestByUnit.has(key)) latestByUnit.set(key, item);
+      const list = byUnit.get(key);
+      if (list) list.push(item);
+      else byUnit.set(key, [item]);
     }
-    const targets = Array.from(latestByUnit.values());
+    const targets: UnitInspection[] = [];
+    const targetGroupIds = new Map<string, string[]>();
+    for (const records of byUnit.values()) {
+      const representative = pickRepresentativeInspection(records);
+      if (!representative.pdfUrl) continue;
+      targets.push(representative);
+      targetGroupIds.set(representative.id, representativeYearGroupIds(records));
+    }
 
     if (targets.length === 0) {
       return NextResponse.json({ message: "다운로드할 발급 완료 점검기록표가 없습니다." }, { status: 404 });
     }
 
+    const quotaTargets: PdfQuotaBulkTarget[] = targets.map((item) => ({
+      id: item.id,
+      groupIds: targetGroupIds.get(item.id) ?? [item.id]
+    }));
     const { allowedIds, skippedCount: skipped } = await pgCheckAndConsumePdfQuotaBulk(
       scope.apartmentId,
-      targets.map((item) => item.id),
+      quotaTargets,
       scope.managerId
     );
     const allowedIdSet = new Set(allowedIds);

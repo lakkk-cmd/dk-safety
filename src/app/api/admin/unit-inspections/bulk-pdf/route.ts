@@ -9,7 +9,8 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
-import { pgListUnitInspectionsForApartment } from "@/lib/unit-inspections";
+import { pgListUnitInspectionsForApartment, type UnitInspection } from "@/lib/unit-inspections";
+import { pickRepresentativeInspection } from "@/lib/unit-inspection-representative";
 
 export const maxDuration = 120;
 
@@ -29,15 +30,22 @@ export async function GET(request: Request) {
   try {
     const all = await pgListUnitInspectionsForApartment(apartmentId);
     const scoped = dongFilter ? all.filter((i) => i.dong === dongFilter) : all;
-    const completed = scoped.filter((i) => i.pdfUrl);
 
-    // 동/호별 최신 건만 남긴다 (inspectedAt 내림차순으로 이미 정렬되어 오므로 처음 만난 것을 유지)
-    const latestByUnit = new Map<string, (typeof completed)[number]>();
-    for (const item of completed) {
+    // 세대방문점검 우선순위 정책(2026-09-08): 동/호별로 "지금 시점의 대표기록"만 zip에 담는다.
+    // (예전엔 그냥 최신 건 1개였는데, 같은 해에 방문점검보다 나중에 간이점검이 들어오면 그게
+    // 잘못 최신으로 뽑혔다.) 판정은 전체 이력 기준, 대표기록에 PDF가 없으면 그 세대는 건너뛴다.
+    const byUnit = new Map<string, UnitInspection[]>();
+    for (const item of scoped) {
       const key = `${item.dong}-${item.ho}`;
-      if (!latestByUnit.has(key)) latestByUnit.set(key, item);
+      const list = byUnit.get(key);
+      if (list) list.push(item);
+      else byUnit.set(key, [item]);
     }
-    const targets = Array.from(latestByUnit.values());
+    const targets: UnitInspection[] = [];
+    for (const records of byUnit.values()) {
+      const representative = pickRepresentativeInspection(records);
+      if (representative.pdfUrl) targets.push(representative);
+    }
 
     if (targets.length === 0) {
       return NextResponse.json({ message: "다운로드할 발급 완료 점검기록표가 없습니다." }, { status: 404 });

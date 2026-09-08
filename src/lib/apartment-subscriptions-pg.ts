@@ -351,37 +351,47 @@ export type PdfQuotaDecision = {
 /**
  * PDF 다운로드 게이트. 허용되면 apartment_pdf_downloads에 언락 기록을 남긴다(이미 있으면 그대로).
  * 카운트 단위는 "점검건"이라 같은 건의 재다운로드는 몇 번이든 무료다.
+ *
+ * `groupInspectionIds`(세대방문점검 우선순위 정책, 2026-09-08)는 같은 세대·같은 연도에 속한
+ * 모든 점검 id를 함께 넘긴다 — 예를 들어 간이점검을 이미 유료 언락한 뒤 그 해에 방문점검이
+ * 들어와 대표기록이 바뀌어도, 그룹 안에 언락 기록이 하나라도 있으면 새 대표기록도 이미 언락된
+ * 것으로 간주해 추가 과금하지 않는다(같은 세대의 같은 해 점검 사이클로 취급). 넘기지 않으면
+ * 기존처럼 단건 id만 본다.
  */
 export async function pgCheckAndConsumePdfQuota(
   apartmentId: string,
   unitInspectionId: string,
-  aptManagerId: string
+  aptManagerId: string,
+  groupInspectionIds?: string[]
 ): Promise<PdfQuotaDecision> {
   const supabase = requireSupabaseAdmin();
   const subscription = await pgEnsureApartmentSubscription(apartmentId);
   const { start, end } = currentCycleWindow(subscription.freeQuotaAnchorAt);
   const cycleResetAt = end.toISOString();
 
-  const { data: existing, error: existingError } = await supabase
+  const idsToCheck = groupInspectionIds && groupInspectionIds.length > 0 ? groupInspectionIds : [unitInspectionId];
+  const { data: existingRows, error: existingError } = await supabase
     .from("apartment_pdf_downloads")
-    .select("id")
+    .select("unit_inspection_id")
     .eq("apartment_id", apartmentId)
-    .eq("unit_inspection_id", unitInspectionId)
-    .maybeSingle();
+    .in("unit_inspection_id", idsToCheck);
   if (existingError) {
     throw new Error(`다운로드 이력 조회 실패: ${existingError.message}`);
   }
+  const unlockedInGroup = new Set((existingRows ?? []).map((r) => r.unit_inspection_id as string));
+  const existingForTarget = unlockedInGroup.has(unitInspectionId);
+  const unlockedElsewhereInGroup = unlockedInGroup.size > 0 && !existingForTarget;
 
   if (isFreeLaunchPromoActive()) {
     // 언락 기록은 그대로 남긴다 — 2027년 이후 already_unlocked 판정의 근거가 된다.
-    if (!existing) await insertUnlock(apartmentId, unitInspectionId, aptManagerId);
+    if (!existingForTarget) await insertUnlock(apartmentId, unitInspectionId, aptManagerId);
     return { allowed: true, reason: "promo_free", remainingFree: FREE_PDF_QUOTA_PER_CYCLE, cycleResetAt };
   }
 
   if (subscription.status === "active") {
     // 구독중이어도 언락 기록은 남긴다 — 나중에 해지해도 이미 받은 건은 계속 무료여야 하고,
     // 그 판단 근거가 바로 이 행이다.
-    if (!existing) await insertUnlock(apartmentId, unitInspectionId, aptManagerId);
+    if (!existingForTarget) await insertUnlock(apartmentId, unitInspectionId, aptManagerId);
     const used = await countUnlocksInCycle(apartmentId, start);
     return {
       allowed: true,
@@ -391,7 +401,20 @@ export async function pgCheckAndConsumePdfQuota(
     };
   }
 
-  if (existing) {
+  if (existingForTarget) {
+    const used = await countUnlocksInCycle(apartmentId, start);
+    return {
+      allowed: true,
+      reason: "already_unlocked",
+      remainingFree: Math.max(0, FREE_PDF_QUOTA_PER_CYCLE - used),
+      cycleResetAt
+    };
+  }
+
+  if (unlockedElsewhereInGroup) {
+    // 그룹 내 다른 id(예: 대표기록으로 밀려나기 전 간이점검)가 이미 언락되어 있다 — 이번 건은
+    // 새로 과금하지 않는다. 새 행을 굳이 추가로 남기지 않는다(추가하면 이번 주기 사용량 카운트를
+    // 오염시켜 무료 한도를 잘못 깎아먹게 된다).
     const used = await countUnlocksInCycle(apartmentId, start);
     return {
       allowed: true,
@@ -415,14 +438,18 @@ export async function pgCheckAndConsumePdfQuota(
   };
 }
 
+/** 일괄 다운로드 대상 하나 — `groupIds`는 이 대표기록과 같은 세대·같은 연도에 속한 모든 점검
+ *  id(자기 자신 포함). 그룹 안에 언락 기록이 하나라도 있으면 대표기록도 이미 언락된 것으로 본다. */
+export type PdfQuotaBulkTarget = { id: string; groupIds: string[] };
+
 /**
  * 일괄 zip용 배치 버전. 항목마다 `pgCheckAndConsumePdfQuota`를 부르면 건당 3~4회 왕복이라
  * 단지 전체(수백 세대)를 묶을 때 크론/함수 시간제한에 걸린다 — 이력을 한 번만 읽고 메모리에서
- * 판정한 뒤 새 언락만 한 번에 insert한다. 판정 규칙은 단건 버전과 동일하다.
+ * 판정한 뒤 새 언락만 한 번에 insert한다. 판정 규칙은 단건 버전과 동일하다(그룹 상속 포함).
  */
 export async function pgCheckAndConsumePdfQuotaBulk(
   apartmentId: string,
-  unitInspectionIds: string[],
+  targets: PdfQuotaBulkTarget[],
   aptManagerId: string
 ): Promise<{ allowedIds: string[]; skippedCount: number }> {
   const supabase = requireSupabaseAdmin();
@@ -446,18 +473,21 @@ export async function pgCheckAndConsumePdfQuotaBulk(
   let skippedCount = 0;
 
   if (isFreeLaunchPromoActive() || subscription.status === "active") {
-    for (const id of unitInspectionIds) {
-      allowedIds.push(id);
-      if (!unlockedIds.has(id)) newIds.push(id);
+    for (const target of targets) {
+      allowedIds.push(target.id);
+      if (!unlockedIds.has(target.id)) newIds.push(target.id);
     }
   } else {
     let budget = FREE_PDF_QUOTA_PER_CYCLE - usedThisCycle;
-    for (const id of unitInspectionIds) {
-      if (unlockedIds.has(id)) {
-        allowedIds.push(id);
+    for (const target of targets) {
+      const groupUnlocked = target.groupIds.some((gid) => unlockedIds.has(gid));
+      if (unlockedIds.has(target.id) || groupUnlocked) {
+        allowedIds.push(target.id);
+        // 그룹의 다른 id로만 언락돼 있던 경우, 대표기록 자신에 대한 행은 굳이 새로 남기지
+        // 않는다(단건 버전과 동일하게 이번 주기 사용량 카운트를 오염시키지 않기 위함).
       } else if (budget > 0) {
-        allowedIds.push(id);
-        newIds.push(id);
+        allowedIds.push(target.id);
+        newIds.push(target.id);
         budget -= 1;
       } else {
         skippedCount += 1;
