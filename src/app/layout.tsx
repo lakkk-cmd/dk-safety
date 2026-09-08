@@ -3,6 +3,7 @@ import "./globals.css";
 import GlobalResidentLogoutButton from "@/components/global-resident-logout-button";
 import PwaRegister from "@/components/pwa-register";
 import CapacitorBackButton from "@/components/capacitor-back-button";
+import CapacitorBackBar from "@/components/capacitor-back-bar";
 
 export const metadata: Metadata = {
   title: "우리집 전기주치의(대경이엔피)",
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <PwaRegister />
         <CapacitorBackButton />
+        <CapacitorBackBar />
         {children}
         <GlobalResidentLogoutButton />
       </body>
