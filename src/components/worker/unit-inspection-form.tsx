@@ -7,6 +7,7 @@ import { SectionCard } from "@/components/ui/section-card";
 import { StepProgress } from "@/components/ui/step-progress";
 import { EmptyState } from "@/components/ui/empty-state";
 import SignaturePad from "@/components/worker/signature-pad";
+import PrivacyConsentCheckbox from "@/components/privacy-consent-checkbox";
 import {
   CHECKLIST_ITEMS,
   MANUAL_CHECK_ITEM_IDS,
@@ -105,6 +106,7 @@ export default function UnitInspectionForm({
   const [residentName, setResidentName] = useState("");
   const [residentPhone, setResidentPhone] = useState("");
   const [signatureData, setSignatureData] = useState<string | null>(null);
+  const [privacyConsent, setPrivacyConsent] = useState(false);
 
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -205,7 +207,9 @@ export default function UnitInspectionForm({
     if (idx === 1) return uncheckedManualIds.length === 0;
     if (idx === 2) return circuitBreakerCountValid;
     if (idx === stepLabels.length - 1 && inspectionType === "visit") {
-      return Boolean(residentName.trim() && signatureData && /^01[0-9]-?\d{3,4}-?\d{4}$/.test(residentPhone.trim()));
+      return Boolean(
+        residentName.trim() && signatureData && /^01[0-9]-?\d{3,4}-?\d{4}$/.test(residentPhone.trim()) && privacyConsent
+      );
     }
     return true;
   };
@@ -218,6 +222,7 @@ export default function UnitInspectionForm({
     }
     if (idx === 1) return `현장에서 직접 확인해야 하는 항목이 ${uncheckedManualIds.length}개 남았어요. ○/×/  중 하나를 눌러주세요.`;
     if (idx === 2) return "분전함 차단기 회로수를 입력해주세요(1 이상).";
+    if (!privacyConsent) return "세대주 개인정보 수집·이용 동의를 받아주세요.";
     return "세대 성명·연락처·서명을 모두 입력해주세요.";
   };
 
@@ -935,6 +940,13 @@ export default function UnitInspectionForm({
               <p className="mb-2 text-[15px] font-bold text-slate-800">서명 *</p>
               <SignaturePad onChange={setSignatureData} />
             </div>
+            <PrivacyConsentCheckbox
+              checked={privacyConsent}
+              onChange={setPrivacyConsent}
+              items="세대주 성명, 휴대폰번호, 서명"
+              purpose="세대전기점검(직무고시) 기록표 작성·발급, 점검결과 문자 안내"
+              retention="「전기안전관리법」 제24조에 따라 4년간 보존"
+            />
           </div>
         </SectionCard>
       ) : null}

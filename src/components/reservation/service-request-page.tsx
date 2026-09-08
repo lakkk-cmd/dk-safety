@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import LiveNotificationToast from "@/components/live/live-notification-toast";
+import PrivacyConsentCheckbox from "@/components/privacy-consent-checkbox";
 import DepositPaymentPanel from "@/components/payment/deposit-payment-panel";
 import TossFinalSettlementButton from "@/components/payment/toss-final-settlement-button";
 import { validateReservationInput } from "@/lib/reservation-validation";
@@ -124,6 +125,7 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
   const [residentPhone, setResidentPhone] = useState("");
   const [dong, setDong] = useState("");
   const [ho, setHo] = useState("");
+  const [privacyConsent, setPrivacyConsent] = useState(false);
   const [requestDetailText, setRequestDetailText] = useState("");
   const [photoSlots, setPhotoSlots] = useState<(File | null)[]>(() => Array(PHOTO_SLOT_COUNT).fill(null));
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
@@ -700,6 +702,10 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
   };
 
   const confirmScheduleAndSubmit = async () => {
+    if (!privacyConsent) {
+      setMessage("개인정보 수집·이용에 동의해 주세요.");
+      return;
+    }
     if (!requestDetailOk) {
       setMessage(
         requestDetailText.trim().length === 0
@@ -734,6 +740,11 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
     if (!hasRequiredInfo) {
       setSchedulePrereqHint(false);
       setMessage("메인페이지 팝업에서 동/호수, 성명, 연락처를 입력해 주세요.");
+      return;
+    }
+    if (!privacyConsent) {
+      setSchedulePrereqHint(true);
+      setMessage("개인정보 수집·이용에 동의해 주세요.");
       return;
     }
     if (!requestDetailOk) {
@@ -1079,13 +1090,21 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
         </div>
         {!reservationId ? (
           <>
+            <PrivacyConsentCheckbox
+              className="mt-3"
+              checked={privacyConsent}
+              onChange={setPrivacyConsent}
+              items="이름, 휴대폰번호, 주소(동/호수), 요청 내용, 첨부 사진"
+              purpose="출장/점검 예약 접수, 기사 배정, 현장 방문 및 작업 안내, 점검결과 안내"
+              retention="예약 목적 달성 후 지체없이 파기(계약·결제 관련 기록은 전자상거래법에 따라 5년 보존)"
+            />
             <button
               type="button"
               onClick={() => {
                 if (requestType === "emergency") void submitEmergencyRequest();
                 else openScheduleModal();
               }}
-              disabled={loading || !hasRequiredInfo}
+              disabled={loading || !hasRequiredInfo || !privacyConsent}
               className="btn-primary mt-4 h-16 w-full text-lg font-extrabold disabled:opacity-50"
             >
               {loading ? "접수 중..." : scheduleSelectButtonLabel}

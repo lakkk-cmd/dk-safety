@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bolt, Lightbulb, PlugZap, Wrench } from "lucide-react";
 import { createBrowserSupabase } from "@/lib/supabase-browser";
 import LiveNotificationToast from "@/components/live/live-notification-toast";
+import PrivacyConsentCheckbox from "@/components/privacy-consent-checkbox";
 
 type ApartmentInfo = {
   id: string;
@@ -46,6 +47,7 @@ export default function SimpleResidentBooking({ apartment }: Props) {
   const [flowStatus, setFlowStatus] = useState<FlowStatus>("draft");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [privacyConsent, setPrivacyConsent] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -107,7 +109,9 @@ export default function SimpleResidentBooking({ apartment }: Props) {
     return `예상 기술료 ${item.minFee.toLocaleString("ko-KR")} ~ ${item.maxFee.toLocaleString("ko-KR")}원`;
   }, [selectedProblem, serviceItems]);
 
-  const canCreateReservation = Boolean(selectedProblem && residentName.trim() && residentPhone.trim() && dong.trim() && ho.trim());
+  const canCreateReservation = Boolean(
+    selectedProblem && residentName.trim() && residentPhone.trim() && dong.trim() && ho.trim() && privacyConsent
+  );
 
   const createReservation = async () => {
     if (!canCreateReservation) return;
@@ -253,9 +257,19 @@ export default function SimpleResidentBooking({ apartment }: Props) {
           <input value={residentPhone} onChange={(e) => setResidentPhone(e.target.value)} placeholder="연락처 (010-0000-0000)" className="h-14 rounded-xl border border-slate-300 px-4 text-base" />
         </div>
         {!reservationId ? (
-          <button type="button" disabled={!canCreateReservation || loading} onClick={() => void createReservation()} className="mt-3 h-20 w-full rounded-2xl bg-slate-900 text-lg font-black text-white disabled:opacity-50">
-            {loading ? "접수 생성 중..." : "접수 만들기"}
-          </button>
+          <>
+            <PrivacyConsentCheckbox
+              className="mt-3"
+              checked={privacyConsent}
+              onChange={setPrivacyConsent}
+              items="이름, 휴대폰번호, 주소(동/호수), 선택한 문제 유형"
+              purpose="출장/점검 예약 접수, 기사 배정, 현장 방문 및 작업 안내, 점검결과 안내"
+              retention="예약 목적 달성 후 지체없이 파기(계약·결제 관련 기록은 전자상거래법에 따라 5년 보존)"
+            />
+            <button type="button" disabled={!canCreateReservation || loading} onClick={() => void createReservation()} className="mt-3 h-20 w-full rounded-2xl bg-slate-900 text-lg font-black text-white disabled:opacity-50">
+              {loading ? "접수 생성 중..." : "접수 만들기"}
+            </button>
+          </>
         ) : null}
       </section>
 

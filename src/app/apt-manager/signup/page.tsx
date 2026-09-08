@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { DaumPostcodeModal } from "@/components/daum-postcode-modal";
 import type { DaumPostcodeResult } from "@/lib/daum-postcode-client";
+import PrivacyConsentCheckbox from "@/components/privacy-consent-checkbox";
 
 const STEP_LABELS = ["단지입력", "정보입력"] as const;
 
@@ -24,6 +25,7 @@ function AptManagerSignupForm() {
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [privacyConsent, setPrivacyConsent] = useState(false);
 
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -59,7 +61,7 @@ function AptManagerSignupForm() {
   const step0Valid = Boolean(apartmentName.trim() && apartmentAddress.trim() && completionDate && totalUnits.trim());
   const step1Valid = Boolean(
     name.trim() && /^01[0-9]-?\d{3,4}-?\d{4}$/.test(phone.trim()) && /^[a-zA-Z0-9_-]{4,20}$/.test(loginId.trim()) &&
-      password.length >= 8 && password === passwordConfirm
+      password.length >= 8 && password === passwordConfirm && privacyConsent
   );
 
   const goNext = () => {
@@ -92,6 +94,10 @@ function AptManagerSignupForm() {
     }
     if (password !== passwordConfirm) {
       setMessage("비밀번호가 서로 달라요.");
+      return;
+    }
+    if (!privacyConsent) {
+      setMessage("개인정보 수집·이용에 동의해 주세요.");
       return;
     }
 
@@ -220,6 +226,14 @@ function AptManagerSignupForm() {
           </div>
           <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호 (8자 이상)" type="password" autoComplete="new-password" className="soft-input w-full" required />
           <input value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} placeholder="비밀번호 확인" type="password" autoComplete="new-password" className="soft-input w-full" required />
+
+          <PrivacyConsentCheckbox
+            checked={privacyConsent}
+            onChange={setPrivacyConsent}
+            items="이름, 휴대폰번호, 로그인 아이디, 비밀번호"
+            purpose="전기안전관리자(전기과장) 계정 가입 심사·승인, 세대전기점검 입력·조회 계정 운영"
+            retention="회원 탈퇴 또는 계약 종료 시까지"
+          />
 
           <div className="flex gap-2">
             <button type="button" onClick={() => setStep(0)} className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-600">
