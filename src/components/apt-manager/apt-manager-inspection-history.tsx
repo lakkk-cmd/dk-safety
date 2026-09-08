@@ -49,6 +49,7 @@ export default function AptManagerInspectionHistory() {
   const [dongFilter, setDongFilter] = useState("전체");
   const [search, setSearch] = useState("");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [bulkMessage, setBulkMessage] = useState("");
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
@@ -133,6 +134,19 @@ export default function AptManagerInspectionHistory() {
       return true;
     });
   }, [groups, dongFilter, search]);
+
+  const PAGE_SIZE = 10;
+  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
+
+  // 필터/검색이 바뀌면 이전 필터 기준으로 보던 페이지 번호가 새 목록 범위를 벗어날 수 있어 1로 되돌린다.
+  useEffect(() => {
+    setPage(1);
+  }, [dongFilter, search]);
+
+  const pagedGroups = useMemo(
+    () => filteredGroups.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredGroups, page]
+  );
 
   const processedCount = groups.length;
   const rate = totalUnits && totalUnits > 0 ? Math.round((processedCount / totalUnits) * 100) : null;
@@ -260,7 +274,7 @@ export default function AptManagerInspectionHistory() {
         <EmptyState icon="📋" title="아직 점검 기록이 없어요" description="점검입력 탭에서 첫 점검을 등록해보세요." />
       ) : (
         <ul className="space-y-2">
-          {filteredGroups.map((g) => {
+          {pagedGroups.map((g) => {
             const badCount = g.latest.autoDiagnosis.length;
             const expanded = expandedKey === g.key;
             return (
@@ -305,6 +319,30 @@ export default function AptManagerInspectionHistory() {
           })}
         </ul>
       )}
+
+      {filteredGroups.length > PAGE_SIZE ? (
+        <div className="flex items-center justify-center gap-3 pt-1">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-600 disabled:opacity-40"
+          >
+            이전
+          </button>
+          <span className="text-sm font-semibold text-slate-500">
+            {page} / {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-600 disabled:opacity-40"
+          >
+            다음
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
