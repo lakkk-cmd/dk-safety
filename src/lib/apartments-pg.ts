@@ -16,8 +16,9 @@ export type ApartmentTenant = {
   electricalSafetyManagerName: string;
   /** 단지 총세대수 — 세대전기점검 처리율 계산용(105). 미설정이면 null. */
   totalUnits: number | null;
-  /** 정식계약(contract) vs 세대전기점검 무료앱만 쓰는 단지(free_app) vs 영업 시연 전용 단지(demo)(109, 116). */
-  partnershipType: "contract" | "free_app" | "demo";
+  /** 계약미정(unconfirmed, 신규 등록 기본값) vs 정식계약(contract, 관리자가 수동 전환) vs
+   * 세대전기점검 무료앱만 쓰는 단지(free_app) vs 영업 시연 전용 단지(demo)(109, 116, 123). */
+  partnershipType: "contract" | "unconfirmed" | "free_app" | "demo";
   /** 단지 준공일 — 법적 판정 기준 아님, 노후도 참고용(110). 미설정이면 null. */
   completionDate: string | null;
   createdAt: string;
@@ -65,7 +66,14 @@ function mapApartment(row: ApartmentRow): ApartmentTenant {
     address: row.address?.trim() ?? "",
     electricalSafetyManagerName: row.electrical_safety_manager_name?.trim() ?? "",
     totalUnits: typeof row.total_units === "number" && Number.isFinite(row.total_units) ? row.total_units : null,
-    partnershipType: row.partnership_type === "free_app" ? "free_app" : row.partnership_type === "demo" ? "demo" : "contract",
+    partnershipType:
+      row.partnership_type === "free_app"
+        ? "free_app"
+        : row.partnership_type === "demo"
+          ? "demo"
+          : row.partnership_type === "contract"
+            ? "contract"
+            : "unconfirmed",
     completionDate: row.completion_date ?? null,
     createdAt: row.created_at
   };
@@ -230,7 +238,7 @@ export async function pgUpdateApartment(
     address: string;
     electricalSafetyManagerName: string;
     totalUnits: number | null;
-    partnershipType: "contract" | "free_app" | "demo";
+    partnershipType: "contract" | "unconfirmed" | "free_app" | "demo";
   }>
 ): Promise<ApartmentTenant | null> {
   const supabase = requireSupabaseAdmin();

@@ -15,7 +15,7 @@ type Apartment = {
   address: string;
   electricalSafetyManagerName: string;
   totalUnits: number | null;
-  partnershipType: "contract" | "free_app" | "demo";
+  partnershipType: "contract" | "unconfirmed" | "free_app" | "demo";
 };
 
 /** 광주 5개 구 — 관리자 목록 탭 분류 + 주소 검색 결과로부터 구 자동 판별 */
@@ -111,6 +111,19 @@ export default function AdminApartmentsManager() {
       district: deriveDistrict(fullAddress),
       name: !p.name.trim() && data.apartment === "Y" && data.buildingName ? data.buildingName : p.name
     }));
+  };
+
+  const markAsContract = async (id: string) => {
+    const response = await fetch(`/api/admin/apartments/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ partnershipType: "contract" })
+    });
+    if (!response.ok) {
+      setMessage("정식계약 전환 실패");
+      return;
+    }
+    await load();
   };
 
   const removeItem = async (id: string) => {
@@ -264,10 +277,18 @@ export default function AdminApartmentsManager() {
                       ? "bg-dk-gold/20 text-dk-amber"
                       : item.partnershipType === "demo"
                         ? "bg-slate-200 text-slate-600"
-                        : "bg-dk-blue/10 text-dk-blue"
+                        : item.partnershipType === "contract"
+                          ? "bg-dk-blue/10 text-dk-blue"
+                          : "bg-amber-100 text-amber-700"
                   }`}
                 >
-                  {item.partnershipType === "free_app" ? "무료앱" : item.partnershipType === "demo" ? "시연전용" : "정식계약"}
+                  {item.partnershipType === "free_app"
+                    ? "무료앱"
+                    : item.partnershipType === "demo"
+                      ? "시연전용"
+                      : item.partnershipType === "contract"
+                        ? "정식계약"
+                        : "계약미정"}
                 </span>
               </p>
               {item.address ? <p className="mt-0.5 text-xs text-slate-500">{item.address}</p> : null}
@@ -276,6 +297,15 @@ export default function AdminApartmentsManager() {
                 {item.totalUnits === null ? <span className="font-semibold text-amber-600">미설정</span> : `${item.totalUnits}세대`}
               </p>
               <p className="mt-1 text-xs text-slate-500">전기선임자: {item.electricalSafetyManagerName || "미설정"}</p>
+              {item.partnershipType === "unconfirmed" ? (
+                <button
+                  type="button"
+                  onClick={() => void markAsContract(item.id)}
+                  className="mt-2 rounded-md border border-dk-blue/30 bg-dk-blue/5 px-3 py-1 text-xs font-semibold text-dk-blue"
+                >
+                  정식계약으로 전환
+                </button>
+              ) : null}
               <button type="button" onClick={() => void removeItem(item.id)} className="mt-2 rounded-md border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-700">
                 삭제
               </button>

@@ -33,7 +33,7 @@ type ApartmentOption = {
   name: string;
   electricalSafetyManagerName: string;
   totalUnits: number | null;
-  partnershipType: "contract" | "free_app" | "demo";
+  partnershipType: "contract" | "unconfirmed" | "free_app" | "demo";
 };
 
 type TypeFilter = "all" | "visit" | "unvisited_simple";

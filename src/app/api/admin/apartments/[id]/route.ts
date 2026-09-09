@@ -19,7 +19,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     address?: string;
     electricalSafetyManagerName?: string;
     totalUnits?: number | null;
+    partnershipType?: string;
   };
+  // free_app/demo는 각각 전기과장 가입승인·시연단지 전용 플로우가 관리하는 상태라, 이 일반 수정
+  // 폼에서는 "계약미정 ↔ 정식계약" 전환만 허용한다(123).
+  if (body.partnershipType !== undefined && body.partnershipType !== "contract" && body.partnershipType !== "unconfirmed") {
+    return NextResponse.json({ message: "이 화면에서는 정식계약/계약미정 상태만 변경할 수 있습니다." }, { status: 400 });
+  }
   try {
     const apartment = await pgUpdateApartment(id, {
       name: body.name,
@@ -36,7 +42,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       district: body.district,
       address: body.address,
       electricalSafetyManagerName: body.electricalSafetyManagerName,
-      totalUnits: body.totalUnits
+      totalUnits: body.totalUnits,
+      partnershipType: body.partnershipType as "contract" | "unconfirmed" | undefined
     });
     if (!apartment) return NextResponse.json({ message: "수정할 항목이 없습니다." }, { status: 400 });
     return NextResponse.json({ apartment });
