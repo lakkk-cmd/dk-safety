@@ -62,8 +62,8 @@ export function DaumPostcodeModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex flex-col bg-white">
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
+    <div className="fixed inset-0 z-[1000] flex flex-col bg-white pb-[env(safe-area-inset-bottom)]">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
         <span className="text-sm font-bold text-slate-900">주소 검색</span>
         <button
           type="button"
