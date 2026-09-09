@@ -141,7 +141,7 @@ export default function LiveNotificationToast({ role, workerId, phoneDigits }: P
   const showPermissionBanner = role === "admin" && permission === "default" && !permissionBannerDismissed;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[120] flex w-[min(92vw,360px)] flex-col gap-2">
+    <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-[120] flex w-[min(92vw,360px)] flex-col gap-2">
       {showPermissionBanner ? (
         <div className="rounded-2xl border border-dk-blue/30 bg-white p-3 shadow-xl">
           <p className="text-xs font-black text-slate-800">🔔 새 예약을 데스크톱 알림으로도 받을까요?</p>

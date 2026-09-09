@@ -16,7 +16,7 @@ export default function GlobalQuickActions() {
   const diagnosisActive = pathname.startsWith("/resident/safety-check") || pathname.startsWith("/resident/history");
 
   return (
-    <nav className="fixed inset-x-0 bottom-3 z-50 px-4">
+    <nav className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-50 px-4">
       <div className="mx-auto flex max-w-md items-center justify-between rounded-2xl border border-blue-700/30 bg-gradient-to-r from-primary via-blue-700 to-indigo-700 px-3 py-2 shadow-[0_16px_32px_rgba(15,23,42,0.35)] backdrop-blur">
         <Link
           href="/home"

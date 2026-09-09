@@ -1045,7 +1045,7 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
         {pickerSlot !== null ? (
           <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-labelledby="photo-picker-title">
             <button type="button" className="absolute inset-0 bg-black/45" aria-label="닫기" onClick={() => setPickerSlot(null)} />
-            <div className="relative z-10 mb-0 w-full max-w-sm rounded-t-2xl border border-slate-200 bg-white p-4 shadow-xl sm:mb-0 sm:rounded-2xl">
+            <div className="relative z-10 mb-0 w-full max-w-sm rounded-t-2xl border border-slate-200 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 shadow-xl sm:mb-0 sm:rounded-2xl sm:pb-4">
               <p id="photo-picker-title" className={cn("text-center text-sm font-black", isEmergency ? "text-red-950" : "text-slate-900")}>
                 사진 {pickerSlot + 1} 입력
               </p>
@@ -1124,7 +1124,7 @@ export default function ServiceRequestPage({ apartment, requestType, simpleSwapF
         {scheduleModalOpen && requestType !== "emergency" ? (
           <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-title">
             <button type="button" className="absolute inset-0 bg-black/45" aria-label="닫기" onClick={() => !loading && setScheduleModalOpen(false)} />
-            <div className="relative z-10 mb-0 w-full max-w-md rounded-t-2xl border border-slate-200 bg-white p-4 shadow-xl sm:mb-0 sm:rounded-2xl">
+            <div className="relative z-10 mb-0 w-full max-w-md rounded-t-2xl border border-slate-200 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 shadow-xl sm:mb-0 sm:rounded-2xl sm:pb-4">
               <p id="schedule-modal-title" className="text-center text-base font-black text-slate-900">
                 방문 희망 일시
               </p>

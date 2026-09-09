@@ -253,7 +253,7 @@ export default function KnowledgeUploadCenter({ initialPdfs }: { initialPdfs: Kn
   return (
     <div className="space-y-6">
       {toast ? (
-        <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg">
+        <div className="fixed left-1/2 top-[calc(1rem+env(safe-area-inset-top))] z-50 -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg">
           {toast}
         </div>
       ) : null}

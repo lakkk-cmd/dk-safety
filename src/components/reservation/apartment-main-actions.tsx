@@ -463,7 +463,7 @@ export default function ApartmentMainActions({ apartment, urlProfile, electrical
             aria-modal="true"
             aria-labelledby="electrical-tip-detail-title"
           >
-            <div className="mx-auto max-w-lg px-5 pb-8 pt-4">
+            <div className="mx-auto max-w-lg px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-4">
               <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200 dark:bg-slate-700" />
               <div className="flex items-start justify-between gap-3">
                 <span className={`inline-block shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${tipBadgeClass(tipDetail.category)}`}>

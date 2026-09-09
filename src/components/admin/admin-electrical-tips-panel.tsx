@@ -359,7 +359,7 @@ export default function AdminElectricalTipsPanel() {
             role="dialog"
             aria-modal="true"
           >
-            <div className="mx-auto max-w-2xl px-5 pb-8 pt-5">
+            <div className="mx-auto max-w-2xl px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-5">
               <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200 dark:bg-slate-700" />
               <div className="flex items-start justify-between gap-4">
                 <h3 className="text-xl font-black text-slate-900 dark:text-slate-50">{editingId ? "콘텐츠 수정" : "새 콘텐츠"}</h3>

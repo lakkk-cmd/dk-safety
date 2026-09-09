@@ -307,8 +307,8 @@ export default function DigitalWarrantyArtifact({ warranty }: Props) {
       ) : null}
 
       {viewer ? (
-        <div className="fixed inset-0 z-50 flex flex-col bg-black">
-          <div className="flex items-center justify-between bg-slate-900 px-4 py-3">
+        <div className="fixed inset-0 z-50 flex flex-col bg-black pb-[env(safe-area-inset-bottom)]">
+          <div className="flex items-center justify-between bg-slate-900 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
             <button
               type="button"
               onClick={() => setViewer(null)}

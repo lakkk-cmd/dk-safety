@@ -162,6 +162,11 @@ export const ADMIN_SHELL_CRITICAL_CSS = `
     font-size: 0.85rem !important;
     font-weight: 800 !important;
   }
+  /* 오프캔버스 사이드바가 position:fixed로 화면 전체 높이를 차지하므로, 열렸을 때 상단 "관제 센터"
+     제목이 상태바/노치와 겹치지 않도록 안전영역만큼 위쪽 여백을 더한다. */
+  [data-dk-admin-root] aside > div:first-of-type {
+    padding-top: calc(1rem + env(safe-area-inset-top)) !important;
+  }
 }
 /* 로그인 전용 래퍼 */
 .dk-admin-login-shell {

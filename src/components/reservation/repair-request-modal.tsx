@@ -125,7 +125,7 @@ export default function RepairRequestModal({
             }`}
           />
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex-1 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4">
           {step === "profile" ? (
             <div className="space-y-3">
               <p className="text-sm font-semibold leading-relaxed text-slate-600">
