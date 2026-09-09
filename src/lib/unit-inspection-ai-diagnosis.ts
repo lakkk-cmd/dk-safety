@@ -164,9 +164,10 @@ export async function generateUnitInspectionAiDiagnosis(params: {
   circuitBreakerCount: number | null;
 }): Promise<UnitInspectionAiDiagnosis> {
   const userPrompt = buildUserPrompt(params);
-  // 실측값 진단 필드 추가로 출력이 늘어나 2500→3200으로 여유를 둔다(이 코드베이스에서
-  // maxTokens 부족으로 응답이 잘리는 버그가 여러 번 있었던 전례 참고).
-  const raw = await callClaudeCustom(SYSTEM_PROMPT, userPrompt, 3200, 110_000);
+  // 3200으로 올렸다가도 실측 중 부적합이 많은 건(12항목 중 다수 X)에서 output=3200 그대로
+  // 잘려 JSON 파싱 실패가 실제로 발생함(2026-09-09, 소급적용 1건차에서 재현) — 비슷한 구조의
+  // field-report-opinion.ts가 6000을 쓰고 있는 걸 참고해 동일하게 맞춤.
+  const raw = await callClaudeCustom(SYSTEM_PROMPT, userPrompt, 6000, 110_000);
   const jsonText = extractJsonBlock(raw);
   if (!jsonText) {
     throw new Error("AI 안전진단 응답에서 JSON을 추출하지 못했습니다.");
