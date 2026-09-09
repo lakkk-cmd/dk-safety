@@ -157,7 +157,7 @@ export default function AdminApartmentsManager() {
           <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="아파트명 (필수)" className="soft-input" />
           <input value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value.toLowerCase() }))} placeholder="코드 (필수, 예: moonheung)" className="soft-input" />
           <div className="flex gap-2 md:col-span-2">
-            <input value={form.address} readOnly placeholder="주소 검색 버튼을 눌러 입력하세요" className="soft-input flex-1" />
+            <input value={form.address} readOnly placeholder="주소 검색 버튼을 눌러 입력하세요" className="soft-input min-w-0 flex-1" />
             <button type="button" onClick={() => setAddressSearchOpen(true)} className="btn-outline shrink-0 px-4 text-sm">
               주소 검색
             </button>
