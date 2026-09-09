@@ -98,6 +98,21 @@ export default async function UnitInspectionPublicPage({ params }: { params: Pro
         )}
       </SectionCard>
 
+      {aiDiagnosis && aiDiagnosis.measurements.length > 0 ? (
+        <SectionCard icon="📏" title="실측값 진단">
+          <ul className="space-y-2.5">
+            {aiDiagnosis.measurements.map((entry, idx) => (
+              <li key={idx} className="rounded-xl border border-dk-blue/20 bg-dk-blue/5 p-3">
+                <p className="text-sm font-bold text-dk-navy">
+                  {entry.item} <span className="font-semibold text-slate-500">{entry.value}</span>
+                </p>
+                <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{entry.explanation}</p>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      ) : null}
+
       {aiDiagnosis
         ? aiDiagnosis.companyAdvisory.length > 0 ? (
             <SectionCard icon="🔧" title="우리집 전기주치의 자체 권장사항">

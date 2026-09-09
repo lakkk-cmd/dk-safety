@@ -13,13 +13,20 @@ import { getKstDateTime } from "@/lib/agent-schedule";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { renderUnitInspectionPdf } from "@/lib/document-pdf";
 import { uploadUnitInspectionPdfCopies } from "@/lib/unit-inspection-pdf-storage";
-import type { ChecklistEntry, CompanyAdvisoryEntry, DiagnosisEntry } from "@/lib/unit-inspection-rules";
+import {
+  computeInsulationResistanceThreshold,
+  computeLeakageCurrentThreshold,
+  type ChecklistEntry,
+  type CompanyAdvisoryEntry,
+  type DiagnosisEntry
+} from "@/lib/unit-inspection-rules";
 import { pgGetUnitInspection, pgSaveUnitInspectionAiDiagnosis, pgSaveUnitInspectionPdfCorrection, sanitizeStoragePathSegment } from "@/lib/unit-inspections";
 
 export type UnitInspectionAiDiagnosis = {
   okSummary: string;
   violations: { item: string; explanation: string }[];
   companyAdvisory: { item: string; explanation: string }[];
+  measurements: { item: string; value: string; explanation: string }[];
   summary: string;
 };
 
@@ -43,6 +50,16 @@ const SYSTEM_PROMPT = `당신은 전기기사 자격을 보유한 전기안전 �
   행동(정밀점검/즉시교체 등)을 명확히 제시. 부적합이 0개면 빈 배열로 두세요.
 - 회사 자체 권장사항이 있으면 완전히 별도 항목으로 설명하되, 별표3 부적합과 같은 목록에 넣지
   마세요. 없으면 빈 배열로 두세요.
+- 입력에 주어지는 "실측값"(절연저항/누설전류/부하전류)은 측정된 항목마다 반드시 하나씩
+  설명하세요(측정 안 됨으로 표시된 항목은 건너뛰세요). 이 값들은 이미 위 부적합/적합 판정에도
+  쓰였지만, 여기서는 "이 숫자 자체가 무엇을 의미하는지"를 입주민이 이해하도록 별도로 풀어
+  쓰는 것이 목적입니다.
+  - 절연저항·누설전류: 입력에 판정기준과 적합/부적합 결과가 함께 주어지면, 실측값과 기준을
+    비교해 적합/부적합 여부와 그 의미(예: 낮을수록 누전 위험, 높을수록 감전 위험)를
+    설명하세요. 판정기준 계산 불가(회로수 미입력)로 표시된 경우 그 사실만 담백하게 안내하세요.
+  - 부하전류: 판정기준이 존재하지 않습니다. 적합/부적합을 절대 단정하지 마세요. 실측값이
+    무엇을 나타내는 수치인지 설명하고, 과부하 여부는 해당 분기회로의 정격용량과 비교해야
+    확인 가능하다는 점을 안내하세요. 근거 없이 "정상입니다"라고 단정하지 마세요.
 - 과장하지 말고 근거 없는 위험을 지어내지 마세요. 전문 규정 조항 번호는 참고로만 괄호에 넣으세요.
 - 마지막에 전체 종합 총평 문단을 추가하세요(별표3 부적합 개수는 정확히 세어서 언급).
 
@@ -51,8 +68,51 @@ const SYSTEM_PROMPT = `당신은 전기기사 자격을 보유한 전기안전 �
   "okSummary": "적합 항목을 뭉뚱그린 한 문단 (없으면 \\"\\")",
   "violations": [{"item":"항목명","explanation":"이유+위험+조치를 담은 3~4문장"}],
   "companyAdvisory": [{"item":"항목명","explanation":"담백한 사실 전달 설명"}],
+  "measurements": [{"item":"절연저항|누설전류|부하전류","value":"단위 포함 실측값","explanation":"이 값이 의미하는 바 2~3문장"}],
   "summary": "종합 총평 (별표3 부적합 개수 정확히 언급)"
 }`;
+
+/** 절연저항/누설전류는 판정기준을 계산해 적합·부적합을 함께 알려주고, 부하전류는 판정기준이
+ * 없다는 사실 자체를 명시해 AI가 임의로 적합/부적합을 지어내지 못하게 한다. */
+function buildMeasurementLines(params: {
+  loadCurrent: number | null;
+  igr: number | null;
+  insulationResistance: number | null;
+  circuitBreakerCount: number | null;
+}): string[] {
+  const { loadCurrent, igr, insulationResistance, circuitBreakerCount } = params;
+  const lines: string[] = [];
+
+  if (insulationResistance !== null) {
+    const threshold = computeInsulationResistanceThreshold(circuitBreakerCount);
+    lines.push(
+      threshold === null
+        ? `- 절연저항: ${insulationResistance}MΩ (회로수 미입력으로 판정기준 계산 불가)`
+        : `- 절연저항: ${insulationResistance}MΩ (판정기준: ${threshold.toFixed(3)}MΩ 미만이면 부적합, 회로수 ${circuitBreakerCount}개 기준 → ${insulationResistance < threshold ? "부적합" : "적합"})`
+    );
+  } else {
+    lines.push("- 절연저항: 측정 안 됨");
+  }
+
+  if (igr !== null) {
+    const threshold = computeLeakageCurrentThreshold(circuitBreakerCount);
+    lines.push(
+      threshold === null
+        ? `- 누설전류(IGR): ${igr}mA (회로수 미입력으로 판정기준 계산 불가)`
+        : `- 누설전류(IGR): ${igr}mA (판정기준: ${threshold}mA 초과면 부적합, 회로수 ${circuitBreakerCount}개 기준 → ${igr > threshold ? "부적합" : "적합"})`
+    );
+  } else {
+    lines.push("- 누설전류(IGR): 측정 안 됨");
+  }
+
+  lines.push(
+    loadCurrent !== null
+      ? `- 부하전류: ${loadCurrent}A (판정기준 없음 — 분기회로 정격용량 정보가 없어 시스템이 적합/부적합을 자동판정하지 않는 참고용 실측값)`
+      : "- 부하전류: 측정 안 됨"
+  );
+
+  return lines;
+}
 
 function buildUserPrompt(params: {
   dong: string;
@@ -60,6 +120,10 @@ function buildUserPrompt(params: {
   checklistItems: ChecklistEntry[];
   autoDiagnosis: DiagnosisEntry[];
   companyAdvisories: CompanyAdvisoryEntry[];
+  loadCurrent: number | null;
+  igr: number | null;
+  insulationResistance: number | null;
+  circuitBreakerCount: number | null;
 }): string {
   const { dong, ho, checklistItems, autoDiagnosis, companyAdvisories } = params;
   const okItems = checklistItems.filter((i) => i.result === "O").map((i) => i.item);
@@ -67,9 +131,13 @@ function buildUserPrompt(params: {
     (d, idx) => `${idx + 1}. ${d.item} — ${d.comment} (${d.regulation})`
   );
   const advisoryLines = companyAdvisories.map((a, idx) => `${idx + 1}. ${a.item} — ${a.comment}`);
+  const measurementLines = buildMeasurementLines(params);
 
   return [
     `[세대 전기설비점검 결과 - ${dong}동 ${ho}호]`,
+    "",
+    "실측값:",
+    measurementLines.join("\n"),
     "",
     `별표3 기준 적합(정상) 항목 ${okItems.length}개:`,
     okItems.length > 0 ? okItems.map((i) => `- ${i}`).join("\n") : "(없음)",
@@ -90,9 +158,15 @@ export async function generateUnitInspectionAiDiagnosis(params: {
   checklistItems: ChecklistEntry[];
   autoDiagnosis: DiagnosisEntry[];
   companyAdvisories: CompanyAdvisoryEntry[];
+  loadCurrent: number | null;
+  igr: number | null;
+  insulationResistance: number | null;
+  circuitBreakerCount: number | null;
 }): Promise<UnitInspectionAiDiagnosis> {
   const userPrompt = buildUserPrompt(params);
-  const raw = await callClaudeCustom(SYSTEM_PROMPT, userPrompt, 2500, 110_000);
+  // 실측값 진단 필드 추가로 출력이 늘어나 2500→3200으로 여유를 둔다(이 코드베이스에서
+  // maxTokens 부족으로 응답이 잘리는 버그가 여러 번 있었던 전례 참고).
+  const raw = await callClaudeCustom(SYSTEM_PROMPT, userPrompt, 3200, 110_000);
   const jsonText = extractJsonBlock(raw);
   if (!jsonText) {
     throw new Error("AI 안전진단 응답에서 JSON을 추출하지 못했습니다.");
@@ -102,6 +176,7 @@ export async function generateUnitInspectionAiDiagnosis(params: {
     okSummary: typeof parsed.okSummary === "string" ? parsed.okSummary : "",
     violations: Array.isArray(parsed.violations) ? parsed.violations : [],
     companyAdvisory: Array.isArray(parsed.companyAdvisory) ? parsed.companyAdvisory : [],
+    measurements: Array.isArray(parsed.measurements) ? parsed.measurements : [],
     summary: typeof parsed.summary === "string" ? parsed.summary : ""
   };
 }
@@ -133,7 +208,11 @@ export async function runUnitInspectionAiDiagnosisAndCorrect(inspectionId: strin
     ho: inspection.ho,
     checklistItems: inspection.checklistItems,
     autoDiagnosis: inspection.autoDiagnosis,
-    companyAdvisories: inspection.companyAdvisories
+    companyAdvisories: inspection.companyAdvisories,
+    loadCurrent: inspection.loadCurrent,
+    igr: inspection.igr,
+    insulationResistance: inspection.insulationResistance,
+    circuitBreakerCount: inspection.circuitBreakerCount
   });
   await pgSaveUnitInspectionAiDiagnosis(inspectionId, aiDiagnosis);
 

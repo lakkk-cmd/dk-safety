@@ -485,6 +485,17 @@ function estimateCompanyAdvisoryBlockHeight(entries: CompanyAdvisoryEntry[]): nu
 function estimateAiDiagnosisBlockHeight(ai: UnitInspectionAiDiagnosis): number {
   const HEADER = 55; // fontSize 20→22(2026-08-28 재확대)
   const BOX_PADDING = 28; // padding "16px 18px"→"14px 18px"(2026-08-28, 파일철 상단여백 확보용 축소)
+
+  // 실측값 진단 박스(2026-09-09) — 회사권장 박스와 동일한 손합산 방식(item줄+explanation).
+  let measurementsBoxHeight = 0;
+  if (ai.measurements.length > 0) {
+    const entriesHeight = ai.measurements.reduce((sum, e) => {
+      const itemLine = 28; // fontSize 20
+      return sum + itemLine + estimateTextHeightPx(e.explanation, 55, 32); // fontSize 19, lineHeight 1.7
+    }, 0);
+    const mgaps = (ai.measurements.length - 1) * 10;
+    measurementsBoxHeight = HEADER - 4 + BOX_PADDING + entriesHeight + mgaps + 16; // 헤더 padding이 companyAdvisory보다 살짝 작아 -4 보정, marginBottom 16
+  }
   // 아래 cpl(줄당 글자수) 값들은 실제 박스 실사용폭 기준으로 재보정한 것이다(2026-08-28) —
   // 구 43/44는 실제 렌더링 폭(≈1082~1086px)보다 훨씬 좁게 잡은 값이라, 실측값 위주로 문단이
   // 긴 실제 AI 해설(항목당 150~250자)에서 줄 수를 과대추정 → 캔버스가 실제 필요보다 훨씬 크게
@@ -516,7 +527,7 @@ function estimateAiDiagnosisBlockHeight(ai: UnitInspectionAiDiagnosis): number {
 
   const summaryBoxHeight = ai.summary ? 42 + 24 + estimateTextHeightPx(ai.summary, 56, 32) + 16 : 0; // 라벨 fontSize 16→18, 본문 17→19; padding 14→12·marginBottom 22→16(2026-08-28)
 
-  return mainBoxHeight + companyBoxHeight + summaryBoxHeight;
+  return measurementsBoxHeight + mainBoxHeight + companyBoxHeight + summaryBoxHeight;
 }
 
 /**
@@ -820,6 +831,24 @@ function UnitInspectionElement({
 
       {data.aiDiagnosis ? (
         <div style={{ display: "flex", flexDirection: "column" }}>
+          {/* 실측값 진단(2026-09-09) — 부하전류·누설전류·절연저항 자체를 별도로 해설. 판정
+              항목(적합/부적합 목록)과 별개로, "이 숫자가 뭘 의미하는지"를 항상 짚어준다. */}
+          {data.aiDiagnosis.measurements.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, borderRadius: 4, marginBottom: 16 }}>
+              <div style={{ display: "flex", backgroundColor: "#eef3fb", padding: "10px 14px", fontSize: 21, color: blue }}>실측값 진단</div>
+              <div style={{ display: "flex", flexDirection: "column", padding: "14px 18px", gap: 10 }}>
+                {data.aiDiagnosis.measurements.map((entry, idx) => (
+                  <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", fontSize: 20 }}>
+                      {entry.item} <span style={{ display: "flex", color: mutedColor, marginLeft: 6 }}>{entry.value}</span>
+                    </div>
+                    <div style={{ display: "flex", fontSize: 19, color: "#33402f", marginTop: 4, lineHeight: 1.7 }}>{entry.explanation}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {/* AI 안전진단 확장판(2026-08-26) — 적합은 뭉뚱그림, 부적합만 개별, 회사권장은 완전분리 */}
           <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 16 }}>
             <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 22 }}>AI 안전진단 결과</div>

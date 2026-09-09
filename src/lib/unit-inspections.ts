@@ -387,6 +387,7 @@ export type UnitInspectionAiDiagnosisRecord = {
   okSummary: string;
   violations: { item: string; explanation: string }[];
   companyAdvisory: { item: string; explanation: string }[];
+  measurements: { item: string; value: string; explanation: string }[];
   summary: string;
   generatedAt: string;
 };
@@ -395,7 +396,7 @@ export async function pgGetUnitInspectionAiDiagnosis(inspectionId: string): Prom
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase
     .from("unit_inspection_ai_diagnoses")
-    .select("ok_summary, violations, company_advisory, summary, generated_at")
+    .select("ok_summary, violations, company_advisory, measurements, summary, generated_at")
     .eq("inspection_id", inspectionId)
     .maybeSingle();
   if (error) {
@@ -406,6 +407,7 @@ export async function pgGetUnitInspectionAiDiagnosis(inspectionId: string): Prom
     okSummary: data.ok_summary ?? "",
     violations: Array.isArray(data.violations) ? data.violations : [],
     companyAdvisory: Array.isArray(data.company_advisory) ? data.company_advisory : [],
+    measurements: Array.isArray(data.measurements) ? data.measurements : [],
     summary: data.summary ?? "",
     generatedAt: data.generated_at
   };
@@ -413,7 +415,13 @@ export async function pgGetUnitInspectionAiDiagnosis(inspectionId: string): Prom
 
 export async function pgSaveUnitInspectionAiDiagnosis(
   inspectionId: string,
-  diagnosis: { okSummary: string; violations: { item: string; explanation: string }[]; companyAdvisory: { item: string; explanation: string }[]; summary: string }
+  diagnosis: {
+    okSummary: string;
+    violations: { item: string; explanation: string }[];
+    companyAdvisory: { item: string; explanation: string }[];
+    measurements: { item: string; value: string; explanation: string }[];
+    summary: string;
+  }
 ): Promise<void> {
   const supabase = requireSupabaseAdmin();
   const { error } = await supabase.from("unit_inspection_ai_diagnoses").upsert({
@@ -421,6 +429,7 @@ export async function pgSaveUnitInspectionAiDiagnosis(
     ok_summary: diagnosis.okSummary,
     violations: diagnosis.violations,
     company_advisory: diagnosis.companyAdvisory,
+    measurements: diagnosis.measurements,
     summary: diagnosis.summary,
     generated_at: new Date().toISOString()
   });
