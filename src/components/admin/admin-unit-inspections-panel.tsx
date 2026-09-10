@@ -552,6 +552,7 @@ export default function AdminUnitInspectionsPanel() {
             <table className="w-full min-w-[720px] border-collapse text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
+                  <th className="py-2 pr-2"></th>
                   <th className="py-2 pr-2">세대주</th>
                   <th className="py-2 pr-2">연락처</th>
                   <th className="py-2 pr-2">주소</th>
@@ -566,46 +567,138 @@ export default function AdminUnitInspectionsPanel() {
                 {pagedGroups.map((group) => {
                   const isOpen = expandedGroupKey === group.key;
                   const badCount = group.latest.checklistItems.filter((c) => c.result === "X").length;
+                  const isEditingLatest = editingRecordId === group.latest.id;
                   return (
                     <Fragment key={group.key}>
                       <tr className="border-b border-slate-100">
-                        <td className="py-2 pr-2 font-semibold text-slate-900">
-                          {group.residentName ?? <span className="italic text-slate-400">정보없음</span>}
-                        </td>
-                        <td className="py-2 pr-2 text-slate-700">{group.residentPhone ?? "-"}</td>
-                        <td className="py-2 pr-2 text-slate-700">
-                          {group.dong}동 {group.ho}호
-                          <p className="text-[11px] text-slate-400">{apartmentNameById.get(group.apartmentId) ?? "미지정"}</p>
-                        </td>
                         <td className="py-2 pr-2">
-                          <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-700">{group.records.length}</span>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(selectedRecordIds[group.latest.id])}
+                            onChange={() => toggleRecordSelect(group.latest.id)}
+                            aria-label={`선택 ${group.dong}동 ${group.ho}호`}
+                          />
                         </td>
-                        <td className="py-2 pr-2 text-slate-700">{formatDateShort(group.latest.inspectedAt)}</td>
-                        <td className="py-2 pr-2">
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
-                            {TYPE_LABEL[group.latest.inspectionType]}
-                          </span>
-                        </td>
-                        <td className="py-2 pr-2">
-                          {badCount > 0 ? (
-                            <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">부적합 {badCount}건</span>
-                          ) : (
-                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">없음</span>
-                          )}
-                        </td>
-                        <td className="py-2">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedGroupKey(isOpen ? null : group.key)}
-                            className="whitespace-nowrap text-xs font-bold text-dk-navy hover:underline"
-                          >
-                            점검기록 {isOpen ? "접기" : `${group.records.length}건 →`}
-                          </button>
-                        </td>
+                        {isEditingLatest ? (
+                          <>
+                            <td className="py-2 pr-2">
+                              <input
+                                type="text"
+                                value={editDraft.residentName}
+                                onChange={(e) => setEditDraft((prev) => ({ ...prev, residentName: e.target.value }))}
+                                placeholder="세대주"
+                                className="soft-input w-full text-xs"
+                              />
+                            </td>
+                            <td className="py-2 pr-2">
+                              <input
+                                type="text"
+                                value={editDraft.residentPhone}
+                                onChange={(e) => setEditDraft((prev) => ({ ...prev, residentPhone: e.target.value }))}
+                                placeholder="연락처"
+                                className="soft-input w-full text-xs"
+                              />
+                            </td>
+                            <td className="py-2 pr-2" colSpan={2}>
+                              <div className="flex gap-1">
+                                <input
+                                  type="text"
+                                  value={editDraft.dong}
+                                  onChange={(e) => setEditDraft((prev) => ({ ...prev, dong: e.target.value }))}
+                                  placeholder="동"
+                                  className="soft-input w-16 text-xs"
+                                />
+                                <input
+                                  type="text"
+                                  value={editDraft.ho}
+                                  onChange={(e) => setEditDraft((prev) => ({ ...prev, ho: e.target.value }))}
+                                  placeholder="호"
+                                  className="soft-input w-16 text-xs"
+                                />
+                              </div>
+                              {editError ? <p className="mt-1 text-[11px] font-semibold text-rose-600">{editError}</p> : null}
+                            </td>
+                            <td className="py-2 pr-2" colSpan={3}>
+                              <div className="flex gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={editBusy}
+                                  onClick={() => void saveEdit(group.latest.id)}
+                                  className="rounded-md border border-dk-navy bg-dk-navy px-2 py-1 text-[11px] font-bold text-white disabled:opacity-50"
+                                >
+                                  {editBusy ? "저장 중..." : "저장"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={editBusy}
+                                  onClick={cancelEdit}
+                                  className="rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700"
+                                >
+                                  취소
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="py-2 pr-2 font-semibold text-slate-900">
+                              {group.residentName ?? <span className="italic text-slate-400">정보없음</span>}
+                            </td>
+                            <td className="py-2 pr-2 text-slate-700">{group.residentPhone ?? "-"}</td>
+                            <td className="py-2 pr-2 text-slate-700">
+                              {group.dong}동 {group.ho}호
+                              <p className="text-[11px] text-slate-400">{apartmentNameById.get(group.apartmentId) ?? "미지정"}</p>
+                            </td>
+                            <td className="py-2 pr-2">
+                              <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-700">{group.records.length}</span>
+                            </td>
+                            <td className="py-2 pr-2 text-slate-700">{formatDateShort(group.latest.inspectedAt)}</td>
+                            <td className="py-2 pr-2">
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                                {TYPE_LABEL[group.latest.inspectionType]}
+                              </span>
+                            </td>
+                            <td className="py-2 pr-2">
+                              {badCount > 0 ? (
+                                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">부적합 {badCount}건</span>
+                              ) : (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">없음</span>
+                              )}
+                            </td>
+                            <td className="py-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(group.latest)}
+                                  className="whitespace-nowrap text-xs font-bold text-sky-700 hover:underline"
+                                  title="최근 점검기록(대표기록) 수정"
+                                >
+                                  ✏️ 수정
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={deletingId === group.latest.id}
+                                  onClick={() => void deleteRecord(group.latest.id)}
+                                  className="whitespace-nowrap text-xs font-bold text-rose-700 hover:underline disabled:opacity-50"
+                                  title="최근 점검기록(대표기록) 삭제"
+                                >
+                                  {deletingId === group.latest.id ? "삭제 중..." : "🗑️ 삭제"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedGroupKey(isOpen ? null : group.key)}
+                                  className="whitespace-nowrap text-xs font-bold text-dk-navy hover:underline"
+                                >
+                                  점검기록 {isOpen ? "접기" : `${group.records.length}건 →`}
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        )}
                       </tr>
                       {isOpen ? (
                         <tr key={`${group.key}-detail`}>
-                          <td colSpan={8} className="bg-slate-50/60 px-2 pb-3 pt-1">
+                          <td colSpan={9} className="bg-slate-50/60 px-2 pb-3 pt-1">
                             <ul className="space-y-2">
                               {group.records.map((item) => {
                                 const isRecordOpen = expandedRecordId === item.id;
