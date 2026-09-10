@@ -39,7 +39,25 @@ export type FollowUpReminder = {
   created_at: string;
 };
 
+/**
+ * 고객 프로필의 단일 소스(126, 2026-09-10) — 예약/상담기록은 각자의 시점 스냅샷(name/phone/address)을
+ * 그대로 보존하고, 이 테이블만 관리자가 직접 수정하는 "현재 고객정보"를 담는다. 새 예약·상담기록이
+ * 들어와도 이름/주소가 다르면 프로필은 절대 자동으로 덮어쓰지 않는다(대표님 결정) — 관리자가
+ * 명시적으로 수정할 때만 바뀐다.
+ */
+export type CrmCustomer = {
+  id: string;
+  phone: string;
+  name: string;
+  address: string | null;
+  registeredVia: string | null;
+  registeredAt: string;
+  hiddenAt: string | null;
+  mergedIntoId: string | null;
+};
+
 export type CustomerSummary = {
+  id: string;
   phone: string;
   name: string;
   address: string | null;
@@ -72,9 +90,15 @@ export async function listConsultationLogs(phone?: string): Promise<Consultation
 export async function createConsultationLog(
   input: Omit<ConsultationLog, "id" | "created_at">
 ): Promise<ConsultationLog> {
+  const customerId = await findOrCreateCrmCustomerBestEffort({
+    phone: input.customer_phone,
+    name: input.customer_name,
+    address: input.address,
+    registeredVia: input.source ? CONSULTATION_SOURCE_LABEL[input.source] : "상담 기록"
+  });
   const { data, error } = await sb()
     .from("consultation_logs")
-    .insert(input)
+    .insert({ ...input, customer_id: customerId })
     .select()
     .single();
   if (error) throw new Error(error.message);
@@ -126,96 +150,220 @@ export async function updateFollowUpStatus(
   if (error) throw new Error(error.message);
 }
 
-export async function listCustomerSummary(search?: string): Promise<CustomerSummary[]> {
+/**
+ * 전화번호로 crm_customers를 찾는다 — 대표 전화번호(crm_customers.phone) 또는 병합으로 흡수된
+ * 예전 번호(crm_customer_alt_phones)까지 확인해, 예전 번호로 다시 연락이 와도 같은 고객으로
+ * 인식한다. 대표 고객(hidden_at/merged_into_id 없는 살아있는 행)의 id를 반환한다.
+ */
+async function findCrmCustomerIdByPhone(phone: string): Promise<string | null> {
   const client = sb();
-  let q = client
-    .from("reservations")
-    .select("name, phone, address, preferred_date, created_at")
-    .order("preferred_date", { ascending: false });
-  if (search) {
-    q = q.or(`name.ilike.%${search}%,phone.ilike.%${search}%,address.ilike.%${search}%`);
+  const normalized = normalizePhone(phone);
+
+  const { data: direct } = await client.from("crm_customers").select("id, merged_into_id").eq("phone", normalized).maybeSingle();
+  if (direct) return direct.merged_into_id ?? direct.id;
+
+  const { data: alt } = await client.from("crm_customer_alt_phones").select("customer_id").eq("phone", normalized).maybeSingle();
+  if (alt) {
+    const { data: cust } = await client.from("crm_customers").select("id, merged_into_id").eq("id", alt.customer_id).maybeSingle();
+    if (cust) return cust.merged_into_id ?? cust.id;
   }
-  const { data, error } = await q;
+  return null;
+}
+
+/**
+ * 전화번호로 고객을 찾거나 없으면 새로 만든다. 이미 있으면 절대 이름/주소를 덮어쓰지 않는다
+ * (대표님 결정, 2026-09-10) — 새 예약·상담기록은 그 시점 값을 자기 행에만 스냅샷으로 남기고,
+ * 고객 프로필은 관리자가 화면에서 명시적으로 수정할 때만 바뀐다.
+ */
+export async function findOrCreateCrmCustomer(params: {
+  phone: string;
+  name: string;
+  address?: string | null;
+  registeredVia: string | null;
+}): Promise<string> {
+  const normalized = normalizePhone(params.phone);
+  const existingId = await findCrmCustomerIdByPhone(normalized);
+  if (existingId) return existingId;
+
+  const { data, error } = await sb()
+    .from("crm_customers")
+    .upsert(
+      {
+        phone: normalized,
+        name: params.name,
+        address: params.address ?? null,
+        registered_via: params.registeredVia,
+        registered_at: new Date().toISOString()
+      },
+      { onConflict: "phone" }
+    )
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`고객 프로필 생성 실패: ${error?.message ?? "unknown"}`);
+  return data.id;
+}
+
+/** 예약/상담기록 생성 흐름에서 호출하는 안전판 — 고객 연결이 실패해도 원본 생성 자체는 막지 않는다. */
+export async function findOrCreateCrmCustomerBestEffort(params: {
+  phone: string;
+  name: string;
+  address?: string | null;
+  registeredVia: string | null;
+}): Promise<string | null> {
+  if (!params.phone) return null;
+  try {
+    return await findOrCreateCrmCustomer(params);
+  } catch (error) {
+    console.error(`고객 프로필 연결 실패(${params.phone}):`, error);
+    return null;
+  }
+}
+
+export async function updateCrmCustomer(
+  id: string,
+  update: { name: string; phone: string; address: string | null }
+): Promise<void> {
+  const { data, error } = await sb()
+    .from("crm_customers")
+    .update({
+      name: update.name.trim(),
+      phone: normalizePhone(update.phone),
+      address: update.address?.trim() || null,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", id)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error("대상 고객을 찾을 수 없습니다.");
+}
+
+/** 체크박스 "삭제" = 목록 숨김. 원본 예약·상담기록은 그대로 둔다(대표님 결정). */
+export async function hideCrmCustomers(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await sb().from("crm_customers").update({ hidden_at: new Date().toISOString() }).in("id", ids);
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * 동일인이 번호 변경 등으로 두 고객으로 나뉜 경우 관리자가 수동 병합한다. secondaryIds의 예약·
+ * 상담기록·재상담알림을 전부 primaryId로 재연결하고, secondary의 전화번호는 예전 번호로
+ * crm_customer_alt_phones에 보존해 다음에 그 번호로 연락이 와도 같은 고객으로 잡히게 한다.
+ * secondary 행 자체는 hidden_at + merged_into_id만 채우고 삭제하지 않는다(추적 가능하게).
+ */
+export async function mergeCrmCustomers(primaryId: string, secondaryIds: string[]): Promise<void> {
+  const client = sb();
+  for (const secondaryId of secondaryIds) {
+    if (secondaryId === primaryId) continue;
+    const { data: secondary, error: getErr } = await client
+      .from("crm_customers")
+      .select("id, phone")
+      .eq("id", secondaryId)
+      .single();
+    if (getErr || !secondary) throw new Error(getErr?.message ?? "병합 대상 고객을 찾을 수 없습니다.");
+
+    const { error: resErr } = await client.from("reservations").update({ customer_id: primaryId }).eq("customer_id", secondaryId);
+    if (resErr) throw new Error(`예약 재연결 실패: ${resErr.message}`);
+    const { error: conErr } = await client.from("consultation_logs").update({ customer_id: primaryId }).eq("customer_id", secondaryId);
+    if (conErr) throw new Error(`상담기록 재연결 실패: ${conErr.message}`);
+    const { error: remErr } = await client.from("follow_up_reminders").update({ customer_id: primaryId }).eq("customer_id", secondaryId);
+    if (remErr) throw new Error(`재상담알림 재연결 실패: ${remErr.message}`);
+
+    // secondary의 alt phone들도 primary 쪽으로 옮긴다(연쇄 병합 대비).
+    await client.from("crm_customer_alt_phones").update({ customer_id: primaryId }).eq("customer_id", secondaryId);
+
+    const { error: altErr } = await client
+      .from("crm_customer_alt_phones")
+      .upsert({ customer_id: primaryId, phone: secondary.phone }, { onConflict: "phone" });
+    if (altErr) throw new Error(`예전 번호 보존 실패: ${altErr.message}`);
+
+    const { error: hideErr } = await client
+      .from("crm_customers")
+      .update({ hidden_at: new Date().toISOString(), merged_into_id: primaryId })
+      .eq("id", secondaryId);
+    if (hideErr) throw new Error(`병합 처리 실패: ${hideErr.message}`);
+  }
+}
+
+export type ListCustomerSummaryResult = { customers: CustomerSummary[]; total: number };
+
+/** 관리자 화면용 — 10건씩 페이지네이션(2026-09-10), 숨김(hidden_at) 고객은 제외. */
+export async function listCustomerSummary(params: {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<ListCustomerSummaryResult> {
+  const client = sb();
+  const page = Math.max(1, params.page ?? 1);
+  const pageSize = Math.max(1, params.pageSize ?? 10);
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let q = client
+    .from("crm_customers")
+    .select("id, phone, name, address, registered_via, registered_at", { count: "exact" })
+    .is("hidden_at", null)
+    .order("registered_at", { ascending: false });
+  if (params.search) {
+    const s = params.search;
+    q = q.or(`name.ilike.%${s}%,phone.ilike.%${s}%,address.ilike.%${s}%`);
+  }
+  const { data, error, count } = await q.range(from, to);
   if (error) throw new Error(error.message);
 
-  // Group by phone — 표시 형식이 뒤섞이면(하이픈 유무) 같은 사람이 서로 다른 키로 잡혀 행이
-  // 갈라지므로, 맵 키·표시값 둘 다 항상 normalizePhone()을 거친 값을 쓴다(2026-08-24).
-  const map = new Map<string, CustomerSummary>();
-  for (const r of (data ?? []) as { name: string; phone: string; address: string; preferred_date: string; created_at: string }[]) {
-    if (!r.phone) continue;
-    const phone = normalizePhone(r.phone);
-    if (!map.has(phone)) {
-      map.set(phone, {
-        phone,
-        name: r.name,
-        address: r.address ?? null,
-        serviceCount: 0,
-        lastServiceDate: null,
-        nextFollowUp: null,
-        registeredVia: "예약",
-        registeredAt: r.created_at
-      });
-    }
-    const entry = map.get(phone)!;
-    entry.serviceCount += 1;
-    if (!entry.lastServiceDate || r.preferred_date > entry.lastServiceDate) {
-      entry.lastServiceDate = r.preferred_date;
-    }
-    if (!entry.registeredAt || r.created_at < entry.registeredAt) {
-      entry.registeredAt = r.created_at; // 최초 예약 시각 = 이 고객의 등록일
-    }
-  }
-
-  // 예약은 아직 없고 상담 기록(잠재고객 등록 포함)만 있는 사람도 고객 목록에 포함시킨다 —
-  // 그렇지 않으면 "명함만 등록해둔" 잠재고객이 목록에서 아예 안 보이게 된다. 등록경로/등록일/주소를
-  // 보여주기 위해(2026-08-24), 오름차순으로 읽어 각 전화번호의 "처음" 상담기록(=최초 등록 시점)을
-  // 취한다 — 나중 상담(재방문 등)이 처음 등록 정보를 덮어쓰지 않도록.
-  let cq = client
-    .from("consultation_logs")
-    .select("customer_name, customer_phone, address, source, created_at")
-    .order("created_at", { ascending: true });
-  if (search) {
-    cq = cq.or(`customer_name.ilike.%${search}%,customer_phone.ilike.%${search}%,address.ilike.%${search}%`);
-  }
-  const { data: consultRows } = await cq;
-  for (const c of (consultRows ?? []) as {
-    customer_name: string;
-    customer_phone: string;
+  const rows = (data ?? []) as {
+    id: string;
+    phone: string;
+    name: string;
     address: string | null;
-    source: ConsultationSource | null;
-    created_at: string;
-  }[]) {
-    if (!c.customer_phone) continue;
-    const phone = normalizePhone(c.customer_phone);
-    if (map.has(phone)) continue;
-    map.set(phone, {
-      phone,
-      name: c.customer_name,
-      address: c.address ?? null,
+    registered_via: string | null;
+    registered_at: string;
+  }[];
+  const customerIds = rows.map((r) => r.id);
+
+  const summaries = new Map<string, CustomerSummary>();
+  for (const r of rows) {
+    summaries.set(r.id, {
+      id: r.id,
+      phone: r.phone,
+      name: r.name,
+      address: r.address,
       serviceCount: 0,
       lastServiceDate: null,
       nextFollowUp: null,
-      registeredVia: c.source ? CONSULTATION_SOURCE_LABEL[c.source] : null,
-      registeredAt: c.created_at
+      registeredVia: r.registered_via,
+      registeredAt: r.registered_at
     });
   }
 
-  // Attach nearest pending follow-up
-  const phones = Array.from(map.keys());
-  if (phones.length > 0) {
+  if (customerIds.length > 0) {
+    const { data: resRows } = await client
+      .from("reservations")
+      .select("customer_id, preferred_date")
+      .in("customer_id", customerIds);
+    for (const r of (resRows ?? []) as { customer_id: string | null; preferred_date: string }[]) {
+      if (!r.customer_id) continue;
+      const entry = summaries.get(r.customer_id);
+      if (!entry) continue;
+      entry.serviceCount += 1;
+      if (!entry.lastServiceDate || r.preferred_date > entry.lastServiceDate) {
+        entry.lastServiceDate = r.preferred_date;
+      }
+    }
+
     const now = new Date().toISOString();
     const { data: reminders } = await client
       .from("follow_up_reminders")
-      .select("customer_phone, remind_at")
-      .in("customer_phone", phones)
+      .select("customer_id, remind_at")
+      .in("customer_id", customerIds)
       .eq("status", "pending")
       .gte("remind_at", now)
       .order("remind_at", { ascending: true });
-    for (const rem of (reminders ?? []) as { customer_phone: string; remind_at: string }[]) {
-      const entry = map.get(rem.customer_phone);
+    for (const rem of (reminders ?? []) as { customer_id: string | null; remind_at: string }[]) {
+      if (!rem.customer_id) continue;
+      const entry = summaries.get(rem.customer_id);
       if (entry && !entry.nextFollowUp) entry.nextFollowUp = rem.remind_at;
     }
   }
 
-  return Array.from(map.values());
+  return { customers: rows.map((r) => summaries.get(r.id)!), total: count ?? rows.length };
 }

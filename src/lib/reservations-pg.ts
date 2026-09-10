@@ -9,6 +9,34 @@ import {
 import { pgCreateOrder, pgFindOrderByReservationId, pgIssueWarrantyAndSettle } from "@/lib/orders-pg";
 import { readPaymentSettings } from "@/lib/payment-settings";
 import { applyHolidaySurcharge } from "@/lib/holiday-surcharge";
+import { findOrCreateCrmCustomerBestEffort } from "@/lib/crm-db";
+
+/**
+ * 예약 생성 시 crm_customers(126, 2026-09-10)에 전화번호로 연결한다(best-effort — 실패해도
+ * 예약 생성 자체는 막지 않는다). 이미 있는 고객이면 이름/주소를 절대 덮어쓰지 않고 이 예약
+ * 행의 customer_id만 채운다 — 예약 자체의 name/phone/address는 그 시점 스냅샷으로 별개 보존된다.
+ */
+async function linkCrmCustomerBestEffort(params: {
+  reservationId: string;
+  name: string;
+  phone: string;
+  address: string;
+}): Promise<void> {
+  try {
+    const supabase = requireSupabaseAdmin();
+    const customerId = await findOrCreateCrmCustomerBestEffort({
+      phone: params.phone,
+      name: params.name,
+      address: params.address,
+      registeredVia: "예약"
+    });
+    if (!customerId) return;
+    const { error } = await supabase.from("reservations").update({ customer_id: customerId }).eq("id", params.reservationId);
+    if (error) console.error(`예약 ${params.reservationId}의 고객 연결 실패:`, error.message);
+  } catch (error) {
+    console.error(`예약 ${params.reservationId}의 고객 연결 실패:`, error);
+  }
+}
 
 function parseDongHoFromAddress(address: string): { dong: string; ho: string } {
   const compact = address.replaceAll(/\s/g, "");
@@ -563,6 +591,7 @@ export async function pgCreateReservation(
     address: payload.address,
     baseFee
   });
+  await linkCrmCustomerBestEffort({ reservationId: data.id, name: payload.name, phone: payload.phone, address: payload.address });
   const found = await pgFindReservationById(data.id);
   if (!found) {
     throw new Error("예약 생성 후 조회에 실패했습니다.");
@@ -642,6 +671,7 @@ export async function pgAdminCreateOfflineReservation(
     address: payload.address,
     baseFee
   });
+  await linkCrmCustomerBestEffort({ reservationId: data.id, name: payload.name, phone: payload.phone, address: payload.address });
   const found = await pgFindReservationById(data.id);
   if (!found) {
     throw new Error("예약 생성 후 조회에 실패했습니다.");
@@ -1941,6 +1971,7 @@ export async function pgCreateWalkInReservation(payload: {
   } catch (orderError) {
     console.error(`현장 즉시접수 ${data.id}의 정산용 order 생성 실패:`, orderError);
   }
+  await linkCrmCustomerBestEffort({ reservationId: data.id, name: payload.name, phone: payload.phone, address: payload.address });
 
   // 표준 배정→수락→견적→시작 파이프라인을 그대로 태운다 — 기사수당정산(listPendingSettlements)이
   // tasks.worker_id 조인값(assignedWorkerId)만 보기 때문에, 이 호출들이 없으면 즉시접수 건은

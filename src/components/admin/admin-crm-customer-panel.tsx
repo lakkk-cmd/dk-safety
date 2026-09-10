@@ -5,6 +5,8 @@ import type { CustomerSummary } from "@/lib/crm-db";
 
 type BulkImportResult = { created: number; total: number; skipped: { row: number; reason: string }[] };
 
+const PAGE_SIZE = 10;
+
 function formatDate(s: string | null) {
   if (!s) return "-";
   return new Date(s).toLocaleDateString("ko-KR");
@@ -18,10 +20,14 @@ function formatDateTime(s: string | null) {
 /**
  * 고객별(전화번호 단위) 보기 — 예약별 보기(AdminCustomerCarePanel)와 같은 페이지의 다른 탭.
  * 2026-07-19: 별도 페이지(/admin/crm/customers)였던 것을 /admin/customers 탭으로 통합.
- * 예약 이력 없는 잠재고객(명함만 등록)도 여기서만 보인다 — 예약별 보기에는 자연히 나타나지 않는다.
+ * 2026-09-10: 예약/상담기록을 매번 즉석 집계하던 가상 뷰에서 실제 crm_customers 테이블 기반으로
+ * 전환(대표님 결정: "가망 잠재고객도 실제 고객데이터로 저장") — 이제 이름/연락처/주소를 직접
+ * 수정할 수 있고, 번호 변경 등으로 나뉜 동일인은 병합할 수 있다.
  */
 export default function AdminCrmCustomerPanel() {
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
@@ -39,13 +45,26 @@ export default function AdminCrmCustomerPanel() {
   const [bulkResult, setBulkResult] = useState<BulkImportResult | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
 
-  const load = useCallback(async (q: string) => {
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [mergePrimaryId, setMergePrimaryId] = useState<string | null>(null);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: "", phone: "", address: "" });
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const load = useCallback(async (q: string, p: number) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/crm/customers?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+      const res = await fetch(`/api/admin/crm/customers?q=${encodeURIComponent(q)}&page=${p}&pageSize=${PAGE_SIZE}`, { cache: "no-store" });
       if (!res.ok) throw new Error(await res.text());
-      const json = await res.json() as { customers: CustomerSummary[] };
+      const json = (await res.json()) as { customers: CustomerSummary[]; total: number };
       setCustomers(json.customers);
+      setTotal(json.total);
     } catch (e) {
       console.error(e);
     } finally {
@@ -53,7 +72,13 @@ export default function AdminCrmCustomerPanel() {
     }
   }, []);
 
-  useEffect(() => { void load(query); }, [load, query]);
+  useEffect(() => {
+    void load(query, page);
+  }, [load, query, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +114,7 @@ export default function AdminCrmCustomerPanel() {
       setLeadAddress("");
       setLeadMemo("");
       setLeadFormOpen(false);
-      await load(query);
+      await load(query, page);
     } catch (err) {
       setLeadMessage(err instanceof Error ? err.message : "등록 중 오류가 발생했습니다.");
     } finally {
@@ -113,7 +138,7 @@ export default function AdminCrmCustomerPanel() {
         return;
       }
       setBulkResult(json);
-      await load(query);
+      await load(query, page);
     } catch (err) {
       setBulkError(err instanceof Error ? err.message : "일괄등록 중 오류가 발생했습니다.");
     } finally {
@@ -122,11 +147,103 @@ export default function AdminCrmCustomerPanel() {
     }
   };
 
+  const toggleSelect = (id: string) => setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
+  const clearSelection = () => {
+    setSelected({});
+    setMergePrimaryId(null);
+  };
+  const selectedIds = Object.entries(selected)
+    .filter(([, v]) => v)
+    .map(([k]) => k);
+
+  const openEdit = (c: CustomerSummary) => {
+    setEditingId(c.id);
+    setEditDraft({ name: c.name, phone: c.phone, address: c.address ?? "" });
+    setEditError(null);
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditError(null);
+  };
+  const saveEdit = async (id: string) => {
+    setEditError(null);
+    if (!editDraft.name.trim() || !editDraft.phone.trim()) {
+      setEditError("이름과 연락처는 비워둘 수 없습니다.");
+      return;
+    }
+    setEditBusy(true);
+    try {
+      const res = await fetch(`/api/admin/crm/customers/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editDraft)
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setEditError(json.error ?? "수정에 실패했습니다.");
+        return;
+      }
+      setEditingId(null);
+      await load(query, page);
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
+  const hideSelected = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`선택한 ${selectedIds.length}명을 목록에서 숨길까요? 원본 예약·상담기록은 그대로 유지됩니다.`)) return;
+    setActionBusy(true);
+    setActionMessage(null);
+    try {
+      const res = await fetch("/api/admin/crm/customers/hide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds })
+      });
+      const json = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+      setActionMessage(json.message ?? json.error ?? null);
+      if (res.ok) {
+        clearSelection();
+        await load(query, page);
+      }
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const confirmMerge = async () => {
+    if (!mergePrimaryId) return;
+    const secondaryIds = selectedIds.filter((id) => id !== mergePrimaryId);
+    if (secondaryIds.length === 0) return;
+    const primary = customers.find((c) => c.id === mergePrimaryId);
+    if (!window.confirm(`나머지 ${secondaryIds.length}명을 "${primary?.name ?? ""}"(으)로 병합할까요? 예약·상담 이력이 전부 이 고객으로 옮겨집니다.`)) {
+      return;
+    }
+    setActionBusy(true);
+    setActionMessage(null);
+    try {
+      const res = await fetch("/api/admin/crm/customers/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ primaryId: mergePrimaryId, secondaryIds })
+      });
+      const json = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+      setActionMessage(json.message ?? json.error ?? null);
+      if (res.ok) {
+        clearSelection();
+        await load(query, page);
+      }
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-950">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm text-slate-600 dark:text-slate-400">예약 이력 기반 고객 목록 · 재상담 일정 확인 (전화번호당 1행 — 잠재고객 포함)</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">고객 프로필(전화번호당 1행 — 잠재고객 포함), 이름/연락처/주소 직접 수정 가능</p>
           <p className="mt-1 text-xs text-slate-400">
             엑셀 첫 행에 &quot;이름&quot;, &quot;연락처&quot;(필수) · &quot;주소&quot;, &quot;메모&quot;(선택) 열이 있으면 됩니다.
           </p>
@@ -232,11 +349,69 @@ export default function AdminCrmCustomerPanel() {
         )}
       </form>
 
+      {selectedIds.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-950/20">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-bold text-rose-700 dark:text-rose-300">{selectedIds.length}명 선택됨</span>
+            <button
+              type="button"
+              disabled={actionBusy}
+              onClick={() => void hideSelected()}
+              className="rounded-lg border border-rose-300 bg-rose-100 px-3 py-1.5 text-xs font-bold text-rose-800 disabled:opacity-50"
+            >
+              선택 숨김(삭제)
+            </button>
+            {selectedIds.length >= 2 ? (
+              <button
+                type="button"
+                disabled={actionBusy}
+                onClick={() => setMergePrimaryId(mergePrimaryId ? null : selectedIds[0])}
+                className="rounded-lg border border-blue-300 bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-800 disabled:opacity-50"
+              >
+                동일인 병합
+              </button>
+            ) : null}
+            <button type="button" onClick={clearSelection} className="text-xs font-semibold text-slate-500 hover:underline">
+              선택 해제
+            </button>
+          </div>
+          {mergePrimaryId ? (
+            <div className="mt-3 rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-900/40 dark:bg-slate-900">
+              <p className="mb-2 text-xs font-semibold text-slate-600 dark:text-slate-300">대표로 남길 고객을 선택하세요(나머지는 여기로 합쳐집니다):</p>
+              <div className="space-y-1.5">
+                {selectedIds.map((id) => {
+                  const c = customers.find((x) => x.id === id);
+                  if (!c) return null;
+                  return (
+                    <label key={id} className="flex items-center gap-2 text-sm">
+                      <input type="radio" name="merge-primary" checked={mergePrimaryId === id} onChange={() => setMergePrimaryId(id)} />
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">{c.name}</span>
+                      <span className="text-slate-500">{c.phone}</span>
+                      <span className="text-xs text-slate-400">{c.address ?? "-"}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                disabled={actionBusy}
+                onClick={() => void confirmMerge()}
+                className="mt-3 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {actionBusy ? "병합 중..." : "병합 확정"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      )}
+      {actionMessage ? <p className="mb-3 text-xs font-semibold text-slate-600 dark:text-slate-300">{actionMessage}</p> : null}
+
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-700 dark:bg-slate-900">
+                <th className="px-3 py-3"></th>
                 <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">고객명</th>
                 <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">연락처</th>
                 <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">주소</th>
@@ -246,57 +421,137 @@ export default function AdminCrmCustomerPanel() {
                 <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">최근 서비스</th>
                 <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">재상담 예정</th>
                 <th className="px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">상담 기록</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={9} className="py-12 text-center text-slate-500">불러오는 중...</td></tr>
+                <tr><td colSpan={11} className="py-12 text-center text-slate-500">불러오는 중...</td></tr>
               ) : customers.length === 0 ? (
-                <tr><td colSpan={9} className="py-12 text-center text-slate-400">고객 데이터가 없습니다.</td></tr>
-              ) : customers.map((c) => (
-                <tr key={c.phone} className="border-b border-slate-100 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900">
-                  <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{c.name}</td>
-                  <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{c.phone}</td>
-                  <td className="max-w-[200px] truncate px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{c.address ?? "-"}</td>
-                  <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
-                    {c.registeredVia ?? <span className="italic text-slate-400">확인불가</span>}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{formatDateTime(c.registeredAt)}</td>
-                  <td className="px-4 py-3 text-center">
-                    {c.serviceCount === 0 ? (
-                      <span className="inline-flex items-center justify-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-700">
-                        잠재고객
-                      </span>
+                <tr><td colSpan={11} className="py-12 text-center text-slate-400">고객 데이터가 없습니다.</td></tr>
+              ) : customers.map((c) => {
+                const isEditing = editingId === c.id;
+                return (
+                  <tr key={c.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900">
+                    <td className="px-3 py-3">
+                      <input type="checkbox" checked={Boolean(selected[c.id])} onChange={() => toggleSelect(c.id)} aria-label={`선택 ${c.name}`} />
+                    </td>
+                    {isEditing ? (
+                      <>
+                        <td className="px-4 py-3">
+                          <input
+                            value={editDraft.name}
+                            onChange={(e) => setEditDraft((prev) => ({ ...prev, name: e.target.value }))}
+                            className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            value={editDraft.phone}
+                            onChange={(e) => setEditDraft((prev) => ({ ...prev, phone: e.target.value }))}
+                            className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+                          />
+                        </td>
+                        <td className="px-4 py-3" colSpan={2}>
+                          <input
+                            value={editDraft.address}
+                            onChange={(e) => setEditDraft((prev) => ({ ...prev, address: e.target.value }))}
+                            placeholder="주소"
+                            className="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+                          />
+                          {editError ? <p className="mt-1 text-[11px] font-semibold text-rose-600">{editError}</p> : null}
+                        </td>
+                        <td className="px-4 py-3" colSpan={5}>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              disabled={editBusy}
+                              onClick={() => void saveEdit(c.id)}
+                              className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-bold text-white disabled:opacity-50"
+                            >
+                              {editBusy ? "저장 중..." : "저장"}
+                            </button>
+                            <button type="button" disabled={editBusy} onClick={cancelEdit} className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700">
+                              취소
+                            </button>
+                          </div>
+                        </td>
+                      </>
                     ) : (
-                      <span className="inline-flex items-center justify-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700">
-                        {c.serviceCount}회
-                      </span>
+                      <>
+                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{c.name}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{c.phone}</td>
+                        <td className="max-w-[200px] truncate px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{c.address ?? "-"}</td>
+                        <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
+                          {c.registeredVia ?? <span className="italic text-slate-400">확인불가</span>}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{formatDateTime(c.registeredAt)}</td>
+                        <td className="px-4 py-3 text-center">
+                          {c.serviceCount === 0 ? (
+                            <span className="inline-flex items-center justify-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-700">
+                              잠재고객
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700">
+                              {c.serviceCount}회
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{formatDate(c.lastServiceDate)}</td>
+                        <td className="px-4 py-3">
+                          {c.nextFollowUp ? (
+                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                              {formatDate(c.nextFollowUp)}
+                            </span>
+                          ) : <span className="text-xs text-slate-400">없음</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <a
+                            href={`/admin/crm/consultations?phone=${encodeURIComponent(c.phone)}&name=${encodeURIComponent(c.name)}`}
+                            className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-blue-100 hover:text-blue-700 dark:bg-slate-800 dark:text-slate-300"
+                          >
+                            상담 기록 →
+                          </a>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button type="button" onClick={() => openEdit(c)} className="text-xs font-bold text-blue-600 hover:underline">
+                            ✏️ 수정
+                          </button>
+                        </td>
+                      </>
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{formatDate(c.lastServiceDate)}</td>
-                  <td className="px-4 py-3">
-                    {c.nextFollowUp ? (
-                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                        {formatDate(c.nextFollowUp)}
-                      </span>
-                    ) : <span className="text-xs text-slate-400">없음</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <a
-                      href={`/admin/crm/consultations?phone=${encodeURIComponent(c.phone)}&name=${encodeURIComponent(c.name)}`}
-                      className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-blue-100 hover:text-blue-700 dark:bg-slate-800 dark:text-slate-300"
-                    >
-                      상담 기록 →
-                    </a>
-                  </td>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      <p className="mt-3 text-xs text-slate-400">총 {customers.length}명 · 예약·상담 기록 기반 자동 집계 (잠재고객 포함)</p>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-slate-400">총 {total}명 · 실제 고객 데이터(전화번호당 1행, 잠재고객 포함)</p>
+        {total > PAGE_SIZE ? (
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40"
+            >
+              이전
+            </button>
+            <span className="text-xs font-semibold text-slate-600">{page} / {totalPages}페이지</span>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40"
+            >
+              다음
+            </button>
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }
