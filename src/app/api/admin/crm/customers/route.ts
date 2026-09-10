@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
-import { listCustomerSummary } from "@/lib/crm-db";
+import { listCrmRegisteredViaOptions, listCustomerSummary } from "@/lib/crm-db";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +12,13 @@ export async function GET(req: NextRequest) {
   const search = req.nextUrl.searchParams.get("q") ?? undefined;
   const page = Number.parseInt(req.nextUrl.searchParams.get("page") ?? "1", 10) || 1;
   const pageSize = Number.parseInt(req.nextUrl.searchParams.get("pageSize") ?? "10", 10) || 10;
+  const registeredVia = req.nextUrl.searchParams.get("via") ?? undefined;
   try {
-    const result = await listCustomerSummary({ search, page, pageSize });
-    return NextResponse.json(result);
+    const [result, viaOptions] = await Promise.all([
+      listCustomerSummary({ search, page, pageSize, registeredVia }),
+      listCrmRegisteredViaOptions()
+    ]);
+    return NextResponse.json({ ...result, viaOptions });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

@@ -31,6 +31,8 @@ export default function AdminCrmCustomerPanel() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
+  const [viaOptions, setViaOptions] = useState<{ value: string; count: number }[]>([]);
+  const [viaFilter, setViaFilter] = useState<string | null>(null);
 
   const [leadFormOpen, setLeadFormOpen] = useState(false);
   const [leadName, setLeadName] = useState("");
@@ -57,14 +59,17 @@ export default function AdminCrmCustomerPanel() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const load = useCallback(async (q: string, p: number) => {
+  const load = useCallback(async (q: string, p: number, via: string | null) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/crm/customers?q=${encodeURIComponent(q)}&page=${p}&pageSize=${PAGE_SIZE}`, { cache: "no-store" });
+      const params = new URLSearchParams({ q, page: String(p), pageSize: String(PAGE_SIZE) });
+      if (via) params.set("via", via);
+      const res = await fetch(`/api/admin/crm/customers?${params.toString()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(await res.text());
-      const json = (await res.json()) as { customers: CustomerSummary[]; total: number };
+      const json = (await res.json()) as { customers: CustomerSummary[]; total: number; viaOptions: { value: string; count: number }[] };
       setCustomers(json.customers);
       setTotal(json.total);
+      setViaOptions(json.viaOptions ?? []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -73,12 +78,12 @@ export default function AdminCrmCustomerPanel() {
   }, []);
 
   useEffect(() => {
-    void load(query, page);
-  }, [load, query, page]);
+    void load(query, page, viaFilter);
+  }, [load, query, page, viaFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [query]);
+  }, [query, viaFilter]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,7 +119,7 @@ export default function AdminCrmCustomerPanel() {
       setLeadAddress("");
       setLeadMemo("");
       setLeadFormOpen(false);
-      await load(query, page);
+      await load(query, page, viaFilter);
     } catch (err) {
       setLeadMessage(err instanceof Error ? err.message : "등록 중 오류가 발생했습니다.");
     } finally {
@@ -138,7 +143,7 @@ export default function AdminCrmCustomerPanel() {
         return;
       }
       setBulkResult(json);
-      await load(query, page);
+      await load(query, page, viaFilter);
     } catch (err) {
       setBulkError(err instanceof Error ? err.message : "일괄등록 중 오류가 발생했습니다.");
     } finally {
@@ -184,7 +189,7 @@ export default function AdminCrmCustomerPanel() {
         return;
       }
       setEditingId(null);
-      await load(query, page);
+      await load(query, page, viaFilter);
     } finally {
       setEditBusy(false);
     }
@@ -205,7 +210,7 @@ export default function AdminCrmCustomerPanel() {
       setActionMessage(json.message ?? json.error ?? null);
       if (res.ok) {
         clearSelection();
-        await load(query, page);
+        await load(query, page, viaFilter);
       }
     } finally {
       setActionBusy(false);
@@ -232,7 +237,7 @@ export default function AdminCrmCustomerPanel() {
       setActionMessage(json.message ?? json.error ?? null);
       if (res.ok) {
         clearSelection();
-        await load(query, page);
+        await load(query, page, viaFilter);
       }
     } finally {
       setActionBusy(false);
@@ -331,6 +336,34 @@ export default function AdminCrmCustomerPanel() {
           </div>
         </form>
       )}
+
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => setViaFilter(null)}
+          className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+            viaFilter === null
+              ? "border-blue-600 bg-blue-600 text-white"
+              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+          }`}
+        >
+          전체 ({viaOptions.reduce((sum, o) => sum + o.count, 0)})
+        </button>
+        {viaOptions.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => setViaFilter(o.value)}
+            className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+              viaFilter === o.value
+                ? "border-blue-600 bg-blue-600 text-white"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+            }`}
+          >
+            {o.value} ({o.count})
+          </button>
+        ))}
+      </div>
 
       <form onSubmit={handleSearch} className="mb-4 flex gap-2">
         <input

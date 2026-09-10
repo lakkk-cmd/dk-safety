@@ -286,11 +286,32 @@ export async function mergeCrmCustomers(primaryId: string, secondaryIds: string[
 
 export type ListCustomerSummaryResult = { customers: CustomerSummary[]; total: number };
 
-/** 관리자 화면용 — 10건씩 페이지네이션(2026-09-10), 숨김(hidden_at) 고객은 제외. */
+/**
+ * 재상담(잠재고객) 목록을 등록경로별로 나눠 볼 수 있는 탭 옵션(2026-09-10 신설) — registered_via
+ * 값별 건수를 함께 반환해 화면에 "예약(4) · 세대전기점검(2) · 관리자 직접등록(2)"처럼 보여준다.
+ * 값이 null인 레거시 행은 "확인불가"로 묶는다. 숨김(hidden_at) 고객은 집계에서 제외.
+ */
+export async function listCrmRegisteredViaOptions(): Promise<{ value: string; count: number }[]> {
+  const client = sb();
+  const { data, error } = await client.from("crm_customers").select("registered_via").is("hidden_at", null);
+  if (error) throw new Error(error.message);
+  const counts = new Map<string, number>();
+  for (const row of (data ?? []) as { registered_via: string | null }[]) {
+    const key = row.registered_via ?? "확인불가";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+/** 관리자 화면용 — 10건씩 페이지네이션(2026-09-10), 숨김(hidden_at) 고객은 제외. registeredVia로
+ * 등록경로(예약/세대전기점검/관리자 직접등록 등) 필터링 가능. */
 export async function listCustomerSummary(params: {
   search?: string;
   page?: number;
   pageSize?: number;
+  registeredVia?: string;
 }): Promise<ListCustomerSummaryResult> {
   const client = sb();
   const page = Math.max(1, params.page ?? 1);
@@ -306,6 +327,9 @@ export async function listCustomerSummary(params: {
   if (params.search) {
     const s = params.search;
     q = q.or(`name.ilike.%${s}%,phone.ilike.%${s}%,address.ilike.%${s}%`);
+  }
+  if (params.registeredVia) {
+    q = params.registeredVia === "확인불가" ? q.is("registered_via", null) : q.eq("registered_via", params.registeredVia);
   }
   const { data, error, count } = await q.range(from, to);
   if (error) throw new Error(error.message);
