@@ -62,15 +62,41 @@ const SYSTEM_PROMPT = `당신은 전기기사 자격을 보유한 전기안전 �
     확인 가능하다는 점을 안내하세요. 근거 없이 "정상입니다"라고 단정하지 마세요.
 - 과장하지 말고 근거 없는 위험을 지어내지 마세요. 전문 규정 조항 번호는 참고로만 괄호에 넣으세요.
 - 마지막에 전체 종합 총평 문단을 추가하세요(별표3 부적합 개수는 정확히 세어서 언급).
+- **분량 제한(중요, 반드시 지킬 것)**: 이 결과는 A4 점검표 PDF 2페이지 안에 항상 들어가야
+  합니다. 아래 글자수 한도를 절대 넘기지 마세요(공백 포함, 한도를 넘기면 뒷부분이 잘려서
+  출력됩니다). 문장을 욕심내지 말고 핵심(원인·위험·조치)만 담아 짧게 쓰세요:
+  - okSummary: 100자 이내(1~2문장)
+  - violations[].explanation: 항목당 130자 이내(2~3문장)
+  - companyAdvisory[].explanation: 항목당 100자 이내
+  - measurements[].explanation: 항목당 80자 이내(1문장)
+  - summary: 120자 이내
 
 출력은 다음 JSON 형식만 사용하세요(다른 텍스트나 설명 금지):
 {
-  "okSummary": "적합 항목을 뭉뚱그린 한 문단 (없으면 \\"\\")",
-  "violations": [{"item":"항목명","explanation":"이유+위험+조치를 담은 3~4문장"}],
-  "companyAdvisory": [{"item":"항목명","explanation":"담백한 사실 전달 설명"}],
-  "measurements": [{"item":"절연저항|누설전류|부하전류","value":"단위 포함 실측값","explanation":"이 값이 의미하는 바 2~3문장"}],
-  "summary": "종합 총평 (별표3 부적합 개수 정확히 언급)"
+  "okSummary": "적합 항목을 뭉뚱그린 한 문단, 100자 이내 (없으면 \\"\\")",
+  "violations": [{"item":"항목명","explanation":"이유+위험+조치를 담되 130자 이내로 압축"}],
+  "companyAdvisory": [{"item":"항목명","explanation":"담백한 사실 전달 설명, 100자 이내"}],
+  "measurements": [{"item":"절연저항|누설전류|부하전류","value":"단위 포함 실측값","explanation":"이 값이 의미하는 바, 80자 이내"}],
+  "summary": "종합 총평 (별표3 부적합 개수 정확히 언급), 120자 이내"
 }`;
+
+// 위 프롬프트가 지시한 글자수 한도를 LLM이 지키지 않는 경우를 대비한 안전망 — 프롬프트 한도에
+// 여유를 주면(예전 시도: +30~50%) 부적합 4건+회사권장 2건처럼 항목 수가 많이 겹치는 실제 사례
+// (34건 중 1건)에서 그 여유분이 누적돼 3페이지로 넘어갔다(2026-09-10, 실측 검증) — "항상
+// 2페이지" 보장이 목표이므로 프롬프트가 요구한 한도와 동일한 값을 하드캡으로 그대로 적용한다.
+// 실측 34건 전체(부적합 0~5건, 회사권장 0~2건 조합 포함)로 검증 완료.
+const FIELD_LENGTH_CAPS = {
+  okSummary: 100,
+  violationExplanation: 130,
+  companyAdvisoryExplanation: 100,
+  measurementExplanation: 80,
+  summary: 120
+} as const;
+
+function clampText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 1).trimEnd() + "…";
+}
 
 /** 절연저항/누설전류는 판정기준을 계산해 적합·부적합을 함께 알려주고, 부하전류는 판정기준이
  * 없다는 사실 자체를 명시해 AI가 임의로 적합/부적합을 지어내지 못하게 한다. */
@@ -174,11 +200,21 @@ export async function generateUnitInspectionAiDiagnosis(params: {
   }
   const parsed = JSON.parse(jsonText) as Partial<UnitInspectionAiDiagnosis>;
   return {
-    okSummary: typeof parsed.okSummary === "string" ? parsed.okSummary : "",
-    violations: Array.isArray(parsed.violations) ? parsed.violations : [],
-    companyAdvisory: Array.isArray(parsed.companyAdvisory) ? parsed.companyAdvisory : [],
-    measurements: Array.isArray(parsed.measurements) ? parsed.measurements : [],
-    summary: typeof parsed.summary === "string" ? parsed.summary : ""
+    okSummary: clampText(typeof parsed.okSummary === "string" ? parsed.okSummary : "", FIELD_LENGTH_CAPS.okSummary),
+    violations: (Array.isArray(parsed.violations) ? parsed.violations : []).map((v) => ({
+      item: v.item,
+      explanation: clampText(v.explanation ?? "", FIELD_LENGTH_CAPS.violationExplanation)
+    })),
+    companyAdvisory: (Array.isArray(parsed.companyAdvisory) ? parsed.companyAdvisory : []).map((a) => ({
+      item: a.item,
+      explanation: clampText(a.explanation ?? "", FIELD_LENGTH_CAPS.companyAdvisoryExplanation)
+    })),
+    measurements: (Array.isArray(parsed.measurements) ? parsed.measurements : []).map((m) => ({
+      item: m.item,
+      value: m.value,
+      explanation: clampText(m.explanation ?? "", FIELD_LENGTH_CAPS.measurementExplanation)
+    })),
+    summary: clampText(typeof parsed.summary === "string" ? parsed.summary : "", FIELD_LENGTH_CAPS.summary)
   };
 }
 
