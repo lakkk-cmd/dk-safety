@@ -697,7 +697,19 @@ export async function pgUpdateReservation(
   update: Partial<
     Pick<
       Reservation,
-      "status" | "note" | "noteUpdatedAt" | "isPaid" | "baseFee" | "extraFee" | "totalAmount" | "paidAt" | "preferredDate" | "preferredTime"
+      | "status"
+      | "note"
+      | "noteUpdatedAt"
+      | "isPaid"
+      | "baseFee"
+      | "extraFee"
+      | "totalAmount"
+      | "paidAt"
+      | "preferredDate"
+      | "preferredTime"
+      | "name"
+      | "phone"
+      | "address"
     >
   >
 ): Promise<Reservation | null> {
@@ -713,6 +725,9 @@ export async function pgUpdateReservation(
   if (update.paidAt !== undefined) patch.paid_at = update.paidAt;
   if (typeof update.preferredDate === "string") patch.preferred_date = update.preferredDate;
   if (typeof update.preferredTime === "string") patch.preferred_time = update.preferredTime;
+  if (typeof update.name === "string") patch.name = update.name.trim();
+  if (typeof update.phone === "string") patch.phone = update.phone.trim();
+  if (typeof update.address === "string") patch.address = update.address.trim();
 
   if (Object.keys(patch).length === 0) {
     return null;

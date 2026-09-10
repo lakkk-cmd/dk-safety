@@ -388,7 +388,9 @@ export async function hasReservationTimeConflict(preferredDate: string, preferre
 
 export async function updateReservation(
   id: string,
-  update: Partial<Pick<Reservation, "status" | "note" | "noteUpdatedAt" | "preferredDate" | "preferredTime">>
+  update: Partial<
+    Pick<Reservation, "status" | "note" | "noteUpdatedAt" | "preferredDate" | "preferredTime" | "name" | "phone" | "address">
+  >
 ): Promise<Reservation | null> {
   if (shouldUsePgReservations()) {
     return pgUpdateReservation(id, update);

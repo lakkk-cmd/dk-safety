@@ -56,6 +56,7 @@ type UnitGroup = {
 
 const RESULT_LABEL: Record<string, string> = { O: "○", X: "×", "/": "/", "N/A": "해당없음" };
 const TYPE_LABEL: Record<UnitInspection["inspectionType"], string> = { visit: "세대방문점검", unvisited_simple: "세대미방문 간이점검" };
+const PAGE_SIZE = 10;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -82,6 +83,13 @@ export default function AdminUnitInspectionsPanel() {
   const [correctedPdfUrls, setCorrectedPdfUrls] = useState<Record<string, string>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [resettingDemo, setResettingDemo] = useState(false);
+  const [page, setPage] = useState(1);
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Record<string, boolean>>({});
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ residentName: "", residentPhone: "", dong: "", ho: "" });
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -110,7 +118,6 @@ export default function AdminUnitInspectionsPanel() {
   }, []);
 
   const apartmentNameById = useMemo(() => new Map(apartments.map((a) => [a.id, a.name])), [apartments]);
-  const apartmentById = useMemo(() => new Map(apartments.map((a) => [a.id, a])), [apartments]);
   const apartmentByName = useMemo(() => new Map(apartments.map((a) => [a.name, a])), [apartments]);
   const selectedApartment = apartmentFilter === "전체" ? null : (apartmentByName.get(apartmentFilter) ?? null);
 
@@ -194,10 +201,33 @@ export default function AdminUnitInspectionsPanel() {
     });
   }, [groups, search]);
 
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE)), [filteredGroups.length]);
+
+  const pagedGroups = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredGroups.slice(start, start + PAGE_SIZE);
+  }, [filteredGroups, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [apartmentFilter, dongFilter, typeFilter, search]);
+
+  useEffect(() => {
+    setPage((p) => Math.min(Math.max(1, p), totalPages));
+  }, [totalPages]);
+
   const handleApartmentFilterChange = (name: string) => {
     setApartmentFilter(name);
     setDongFilter("전체");
   };
+
+  const toggleRecordSelect = (id: string) => {
+    setSelectedRecordIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const selectedCount = useMemo(() => Object.values(selectedRecordIds).filter(Boolean).length, [selectedRecordIds]);
+
+  const clearSelection = () => setSelectedRecordIds({});
 
   const issuePdf = async (id: string) => {
     setPdfLoadingId(id);
@@ -232,10 +262,10 @@ export default function AdminUnitInspectionsPanel() {
     }
   };
 
-  /** 시연전용단지(demo) 점검기록만 가능 — 서버가 partnership_type을 다시 검증하고, DB 불변성
-   * 트리거도 demo 단지가 아니면 DELETE 자체를 거부한다(116). */
+  /** 관리자 전용 삭제(2026-09-10부터 실고객 단지도 가능) — RPC가 법정보관 불변성 트리거를
+   * 우회하며 삭제 전 스냅샷을 unit_inspection_admin_audit_log에 남긴다(125). */
   const deleteRecord = async (id: string) => {
-    if (!window.confirm("이 점검기록을 삭제할까요? 되돌릴 수 없습니다.")) return;
+    if (!window.confirm("이 점검기록을 삭제할까요? 법정서식 원본이며, 삭제 이력은 감사로그에 남지만 되돌릴 수 없습니다.")) return;
     setDeletingId(id);
     setMessage("");
     try {
@@ -245,9 +275,90 @@ export default function AdminUnitInspectionsPanel() {
         setMessage(data.message ?? "삭제에 실패했습니다.");
         return;
       }
+      setSelectedRecordIds((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       await load();
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const deleteSelectedRecords = async () => {
+    const ids = Object.entries(selectedRecordIds)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    if (ids.length === 0) return;
+    if (
+      !window.confirm(
+        `선택한 ${ids.length}건을 삭제할까요? 법정서식 원본이며, 삭제 이력은 감사로그에 남지만 되돌릴 수 없습니다.`
+      )
+    ) {
+      return;
+    }
+    setBulkDeleting(true);
+    setMessage("");
+    try {
+      for (const id of ids) {
+        const response = await fetch(`/api/admin/unit-inspections/${id}`, { method: "DELETE" });
+        const data = (await response.json().catch(() => ({}))) as { message?: string };
+        if (!response.ok) {
+          setMessage(`${id.slice(0, 8)}… 삭제 실패: ${data.message ?? response.status}`);
+          break;
+        }
+      }
+      setSelectedRecordIds({});
+      await load();
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const openEdit = (item: UnitInspection) => {
+    setEditingRecordId(item.id);
+    setEditDraft({
+      residentName: item.residentName ?? "",
+      residentPhone: item.residentPhone ?? "",
+      dong: item.dong,
+      ho: item.ho
+    });
+    setEditError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingRecordId(null);
+    setEditError(null);
+  };
+
+  const saveEdit = async (id: string) => {
+    setEditError(null);
+    if (!editDraft.dong.trim() || !editDraft.ho.trim()) {
+      setEditError("동/호는 비워둘 수 없습니다.");
+      return;
+    }
+    setEditBusy(true);
+    try {
+      const response = await fetch(`/api/admin/unit-inspections/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          residentName: editDraft.residentName.trim() || null,
+          residentPhone: editDraft.residentPhone.trim() || null,
+          dong: editDraft.dong.trim(),
+          ho: editDraft.ho.trim()
+        })
+      });
+      const data = (await response.json().catch(() => ({}))) as { message?: string };
+      if (!response.ok) {
+        setEditError(data.message ?? "수정에 실패했습니다.");
+        return;
+      }
+      setEditingRecordId(null);
+      await load();
+    } finally {
+      setEditBusy(false);
     }
   };
 
@@ -412,6 +523,31 @@ export default function AdminUnitInspectionsPanel() {
         ) : null}
 
         {!loading && filteredGroups.length > 0 ? (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] text-slate-500">
+              세대(동/호) {filteredGroups.length}건 중 {(page - 1) * PAGE_SIZE + 1}–
+              {Math.min(page * PAGE_SIZE, filteredGroups.length)}번째 표시 (한 페이지 {PAGE_SIZE}건)
+            </p>
+            {selectedCount > 0 ? (
+              <div className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-1.5">
+                <span className="text-xs font-bold text-rose-700">{selectedCount}건 선택됨</span>
+                <button
+                  type="button"
+                  disabled={bulkDeleting}
+                  onClick={() => void deleteSelectedRecords()}
+                  className="rounded-md border border-rose-300 bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-800 disabled:opacity-50"
+                >
+                  {bulkDeleting ? "삭제 중..." : "선택 삭제"}
+                </button>
+                <button type="button" onClick={clearSelection} className="text-[11px] font-semibold text-slate-500 hover:underline">
+                  선택 해제
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!loading && filteredGroups.length > 0 ? (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse text-left text-xs">
               <thead>
@@ -427,7 +563,7 @@ export default function AdminUnitInspectionsPanel() {
                 </tr>
               </thead>
               <tbody>
-                {filteredGroups.map((group) => {
+                {pagedGroups.map((group) => {
                   const isOpen = expandedGroupKey === group.key;
                   const badCount = group.latest.checklistItems.filter((c) => c.result === "X").length;
                   return (
@@ -474,25 +610,42 @@ export default function AdminUnitInspectionsPanel() {
                               {group.records.map((item) => {
                                 const isRecordOpen = expandedRecordId === item.id;
                                 const badRows = item.checklistItems.filter((c) => c.result === "X");
+                                const isEditing = editingRecordId === item.id;
                                 return (
                                   <li key={item.id} className="rounded-xl border border-slate-200 bg-white p-3">
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                      <div>
-                                        <p className="font-semibold text-slate-900">
-                                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                                            {TYPE_LABEL[item.inspectionType]}
-                                          </span>
-                                          {badRows.length > 0 ? (
-                                            <span className="ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">
-                                              부적합 {badRows.length}건
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                      <div className="flex items-start gap-2">
+                                        <input
+                                          type="checkbox"
+                                          checked={Boolean(selectedRecordIds[item.id])}
+                                          onChange={() => toggleRecordSelect(item.id)}
+                                          aria-label={`선택 ${item.dong}동 ${item.ho}호 ${formatDate(item.inspectedAt)}`}
+                                          className="mt-1"
+                                        />
+                                        <div>
+                                          <p className="font-semibold text-slate-900">
+                                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                                              {TYPE_LABEL[item.inspectionType]}
                                             </span>
-                                          ) : null}
-                                        </p>
-                                        <p className="mt-0.5 text-xs text-slate-500">
-                                          {formatDate(item.inspectedAt)} {item.residentName ? `· ${item.residentName}` : ""}
-                                        </p>
+                                            {badRows.length > 0 ? (
+                                              <span className="ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                                                부적합 {badRows.length}건
+                                              </span>
+                                            ) : null}
+                                          </p>
+                                          <p className="mt-0.5 text-xs text-slate-500">
+                                            {formatDate(item.inspectedAt)} {item.residentName ? `· ${item.residentName}` : ""}
+                                          </p>
+                                        </div>
                                       </div>
-                                      <div className="flex gap-2">
+                                      <div className="flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => (isEditing ? cancelEdit() : openEdit(item))}
+                                          className="rounded-md border border-sky-300 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700"
+                                        >
+                                          {isEditing ? "수정 취소" : "✏️ 수정"}
+                                        </button>
                                         <button
                                           type="button"
                                           onClick={() => setExpandedRecordId(isRecordOpen ? null : item.id)}
@@ -542,19 +695,82 @@ export default function AdminUnitInspectionsPanel() {
                                             {reissueLoadingId === item.id ? "재발급 중..." : "문구 수정본 재발급"}
                                           </button>
                                         ) : null}
-                                        {apartmentById.get(item.apartmentId)?.partnershipType === "demo" ? (
-                                          <button
-                                            type="button"
-                                            disabled={deletingId === item.id}
-                                            onClick={() => void deleteRecord(item.id)}
-                                            title="시연전용단지 전용 — 이 점검기록을 삭제합니다"
-                                            className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 disabled:opacity-50"
-                                          >
-                                            {deletingId === item.id ? "삭제 중..." : "삭제"}
-                                          </button>
-                                        ) : null}
+                                        <button
+                                          type="button"
+                                          disabled={deletingId === item.id}
+                                          onClick={() => void deleteRecord(item.id)}
+                                          title="법정서식 원본입니다 — 관리자 삭제는 감사로그에 기록됩니다"
+                                          className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 disabled:opacity-50"
+                                        >
+                                          {deletingId === item.id ? "삭제 중..." : "삭제"}
+                                        </button>
                                       </div>
                                     </div>
+
+                                    {isEditing ? (
+                                      <div className="mt-3 space-y-2 rounded-lg border border-sky-200 bg-sky-50/60 p-3">
+                                        <p className="text-[11px] font-semibold text-sky-800">
+                                          법정서식 원본 수정입니다(관리자 전용, 감사로그에 기록됩니다).
+                                        </p>
+                                        <div className="grid gap-2 sm:grid-cols-2">
+                                          <label className="text-xs text-slate-600">
+                                            세대주
+                                            <input
+                                              type="text"
+                                              value={editDraft.residentName}
+                                              onChange={(e) => setEditDraft((prev) => ({ ...prev, residentName: e.target.value }))}
+                                              className="soft-input mt-0.5 w-full text-xs"
+                                            />
+                                          </label>
+                                          <label className="text-xs text-slate-600">
+                                            연락처
+                                            <input
+                                              type="text"
+                                              value={editDraft.residentPhone}
+                                              onChange={(e) => setEditDraft((prev) => ({ ...prev, residentPhone: e.target.value }))}
+                                              className="soft-input mt-0.5 w-full text-xs"
+                                            />
+                                          </label>
+                                          <label className="text-xs text-slate-600">
+                                            동
+                                            <input
+                                              type="text"
+                                              value={editDraft.dong}
+                                              onChange={(e) => setEditDraft((prev) => ({ ...prev, dong: e.target.value }))}
+                                              className="soft-input mt-0.5 w-full text-xs"
+                                            />
+                                          </label>
+                                          <label className="text-xs text-slate-600">
+                                            호
+                                            <input
+                                              type="text"
+                                              value={editDraft.ho}
+                                              onChange={(e) => setEditDraft((prev) => ({ ...prev, ho: e.target.value }))}
+                                              className="soft-input mt-0.5 w-full text-xs"
+                                            />
+                                          </label>
+                                        </div>
+                                        {editError ? <p className="text-[11px] font-semibold text-rose-600">{editError}</p> : null}
+                                        <div className="flex gap-2">
+                                          <button
+                                            type="button"
+                                            disabled={editBusy}
+                                            onClick={() => void saveEdit(item.id)}
+                                            className="rounded-md border border-dk-navy bg-dk-navy px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                                          >
+                                            {editBusy ? "저장 중..." : "저장"}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={editBusy}
+                                            onClick={cancelEdit}
+                                            className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"
+                                          >
+                                            취소
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : null}
 
                                     {group.supersededIds.has(item.id) ? (
                                       <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
@@ -640,6 +856,30 @@ export default function AdminUnitInspectionsPanel() {
                 })}
               </tbody>
             </table>
+          </div>
+        ) : null}
+
+        {!loading && filteredGroups.length > PAGE_SIZE ? (
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40"
+            >
+              이전
+            </button>
+            <span className="text-xs font-semibold text-slate-600">
+              {page} / {totalPages}페이지
+            </span>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40"
+            >
+              다음
+            </button>
           </div>
         ) : null}
       </div>

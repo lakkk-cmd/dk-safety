@@ -215,8 +215,52 @@ export async function pgDeleteUnitInspection(id: string): Promise<void> {
   }
 }
 
-/** 관리자 조회화면용 전체 목록 — 최근 순, 최대 200건 */
-export async function pgListAllUnitInspections(limit = 200): Promise<UnitInspection[]> {
+/**
+ * 관리자 전용 수정 — 4년 법정보관 불변성 트리거를 우회하는 `admin_update_unit_inspection` RPC(125)를
+ * 호출한다. 이 함수를 부르는 API 라우트는 반드시 관리자 인증을 먼저 확인해야 한다(RPC 자체는
+ * 호출자의 관리자 여부를 모른다 — service role 키로만 실행 가능하다는 게 유일한 방어선).
+ * 변경 전/후 스냅샷은 RPC 안에서 unit_inspection_admin_audit_log에 자동 기록된다.
+ */
+export async function pgAdminUpdateUnitInspection(
+  id: string,
+  update: { residentName: string | null; residentPhone: string | null; dong: string; ho: string }
+): Promise<UnitInspection> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase.rpc("admin_update_unit_inspection", {
+    p_id: id,
+    p_resident_name: update.residentName,
+    p_resident_phone: update.residentPhone,
+    p_dong: update.dong.trim(),
+    p_ho: update.ho.trim()
+  });
+  if (error) {
+    if (error.message.includes("UNIT_INSPECTION_NOT_FOUND")) {
+      throw new Error("대상 점검 기록을 찾을 수 없습니다.");
+    }
+    throw new Error(`세대전기점검 기록 수정 실패: ${error.message}`);
+  }
+  return mapUnitInspection(data as UnitInspectionRow);
+}
+
+/**
+ * 관리자 전용 삭제 — 데모/실고객 단지 구분 없이 `admin_delete_unit_inspection` RPC(125)로 4년
+ * 법정보관 불변성 트리거를 우회한다(2026-09-10, 대표님 결정). 삭제 전 스냅샷은 RPC 안에서
+ * unit_inspection_admin_audit_log에 자동 기록된다 — 호출부는 PDF 파일(Storage) 정리만
+ * 별도로 챙기면 된다.
+ */
+export async function pgAdminDeleteUnitInspection(id: string): Promise<void> {
+  const supabase = requireSupabaseAdmin();
+  const { error } = await supabase.rpc("admin_delete_unit_inspection", { p_id: id });
+  if (error) {
+    if (error.message.includes("UNIT_INSPECTION_NOT_FOUND")) {
+      throw new Error("대상 점검 기록을 찾을 수 없습니다.");
+    }
+    throw new Error(`세대전기점검 기록 삭제 실패: ${error.message}`);
+  }
+}
+
+/** 관리자 조회화면용 전체 목록 — 최근 순, 최대 1000건(2026-09-10: 200→1000, 화면 페이지네이션 도입에 맞춰 상향) */
+export async function pgListAllUnitInspections(limit = 1000): Promise<UnitInspection[]> {
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase
     .from("unit_electrical_inspections")

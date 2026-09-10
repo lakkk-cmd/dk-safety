@@ -96,7 +96,7 @@ function rowMatchesSearch(r: EnrichedRow, filters: Record<FilterKey, string>): b
 
 type ApartmentOption = { id: string; name: string; code: string };
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 
 type Props = {
   initialRows: AdminCustomerCareRow[];
@@ -141,6 +141,10 @@ export default function AdminCustomerCarePanel({ initialRows }: Props) {
   const [asForm, setAsForm] = useState({ preferredDate: "", preferredTime: "09:00", detail: "" });
   const [asBusy, setAsBusy] = useState(false);
   const [asError, setAsError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: "", phone: "", address: "" });
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const enrichedRows: EnrichedRow[] = useMemo(() => {
     const idMap = buildReservationDisplayIdById(initialRows);
@@ -251,6 +255,42 @@ export default function AdminCustomerCarePanel({ initialRows }: Props) {
       setSelected({});
     } finally {
       setBatchBusy(false);
+    }
+  };
+
+  const openEdit = (r: EnrichedRow) => {
+    setEditingId(r.reservationId);
+    setEditDraft({ name: r.name, phone: r.phone, address: r.address });
+    setEditError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditError(null);
+  };
+
+  const saveEdit = async (id: string) => {
+    setEditError(null);
+    if (!editDraft.name.trim() || !editDraft.phone.trim() || !editDraft.address.trim()) {
+      setEditError("이름·연락처·주소는 비워둘 수 없습니다.");
+      return;
+    }
+    setEditBusy(true);
+    try {
+      const res = await fetch(`/api/admin/customer-care/reservations/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editDraft)
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        setEditError(data.message ?? "수정에 실패했습니다.");
+        return;
+      }
+      setEditingId(null);
+      router.refresh();
+    } finally {
+      setEditBusy(false);
     }
   };
 
@@ -496,17 +536,76 @@ export default function AdminCustomerCarePanel({ initialRows }: Props) {
                         "—"
                       )}
                     </td>
-                    <td>
-                      <div className="dk-cell-strong">{r.name}</div>
-                      <div className="dk-muted-xs">{r.phone}</div>
-                      <div className="dk-muted-xs">{r.serviceType}</div>
-                    </td>
-                    <td>
-                      <div>{r.address}</div>
-                      <div className="dk-muted-xs">
-                        {r.apartmentName ? `${r.apartmentName} (${r.apartmentCode ?? "-"})` : "—"}
-                      </div>
-                    </td>
+                    {editingId === reservationId ? (
+                      <>
+                        <td>
+                          <input
+                            type="text"
+                            value={editDraft.name}
+                            onChange={(e) => setEditDraft((prev) => ({ ...prev, name: e.target.value }))}
+                            className="soft-input w-full text-xs"
+                            placeholder="세대주"
+                          />
+                          <input
+                            type="text"
+                            value={editDraft.phone}
+                            onChange={(e) => setEditDraft((prev) => ({ ...prev, phone: e.target.value }))}
+                            className="soft-input mt-1 w-full text-xs"
+                            placeholder="연락처"
+                          />
+                          <div className="dk-muted-xs mt-1">{r.serviceType}</div>
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            value={editDraft.address}
+                            onChange={(e) => setEditDraft((prev) => ({ ...prev, address: e.target.value }))}
+                            className="soft-input w-full text-xs"
+                            placeholder="주소"
+                          />
+                          {editError ? <p className="mt-1 text-[11px] font-semibold text-rose-600">{editError}</p> : null}
+                          <div className="mt-1 flex gap-1.5">
+                            <button
+                              type="button"
+                              disabled={editBusy}
+                              onClick={() => void saveEdit(reservationId)}
+                              className="rounded-md border border-dk-navy bg-dk-navy px-2 py-1 text-[11px] font-bold text-white disabled:opacity-50"
+                            >
+                              {editBusy ? "저장 중..." : "저장"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={editBusy}
+                              onClick={cancelEdit}
+                              className="rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td>
+                          <div className="dk-cell-strong">{r.name}</div>
+                          <div className="dk-muted-xs">{r.phone}</div>
+                          <div className="dk-muted-xs">{r.serviceType}</div>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(r)}
+                            className="mt-1 text-[11px] font-bold text-dk-navy hover:underline"
+                          >
+                            ✏️ 수정
+                          </button>
+                        </td>
+                        <td>
+                          <div>{r.address}</div>
+                          <div className="dk-muted-xs">
+                            {r.apartmentName ? `${r.apartmentName} (${r.apartmentCode ?? "-"})` : "—"}
+                          </div>
+                        </td>
+                      </>
+                    )}
                     <td className="dk-nowrap">
                       {r.preferredDate} {r.preferredTime}
                     </td>
