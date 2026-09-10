@@ -61,6 +61,11 @@ const SYSTEM_PROMPT = `당신은 전기기사 자격을 보유한 전기안전 �
     무엇을 나타내는 수치인지 설명하고, 과부하 여부는 해당 분기회로의 정격용량과 비교해야
     확인 가능하다는 점을 안내하세요. 근거 없이 "정상입니다"라고 단정하지 마세요.
 - 과장하지 말고 근거 없는 위험을 지어내지 마세요. 전문 규정 조항 번호는 참고로만 괄호에 넣으세요.
+- 입력에 "현장특이사항"이 있으면(워커가 현장에서 직접 적은 자유 메모 — 예: "거실 에어컨
+  과부하로 인한 차단기트립 확인") 반드시 검토해서, 관련 있는 별표3 부적합·실측값 항목이 있으면
+  그 항목의 explanation에 자연스럽게 녹여 위험요인으로 언급하세요(별개 항목으로 만들지 마세요 —
+  기존 판정 항목에 근거를 보태는 용도입니다). 관련되는 기존 항목이 하나도 없으면 종합 총평에서
+  짧게 한 번만 언급하세요. 현장특이사항이 비어 있으면 이 규칙은 무시하세요.
 - 마지막에 전체 종합 총평 문단을 추가하세요(별표3 부적합 개수는 정확히 세어서 언급).
 - **분량 제한(중요, 반드시 지킬 것)**: 이 결과는 A4 점검표 PDF 2페이지 안에 항상 들어가야
   합니다. 아래 글자수 한도를 절대 넘기지 마세요(공백 포함, 한도를 넘기면 뒷부분이 잘려서
@@ -150,8 +155,9 @@ function buildUserPrompt(params: {
   igr: number | null;
   insulationResistance: number | null;
   circuitBreakerCount: number | null;
+  etcNotes: string;
 }): string {
-  const { dong, ho, checklistItems, autoDiagnosis, companyAdvisories } = params;
+  const { dong, ho, checklistItems, autoDiagnosis, companyAdvisories, etcNotes } = params;
   const okItems = checklistItems.filter((i) => i.result === "O").map((i) => i.item);
   const violationLines = autoDiagnosis.map(
     (d, idx) => `${idx + 1}. ${d.item} — ${d.comment} (${d.regulation})`
@@ -174,6 +180,9 @@ function buildUserPrompt(params: {
     `회사 자체 권장사항 ${companyAdvisories.length}개 (별표3과 무관, 절대 부적합 아님):`,
     advisoryLines.length > 0 ? advisoryLines.join("\n") : "(없음)",
     "",
+    `현장특이사항(워커가 현장에서 직접 입력한 메모, 참고용):`,
+    etcNotes.trim() ? etcNotes.trim() : "(없음)",
+    "",
     "이 데이터로 위 시스템 지침대로 JSON을 작성하세요."
   ].join("\n");
 }
@@ -188,6 +197,7 @@ export async function generateUnitInspectionAiDiagnosis(params: {
   igr: number | null;
   insulationResistance: number | null;
   circuitBreakerCount: number | null;
+  etcNotes: string;
 }): Promise<UnitInspectionAiDiagnosis> {
   const userPrompt = buildUserPrompt(params);
   // 3200으로 올렸다가도 실측 중 부적합이 많은 건(12항목 중 다수 X)에서 output=3200 그대로
@@ -249,7 +259,8 @@ export async function runUnitInspectionAiDiagnosisAndCorrect(inspectionId: strin
     loadCurrent: inspection.loadCurrent,
     igr: inspection.igr,
     insulationResistance: inspection.insulationResistance,
-    circuitBreakerCount: inspection.circuitBreakerCount
+    circuitBreakerCount: inspection.circuitBreakerCount,
+    etcNotes: inspection.etcNotes
   });
   await pgSaveUnitInspectionAiDiagnosis(inspectionId, aiDiagnosis);
 
