@@ -3,7 +3,7 @@ title: "기능 현황 — page"
 category: features
 tags: ["project-features", "page"]
 source: "project_features"
-synced_at: "2026-09-19T21:50:23.610Z"
+synced_at: "2026-09-20T21:58:10.224Z"
 ---
 
 <!-- AUTO:START -->
