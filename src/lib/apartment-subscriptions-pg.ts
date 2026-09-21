@@ -8,10 +8,10 @@ export const FREE_PDF_QUOTA_PER_CYCLE = 5;
 export const FREE_QUOTA_CYCLE_DAYS = 30;
 const CYCLE_MS = FREE_QUOTA_CYCLE_DAYS * 24 * 60 * 60 * 1000;
 
-/** 2026년 말까지 초기 확산을 위한 전면 무료배포 기간 — 이 시점 전엔 구독 여부/쿼터와 무관하게
- *  PDF 다운로드를 전부 허용한다. 언락 기록은 그대로 남기므로 이 기간에 받은 건은 2027년 이후에도
- *  already_unlocked 판정으로 계속 무료 재열람된다. */
-export const FREE_LAUNCH_PROMO_UNTIL = new Date("2027-01-01T00:00:00+09:00");
+/** 2027년 말까지 초기 확산을 위한 전면 무료배포 기간(2026-09-21 대표님 지시로 2026년 말→2027년 말 연장) —
+ *  이 시점 전엔 구독 여부/쿼터와 무관하게 PDF 다운로드를 전부 허용한다. 언락 기록은 그대로 남기므로
+ *  이 기간에 받은 건은 2028년 이후에도 already_unlocked 판정으로 계속 무료 재열람된다. */
+export const FREE_LAUNCH_PROMO_UNTIL = new Date("2028-01-01T00:00:00+09:00");
 export function isFreeLaunchPromoActive(): boolean {
   return Date.now() < FREE_LAUNCH_PROMO_UNTIL.getTime();
 }
@@ -296,7 +296,7 @@ export type PdfQuotaStatus = {
   usedThisCycle: number;
   remainingFree: number;
   cycleResetAt: string;
-  /** true면 2026년 말까지 전면 무료배포 기간 — 구독/쿼터 표시를 UI에서 무시해야 한다. */
+  /** true면 2027년 말까지 전면 무료배포 기간 — 구독/쿼터 표시를 UI에서 무시해야 한다. */
   promoActive: boolean;
   promoUntil: string;
 };
@@ -342,7 +342,7 @@ export async function pgGetPdfQuotaStatus(apartmentId: string): Promise<PdfQuota
 export type PdfQuotaDecision = {
   allowed: boolean;
   /** subscribed=구독중 무제한 / already_unlocked=이미 받은 건(영구 무료) / free_quota=무료 한도 차감 /
-   *  exhausted=한도 소진 / promo_free=2026년 말까지 전면 무료배포 기간 */
+   *  exhausted=한도 소진 / promo_free=2027년 말까지 전면 무료배포 기간 */
   reason: "subscribed" | "already_unlocked" | "free_quota" | "exhausted" | "promo_free";
   remainingFree: number;
   cycleResetAt: string;
@@ -383,7 +383,7 @@ export async function pgCheckAndConsumePdfQuota(
   const unlockedElsewhereInGroup = unlockedInGroup.size > 0 && !existingForTarget;
 
   if (isFreeLaunchPromoActive()) {
-    // 언락 기록은 그대로 남긴다 — 2027년 이후 already_unlocked 판정의 근거가 된다.
+    // 언락 기록은 그대로 남긴다 — 2028년 이후 already_unlocked 판정의 근거가 된다.
     if (!existingForTarget) await insertUnlock(apartmentId, unitInspectionId, aptManagerId);
     return { allowed: true, reason: "promo_free", remainingFree: FREE_PDF_QUOTA_PER_CYCLE, cycleResetAt };
   }

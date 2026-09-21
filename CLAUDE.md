@@ -156,9 +156,10 @@ Detection logic lives in `src/lib/supabase-server.ts` (`SUPABASE_ENABLED`) and `
 
   **한시적 전면 무료 프로모션 (2026-09-01)**: 위 게이트는 코드상 여전히 존재하지만,
   `apartment-subscriptions-pg.ts::isFreeLaunchPromoActive()`(`FREE_LAUNCH_PROMO_UNTIL =
-  2027-01-01T00:00:00+09:00`)가 켜져 있는 동안은 구독/쿼터와 무관하게 PDF 다운로드가 전부
+  2028-01-01T00:00:00+09:00`, 2026-09-21 대표님 지시로 2027-01-01에서 연장 = 2027년 말까지)가
+  켜져 있는 동안은 구독/쿼터와 무관하게 PDF 다운로드가 전부
   허용된다(초기 확산 우선, "홍보가 먼저" 판단). 이 기간에도 언락 기록(`apartment_pdf_downloads`)은
-  정상 적재되므로 2027-01-01 이후에도 이 기간에 받은 건은 already_unlocked로 계속 무료다. 별도
+  정상 적재되므로 2028-01-01 이후에도 이 기간에 받은 건은 already_unlocked로 계속 무료다. 별도
   배포 없이 날짜만으로 원래 정책이 자동 복귀한다 — 이 상수를 지우거나 만료일을 옮기지 않는 한
   건드릴 코드는 없다.
 
