@@ -75,31 +75,42 @@ export const ROW_Y: Record<ChecklistItemId, number> = {
 export const ETC_ROW = { x: 176, y: 234, fontSize: 8, maxWidth: 355 };
 
 /**
- * 확인란 미니테이블(원본 "확인 | 호/담당자 | 값 | 인" 4열 x 2행) 실측 격자 좌표 —
- * CEO FAIL 지적(호수가 세로선·인 칸을 침범 / 담당자 이름이 하단 오른쪽 셀 밖) 이후
- * REMARK_COL과 동일한 방식(4배 라스터+격자선 픽셀 스캔)으로 재실측했다:
- *   세로선: 342.9(좌측 외곽) / 368.4(확인|호·담당자 구분) / 412.9(호·담당자|값+인 구분) /
- *           508.4(우측 외곽)
- *   가로선: 146.8(1행 상단) / 128.3(1행·2행 구분) / 112.3(2행 하단)
- * "값+인"은 하나로 합쳐진 셀이고("인"은 그 안에 미리 인쇄된 글자, x≈497.13에서 시작) —
- * 즉 스탬프 가능 영역은 412.9(좌)~497.13("인" 시작, 좌) 사이뿐이다. 이전 좌표(담당자
- * x=408)는 이 셀의 왼쪽 경계(412.9)보다도 왼쪽이라 라벨 칸을 침범하고 있었다.
+ * 확인란 미니테이블(원본 "확인 | 호/담당자+값+인" 3열 x 2행) 실측 격자 좌표.
+ *
+ * **8배율 육안 재확인(2026-09-22, 8차)으로 이전 이해가 틀렸음을 발견**: 이전엔 세로선이
+ * 342.9/368.4/412.9/508.4 네 개(3칸: 확인|라벨|값+인)라고 봤는데, x=412.9는 실제 격자선이
+ * 아니라 "호" 글리프 자체의 획이 다수 y에서 우연히 일관되게 어두워서(자동 스캔의 오탐)
+ * 생긴 값이었다. 원본을 8배율로 직접 확대해 육안으로 다시 보니 세로선은 342.9/368.4/508.4
+ * **세 개뿐**(2칸: 확인 | 호·담당자+값+인이 전부 합쳐진 넓은 한 칸)이다.
+ *
+ * 즉 "호"(x≈401.5~412.6)와 "인"(x≈497.1~507.1)은 같은 넓은 셀(368.4~508.4) 안에 나란히
+ * 인쇄된 두 글자일 뿐, 그 사이에 별도 칸 경계가 없다. CEO 최신 지시(FAIL 스크린샷:
+ * `CEO_fail_confirm_unit_number_wrong_cell.png`)에 따라 스탬프 규칙을 다음으로 확정:
+ *   - 1행(호수): 숫자만(예: "501", "호" 재기입 금지) — "호" 글자 **바로 앞**의 빈 공간
+ *     (368.4~401.5 사이)에 우측정렬로 채운다. "호" 뒤(412.6~497.1, "인" 앞)는 절대 안 씀 —
+ *     이전엔 여기 "501호"를 넣어서 "호수가 인 칸에 있다"는 FAIL을 받았다.
+ *   - 2행(담당자): 점검자 이름을 "담당자" 글자 뒤(라벨 끝~인 앞) 공간에 채운다 — 이 칸은
+ *     라벨이 왼쪽에 짧게 있고 오른쪽이 넓게 비어있어 이름이 들어갈 유일한 공간이다.
+ *   - 서명은 있을 때만 "인" 글자 바로 앞의 좁은 공간에 작게 넣는다.
  */
 export const CONFIRM_TABLE = {
-  valueLeftBorder: 412.9,
+  cellLeftBorder: 368.4, // 확인 | (호·담당자 통합 셀) 구분선
+  hoLabelStart: 401.54, // "호" 글자 시작 x
+  dandangjaLabelEnd: 405.62, // "담당자" 글자 끝 x
   inColumnStart: 497.13, // "인" 글자 시작 x — 스탬프는 반드시 이 앞에서 끝나야 함
   row1: { top: 146.8, bottom: 128.3 }, // "호" 행
   row2: { top: 128.3, bottom: 112.3 } // "담당자" 행
 };
-/** "담당자 ___ 인" 빈칸(2026-09-22 2차 CEO 지시로 정정) — 관리사무소 명의가 아니라
- * **점검자 이름**을 채운다("빈칸·직책만 금지" — 실제 이름 필수). 좌표는 위 실측 격자
- * 기준(좌 412.9+패딩, 우 "인" 앞+패딩)으로 재조정. */
+/** "담당자 ___ 인" 빈칸 — 점검자 이름을 "담당자" 라벨 뒤, "인" 앞 공간에 채운다
+ * ("빈칸·직책만 금지" — 실제 이름 필수, 2026-09-22 CEO 지시). 이 칸은 8차 재확인에서도
+ * 위치가 맞다고 확인됨(라벨 끝 405.6 ~ 인 시작 497.1 사이, 충분히 여유 있음) — 변경 없음. */
 export const INSPECTOR_NAME_BLANK = { x: 417, y: 116.8, endX: 492, fontSize: 8 };
-/** "확인 | 호 ___ 인" 빈칸 — 좌측엔 세대 호수, 우측엔 서명 이미지(있을 때만)를 나란히 채운다.
- * 좌표는 위 실측 격자 기준(좌 412.9+패딩)으로 재조정 — 이전 x=413은 경계선(412.9)에
- * 거의 붙어있어(패딩 0.1pt) 경계 침범으로 보였다. */
-export const RESIDENT_CONFIRM_UNIT_LABEL = { x: 417, y: 133.6, fontSize: 6.5, maxWidth: 28 };
-export const RESIDENT_SIGNATURE_BOX = { x: 450, y: 131, width: 42, height: 13 };
+/** 세대 확인 호수 — "호" 글자 **바로 앞**에 숫자만 우측정렬로 채운다(2026-09-22 8차 CEO
+ * 지시로 위치 반전: 이전엔 "호" 뒤에 "501호"를 넣어 FAIL, 이번엔 "호" 앞에 "501"만). */
+export const RESIDENT_CONFIRM_UNIT_LABEL = { endX: 399, y: 133.6, fontSize: 7 };
+/** 서명 이미지 — "인" 글자 바로 앞의 좁은 공간에만(있을 때만). 이전엔 호수 텍스트 옆에
+ * 나란히 뒀는데, 호수가 이제 "호" 앞으로 이동해서 서명은 "인" 앞 공간을 그대로 쓴다. */
+export const RESIDENT_SIGNATURE_BOX = { x: 460, y: 131, width: 34, height: 13 };
 /** {아파트명} 관리사무소(2026-09-22 3차 CEO 지시로 위치 확정: "확인란 바로 아래") — 원본에
  * 이 문구의 사전 인쇄 자리가 없어 "빈칸 기입"만으로는 낼 수 없다. 확인란(담당자 행,
  * y=116.63) 바로 아래 여백에 붙여서 넣는다 — 이 한 줄만은 "0% 배경 불변" 원칙의 예외로
@@ -212,10 +223,9 @@ export async function renderUnitInspectionPage1PathA(
   const inspectorFontSize = fitFontSizeToWidth(font, data.inspectorName, inspectorMaxWidth, INSPECTOR_NAME_BLANK.fontSize);
   page.drawText(data.inspectorName, { x: INSPECTOR_NAME_BLANK.x, y: INSPECTOR_NAME_BLANK.y, size: inspectorFontSize, font, color: rgb(0, 0, 0) });
 
-  // 세대 확인 — 호수(항상, 동은 위 헤더에 이미 있어 칸이 좁은 여기선 호만) + 서명 이미지
-  // (있을 때만, 미방문은 세대 부재라 실제로 없음).
-  const unitLabel = clampRemarkToWidth(font, `${data.ho}호`, RESIDENT_CONFIRM_UNIT_LABEL.fontSize, RESIDENT_CONFIRM_UNIT_LABEL.maxWidth);
-  page.drawText(unitLabel, { x: RESIDENT_CONFIRM_UNIT_LABEL.x, y: RESIDENT_CONFIRM_UNIT_LABEL.y, size: RESIDENT_CONFIRM_UNIT_LABEL.fontSize, font, color: rgb(0, 0, 0) });
+  // 세대 확인 — 호수 숫자만(원본 "호" 글자를 다시 쓰지 않는다, 2026-09-22 8차 CEO 지시),
+  // "호" 라벨 바로 앞에 우측정렬로 채운다 + 서명 이미지(있을 때만, 미방문은 세대 부재라 없음).
+  drawRightAligned(page, font, data.ho, RESIDENT_CONFIRM_UNIT_LABEL.endX, RESIDENT_CONFIRM_UNIT_LABEL.y, RESIDENT_CONFIRM_UNIT_LABEL.fontSize);
   if (data.signatureData) {
     const pngBytes = Buffer.from(data.signatureData.split(",")[1] ?? "", "base64");
     const png = await pdfDoc.embedPng(pngBytes);
