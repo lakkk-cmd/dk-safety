@@ -66,10 +66,19 @@ export const ROW_Y: Record<ChecklistItemId, number> = {
 };
 
 export const ETC_ROW = { x: 176, y: 234, fontSize: 8, maxWidth: 355 };
-/** "담당자 ___ 인" 빈칸 — 관리사무소 명의를 여기 채운다(원본 빈칸 기입, 새 줄 추가 아님). */
-export const MANAGER_BLANK = { x: 408, y: 116.8, endX: 495, fontSize: 8 };
-/** "확인 | 호 ___ 인" 빈칸 — 세대(입주자) 서명 이미지 자리(있을 때만). */
-export const RESIDENT_SIGNATURE_BOX = { x: 412, y: 128, width: 82, height: 14 };
+/** "담당자 ___ 인" 빈칸(2026-09-22 2차 CEO 지시로 정정) — 관리사무소 명의가 아니라
+ * **점검자 이름**을 채운다("빈칸·직책만 금지" — 실제 이름 필수). 이전 라운드에서 이 칸에
+ * "{아파트명} 관리사무소"를 넣었던 건 CEO 확인 결과 오배치였다. */
+export const INSPECTOR_NAME_BLANK = { x: 408, y: 116.8, endX: 495, fontSize: 8 };
+/** "확인 | 호 ___ 인" 빈칸 — 좌측엔 세대 호수, 우측엔 서명 이미지(있을 때만)를 나란히 채운다. */
+export const RESIDENT_CONFIRM_UNIT_LABEL = { x: 413, y: 133.6, fontSize: 6, maxWidth: 32 };
+export const RESIDENT_SIGNATURE_BOX = { x: 448, y: 130, width: 45, height: 13 };
+/** {아파트명} 관리사무소(2026-09-22 2차 지시) — 원본에 이 문구의 사전 인쇄 자리가 없어
+ * "빈칸 기입"만으로는 낼 수 없다. CEO가 명시적으로 "페이지 맨 하단"에 요구했으므로, 확인란
+ * 아래 여백(원본 표·문구가 전혀 없는 공백 구역, y 41~95)에 새로 추가하는 것으로 처리한다 —
+ * 이 한 줄만은 "0% 배경 불변" 원칙의 예외로 CEO가 직접 지시한 항목이다(HANDOFF_TO_GROK.md
+ * 참고, 확인 필요 사항으로 별도 기록). 표·격자·기존 문구는 전혀 안 건드린다. */
+export const OFFICE_FOOTER = { endX: 535, y: 55, fontSize: 9 };
 
 export type PathAChecklistRow = { id: ChecklistItemId; result: ChecklistEntry["result"]; remark: string };
 
@@ -79,9 +88,12 @@ export type UnitInspectionPathAData = {
   residentName: string | null;
   inspectedAt: { year: number; month: number; day: number };
   checklist: PathAChecklistRow[];
+  /** 부하전류·누설전류·절연저항 — 방문/미방문 공통으로 항상 기타사항에 같은 형식으로 표기(2026-09-22 2차 지시) */
   etcNotes: string;
   apartmentName: string;
-  /** SignaturePad base64 PNG data URL — 세대방문점검만 존재 */
+  /** 담당자 칸에 채울 점검자 이름(전기안전관리자/워커) — 필수, 직책만 쓰지 않는다. */
+  inspectorName: string;
+  /** SignaturePad base64 PNG data URL — 세대방문점검만 존재(미방문은 세대 부재라 실제로 없음) */
   signatureData: string | null;
 };
 
@@ -166,13 +178,15 @@ export async function renderUnitInspectionPage1PathA(
     page.drawText(etcText, { x: ETC_ROW.x, y: ETC_ROW.y, size: ETC_ROW.fontSize, font, color: rgb(0, 0, 0) });
   }
 
-  // 하단 명의 — 원본 "담당자 ___ 인" 빈칸에 "{아파트명} 관리사무소"만 채운다(새 줄 추가 아님).
-  const managerText = `${data.apartmentName} 관리사무소`;
-  const managerMaxWidth = MANAGER_BLANK.endX - MANAGER_BLANK.x;
-  const managerFontSize = fitFontSizeToWidth(font, managerText, managerMaxWidth, MANAGER_BLANK.fontSize);
-  page.drawText(managerText, { x: MANAGER_BLANK.x, y: MANAGER_BLANK.y, size: managerFontSize, font, color: rgb(0, 0, 0) });
+  // 담당자 — 점검자 이름(2026-09-22 2차 지시: 빈칸·직책만 금지, 실제 이름 필수).
+  const inspectorMaxWidth = INSPECTOR_NAME_BLANK.endX - INSPECTOR_NAME_BLANK.x;
+  const inspectorFontSize = fitFontSizeToWidth(font, data.inspectorName, inspectorMaxWidth, INSPECTOR_NAME_BLANK.fontSize);
+  page.drawText(data.inspectorName, { x: INSPECTOR_NAME_BLANK.x, y: INSPECTOR_NAME_BLANK.y, size: inspectorFontSize, font, color: rgb(0, 0, 0) });
 
-  // 세대 확인 서명 — 있을 때만 이미지로 삽입(없으면 원본 그대로 빈칸 유지).
+  // 세대 확인 — 호수(항상, 동은 위 헤더에 이미 있어 칸이 좁은 여기선 호만) + 서명 이미지
+  // (있을 때만, 미방문은 세대 부재라 실제로 없음).
+  const unitLabel = clampRemarkToWidth(font, `${data.ho}호`, RESIDENT_CONFIRM_UNIT_LABEL.fontSize, RESIDENT_CONFIRM_UNIT_LABEL.maxWidth);
+  page.drawText(unitLabel, { x: RESIDENT_CONFIRM_UNIT_LABEL.x, y: RESIDENT_CONFIRM_UNIT_LABEL.y, size: RESIDENT_CONFIRM_UNIT_LABEL.fontSize, font, color: rgb(0, 0, 0) });
   if (data.signatureData) {
     const pngBytes = Buffer.from(data.signatureData.split(",")[1] ?? "", "base64");
     const png = await pdfDoc.embedPng(pngBytes);
@@ -184,6 +198,11 @@ export async function renderUnitInspectionPage1PathA(
       height: png.height * scale
     });
   }
+
+  // 하단 관리사무소 명의(2026-09-22 2차 지시: 페이지 맨 하단, 잘림 0) — 원본에 없는 신설 줄
+  // (위 타입 주석 참고, CEO 명시 지시에 따른 유일한 예외).
+  const officeText = `${data.apartmentName} 관리사무소`;
+  drawRightAligned(page, font, officeText, OFFICE_FOOTER.endX, OFFICE_FOOTER.y, OFFICE_FOOTER.fontSize);
 
   return pdfDoc.save();
 }
