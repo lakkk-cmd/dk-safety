@@ -47,9 +47,16 @@ export const HEADER_COORDS = {
   dayBlank: { endX: 527, y: 677.5, fontSize: 11 }
 };
 
-/** 12항목 "점검 결과" 셀 중심 x=479(헤더 "점검 결과" 폭 중심), 항목별 y(baseline). */
+/** 12항목 "점검 결과" 셀 중심 x=479(헤더 "점검 결과" 폭 중심), 항목별 y(baseline).
+ * 비고 열 좌우 경계는 CEO FAIL 지적(비고 텍스트가 오른쪽 세로선 밖으로 넘침) 이후
+ * `@napi-rs/canvas`로 원본을 4배 확대 라스터해 격자선 픽셀을 직접 스캔해서 실측했다
+ * (12개 항목 행 전체 y범위에서 x=506.8/544.5에 항상 존재하는 세로선 검출, frac>0.85) —
+ * 이전엔 텍스트 라벨 위치로 어림짐작한 값(505)을 썼는데, 그 값 자체가 실제 왼쪽
+ * 테두리(506.8)보다 1.8pt 왼쪽이라 경계선을 밟고 있었다. */
+export const REMARK_COL_LEFT_BORDER = 506.8;
+export const REMARK_COL_RIGHT_BORDER = 544.5;
 export const RESULT_COLUMN_X = 479;
-export const REMARK_COLUMN_X = 505;
+export const REMARK_COLUMN_X = 509.5; // 왼쪽 테두리(506.8)에서 2.7pt 안쪽
 export const ROW_Y: Record<ChecklistItemId, number> = {
   insulation_main_branch: 558,
   insulation_equipment: 531,
@@ -66,13 +73,33 @@ export const ROW_Y: Record<ChecklistItemId, number> = {
 };
 
 export const ETC_ROW = { x: 176, y: 234, fontSize: 8, maxWidth: 355 };
+
+/**
+ * 확인란 미니테이블(원본 "확인 | 호/담당자 | 값 | 인" 4열 x 2행) 실측 격자 좌표 —
+ * CEO FAIL 지적(호수가 세로선·인 칸을 침범 / 담당자 이름이 하단 오른쪽 셀 밖) 이후
+ * REMARK_COL과 동일한 방식(4배 라스터+격자선 픽셀 스캔)으로 재실측했다:
+ *   세로선: 342.9(좌측 외곽) / 368.4(확인|호·담당자 구분) / 412.9(호·담당자|값+인 구분) /
+ *           508.4(우측 외곽)
+ *   가로선: 146.8(1행 상단) / 128.3(1행·2행 구분) / 112.3(2행 하단)
+ * "값+인"은 하나로 합쳐진 셀이고("인"은 그 안에 미리 인쇄된 글자, x≈497.13에서 시작) —
+ * 즉 스탬프 가능 영역은 412.9(좌)~497.13("인" 시작, 좌) 사이뿐이다. 이전 좌표(담당자
+ * x=408)는 이 셀의 왼쪽 경계(412.9)보다도 왼쪽이라 라벨 칸을 침범하고 있었다.
+ */
+export const CONFIRM_TABLE = {
+  valueLeftBorder: 412.9,
+  inColumnStart: 497.13, // "인" 글자 시작 x — 스탬프는 반드시 이 앞에서 끝나야 함
+  row1: { top: 146.8, bottom: 128.3 }, // "호" 행
+  row2: { top: 128.3, bottom: 112.3 } // "담당자" 행
+};
 /** "담당자 ___ 인" 빈칸(2026-09-22 2차 CEO 지시로 정정) — 관리사무소 명의가 아니라
- * **점검자 이름**을 채운다("빈칸·직책만 금지" — 실제 이름 필수). 이전 라운드에서 이 칸에
- * "{아파트명} 관리사무소"를 넣었던 건 CEO 확인 결과 오배치였다. */
-export const INSPECTOR_NAME_BLANK = { x: 408, y: 116.8, endX: 495, fontSize: 8 };
-/** "확인 | 호 ___ 인" 빈칸 — 좌측엔 세대 호수, 우측엔 서명 이미지(있을 때만)를 나란히 채운다. */
-export const RESIDENT_CONFIRM_UNIT_LABEL = { x: 413, y: 133.6, fontSize: 6, maxWidth: 32 };
-export const RESIDENT_SIGNATURE_BOX = { x: 448, y: 130, width: 45, height: 13 };
+ * **점검자 이름**을 채운다("빈칸·직책만 금지" — 실제 이름 필수). 좌표는 위 실측 격자
+ * 기준(좌 412.9+패딩, 우 "인" 앞+패딩)으로 재조정. */
+export const INSPECTOR_NAME_BLANK = { x: 417, y: 116.8, endX: 492, fontSize: 8 };
+/** "확인 | 호 ___ 인" 빈칸 — 좌측엔 세대 호수, 우측엔 서명 이미지(있을 때만)를 나란히 채운다.
+ * 좌표는 위 실측 격자 기준(좌 412.9+패딩)으로 재조정 — 이전 x=413은 경계선(412.9)에
+ * 거의 붙어있어(패딩 0.1pt) 경계 침범으로 보였다. */
+export const RESIDENT_CONFIRM_UNIT_LABEL = { x: 417, y: 133.6, fontSize: 6.5, maxWidth: 28 };
+export const RESIDENT_SIGNATURE_BOX = { x: 450, y: 131, width: 42, height: 13 };
 /** {아파트명} 관리사무소(2026-09-22 3차 CEO 지시로 위치 확정: "확인란 바로 아래") — 원본에
  * 이 문구의 사전 인쇄 자리가 없어 "빈칸 기입"만으로는 낼 수 없다. 확인란(담당자 행,
  * y=116.63) 바로 아래 여백에 붙여서 넣는다 — 이 한 줄만은 "0% 배경 불변" 원칙의 예외로
@@ -98,10 +125,11 @@ export type UnitInspectionPathAData = {
   signatureData: string | null;
 };
 
-/** 원본 비고란 실사용폭은 실측 결과 ≈33pt로 매우 좁다(표 오른쪽 테두리가 REMARK_COLUMN_X+33
- * 부근 — 처음 문자수 기준(20자)으로 잘랐다가 실제 렌더링에서 표 밖으로 넘치는 걸 발견해
- * 폰트 실측폭 기준으로 재작성). "현장 확인 사실·숫자만 짧게"라는 CEO 절대기준 1-3과도
- * 방향이 맞다 — 판정 논설·AI 톤 문장은 여기 넣지 않는다. */
+/** 원본 비고란 실사용폭 — CEO FAIL 지적(비고 텍스트가 표 밖으로 넘침) 이후 격자선을 직접
+ * 픽셀 스캔해 실측(REMARK_COL_LEFT_BORDER~RIGHT_BORDER = 506.8~544.5, 37.7pt). 텍스트
+ * 시작점(REMARK_COLUMN_X=509.5)이 왼쪽 테두리에서 이미 2.7pt 들어간 지점이므로, 여기서부터
+ * 오른쪽 테두리 앞 2pt까지만 허용한다: 544.5-509.5-2 = 33pt. "현장 확인 사실·숫자만
+ * 짧게"라는 CEO 절대기준 1-3과도 방향이 맞다 — 판정 논설·AI 톤 문장은 여기 넣지 않는다. */
 const REMARK_MAX_WIDTH_PT = 33;
 function clampRemarkToWidth(font: PDFFont, text: string, fontSize: number, maxWidth = REMARK_MAX_WIDTH_PT): string {
   if (!text) return "";
