@@ -14,10 +14,12 @@ import {
 } from "@/lib/unit-inspection-rules";
 import type { UnitInspectionAiDiagnosis } from "@/lib/unit-inspection-ai-diagnosis";
 
-const PAGE_W_PX = 1240;
-const PAGE_H_PX = 1754;
-const PAGE_W_PT = 595;
-const PAGE_H_PT = 842;
+// 경로 A(2026-09-22) 페이지2 전용 렌더러(unit-inspection-pdf-page2.tsx)가 재사용할 수 있도록
+// export한다 — 같은 satori 렌더링 파이프라인을 그대로 써서 두 코드가 따로 놀지 않게 한다.
+export const PAGE_W_PX = 1240;
+export const PAGE_H_PX = 1754;
+export const PAGE_W_PT = 595;
+export const PAGE_H_PT = 842;
 // 세대전기점검표 PDF는 관리사무소가 출력해 파일철(2공 펀치)하므로 모든 페이지 상단에 여백이
 // 필요하다(2026-08-28, 대표님 요청) — 캔버스 최상단 padding-top과 "AI 안전진단 결과" 블록을
 // 2페이지로 미는 spacer 여유분에 동일한 값을 써서 1·2페이지 모두 같은 상단 여백을 준다.
@@ -36,7 +38,7 @@ function loadKoreanFont(): ArrayBuffer {
   return _fontCache;
 }
 
-async function renderElementToPng(element: React.ReactElement, width: number, height: number): Promise<Buffer> {
+export async function renderElementToPng(element: React.ReactElement, width: number, height: number): Promise<Buffer> {
   const fontData = loadKoreanFont();
   const resp = new ImageResponse(element, {
     width,
@@ -46,17 +48,17 @@ async function renderElementToPng(element: React.ReactElement, width: number, he
   return Buffer.from(await resp.arrayBuffer());
 }
 
-function estimateTextHeightPx(text: string, charsPerLine = 44, lineHeightPx = 40): number {
+export function estimateTextHeightPx(text: string, charsPerLine = 44, lineHeightPx = 40): number {
   const rawLines = text.split("\n");
   const wrapped = rawLines.reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
   return wrapped * lineHeightPx;
 }
 
-async function pngToImageWithPdfDoc(pdfDoc: PDFDocument, buffer: Buffer): Promise<PDFImage> {
+export async function pngToImageWithPdfDoc(pdfDoc: PDFDocument, buffer: Buffer): Promise<PDFImage> {
   return pdfDoc.embedPng(buffer);
 }
 
-function addSlicedPages(pdfDoc: PDFDocument, image: PDFImage, naturalWidthPx: number, naturalHeightPx: number) {
+export function addSlicedPages(pdfDoc: PDFDocument, image: PDFImage, naturalWidthPx: number, naturalHeightPx: number) {
   const scale = PAGE_W_PT / naturalWidthPx;
   const totalHeightPt = naturalHeightPx * scale;
   const numPages = Math.max(1, Math.ceil(totalHeightPt / PAGE_H_PT));

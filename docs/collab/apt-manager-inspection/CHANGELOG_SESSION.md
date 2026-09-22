@@ -1,6 +1,31 @@
 # 세션 로그
 
-## 2026-09-22 (Claude Code, 로컬) — 3회차: IT QA 지적 + 품질기준 반영 재샘플
+## 2026-09-22 (Claude Code, 로컬) — 4회차: CEO 절대기준 경로 A 전면 재작성
+
+- CEO가 2~3회차 satori 기반 샘플(경로 C)을 절대기준 미달로 **폐기**, 기술경로 **A**(원본
+  고시 PDF 불변 배경 + pdf-lib 좌표 스탬프) 확정 지시(`claude-paste-pathA-resample.md`).
+- 원본 PDF(`public/templates/unit-inspection-form-gazette-original.pdf`, 기존 Desktop
+  파일 바이트 그대로 리포에 복사)를 pdfjs-dist로 텍스트 좌표 실측 → 12항목 점검결과/비고,
+  호/귀하/일자, 담당자(관리사무소 명의) 빈칸 좌표 산출(`PATH_A_COORDINATES.md`).
+- `@pdf-lib/fontkit` 신규 설치, ○/× 글리프 커버리지 검증(이 저장소 NotoSansKR-Bold는
+  서브셋이라 ○ 없음 확인, 로컬 샘플은 맑은 고딕으로 검증 — 배포용 폰트 소싱은 잔여 리스크).
+- `src/lib/unit-inspection-pdf-path-a.ts` 신규: 원본 PDF를 그대로 로드해 빈칸만 pdf-lib로
+  draw. 1차 시도에서 비고란 텍스트가 표 밖으로 넘치는 걸 실제 렌더링으로 발견 → 폰트 실측
+  폭 기준 클램프(≈33pt)로 수정.
+- `src/lib/unit-inspection-pdf-page2.tsx` 신규: 2페이지 별첨(1p와 완전 분리) — 진단 4절
+  (관찰→의미·인과→우선순위→한계) + 종합총평 문단 1개(불릿 금지) + 실측vs기준 표(판정은
+  결정론적 계산) + 권고사항(회사 자체 권장사항 통합, 최대 5개).
+- `document-pdf.tsx`의 렌더링 헬퍼(PAGE_W_PX 등, renderElementToPng, addSlicedPages 등)를
+  export로 변경해 2p 렌더러가 재사용하도록 함 — 기존 로직 자체는 안 건드림.
+- `@napi-rs/canvas`+pdfjs-dist로 PDF→PNG 라스터 스크립트 작성해 원본|스탬프본 나란히 대비
+  이미지 생성, 육안 대조로 F01–F14 전부 통과 확인.
+- 방문 샘플(부적합 5건) + 미방문 샘플(N/A "/" 표기 검증) 2세트 생성, `npm run build` 통과.
+- 구 경로(C) 코드(`UnitInspectionElement`/`renderUnitInspectionPdf`, `unit-inspection-ai-diagnosis.ts`
+  구 스키마)는 의도적으로 안 건드림 — 삭제/AI 파이프라인 v2 연동은 본작업 범위로 남김.
+- 임시 좌표추출/렌더링 스크립트 전부 삭제(repo에 커밋 안 함), 산출물만 보존.
+- **여기서 다시 중단** — CEO/총괄 최종 확정 승인 대기.
+
+## 2026-09-22 (Claude Code, 로컬) — 3회차: IT QA 지적 + 품질기준 반영 재샘플 (경로 C, 폐기됨)
 
 - 총괄이 남긴 `IT_RISK_MEMO_*`, `IT_SAMPLE_QA_CHECKLIST_*`, `IT_SAMPLE_QA_RESULT_*`,
   `claude-paste-resample.md`, `진단출력_품질기준안.md`를 전부 읽고 반영(커밋 전 발견 — 병렬로

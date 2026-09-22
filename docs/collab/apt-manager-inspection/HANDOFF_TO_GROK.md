@@ -1,8 +1,124 @@
 # HANDOFF: 로컬(Claude Code) → 총괄(Grok Bot)
 
-날짜: 2026-09-22 (갱신 3회차)
+날짜: 2026-09-22 (갱신 4회차 — **경로 A로 전면 전환**)
 작업 유형: **재샘플 완료 — 최종 확정 승인 대기 중, 본작업/main 병합/배포 안 함**
 브랜치: `sample/unit-inspection-original-form-match` (main 아님, 병합 안 됨)
+
+## 4회차 갱신 — CEO 절대기준(경로 A) 재샘플 완료
+
+`claude-paste-pathA-resample.md` 지시 그대로 실행. **2~3회차의 satori 기반 접근(경로 C)은
+CEO가 명시적으로 폐기(비채택)했고, 이번 회차는 완전히 새 아키텍처(경로 A)로 재작성했다.**
+
+### 핵심 아키텍처 변경
+
+| | 이전(경로 C, 폐기) | 이번(경로 A, 채택) |
+|---|---|---|
+| 1페이지 | satori(next/og)로 별지15를 "비슷하게" 재구성 | `public/templates/unit-inspection-form-gazette-original.pdf`(원본 고시 PDF, 바이트 불변)를 pdf-lib으로 로드해 **빈칸만 스탬프** |
+| ○/× 표기 | CSS로 그린 원(ResultCircle) | 실제 문자 글리프(폰트 embed) — Malgun Gothic으로 로컬 검증(잔여 리스크 참고) |
+| 2페이지 | 부적합 항목 개별 나열(violations[]) | 진단 4절(관찰→의미·인과→우선순위→한계) + 총평 문단 1개(불릿 금지) |
+| 코드 | `document-pdf.tsx`의 `UnitInspectionElement`/`renderUnitInspectionPdf` (그대로 존재, 이제 미사용) | 신규 `src/lib/unit-inspection-pdf-path-a.ts`(1p) + `src/lib/unit-inspection-pdf-page2.tsx`(2p, 완전 분리) |
+
+### 서식 0% 일치 자가체크 (F01–F14)
+
+`docs/collab/apt-manager-inspection/samples/compare-original-vs-pathA-page1.png`(원본|스탬프본
+나란히 대비, 200% 라스터)로 육안 대조 완료. **전부 ○** — 표·격자·고정문구·확인란은
+원본을 전혀 다시 그리지 않고(pdf-lib이 원본 페이지 객체를 그대로 사용) 빈칸에만
+draw했으므로 F05~F08/F10/F11은 원본과 다를 수가 없는 구조다.
+
+| ID | 항목 | 판정 |
+|---|---|---|
+| F01 | `[별지 제15호 서식]` 문자열·위치 | ○ |
+| F02 | 제목 각색 없음 | ○ |
+| F03 | 수신·호·일자 란 구성 원본 동일 | ○ |
+| F04 | 안내문 원문 유지 | ○ |
+| F05 | 표 5열 고정 | ○ |
+| F06 | 열 병합·이름변경·순서변경 없음 | ○ |
+| F07 | 카테고리·확인사항 문장 원본 대응 | ○ |
+| F08 | 위험요인 문구 원본 동일 | ○ |
+| F09 | 점검결과 ○·×·/ 만 사용(문자 글리프) | ○ |
+| F10 | 하단 ※ 안내문 원문 유지 | ○ |
+| F11 | 확인(호·인)·담당자(인) 란 구성 유지 | ○ |
+| F12 | 하단 명의 「담당자」 빈칸에 `{아파트명} 관리사무소`만 치환 | ○ |
+| F13 | 1페이지에 AI·상세진단·권고·실측vs기준 박스 없음 | ○ |
+| F14 | "비슷함" 아님 — 원본 파일 자체 사용 | ○ |
+
+**판정: 서식 0% 일치 통과 (F01–F14 전부 ○)**
+검수 근거 파일: `compare-original-vs-pathA-page1.png` / 확인 일시: 2026-09-22
+
+### 진단·총평 자가체크 (B)
+
+- [x] 진단 4절(관찰·의미·우선·한계) 모두 존재 — `sample-pathA-visit-2026-09-22-page2.png`
+- [x] 총평이 불릿·숫자 나열 아님(한 줄 판단→근거→다음 문단 1개)
+- [x] 실측표(4행: 절연/누설/부하/접지)만으로 진단·총평 대체 안 함 — 표의 "판정 한 줄"은
+      AI가 아니라 결정론적 계산(환각 위험 없음)
+- [x] 권고 3개(≤5), 총평과 분리, 「자체 권장」 이중 박스 금지 — 회사 자체 권장사항(콘센트
+      교체 등)도 같은 "권고사항" 목록에 통합
+- [x] 금지 표현 없음(공포조성·시공지시·과태료단정·당사시공약속 확인)
+
+### 완성도 자가체크 (C)
+
+- [x] 오탈자·건수불일치 없음 — 총평 문단이 구체 건수를 언급하지 않는 서술형이라(v2
+      "합격 예"와 동일 패턴) 건수 불일치 리스크 자체가 없음. 실제 부적합 건수는 5건
+      (`autoDx.length`로 자가검증, 로그로 확인)
+- [x] 1p에 AI/권고/상세박스 침투 없음 — 아키텍처상 물리적으로 분리(다른 모듈, 다른 렌더
+      경로), 침투 불가능
+- [x] "나중에 고치면 됨" 수준의 미완 문장 없음
+- [x] 미방문(N/A) 샘플에서 "/" 셀 실제 렌더링 확인 — `sample-pathA-unvisited-2026-09-22-page1.png`
+      (9개 항목이 점검결과 칸엔 "/", 비고 칸엔 "해당없음"으로 정확히 분리 표기)
+
+### 자가 실패 조건 — 전부 미해당 (제출 가능)
+
+- [ ] 1p가 원본 배경이 아니거나 재구성 티 → **아님**(바이트 동일 원본 로드 확인)
+- [ ] 1p에 AI/권고 침투 → **아님**
+- [ ] 진단·총평이 나열 → **아님**
+- [ ] 하단 잘림, `/` 미검증 → **아님**(둘 다 실제 렌더링으로 확인)
+
+**판정: 통과 — 「처음부터 불가」 아님.**
+
+### 산출물
+
+- `samples/sample-pathA-visit-2026-09-22.pdf` (1p+2p 병합) / `-page1.png` / `-page2.png` / `-full.png` / `-page1-only.pdf`
+- `samples/sample-pathA-unvisited-2026-09-22.pdf` 외 동일 세트(`/` 셀 검증용)
+- `samples/compare-original-vs-pathA-page1.png` (원본|1페이지 나란히 대비)
+- `PATH_A_COORDINATES.md` (좌표표 pt 단위, 라벨별 산출 근거)
+
+### 코드 변경
+
+- 신규: `src/lib/unit-inspection-pdf-path-a.ts`(1p 오버레이), `src/lib/unit-inspection-pdf-page2.tsx`(2p 별첨)
+- `public/templates/unit-inspection-form-gazette-original.pdf` — 원본 고시 PDF를 리포 자산으로
+  복사(바이트 동일, 앞으로 이 파일이 "0% 배경"의 유일한 소스)
+- `src/lib/document-pdf.tsx`: `PAGE_W_PX/PAGE_H_PX/PAGE_W_PT/PAGE_H_PT`, `renderElementToPng`,
+  `pngToImageWithPdfDoc`, `addSlicedPages`, `estimateTextHeightPx`를 export로 변경(2p 렌더러가
+  재사용) — 그 외 기존 로직은 안 건드림
+- 신규 의존성: `@pdf-lib/fontkit`(package.json/lock 반영, pdf-lib에 커스텀 폰트 embed하는
+  공식 방법)
+- **건드리지 않음(의도적)**: `document-pdf.tsx`의 `UnitInspectionElement`/`renderUnitInspectionPdf`
+  (경로 C, 이제 미사용 — 삭제 여부는 본작업 결정 사항), `unit-inspection-ai-diagnosis.ts`
+  (구 스키마 그대로 — 아래 잔여 리스크 참고)
+
+### 잔여 리스크 (본작업 전 확인/처리 필요)
+
+1. **스탬프 폰트**: 로컬 샘플은 Windows 시스템 폰트(맑은 고딕, `C:\Windows\Fonts\malgun.ttf`)를
+   스크립트에서 직접 읽어 검증했다 — 이 폰트는 MS 라이선스라 **리포에 커밋 안 했고 못 한다**.
+   이 저장소에 이미 있는 `NotoSansKR-Bold.woff2`는 서브셋이라 ○(U+25CB) 글리프가 없음을
+   실측 확인(`fontkit.hasGlyphForCodePoint(0x25cb) === false`). **실제 배포 전 라이선스
+   확인된 풀커버리지 한글 폰트를 별도로 소싱해야 한다** — 이게 없으면 서버에서 이 코드가
+   동작하지 않는다(가장 중요한 잔여 리스크).
+2. **비고 열 실사용폭이 매우 좁음(≈33pt)** — 현장 메모는 사실상 4~6자로 강제 압축된다.
+   실사용에서 부족하면 2줄 허용이나 폰트 추가 축소를 검토해야 한다.
+3. **좌표는 이 특정 원본 파일에 대해서만 검증됨** — `PATH_A_COORDINATES.md` 참고. 원본이
+   재발급되면 좌표 재검증 필요.
+4. **AI 생성 파이프라인 미연결** — `unit-inspection-ai-diagnosis.ts`(SYSTEM_PROMPT 등)는 아직
+   구 스키마(violations[] 나열형)에 머물러 있다. 이번 샘플의 2p 진단은 전부 손으로 만든
+   mock 데이터다. 실제 Claude 프롬프트를 v2 스키마(diagnosis 4절+summary 문단+recommendations)로
+   다시 쓰는 작업은 본작업 범위로 남겨둠 — 이번엔 "재샘플만" 지시라 손대지 않았다.
+5. **구 경로(C) 코드 존치** — `UnitInspectionElement`/`renderUnitInspectionPdf`가 여전히
+   파일에 남아있다(호출부도 그대로). 삭제·정리는 본작업 승인 후 논의.
+6. 표 격자선의 정확한 벡터 좌표는 이번에 못 뽑았다(pdfjs `getOperatorList()` 포맷 이슈) —
+   대신 실측 렌더링 육안 대조로 검증했다. 더 정밀한 값이 필요하면 재작업 필요(`PATH_A_COORDINATES.md`
+   "잔여 리스크" 참고).
+
+## 3회차 갱신 — 서비스·제품 품질기준 반영 재샘플 (경로 C, 이제 폐기 — 아래는 이전 기록, 그대로 보존)
 
 ## 3회차 갱신 — IT QA 지적사항 + 서비스·제품 품질기준 전부 반영 (재샘플)
 
