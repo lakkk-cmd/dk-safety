@@ -12,6 +12,7 @@ import { callClaudeCustom, extractJsonBlock } from "@/lib/agents";
 import { getKstDateTime } from "@/lib/agent-schedule";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { renderUnitInspectionPdf } from "@/lib/document-pdf";
+import { formatUnitInspectionDateLabel } from "@/lib/unit-inspection-pdf-issue";
 import { uploadUnitInspectionPdfCopies } from "@/lib/unit-inspection-pdf-storage";
 import {
   computeInsulationResistanceThreshold,
@@ -305,11 +306,7 @@ export async function runUnitInspectionAiDiagnosisAndCorrect(inspectionId: strin
   });
   await pgSaveUnitInspectionAiDiagnosis(inspectionId, aiDiagnosis);
 
-  const inspectedAtLabel = new Date(inspection.inspectedAt).toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  });
+  const inspectedAtLabel = formatUnitInspectionDateLabel(inspection.inspectedAt);
   const pdfBytes = await renderUnitInspectionPdf({
     apartmentName: apartment.name,
     electricalSafetyManagerName: apartment.electricalSafetyManagerName,

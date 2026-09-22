@@ -4,6 +4,7 @@ import { pgGetApartmentManager } from "@/lib/apartment-managers-pg";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { createConsultationLog } from "@/lib/crm-db";
 import { renderUnitInspectionPdf } from "@/lib/document-pdf";
+import { formatUnitInspectionDateLabel } from "@/lib/unit-inspection-pdf-issue";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { uploadUnitInspectionPdfCopies } from "@/lib/unit-inspection-pdf-storage";
 import {
@@ -192,11 +193,7 @@ export async function POST(request: Request) {
   let notification: SendChannelResult | null = null;
   try {
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://dkansim.com").replace(/\/$/, "");
-    const inspectedAtLabel = new Date(inspection.inspectedAt).toLocaleDateString("ko-KR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric"
-    });
+    const inspectedAtLabel = formatUnitInspectionDateLabel(inspection.inspectedAt);
     const pdfBytes = await renderUnitInspectionPdf({
       apartmentName: apartment.name,
       electricalSafetyManagerName: apartment.electricalSafetyManagerName,

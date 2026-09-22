@@ -169,6 +169,11 @@ function resultGlyph(result: ChecklistEntry["result"]): string {
   return "/"; // "/" 와 "N/A" 둘 다 원본 범례의 "/"(해당없음) 기호
 }
 
+/** 입력칸에 "101동"/"502호"가 그대로 들어오면 원본 라벨과 겹쳐 "동동"/"호호"가 된다. */
+function stripPrintedSuffix(value: string, suffix: "동" | "호"): string {
+  return value.replace(new RegExp(`\\s*${suffix}\\s*$`, "u"), "").trim();
+}
+
 function drawRightAligned(page: PDFPage, font: PDFFont, text: string, endX: number, y: number, fontSize: number) {
   if (!text) return;
   const width = font.widthOfTextAtSize(text, fontSize);
@@ -196,6 +201,7 @@ export async function renderUnitInspectionPage1PathA(
   data: UnitInspectionPathAData,
   stampFontBytes: Uint8Array
 ): Promise<Uint8Array> {
+  // 고시 PDF는 next.config outputFileTracingIncludes에도 올려 둔다(standalone이 fs 읽기를 빠뜨림).
   const templateBytes = readFileSync(TEMPLATE_PATH);
   const pdfDoc = await PDFDocument.load(templateBytes);
   pdfDoc.registerFontkit(fontkit);
@@ -203,8 +209,14 @@ export async function renderUnitInspectionPage1PathA(
   const page = pdfDoc.getPages()[0];
 
   // 헤더: 호 / 성명 / 일자 — 전부 기존 라벨 앞 빈칸에 우측정렬로 채운다(라벨 자체는 원본 그대로).
-  drawRightAligned(page, font, `${data.dong}동 ${data.ho}`, HEADER_COORDS.unitBlank.endX, HEADER_COORDS.unitBlank.y, HEADER_COORDS.unitBlank.fontSize);
-  drawRightAligned(page, font, data.residentName ?? "입주자 미확인", HEADER_COORDS.nameBlank.endX, HEADER_COORDS.nameBlank.y, HEADER_COORDS.nameBlank.fontSize);
+  // 동·호 칸은 약 90pt. NanumGothic 12pt "101동 1504"는 66pt라 기본 크기로 들어가고,
+  // 그보다 긴 단지 동 표기만 칸 안에서 줄인다.
+  const unitText = `${stripPrintedSuffix(data.dong, "동")}동 ${stripPrintedSuffix(data.ho, "호")}`;
+  const unitSize = fitFontSizeToWidth(font, unitText, 90, HEADER_COORDS.unitBlank.fontSize, 8);
+  drawRightAligned(page, font, unitText, HEADER_COORDS.unitBlank.endX, HEADER_COORDS.unitBlank.y, unitSize);
+  const nameText = data.residentName ?? "입주자 미확인";
+  const nameSize = fitFontSizeToWidth(font, nameText, 110, HEADER_COORDS.nameBlank.fontSize, 8);
+  drawRightAligned(page, font, nameText, HEADER_COORDS.nameBlank.endX, HEADER_COORDS.nameBlank.y, nameSize);
   drawRightAligned(page, font, String(data.inspectedAt.year), HEADER_COORDS.yearBlank.endX, HEADER_COORDS.yearBlank.y, HEADER_COORDS.yearBlank.fontSize);
   drawRightAligned(page, font, String(data.inspectedAt.month), HEADER_COORDS.monthBlank.endX, HEADER_COORDS.monthBlank.y, HEADER_COORDS.monthBlank.fontSize);
   drawRightAligned(page, font, String(data.inspectedAt.day), HEADER_COORDS.dayBlank.endX, HEADER_COORDS.dayBlank.y, HEADER_COORDS.dayBlank.fontSize);
@@ -236,23 +248,35 @@ export async function renderUnitInspectionPage1PathA(
 
   // 세대 확인 — 호수 숫자만(원본 "호" 글자를 다시 쓰지 않는다, 2026-09-22 8차 CEO 지시),
   // "호" 라벨 바로 앞에 우측정렬로 채운다 + 서명 이미지(있을 때만, 미방문은 세대 부재라 없음).
-  drawRightAligned(page, font, data.ho, RESIDENT_CONFIRM_UNIT_LABEL.endX, RESIDENT_CONFIRM_UNIT_LABEL.y, RESIDENT_CONFIRM_UNIT_LABEL.fontSize);
+  const hoText = stripPrintedSuffix(data.ho, "호");
+  const hoMaxWidth = RESIDENT_CONFIRM_UNIT_LABEL.endX - CONFIRM_TABLE.cellLeftBorder - 2;
+  const hoSize = fitFontSizeToWidth(font, hoText, hoMaxWidth, RESIDENT_CONFIRM_UNIT_LABEL.fontSize, 6);
+  drawRightAligned(page, font, hoText, RESIDENT_CONFIRM_UNIT_LABEL.endX, RESIDENT_CONFIRM_UNIT_LABEL.y, hoSize);
   if (data.signatureData) {
-    const pngBytes = Buffer.from(data.signatureData.split(",")[1] ?? "", "base64");
-    const png = await pdfDoc.embedPng(pngBytes);
-    const scale = Math.min(RESIDENT_SIGNATURE_BOX.width / png.width, RESIDENT_SIGNATURE_BOX.height / png.height);
-    page.drawImage(png, {
-      x: RESIDENT_SIGNATURE_BOX.x,
-      y: RESIDENT_SIGNATURE_BOX.y,
-      width: png.width * scale,
-      height: png.height * scale
-    });
+    try {
+      const payload = data.signatureData.includes(",") ? (data.signatureData.split(",")[1] ?? "") : data.signatureData;
+      const pngBytes = Buffer.from(payload, "base64");
+      if (pngBytes.length > 8) {
+        const png = await pdfDoc.embedPng(pngBytes);
+        const scale = Math.min(RESIDENT_SIGNATURE_BOX.width / png.width, RESIDENT_SIGNATURE_BOX.height / png.height);
+        page.drawImage(png, {
+          x: RESIDENT_SIGNATURE_BOX.x,
+          y: RESIDENT_SIGNATURE_BOX.y,
+          width: png.width * scale,
+          height: png.height * scale
+        });
+      }
+    } catch (error) {
+      // 서명 PNG가 깨져도 점검표 발급 자체는 계속한다. 서명만 비운 채 1페이지를 만든다.
+      console.error("[unit-inspection-pdf] 서명 이미지 삽입 실패, 서명 없이 발급:", error);
+    }
   }
 
   // 하단 관리사무소 명의(2026-09-22 2차 지시: 페이지 맨 하단, 잘림 0) — 원본에 없는 신설 줄
   // (위 타입 주석 참고, CEO 명시 지시에 따른 유일한 예외).
   const officeText = `${data.apartmentName} 관리사무소`;
-  drawRightAligned(page, font, officeText, OFFICE_FOOTER.endX, OFFICE_FOOTER.y, OFFICE_FOOTER.fontSize);
+  const officeSize = fitFontSizeToWidth(font, officeText, OFFICE_FOOTER.endX - 40, OFFICE_FOOTER.fontSize, 6);
+  drawRightAligned(page, font, officeText, OFFICE_FOOTER.endX, OFFICE_FOOTER.y, officeSize);
 
   return pdfDoc.save();
 }

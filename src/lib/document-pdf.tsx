@@ -1152,21 +1152,21 @@ export async function renderUnitInspectionPdf(data: UnitInspectionPdfData): Prom
   return renderUnitInspectionPdfPathAOnly(data);
 }
 
-/** 슬라이스 전 원본 캔버스를 그대로 PNG로 반환한다 — 실제 PDF 페이지 분할과 무관하게 전체
- * 레이아웃을 한 이미지로 빠르게 미리보기할 때 사용(수정 검토용, 대표님 확인 요청 시). */
-/** 미리보기: 경로 A 발급과 동일 파이프라인(전체 PDF). PNG 단일 미리보기가 필요하면 호출부에서 PDF→PNG 변환. */
+/** 2페이지(AI 진단) PNG. 1페이지 고시 배경은 PDF 스탬프라 이 함수에서 같이 만들어 발급 실패를 먼저 드러내고, 반환 이미지는 2페이지다. */
 export async function renderUnitInspectionPreviewPng(data: UnitInspectionPdfData): Promise<Buffer> {
-  // 호환용 — 예전엔 satori 세로 PNG. 지금은 경로 A PDF 바이트를 그대로 감싸지 않고,
-  // 호출부가 PDF를 쓰도록 유도하기 위해 최소 1x1 PNG를 반환하지 않고 pathA PDF 생성이 성공하는지만 보장하려면
-  // 상위가 PDF를 쓰게 두는 편이 맞다. 빌드/타입 유지를 위해 pathA PDF를 만든 뒤 빈 Buffer 대신
-  // page2 미리보기와 동일한 satori는 쓰지 않는다.
-  const { renderUnitInspectionPdfPathAOnly } = await import("@/lib/unit-inspection-pdf-issue");
-  await renderUnitInspectionPdfPathAOnly(data);
-  // 레거시 호출(미리보기 PNG) 호환: path A가 성공하면 1x1 투명 PNG 반환(실제 QA는 PDF/samples_pathA 사용)
-  return Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-    "base64"
+  const { adaptAiDiagnosisToV2, loadUnitInspectionStampFontBytes, toPathAData } = await import(
+    "@/lib/unit-inspection-pdf-issue"
   );
+  const { renderUnitInspectionPage1PathA } = await import("@/lib/unit-inspection-pdf-path-a");
+  const { renderUnitInspectionPage2PreviewPng } = await import("@/lib/unit-inspection-pdf-page2");
+  await renderUnitInspectionPage1PathA(toPathAData(data), loadUnitInspectionStampFontBytes());
+  const v2 = adaptAiDiagnosisToV2(data, data.aiDiagnosis ?? null);
+  return renderUnitInspectionPage2PreviewPng(v2, {
+    loadCurrent: data.loadCurrent,
+    igr: data.igr,
+    insulationResistance: data.insulationResistance,
+    circuitBreakerCount: data.circuitBreakerCount
+  });
 }
 
 /** 마크다운 유사 텍스트(## 헤더)를 섹션 배열로 파싱한다. */

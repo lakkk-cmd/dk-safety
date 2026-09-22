@@ -2,6 +2,14 @@ import type { NextConfig } from "next";
 
 const PDF_PARSE_TRACE_INCLUDES = ["./node_modules/pdfjs-dist/**", "./node_modules/pdf-parse/**", "./node_modules/@napi-rs/canvas*/**"];
 
+// 경로 A 발급은 public/ 의 고시 PDF·나눔고딕을 fs로 읽는다. standalone 트레이싱이
+// 동적 경로를 빠뜨리면 Vercel에서 점검표 발급 전체가 실패한다.
+const UNIT_INSPECTION_PDF_TRACE = [
+  "./public/fonts/NanumGothic-Regular.ttf",
+  "./public/fonts/NotoSansKR-Bold.woff",
+  "./public/templates/unit-inspection-form-gazette-original.pdf"
+];
+
 const nextConfig: NextConfig = {
   output: "standalone",
   distDir: process.env.NEXT_DIST_DIR || ".next",
@@ -14,7 +22,11 @@ const nextConfig: NextConfig = {
     "/api/admin/knowledge/process": PDF_PARSE_TRACE_INCLUDES,
     "/api/admin/knowledge/relearn": PDF_PARSE_TRACE_INCLUDES,
     "/api/share-target/knowledge-pdf": PDF_PARSE_TRACE_INCLUDES,
-    "/api/knowledge/upload": PDF_PARSE_TRACE_INCLUDES
+    "/api/knowledge/upload": PDF_PARSE_TRACE_INCLUDES,
+    "/api/worker/unit-inspections": UNIT_INSPECTION_PDF_TRACE,
+    "/api/apt-manager/unit-inspections": UNIT_INSPECTION_PDF_TRACE,
+    "/api/admin/unit-inspections/[id]/pdf": UNIT_INSPECTION_PDF_TRACE,
+    "/api/admin/unit-inspections/[id]/reissue-pdf": UNIT_INSPECTION_PDF_TRACE
   },
   images: {
     remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com", pathname: "/**" }]

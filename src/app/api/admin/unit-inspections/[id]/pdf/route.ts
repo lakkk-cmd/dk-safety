@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { renderUnitInspectionPdf } from "@/lib/document-pdf";
+import { formatUnitInspectionDateLabel } from "@/lib/unit-inspection-pdf-issue";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { getKstDateTime } from "@/lib/agent-schedule";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
@@ -30,11 +31,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       return NextResponse.json({ message: "단지 정보를 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const inspectedAtLabel = new Date(inspection.inspectedAt).toLocaleDateString("ko-KR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric"
-    });
+    const inspectedAtLabel = formatUnitInspectionDateLabel(inspection.inspectedAt);
 
     const pdfBytes = await renderUnitInspectionPdf({
       apartmentName: apartment.name,

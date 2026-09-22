@@ -13,6 +13,7 @@
 import { requireSupabaseAdmin } from "@/lib/supabase-pg";
 import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { renderUnitInspectionPdf } from "@/lib/document-pdf";
+import { formatUnitInspectionDateLabel } from "@/lib/unit-inspection-pdf-issue";
 import { uploadBinaryObject } from "@/lib/supabase-server";
 
 function extractObjectPath(pdfUrl: string, bucket: string): string {
@@ -50,11 +51,7 @@ async function main() {
         continue;
       }
 
-      const inspectedAtLabel = new Date(row.inspected_at).toLocaleDateString("ko-KR", {
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-      });
+      const inspectedAtLabel = formatUnitInspectionDateLabel(row.inspected_at);
 
       const pdfBytes = await renderUnitInspectionPdf({
         apartmentName: apartment.name,
