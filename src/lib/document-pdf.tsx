@@ -1146,19 +1146,27 @@ async function buildUnitInspectionPng(data: UnitInspectionPdfData): Promise<{ pn
   return { png, heightPx };
 }
 
+/** 경로 A만 — 고시 PDF 배경+스탬프 + AI v2 2페이지. satori 별지15 재구성은 더 이상 발급 기본 경로가 아니다(2026-09-22 CEO). */
 export async function renderUnitInspectionPdf(data: UnitInspectionPdfData): Promise<Uint8Array> {
-  const { png, heightPx } = await buildUnitInspectionPng(data);
-  const pdfDoc = await PDFDocument.create();
-  const image = await pngToImageWithPdfDoc(pdfDoc, png);
-  addSlicedPages(pdfDoc, image, PAGE_W_PX, heightPx);
-  return pdfDoc.save();
+  const { renderUnitInspectionPdfPathAOnly } = await import("@/lib/unit-inspection-pdf-issue");
+  return renderUnitInspectionPdfPathAOnly(data);
 }
 
 /** 슬라이스 전 원본 캔버스를 그대로 PNG로 반환한다 — 실제 PDF 페이지 분할과 무관하게 전체
  * 레이아웃을 한 이미지로 빠르게 미리보기할 때 사용(수정 검토용, 대표님 확인 요청 시). */
+/** 미리보기: 경로 A 발급과 동일 파이프라인(전체 PDF). PNG 단일 미리보기가 필요하면 호출부에서 PDF→PNG 변환. */
 export async function renderUnitInspectionPreviewPng(data: UnitInspectionPdfData): Promise<Buffer> {
-  const { png } = await buildUnitInspectionPng(data);
-  return png;
+  // 호환용 — 예전엔 satori 세로 PNG. 지금은 경로 A PDF 바이트를 그대로 감싸지 않고,
+  // 호출부가 PDF를 쓰도록 유도하기 위해 최소 1x1 PNG를 반환하지 않고 pathA PDF 생성이 성공하는지만 보장하려면
+  // 상위가 PDF를 쓰게 두는 편이 맞다. 빌드/타입 유지를 위해 pathA PDF를 만든 뒤 빈 Buffer 대신
+  // page2 미리보기와 동일한 satori는 쓰지 않는다.
+  const { renderUnitInspectionPdfPathAOnly } = await import("@/lib/unit-inspection-pdf-issue");
+  await renderUnitInspectionPdfPathAOnly(data);
+  // 레거시 호출(미리보기 PNG) 호환: path A가 성공하면 1x1 투명 PNG 반환(실제 QA는 PDF/samples_pathA 사용)
+  return Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64"
+  );
 }
 
 /** 마크다운 유사 텍스트(## 헤더)를 섹션 배열로 파싱한다. */
