@@ -73,12 +73,13 @@ export const INSPECTOR_NAME_BLANK = { x: 408, y: 116.8, endX: 495, fontSize: 8 }
 /** "확인 | 호 ___ 인" 빈칸 — 좌측엔 세대 호수, 우측엔 서명 이미지(있을 때만)를 나란히 채운다. */
 export const RESIDENT_CONFIRM_UNIT_LABEL = { x: 413, y: 133.6, fontSize: 6, maxWidth: 32 };
 export const RESIDENT_SIGNATURE_BOX = { x: 448, y: 130, width: 45, height: 13 };
-/** {아파트명} 관리사무소(2026-09-22 2차 지시) — 원본에 이 문구의 사전 인쇄 자리가 없어
- * "빈칸 기입"만으로는 낼 수 없다. CEO가 명시적으로 "페이지 맨 하단"에 요구했으므로, 확인란
- * 아래 여백(원본 표·문구가 전혀 없는 공백 구역, y 41~95)에 새로 추가하는 것으로 처리한다 —
- * 이 한 줄만은 "0% 배경 불변" 원칙의 예외로 CEO가 직접 지시한 항목이다(HANDOFF_TO_GROK.md
- * 참고, 확인 필요 사항으로 별도 기록). 표·격자·기존 문구는 전혀 안 건드린다. */
-export const OFFICE_FOOTER = { endX: 535, y: 55, fontSize: 9 };
+/** {아파트명} 관리사무소(2026-09-22 3차 CEO 지시로 위치 확정: "확인란 바로 아래") — 원본에
+ * 이 문구의 사전 인쇄 자리가 없어 "빈칸 기입"만으로는 낼 수 없다. 확인란(담당자 행,
+ * y=116.63) 바로 아래 여백에 붙여서 넣는다 — 이 한 줄만은 "0% 배경 불변" 원칙의 예외로
+ * CEO가 직접 지시한 항목이다(HANDOFF_TO_GROK.md 참고). 표·격자·기존 문구는 전혀 안 건드림.
+ * endX=497은 확인란 표의 오른쪽 경계(497.13, "인" 글자 위치)와 맞춰 시각적으로 그 표에
+ * 붙어있는 것처럼 보이게 한다. */
+export const OFFICE_FOOTER = { endX: 497, y: 98, fontSize: 8.5 };
 
 export type PathAChecklistRow = { id: ChecklistItemId; result: ChecklistEntry["result"]; remark: string };
 
