@@ -207,6 +207,7 @@ export async function POST(request: Request) {
       igr: inspection.igr,
       insulationResistance: inspection.insulationResistance,
       etcNotes: inspection.etcNotes,
+      circuitBreakerCount: inspection.circuitBreakerCount,
       autoDiagnosis: inspection.autoDiagnosis,
       companyAdvisories: inspection.companyAdvisories,
       residentName: inspection.residentName,

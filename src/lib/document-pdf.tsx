@@ -5,7 +5,13 @@ import path from "path";
 import React from "react";
 import { ImageResponse } from "next/og";
 import { PDFDocument, PDFImage } from "pdf-lib";
-import type { ChecklistEntry, CompanyAdvisoryEntry, DiagnosisEntry } from "@/lib/unit-inspection-rules";
+import {
+  computeInsulationResistanceThreshold,
+  computeLeakageCurrentThreshold,
+  type ChecklistEntry,
+  type CompanyAdvisoryEntry,
+  type DiagnosisEntry
+} from "@/lib/unit-inspection-rules";
 import type { UnitInspectionAiDiagnosis } from "@/lib/unit-inspection-ai-diagnosis";
 
 const PAGE_W_PX = 1240;
@@ -387,6 +393,8 @@ export type UnitInspectionPdfData = {
   igr: number | null;
   insulationResistance: number | null;
   etcNotes: string;
+  /** 실측/기준 구조화 표시(2026-09-22 CEO 승인, 샘플)에 필요 — 없으면 해당 박스가 "판정기준 계산불가"로 표기된다 */
+  circuitBreakerCount: number | null;
   autoDiagnosis: DiagnosisEntry[];
   /** 법적 근거 아님(회사 자체 기준) — autoDiagnosis와 반드시 구분해서 렌더링한다 */
   companyAdvisories: CompanyAdvisoryEntry[];
@@ -400,6 +408,25 @@ export type UnitInspectionPdfData = {
    */
   aiDiagnosis?: UnitInspectionAiDiagnosis | null;
 };
+
+/** 원본 별지15호는 점검결과를 ○/×/(공란) 기호로 표기한다(2026-09-22 CEO 승인, 샘플 —
+ * 기존엔 영문자 O/X를 그대로 썼음). 내부 데이터 타입(ChecklistResult: "O"|"X"|"/"|"N/A")은
+ * 로직 호환을 위해 그대로 두고, 화면 표기만 이 함수로 변환한다.
+ * "○"(U+25CB)는 번들 NotoSansKR 서브셋에 글리프가 없어 satori가 렌더링을 실패한다(실측 확인,
+ * "Failed to load dynamic font for ○" 에러 + 표에 빈 네모로 출력됨) — 텍스트 대신 CSS로 그린
+ * 원(ResultCircle)을 쓴다. "×"(U+00D7)는 서브셋에 있어 텍스트 그대로 둔다.
+ * "N/A"도 원본 기준대로 기호 "/"로 표기한다(2026-09-22 QA 지적 — 이전엔 "해당없음" 단어를
+ * 그대로 셀에 넣어 원본 표기 규칙과 어긋났었다). "왜 해당없음인지"는 옆 비고란에 이미 별도로
+ * 적히므로(buildChecklistTemplate의 note) 점검결과 칸은 순수 기호만 남긴다. */
+function checklistResultSymbol(result: ChecklistEntry["result"]): string {
+  if (result === "X") return "×";
+  if (result === "N/A") return "/";
+  return result; // "/" ("O"는 호출부에서 ResultCircle로 별도 렌더링)
+}
+
+function ResultCircle({ size = 24, color }: { size?: number; color: string }) {
+  return <div style={{ display: "flex", width: size, height: size, borderRadius: size, border: `3px solid ${color}` }} />;
+}
 
 function groupChecklistByCategory(items: ChecklistEntry[]): { category: string; riskFactors: string[]; items: ChecklistEntry[] }[] {
   const groups: { category: string; riskFactors: string[]; items: ChecklistEntry[] }[] = [];
@@ -514,19 +541,29 @@ function estimateAiDiagnosisBlockHeight(ai: UnitInspectionAiDiagnosis): number {
   const gaps = Math.max(0, rows - 1) * 10; // gap 14→10(2026-08-28, 파일철 상단여백 확보용 축소)
   const mainBoxHeight = HEADER + BOX_PADDING + inner + gaps + 16; // marginBottom 22→16(2026-08-28)
 
-  let companyBoxHeight = 0;
-  if (ai.companyAdvisory.length > 0) {
-    const entriesHeight = ai.companyAdvisory.reduce((sum, e) => {
-      const itemLine = 28; // fontSize 18→20
-      return sum + itemLine + estimateTextHeightPx(e.explanation, 58, 29); // fontSize 18, lineHeight 1.6
-    }, 0);
-    const cgaps = (ai.companyAdvisory.length - 1) * 10;
-    companyBoxHeight = 92 + 28 + entriesHeight + cgaps + 22; // HEADER 83→92(fontSize 19→21)
-  }
-
   const summaryBoxHeight = ai.summary ? 42 + 24 + estimateTextHeightPx(ai.summary, 56, 32) + 16 : 0; // 라벨 fontSize 16→18, 본문 17→19; padding 14→12·marginBottom 22→16(2026-08-28)
 
-  return mainBoxHeight + companyBoxHeight + summaryBoxHeight;
+  // 실측/기준 구조화 박스(2026-09-22 CEO 승인 샘플, 접지저항 행 추가로 3→4행) — 헤더+4행
+  // 고정 구조라 손합산 상수로 충분(rows 텍스트 길이가 가변적이지 않음: "실측 X / 기준 Y" 형태로
+  // 항상 한 줄).
+  const measuredVsStandardBoxHeight = 40 + 24 + 4 * 26 + 3 * 6 + 16; // marginBottom 16 포함
+
+  // 권고사항 박스(2026-09-22 서비스·제품팀 품질기준안으로 회사 자체 권장사항과 통합) —
+  // recommendations + companyAdvisory를 합쳐 최대 5개까지 렌더링하므로(위 렌더링 로직과
+  // 동일한 slice(0,5) 적용) 높이 추정도 그 결합·상한 로직을 그대로 반영해야 한다.
+  const combinedRecommendations = [
+    ...(ai.recommendations ?? []),
+    ...ai.companyAdvisory.map((a) => `${a.item} — ${a.explanation}`)
+  ].slice(0, 5);
+  const recommendationsBoxHeight =
+    combinedRecommendations.length > 0
+      ? 24 +
+        24 +
+        combinedRecommendations.reduce((sum, rec) => sum + estimateTextHeightPx(rec, 56, 28), 0) +
+        Math.max(0, combinedRecommendations.length - 1) * 4
+      : 0;
+
+  return mainBoxHeight + measuredVsStandardBoxHeight + summaryBoxHeight + recommendationsBoxHeight;
 }
 
 /**
@@ -578,11 +615,14 @@ function estimateTableHeight(items: ChecklistEntry[]): number {
   const ROW_MIN_HEIGHT = 52; // 2026-08-28: 64→58→52 (위와 동일한 이유)
   let total = HEADER_ROW;
   for (const item of items) {
-    const itemHeight = estimateTextHeightPx(item.item, 33, 29); // "확인 사항" 열(flex:1, fontSize 21, lineHeight 1.4)
+    // "확인 사항" 열(flex:1, fontSize 21, lineHeight 1.4) — 5열 복원(2026-09-22)으로 위험요인
+    // 열이 새로 생기며 이 열 실사용폭이 약 6% 줄어(692→651px) cpl도 33→31로 소폭 하향.
+    const itemHeight = estimateTextHeightPx(item.item, 31, 29);
     const isLongNote = item.note.length > 8;
-    // "비고" 열 폭 166px(2026-08-28, "부적합 설비" 글자가 한 줄로 들어가야 해서 부적합설비 칸을
-    // 120→144로 다시 넓히고 비고 칸에서 24px 되가져옴) → 여백 8px×2 제외 실사용폭 150px,
-    // fontSize 15 기준 1글자≈15px이므로 10자/줄(구 160px 폭에선 9자/줄)
+    // 비고 열 폭 166px 유지(2026-09-22, 5열 복원 — 새 위험요인 열 폭은 비고/점검결과가 아니라
+    // 확인사항(flex) 열에서만 가져온다. 처음엔 비고 폭도 줄였다가 이 cpl 상수를 안 맞춰서
+    // 표 전체 높이가 과소추정되고 하단 "관리사무소" 줄이 페이지 경계에서 잘리는 버그가
+    // 실측으로 발견됐다 — 검증된 상수를 건드리지 않는 쪽으로 되돌림).
     const noteHeight = item.note ? estimateTextHeightPx(item.note, isLongNote ? 10 : 22, isLongNote ? 20 : 22) : 0; // lineHeight 1.4→1.3(2026-08-28)
     const contentHeight = Math.max(itemHeight, noteHeight) + ROW_V_PADDING;
     total += Math.max(ROW_MIN_HEIGHT, contentHeight);
@@ -662,14 +702,22 @@ function UnitInspectionElement({
         - 아&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;래 -
       </div>
 
-      {/* 표 헤더 */}
+      {/* 표 헤더 — 5열 복원(2026-09-22, CEO 승인: 원본 별지15호와 100% 동일한 열 구성).
+          기존엔 "부적합 설비" 한 칸 안에 위험요인을 작은 글씨로 병기했으나(4열 통합),
+          원본은 부적합 설비/위험요인이 별도 열이라 그대로 분리했다. */}
       <div style={{ display: "flex", border: `1px solid ${borderColor}`, borderBottom: "none" }}>
-        <div style={{ display: "flex", width: 144, backgroundColor: headerTint, padding: "12px 8px", fontSize: 22, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
+        <div style={{ display: "flex", width: 95, backgroundColor: headerTint, padding: "12px 8px", fontSize: 22, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
           부적합 설비
+        </div>
+        <div style={{ display: "flex", width: 90, backgroundColor: headerTint, padding: "12px 8px", fontSize: 22, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
+          위험요인
         </div>
         <div style={{ display: "flex", flex: 1, backgroundColor: headerTint, padding: "12px 8px", fontSize: 22, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
           확인 사항
         </div>
+        {/* 점검결과·비고 폭은 5열 복원 전(118/166)과 동일하게 유지 — estimateTableHeight의
+            줄바꿈 cpl 상수가 이 폭 기준으로 검증돼 있어 건드리면 표 높이 과소추정 위험이 있다.
+            새로 생긴 부적합설비/위험요인 폭은 전부 확인사항(flex) 열에서만 가져왔다. */}
         <div style={{ display: "flex", width: 118, backgroundColor: headerTint, padding: "12px 8px", fontSize: 22, justifyContent: "center", borderRight: `1px solid ${borderColor}` }}>
           점검 결과
         </div>
@@ -683,18 +731,35 @@ function UnitInspectionElement({
           <div
             style={{
               display: "flex",
-              flexDirection: "column",
-              width: 144,
+              width: 95,
               padding: "12px 8px",
               fontSize: 21,
+              lineHeight: 1.4,
               justifyContent: "center",
               alignItems: "center",
+              textAlign: "center",
               backgroundColor: "rgba(35,80,143,0.05)",
               borderRight: `1px solid ${borderColor}`,
             }}
           >
-            <div style={{ display: "flex", lineHeight: 1.4 }}>{group.category}</div>
-            <div style={{ display: "flex", fontSize: 19, lineHeight: 1.4, color: mutedColor, marginTop: 6 }}>{group.riskFactors.join("·")}</div>
+            {group.category}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              width: 90,
+              padding: "12px 8px",
+              fontSize: 19,
+              lineHeight: 1.4,
+              color: mutedColor,
+              justifyContent: "center",
+              alignItems: "center",
+              textAlign: "center",
+              backgroundColor: "rgba(35,80,143,0.05)",
+              borderRight: `1px solid ${borderColor}`,
+            }}
+          >
+            {group.riskFactors.join("·")}
           </div>
           <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
             {group.items.map((item, iIdx) => (
@@ -714,7 +779,7 @@ function UnitInspectionElement({
                     display: "flex",
                     width: 118,
                     padding: "12px 8px",
-                    fontSize: item.result === "N/A" ? 19 : 23,
+                    fontSize: 26, // N/A도 이제 "/" 기호로만 표기하므로(위 checklistResultSymbol) 별도 축소 폰트 불필요
                     lineHeight: 1.3,
                     color: item.result === "X" ? red : inkColor,
                     justifyContent: "center",
@@ -722,13 +787,11 @@ function UnitInspectionElement({
                     borderRight: `1px solid ${borderColor}`,
                   }}
                 >
-                  {item.result === "N/A" ? "해당없음" : item.result}
+                  {item.result === "O" ? <ResultCircle size={26} color={inkColor} /> : checklistResultSymbol(item.result)}
                 </div>
                 {/* 비고란만 폰트 -1(다른 셀보다 작게) — 실측 조건문 등 긴 문구가 많아 다른 칸보다
-                    작게 둬야 넓힌 폭(166px)에서도 줄바꿈이 덜 생긴다(2026-08-28 대표님 요청,
-                    폭은 2026-08-28 "점검단지" 1페이지 고정을 위해 부적합설비 칸(150→120)에서
-                    가져와 160→190으로 확장했다가, "부적합 설비" 글자가 한 줄로 안 들어가
-                    144/166으로 재조정 — cpl(줄당 글자수)이 10으로 유지돼 표 높이엔 영향 없음).
+                    작게 둬야 넓힌 폭(166px)에서도 줄바꿈이 덜 생긴다(2026-08-28 대표님 요청).
+                    폭은 5열 복원(2026-09-22) 이후에도 166px 그대로 유지(위 표헤더 주석 참고).
                     lineHeight를 명시하지 않으면 satori 기본 줄간격이 너무 좁아 줄바꿈된 문구가
                     겹쳐 보이는 버그가 있었다(2026-08-28 스크린샷으로 발견) — 반드시 지정할 것. */}
                 <div
@@ -787,8 +850,10 @@ function UnitInspectionElement({
       <div style={{ display: "flex", marginBottom: 6, fontSize: 18, lineHeight: 1.3, color: mutedColor }}>
         ※ 부적합 전기설비는 감전, 화재 등의 위험과 전력손실로 인한 전기 요금의 추가부담 등의 원인이 되오니 조속한 시일내에 수리하시기 바랍니다.
       </div>
-      <div style={{ display: "flex", fontSize: 18, color: mutedColor, marginBottom: 26 }}>
-        [비고] 점검결과는 O(적합), X(부적합), /(해당없음) 으로 표기 · 세대미방문 시 미점검 항목은 해당없음으로 표기
+      <div style={{ display: "flex", alignItems: "center", fontSize: 18, color: mutedColor, marginBottom: 26 }}>
+        <div style={{ display: "flex", marginRight: 4 }}>[비고] 점검결과는</div>
+        <ResultCircle size={13} color={mutedColor} />
+        <div style={{ display: "flex", marginLeft: 4 }}>(적합), ×(부적합), /(해당없음) 으로 표기 · 세대미방문 시 미점검 항목은 해당없음으로 표기</div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${borderColor}`, paddingTop: 18 }}>
@@ -818,8 +883,10 @@ function UnitInspectionElement({
           PAGE_H_PX를 넘어 "점검단지" 줄이 2페이지로 밀려나는 문제가 재발해 24로 소폭
           되돌렸다(여전히 원래 18보다는 여유 있음) — estimateHeightBeforeDiagnosisBlock의
           FOOTER 상수에도 반영해야 한다(아래). */}
+      {/* 원본 별지15호 하단 발신 주체 표기(2026-09-22 CEO 승인, 샘플) — 기존 "점검단지: OOO"에서
+          "OOO 관리사무소"로 문구 변경. 정보량은 동일(단지명)하되 원본 서식의 발신처 표기 관례를 따른다. */}
       <div style={{ display: "flex", justifyContent: "flex-end", width: 1120, marginTop: 24, fontSize: 22 }}>
-        점검단지: {data.apartmentName}
+        {data.apartmentName} 관리사무소
       </div>
 
       {/* AI 안전진단/회사 자체 권장사항 블록이 표 중간에서 페이지가 잘리면 보기 안 좋으므로,
@@ -828,6 +895,15 @@ function UnitInspectionElement({
           회사 자체 권장사항만 2페이지로 넘긴다(2026-08-24 재조정 — 대표님 요청). */}
       {pageBreakSpacerPx > 0 ? <div style={{ display: "flex", height: pageBreakSpacerPx }} /> : null}
 
+      {/* 2페이지 라벨·안내(2026-09-22, 서비스·제품팀 품질기준안) — 1페이지(법정 서식)와
+          2페이지(AI 상세진단)의 역할이 다르다는 걸 매번 명시해 혼동을 막는다. 공식 적합/부적합
+          표기는 항상 1페이지 ○×/ 기준이라는 점을 여기서 다시 알려준다. */}
+      <div style={{ display: "flex", alignItems: "center", fontSize: 17, color: mutedColor, lineHeight: 1.5, marginBottom: 14 }}>
+        <div style={{ display: "flex", marginRight: 3 }}>아래는 법정 점검기록표(1페이지)를 보완하는 상세 진단 안내입니다. 적합·부적합 공식 표기는 1페이지</div>
+        <ResultCircle size={12} color={mutedColor} />
+        <div style={{ display: "flex", marginLeft: 3 }}>×/ 를 따릅니다.</div>
+      </div>
+
       {data.aiDiagnosis ? (
         <div style={{ display: "flex", flexDirection: "column" }}>
           {/* AI 안전진단 확장판(2026-08-26) — 적합은 뭉뚱그림, 부적합만 개별, 회사권장은 완전분리.
@@ -835,7 +911,7 @@ function UnitInspectionElement({
               이 박스 안에 함께 담는다(2026-09-10, 대표님 요청 — 박스 하나 줄여 3페이지로 넘어가는
               빈도를 낮추는 효과도 있다) */}
           <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 16 }}>
-            <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 22 }}>AI 안전진단 결과</div>
+            <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 22 }}>AI 안전진단 결과 (상세)</div>
             <div style={{ display: "flex", flexDirection: "column", padding: "14px 18px", gap: 10 }}>
               {data.aiDiagnosis.measurements.map((entry, idx) => (
                 <div key={`m-${idx}`} style={{ display: "flex", flexDirection: "column" }}>
@@ -860,6 +936,53 @@ function UnitInspectionElement({
             </div>
           </div>
 
+          {/* 실측/기준 구조화 표시(2026-09-22 CEO 승인, 샘플) — 기존 문장형 설명(위 박스)과
+              병행. 법정 1페이지 표는 그대로 두고 2페이지(AI 안전진단 영역)에만 추가한다. */}
+          <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, borderRadius: 4, marginBottom: 16 }}>
+            <div style={{ display: "flex", backgroundColor: headerTint, padding: "10px 14px", fontSize: 20 }}>실측값 vs 판정기준</div>
+            <div style={{ display: "flex", flexDirection: "column", padding: "12px 16px", gap: 6 }}>
+              {(() => {
+                const insulationThreshold = computeInsulationResistanceThreshold(data.circuitBreakerCount);
+                const leakageThreshold = computeLeakageCurrentThreshold(data.circuitBreakerCount);
+                const rows: { label: string; measured: string; standard: string }[] = [
+                  {
+                    label: "절연저항",
+                    measured: data.insulationResistance !== null ? `${data.insulationResistance}MΩ` : "미실측",
+                    standard:
+                      insulationThreshold === null
+                        ? "회로수 미입력 — 계산 불가"
+                        : `${insulationThreshold.toFixed(3)}MΩ 미만이면 부적합`,
+                  },
+                  {
+                    label: "누설전류(IGR)",
+                    measured: data.igr !== null ? `${data.igr}mA` : "미실측",
+                    standard: leakageThreshold === null ? "회로수 미입력 — 계산 불가" : `${leakageThreshold}mA 초과면 부적합`,
+                  },
+                  {
+                    label: "부하전류",
+                    measured: data.loadCurrent !== null ? `${data.loadCurrent}A` : "미실측",
+                    standard: "기준 없음 — 분기회로 정격용량과 비교 필요",
+                  },
+                  // 접지저항(2026-09-22, 서비스·제품팀 품질기준안 필수항목) — 현재 시스템은
+                  // 접지저항을 별도 실측값으로 입력받지 않아(체크리스트 육안판정만 존재) 항상
+                  // "미측정"으로 명시한다. 빈칸으로 두지 않는 것이 원칙(품질기준안 1-1).
+                  {
+                    label: "접지저항",
+                    measured: "미측정",
+                    standard: "관련 고시 기준 있음 — 별도 측정 필요",
+                  },
+                ];
+                return rows.map((row, idx) => (
+                  <div key={idx} style={{ display: "flex", fontSize: 18, lineHeight: 1.4 }}>
+                    <div style={{ display: "flex", width: 130, color: inkColor }}>{row.label}</div>
+                    <div style={{ display: "flex", width: 140, color: inkColor }}>실측 {row.measured}</div>
+                    <div style={{ display: "flex", flex: 1, color: mutedColor }}>기준 {row.standard}</div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+
           {notApplicableNote ? (
             <div
               style={{
@@ -877,35 +1000,44 @@ function UnitInspectionElement({
             </div>
           ) : null}
 
-          {data.aiDiagnosis.companyAdvisory.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", border: "1.5px dashed #b7791f", borderRadius: 6, marginBottom: 22 }}>
-              <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#fdf6e3", padding: "10px 14px" }}>
-                <div style={{ display: "flex", fontSize: 21, color: "#8a5a12" }}>우리집 전기주치의 자체 권장사항</div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", padding: "14px 16px", gap: 10 }}>
-                {data.aiDiagnosis.companyAdvisory.map((entry, idx) => (
-                  <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
-                    <div style={{ display: "flex", fontSize: 20, color: "#8a5a12" }}>{entry.item}</div>
-                    <div style={{ display: "flex", fontSize: 18, color: mutedColor, marginTop: 2, lineHeight: 1.6 }}>{entry.explanation}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
           {data.aiDiagnosis.summary ? (
             <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#eef3fb", border: "1px solid #c3d3ec", borderRadius: 4, padding: "12px 16px", marginBottom: 16 }}>
               <div style={{ display: "flex", fontSize: 18, color: blue, marginBottom: 6 }}>종합 총평</div>
               <div style={{ display: "flex", fontSize: 19, color: "#1c2c48", lineHeight: 1.7 }}>{data.aiDiagnosis.summary}</div>
             </div>
           ) : null}
+
+          {/* 권고사항(2026-09-22, 서비스·제품팀 품질기준안) — "우리집 전기주치의 자체
+              권장사항" 박스와 "권고사항" 박스가 둘 다 "다음에 할 일" 성격이라 이중화라는
+              지적을 받아 하나로 통합했다(부적합/적합 판정 목록과는 무관 — 그건 위 박스에
+              그대로 남아있다). 회사 자체 기준 항목은 원문 그대로 옮겨 "법적 의무 아님"
+              문구가 이미 문장에 녹아있게 유지, 개수 상한 5개(품질기준안 2-2). */}
+          {(() => {
+            const combined = [
+              ...(data.aiDiagnosis.recommendations ?? []),
+              ...data.aiDiagnosis.companyAdvisory.map((a) => `${a.item} — ${a.explanation}`)
+            ].slice(0, 5);
+            if (combined.length === 0) return null;
+            return (
+              <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#eef7ee", border: "1px solid #bfe0c0", borderRadius: 4, padding: "12px 16px" }}>
+                <div style={{ display: "flex", fontSize: 18, color: "#1f6b2b", marginBottom: 6 }}>권고사항</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {combined.map((rec, idx) => (
+                    <div key={idx} style={{ display: "flex", fontSize: 19, color: "#1c2c48", lineHeight: 1.5 }}>
+                      {idx + 1}. {rec}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column" }}>
           {/* AI 안전진단 — 확장판 생성 전(제출 직후) 기본 폴백: 별표3 부적합만 규칙엔진 canned 문구로 나열 */}
           {data.autoDiagnosis.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${borderColor}`, marginBottom: 22 }}>
-              <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 22 }}>AI 안전진단 결과</div>
+              <div style={{ display: "flex", backgroundColor: headerTint, padding: "12px 14px", fontSize: 22 }}>AI 안전진단 결과 (상세)</div>
               <div style={{ display: "flex", flexDirection: "column", padding: "16px 18px", gap: 14 }}>
                 {data.autoDiagnosis.map((entry, idx) => (
                   <div key={idx} style={{ display: "flex", flexDirection: "column" }}>
@@ -993,7 +1125,11 @@ async function buildUnitInspectionPng(data: UnitInspectionPdfData): Promise<{ pn
   // 잘려 보이는 문제도 계속 방지된다.
   const ALIGN_SAFETY_PX = UNIT_INSPECTION_TOP_MARGIN_PX;
   const pageBreakSpacerPx = hasDiagnosisContent ? Math.max(0, PAGE_H_PX - beforeDiagnosisHeight + ALIGN_SAFETY_PX) : 0;
+  // PAGE2_CAPTION_HEIGHT: 2페이지 상단 고정 안내문(2026-09-22, 품질기준안) — aiDiagnosis 유무와
+  // 무관하게 항상 렌더링되므로 여기서 공통으로 더한다. fontSize17·lineHeight1.5, 약 2줄 + marginBottom14.
+  const PAGE2_CAPTION_HEIGHT = 74;
   const diagnosisBlockHeight =
+    PAGE2_CAPTION_HEIGHT +
     (data.aiDiagnosis
       ? estimateAiDiagnosisBlockHeight(data.aiDiagnosis)
       : estimateAutoDiagnosisBlockHeight(data.autoDiagnosis) + estimateCompanyAdvisoryBlockHeight(data.companyAdvisories)) +

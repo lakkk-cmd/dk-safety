@@ -267,6 +267,10 @@ type AutoJudgeMeasurements = {
   circuitBreakerCount: number | null;
 };
 
+// 1페이지 비고란은 법정 점검표라 "AI판정"류 문구를 최소화하고 사실(실측·기준)만 짧게 적는다
+// (2026-09-22, 서비스·제품팀 품질기준안 — 상세 해설은 2페이지 AI 안전진단으로만). 예전엔
+// "회로수 N개 기준 임계값" 부연까지 넣었는데, 그 계산근거는 2페이지 "실측값 vs 판정기준"
+// 박스에서 이미 별도로 보여주므로 여기서는 중복 제거.
 function autoJudge(id: ChecklistItemId, m: AutoJudgeMeasurements): { result: ChecklistResult; note: string } {
   if (id === "insulation_main_branch" || id === "insulation_equipment") {
     const threshold = computeInsulationResistanceThreshold(m.circuitBreakerCount);
@@ -274,7 +278,7 @@ function autoJudge(id: ChecklistItemId, m: AutoJudgeMeasurements): { result: Che
     const note =
       threshold === null
         ? "회로수 미입력 — 판정 보류"
-        : `실측값(절연저항 ${m.insulationResistance}MΩ, 회로수 ${m.circuitBreakerCount}개 기준 임계값 ${threshold.toFixed(3)}MΩ) 기준 AI판정`;
+        : `실측 ${m.insulationResistance}MΩ (기준 ${threshold.toFixed(3)}MΩ 미만 시 부적합)`;
     return { result, note };
   }
   if (id === "elb_missing_or_faulty") {
@@ -283,7 +287,7 @@ function autoJudge(id: ChecklistItemId, m: AutoJudgeMeasurements): { result: Che
     const note =
       threshold === null
         ? "회로수 미입력 — 판정 보류"
-        : `실측값(누설전류 ${m.igr}mA, 회로수 ${m.circuitBreakerCount}개 기준 임계값 ${threshold}mA) 기준 AI판정`;
+        : `실측 ${m.igr}mA (기준 ${threshold}mA 초과 시 부적합)`;
     return { result, note };
   }
   return { result: "/", note: "" };
