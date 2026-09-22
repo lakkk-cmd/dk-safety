@@ -54,6 +54,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       igr: inspection.igr,
       insulationResistance: inspection.insulationResistance,
       etcNotes: inspection.etcNotes,
+      circuitBreakerCount: inspection.circuitBreakerCount,
       autoDiagnosis: fixed.autoDiagnosis,
       companyAdvisories: fixed.companyAdvisories,
       residentName: inspection.residentName,

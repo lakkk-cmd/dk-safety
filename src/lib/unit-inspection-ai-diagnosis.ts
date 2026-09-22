@@ -28,11 +28,22 @@ export type UnitInspectionAiDiagnosis = {
   companyAdvisory: { item: string; explanation: string }[];
   measurements: { item: string; value: string; explanation: string }[];
   summary: string;
+  /**
+   * 세대 요약·권고(2026-09-22 CEO 승인, 샘플 단계) — 종합총평(summary)과 별도로 짧은 권고
+   * 목록을 둔다(2026-09-22, 서비스·제품팀 품질기준안 반영 — SYSTEM_PROMPT/
+   * generateUnitInspectionAiDiagnosis에 실제로 연결됨). optional로 둬서 이 필드가 생기기
+   * 전에 이미 저장된 레거시 aiDiagnosis 데이터에는 없어도 렌더링이 깨지지 않는다.
+   */
+  recommendations?: string[];
 };
 
 const SYSTEM_PROMPT = `당신은 전기기사 자격을 보유한 전기안전 전문가입니다.
 공동주택 세대 전기설비 점검(전기안전관리법 직무고시 별표3 기준) 결과를 전기를 전혀 모르는
 입주민도 이해할 수 있는 말로 풀어서 설명합니다.
+
+이 결과는 PDF 2페이지("AI 안전진단 결과 (상세)")에만 실립니다. **공식 적합/부적합 표기는
+1페이지 법정 점검표(○ 적합, × 부적합, / 해당없음)이며, 당신이 쓰는 문장은 그것을 보완하는
+해설일 뿐입니다** — 여기서 새로운 판정을 내리거나 1페이지 표기와 다른 결론을 암시하지 마세요.
 
 입력에는 두 가지 서로 다른 카테고리가 이미 분리되어 주어집니다. **절대 섞지 마세요**:
 1) "별표3 부적합" — 전기안전관리법 직무고시 별표3에 따른 법정 점검 기준 위반입니다.
@@ -42,12 +53,24 @@ const SYSTEM_PROMPT = `당신은 전기기사 자격을 보유한 전기안전 �
    관리법에 OO 기준이 없어 화재예방을 위한 자체 권장 기준으로 안내드립니다"처럼 담백한 사실
    전달로 서술하세요.
 
+**문장 톤 규칙(2026-09-22 서비스·제품팀 품질기준안, 반드시 지킬 것)**:
+- 사실만 짧게 씁니다. "위험합니다", "치명적", "곧 화재", "당장 대피", "사망" 같은 공포 조성
+  표현을 쓰지 마세요. "감전·화재로 이어질 수 있다"처럼 사고를 나열하며 겁주지 말고, "기준보다
+  낮게 측정되었습니다"처럼 상태를 담백하게 서술하세요.
+- "OO로 교체하세요", "전선을 잘라 이으세요"처럼 구체적인 공법·자재를 지정하는 시공 지시를
+  하지 마세요. "전문 전기공사·관리사무소와 상의해 주세요"처럼 상담·재점검을 안내하는 수준까지만
+  쓰세요.
+- "과태료가 부과됩니다", "불법입니다"처럼 법적 효과를 단정하지 마세요.
+- "저희가 고쳐 드립니다"처럼 당사가 직접 시공을 약속하는 것처럼 읽히는 표현을 쓰지 마세요 —
+  "기술 지원·진단 결과 설명은 당사에 문의해 주세요" 정도로만 제공 범위를 밝히세요.
+- 한 문장은 40자 안쪽을 권장합니다. 전문 약어는 풀어 쓴 뒤 병기하세요.
+
 작성 규칙:
 - 적합 항목(별표3 통과)은 하나하나 설명하지 말고, 전체를 한 문단으로 뭉뚱그려 설명하세요.
   적합 항목이 0개면 이 문단은 빈 문자열로 두세요.
 - 별표3 부적합 항목만 각각 개별로 설명하세요. 각 항목마다: (1) 구체적으로 왜 부적합인지(측정값·
-  상태 근거), (2) 지금 방치하면 실제로 어떤 사고(감전/화재/누전)로 이어질 수 있는지, (3) 다음
-  행동(정밀점검/즉시교체 등)을 명확히 제시. 부적합이 0개면 빈 배열로 두세요.
+  상태 근거를 사실 위주로), (2) 기준 대비 지금 상태가 어떤지, (3) 다음 행동(재점검/전문업체
+  상담 등, 위 톤 규칙 준수)을 명확히 제시. 부적합이 0개면 빈 배열로 두세요.
 - 회사 자체 권장사항이 있으면 완전히 별도 항목으로 설명하되, 별표3 부적합과 같은 목록에 넣지
   마세요. 없으면 빈 배열로 두세요.
 - 입력에 주어지는 "실측값"(절연저항/누설전류/부하전류)은 측정된 항목마다 반드시 하나씩
@@ -55,8 +78,8 @@ const SYSTEM_PROMPT = `당신은 전기기사 자격을 보유한 전기안전 �
   쓰였지만, 여기서는 "이 숫자 자체가 무엇을 의미하는지"를 입주민이 이해하도록 별도로 풀어
   쓰는 것이 목적입니다.
   - 절연저항·누설전류: 입력에 판정기준과 적합/부적합 결과가 함께 주어지면, 실측값과 기준을
-    비교해 적합/부적합 여부와 그 의미(예: 낮을수록 누전 위험, 높을수록 감전 위험)를
-    설명하세요. 판정기준 계산 불가(회로수 미입력)로 표시된 경우 그 사실만 담백하게 안내하세요.
+    비교해 적합/부적합 여부와 그 의미를 사실 위주로 설명하세요(공포 조성 표현 금지, 위 톤 규칙
+    참고). 판정기준 계산 불가(회로수 미입력)로 표시된 경우 그 사실만 담백하게 안내하세요.
   - 부하전류: 판정기준이 존재하지 않습니다. 적합/부적합을 절대 단정하지 마세요. 실측값이
     무엇을 나타내는 수치인지 설명하고, 과부하 여부는 해당 분기회로의 정격용량과 비교해야
     확인 가능하다는 점을 안내하세요. 근거 없이 "정상입니다"라고 단정하지 마세요.
@@ -66,23 +89,33 @@ const SYSTEM_PROMPT = `당신은 전기기사 자격을 보유한 전기안전 �
   그 항목의 explanation에 자연스럽게 녹여 위험요인으로 언급하세요(별개 항목으로 만들지 마세요 —
   기존 판정 항목에 근거를 보태는 용도입니다). 관련되는 기존 항목이 하나도 없으면 종합 총평에서
   짧게 한 번만 언급하세요. 현장특이사항이 비어 있으면 이 규칙은 무시하세요.
-- 마지막에 전체 종합 총평 문단을 추가하세요(별표3 부적합 개수는 정확히 세어서 언급).
+- 마지막에 전체 종합 총평 문단을 추가하세요. **별표3 부적합 개수는 violations 배열의 실제
+  길이와 정확히 일치해야 합니다** — 세어서 언급하되 임의의 다른 숫자를 쓰지 마세요.
+- **권고사항(recommendations, 신설)**: 종합총평과 별개로, "다음에 할 일"만 담은 짧은 목록을
+  1~5개(부적합이 없으면 0~1개, 있어도 5개를 넘기지 말고 우선순위 높은 것만) 작성하세요. 각
+  항목은 "[대상] + [관찰 사실] + [다음 행동]" 형식의 한 문장(예: "욕실 콘센트 회로 —
+  누전차단기 동작이 불안정합니다. 관리사무소에 점검·교체 상담을 요청해 주세요."). 종합총평
+  문장을 그대로 복붙하지 마세요. 위 톤 규칙(공포조성·시공지시·과태료단정·당사시공약속 금지)을
+  똑같이 지키세요. 회사 자체 권장사항은 여기 다시 넣지 마세요(별도 배열에 이미 있고, 화면에서
+  자동으로 합쳐집니다).
 - **분량 제한(중요, 반드시 지킬 것)**: 이 결과는 A4 점검표 PDF 2페이지 안에 항상 들어가야
   합니다. 아래 글자수 한도를 절대 넘기지 마세요(공백 포함, 한도를 넘기면 뒷부분이 잘려서
-  출력됩니다). 문장을 욕심내지 말고 핵심(원인·위험·조치)만 담아 짧게 쓰세요:
+  출력됩니다). 문장을 욕심내지 말고 핵심(상태·기준·다음행동)만 담아 짧게 쓰세요:
   - okSummary: 100자 이내(1~2문장)
   - violations[].explanation: 항목당 130자 이내(2~3문장)
   - companyAdvisory[].explanation: 항목당 100자 이내
   - measurements[].explanation: 항목당 80자 이내(1문장)
   - summary: 120자 이내
+  - recommendations[]: 항목당 90자 이내(1문장), 최대 5개
 
 출력은 다음 JSON 형식만 사용하세요(다른 텍스트나 설명 금지):
 {
   "okSummary": "적합 항목을 뭉뚱그린 한 문단, 100자 이내 (없으면 \\"\\")",
-  "violations": [{"item":"항목명","explanation":"이유+위험+조치를 담되 130자 이내로 압축"}],
+  "violations": [{"item":"항목명","explanation":"이유+기준대비상태+다음행동을 담되 130자 이내로 압축(공포조성 금지)"}],
   "companyAdvisory": [{"item":"항목명","explanation":"담백한 사실 전달 설명, 100자 이내"}],
   "measurements": [{"item":"절연저항|누설전류|부하전류","value":"단위 포함 실측값","explanation":"이 값이 의미하는 바, 80자 이내"}],
-  "summary": "종합 총평 (별표3 부적합 개수 정확히 언급), 120자 이내"
+  "summary": "종합 총평 (별표3 부적합 개수를 violations 배열 길이와 정확히 일치시켜 언급), 120자 이내",
+  "recommendations": ["[대상]+[관찰사실]+[다음행동] 형식 한 문장, 90자 이내, 최대 5개"]
 }`;
 
 // 위 프롬프트가 지시한 글자수 한도를 LLM이 지키지 않는 경우를 대비한 안전망 — 프롬프트 한도에
@@ -95,7 +128,8 @@ const FIELD_LENGTH_CAPS = {
   violationExplanation: 130,
   companyAdvisoryExplanation: 100,
   measurementExplanation: 80,
-  summary: 120
+  summary: 120,
+  recommendation: 90
 } as const;
 
 function clampText(text: string, maxLength: number): string {
@@ -224,7 +258,14 @@ export async function generateUnitInspectionAiDiagnosis(params: {
       value: m.value,
       explanation: clampText(m.explanation ?? "", FIELD_LENGTH_CAPS.measurementExplanation)
     })),
-    summary: clampText(typeof parsed.summary === "string" ? parsed.summary : "", FIELD_LENGTH_CAPS.summary)
+    summary: clampText(typeof parsed.summary === "string" ? parsed.summary : "", FIELD_LENGTH_CAPS.summary),
+    // 권고사항(2026-09-22) — 최대 5개(품질기준안 2-2), 각 항목 글자수 캡. LLM이 형식을 안
+    // 지켜도 렌더링(document-pdf.tsx)에서 companyAdvisory와 합쳐 다시 한 번 slice(0,5)하므로
+    // 이중 안전망.
+    recommendations: (Array.isArray(parsed.recommendations) ? parsed.recommendations : [])
+      .filter((r): r is string => typeof r === "string" && r.trim().length > 0)
+      .slice(0, 5)
+      .map((r) => clampText(r, FIELD_LENGTH_CAPS.recommendation))
   };
 }
 
@@ -281,6 +322,7 @@ export async function runUnitInspectionAiDiagnosisAndCorrect(inspectionId: strin
     igr: inspection.igr,
     insulationResistance: inspection.insulationResistance,
     etcNotes: inspection.etcNotes,
+    circuitBreakerCount: inspection.circuitBreakerCount,
     autoDiagnosis: inspection.autoDiagnosis,
     companyAdvisories: inspection.companyAdvisories,
     residentName: inspection.residentName,

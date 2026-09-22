@@ -67,6 +67,7 @@ async function main() {
         loadCurrent: row.load_current,
         igr: row.igr,
         insulationResistance: row.insulation_resistance,
+        circuitBreakerCount: row.circuit_breaker_count,
         etcNotes: row.etc_notes,
         autoDiagnosis: row.auto_diagnosis,
         companyAdvisories: row.company_advisories ?? [],
