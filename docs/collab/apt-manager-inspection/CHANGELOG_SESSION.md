@@ -1,5 +1,22 @@
 # 세션 로그
 
+## 2026-09-22 (Claude Code, 로컬) — 9회차: 폰트 크기 일치 + 관리사무소 위치 (CRITICAL FAIL 3/4/5)
+
+- CEO가 새 FAIL 이미지 3장 첨부: 실측값 줄 폰트 < 바로 위 셀, 확인란 숫자·점검자명 폰트
+  < 원본 라벨, 관리사무소 위치가 너무 위쪽/정렬 불일치.
+- `fontkit.layout()`으로 원본 확인사항 열 텍스트·확인란 라벨("호"/"담당자")의 실측 폰트가
+  전부 9.95pt임을 확인(pdfjs 텍스트 레이어 h값과 일치).
+- `ETC_ROW.fontSize` 8→9.95, `RESIDENT_CONFIRM_UNIT_LABEL.fontSize` 7→9.95,
+  `INSPECTOR_NAME_BLANK.fontSize` 8→9.95로 통일. fontkit 실측으로 각 칸 폭 안에 여유
+  있게 들어감을 사전 확인(4자리 호수 21.92pt/30.6pt, 3자 이름 29.85pt/91.5pt, 실측값
+  문구 167pt/355pt).
+- `OFFICE_FOOTER` 위치 재조정: y=98→46(확인란 바로 아래→페이지 하단에 더 가깝게, 약
+  4줄), endX=497(확인란 우측 경계)→540(페이지 우측 여백 기준)으로 정렬 기준 변경.
+- 신규 crop 2종(`crop-measured-font-match.png`, `crop-office-name-footer.png`, 방문·
+  미방문 각각) 생성 — 폰트 크기 육안 일치, 하단 여백·우측정렬 확인.
+- `npm run build` 재통과, 전체 샘플·비교 PNG 재생성.
+- **여기서 다시 중단** — CEO/총괄 최종 확정 승인 대기.
+
 ## 2026-09-22 (Claude Code, 로컬) — 8회차: 확인란 구조 재해석 (숫자는 "호" 라벨 앞에만)
 
 - CEO가 새 FAIL 이미지(`CEO_fail_confirm_unit_number_wrong_cell.png`)로 재지적: "501호"가
