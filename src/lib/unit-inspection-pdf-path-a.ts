@@ -169,8 +169,33 @@ function resultGlyph(result: ChecklistEntry["result"]): string {
   return "/"; // "/" 와 "N/A" 둘 다 원본 범례의 "/"(해당없음) 기호
 }
 
-function drawRightAligned(page: PDFPage, font: PDFFont, text: string, endX: number, y: number, fontSize: number) {
-  if (!text) return;
+/** GREEK CAPITAL LETTER OMEGA(U+03A9, 소스에서 "Ω"로 입력되는 기본값)는 NanumGothic-Regular.ttf에
+ * 글리프가 없다(fontkit 실측 확인) — 있는 글리프인 OHM SIGN(U+2126, 시각적으로 동일)으로
+ * 치환한다. 2026-09-23 실제 발급본에서 "절연 0.013M" 뒤 단위 기호가 통째로 사라지던 증상의
+ * 원인 중 하나(주 원인은 아래 subset 버그) — subset:false로도 존재하지 않는 글리프 자체는
+ * 여전히 그려지지 않으므로 별도로 치환해야 한다. */
+function normalizeForStampFont(text: string): string {
+  return text.replace(/Ω/g, "Ω");
+}
+
+type GlyphCheckFont = ReturnType<typeof fontkit.create>;
+
+/** 폰트에 없는 글리프는 pdf-lib가 조용히 그리지 않고 넘어간다(예외 없음) — 그대로 두면 다음에
+ * 같은 문제가 또 "원인 모를 빈칸"으로 재발한다. 실제 찍히는 텍스트에서 이 폰트가 못 그리는
+ * 글자가 남아있으면 무엇을 못 그렸는지 로그로 남긴다(2026-09-23). pdf-lib의 PDFFont는
+ * hasGlyphForCodePoint를 노출하지 않으므로, 같은 폰트 바이트로 별도 생성한 fontkit Font로
+ * 확인한다. */
+function warnIfUnsupportedGlyphs(glyphFont: GlyphCheckFont, label: string, text: string) {
+  const missing = [...new Set([...text])].filter((ch) => !glyphFont.hasGlyphForCodePoint(ch.codePointAt(0)!));
+  if (missing.length > 0) {
+    console.warn(`[unit-inspection-pdf-path-a] "${label}" 스탬프 텍스트에 폰트가 지원하지 않는 문자가 있어 해당 글자만 빠집니다: ${missing.join(" ")} (원문: ${text})`);
+  }
+}
+
+function drawRightAligned(page: PDFPage, font: PDFFont, glyphFont: GlyphCheckFont, label: string, rawText: string, endX: number, y: number, fontSize: number) {
+  if (!rawText) return;
+  const text = normalizeForStampFont(rawText);
+  warnIfUnsupportedGlyphs(glyphFont, label, text);
   const width = font.widthOfTextAtSize(text, fontSize);
   page.drawText(text, { x: endX - width, y, size: fontSize, font, color: rgb(0, 0, 0) });
 }
@@ -209,15 +234,24 @@ export async function renderUnitInspectionPage1PathA(
   const templateBytes = readFileSync(TEMPLATE_PATH);
   const pdfDoc = await PDFDocument.load(templateBytes);
   pdfDoc.registerFontkit(fontkit);
-  const font = await pdfDoc.embedFont(stampFontBytes, { subset: true });
+  // subset:true는 끈다 — 2026-09-23 실제 발급본에서 ○ 결과·상당수 한글·숫자가 통째로
+  // 사라지던 회귀의 진짜 원인. 이 폰트(NanumGothic-Regular.ttf, 13,297글리프)는 필요한
+  // 글리프를 전부 갖고 있음을 fontkit으로 직접 실측 확인했는데도(○/×/한글/숫자 전부
+  // hasGlyphForCodePoint=true) subset:true로 embed하면 CJK 글리프 다수가 빠지거나 다른
+  // 글자로 바뀌어 그려졌다 — pdf-lib의 CID 서브셋팅이 글리프 인덱스가 큰(한글처럼 수천
+  // 단위) 폰트에서 깨지는 알려진 한계로 보인다. subset:false(풀 임베드)로 전환하니 동일
+  // 데이터로 전부 정상 렌더링됨을 직접 재현·검증했다(파일 크기는 커지지만 발급/다운로드용
+  // 문서라 허용 범위).
+  const font = await pdfDoc.embedFont(stampFontBytes, { subset: false });
+  const glyphFont: GlyphCheckFont = fontkit.create(Buffer.from(stampFontBytes));
   const page = pdfDoc.getPages()[0];
 
   // 헤더: 호 / 성명 / 일자 — 전부 기존 라벨 앞 빈칸에 우측정렬로 채운다(라벨 자체는 원본 그대로).
-  drawRightAligned(page, font, `${data.dong}동 ${data.ho}`, HEADER_COORDS.unitBlank.endX, HEADER_COORDS.unitBlank.y, HEADER_COORDS.unitBlank.fontSize);
-  drawRightAligned(page, font, data.residentName ?? "입주자 미확인", HEADER_COORDS.nameBlank.endX, HEADER_COORDS.nameBlank.y, HEADER_COORDS.nameBlank.fontSize);
-  drawRightAligned(page, font, String(data.inspectedAt.year), HEADER_COORDS.yearBlank.endX, HEADER_COORDS.yearBlank.y, HEADER_COORDS.yearBlank.fontSize);
-  drawRightAligned(page, font, String(data.inspectedAt.month), HEADER_COORDS.monthBlank.endX, HEADER_COORDS.monthBlank.y, HEADER_COORDS.monthBlank.fontSize);
-  drawRightAligned(page, font, String(data.inspectedAt.day), HEADER_COORDS.dayBlank.endX, HEADER_COORDS.dayBlank.y, HEADER_COORDS.dayBlank.fontSize);
+  drawRightAligned(page, font, glyphFont, "unit", `${data.dong}동 ${data.ho}`, HEADER_COORDS.unitBlank.endX, HEADER_COORDS.unitBlank.y, HEADER_COORDS.unitBlank.fontSize);
+  drawRightAligned(page, font, glyphFont, "residentName", data.residentName ?? "입주자 미확인", HEADER_COORDS.nameBlank.endX, HEADER_COORDS.nameBlank.y, HEADER_COORDS.nameBlank.fontSize);
+  drawRightAligned(page, font, glyphFont, "year", String(data.inspectedAt.year), HEADER_COORDS.yearBlank.endX, HEADER_COORDS.yearBlank.y, HEADER_COORDS.yearBlank.fontSize);
+  drawRightAligned(page, font, glyphFont, "month", String(data.inspectedAt.month), HEADER_COORDS.monthBlank.endX, HEADER_COORDS.monthBlank.y, HEADER_COORDS.monthBlank.fontSize);
+  drawRightAligned(page, font, glyphFont, "day", String(data.inspectedAt.day), HEADER_COORDS.dayBlank.endX, HEADER_COORDS.dayBlank.y, HEADER_COORDS.dayBlank.fontSize);
 
   // 12항목 점검결과 + 비고 — 문자 글리프(○/×//)만 사용, CSS/도형 대체 없음.
   for (const row of data.checklist) {
@@ -227,26 +261,30 @@ export async function renderUnitInspectionPage1PathA(
     const color = row.result === "X" ? rgb(0.66, 0.13, 0.09) : rgb(0, 0, 0);
     page.drawText(glyph, { x: RESULT_COLUMN_X - font.widthOfTextAtSize(glyph, 12) / 2, y, size: 12, font, color });
     const remarkFontSize = 6.5;
-    const remark = clampRemarkToWidth(font, row.remark, remarkFontSize);
+    const remark = clampRemarkToWidth(font, normalizeForStampFont(row.remark), remarkFontSize);
     if (remark) {
+      warnIfUnsupportedGlyphs(glyphFont, `remark(${row.id})`, remark);
       page.drawText(remark, { x: REMARK_COLUMN_X, y, size: remarkFontSize, font, color: rgb(0.2, 0.2, 0.2) });
     }
   }
 
   // 기타사항 — 원본 행 취지 안의 보충(부하전류/IGR/절연저항 실측값 등 짧게).
   if (data.etcNotes) {
-    const etcText = clampRemarkToWidth(font, data.etcNotes, ETC_ROW.fontSize, ETC_ROW.maxWidth);
+    const etcText = clampRemarkToWidth(font, normalizeForStampFont(data.etcNotes), ETC_ROW.fontSize, ETC_ROW.maxWidth);
+    warnIfUnsupportedGlyphs(glyphFont, "etcNotes", etcText);
     page.drawText(etcText, { x: ETC_ROW.x, y: ETC_ROW.y, size: ETC_ROW.fontSize, font, color: rgb(0, 0, 0) });
   }
 
   // 담당자 — 점검자 이름(2026-09-22 2차 지시: 빈칸·직책만 금지, 실제 이름 필수).
+  const inspectorText = normalizeForStampFont(data.inspectorName);
+  warnIfUnsupportedGlyphs(glyphFont, "inspectorName", inspectorText);
   const inspectorMaxWidth = INSPECTOR_NAME_BLANK.endX - INSPECTOR_NAME_BLANK.x;
-  const inspectorFontSize = fitFontSizeToWidth(font, data.inspectorName, inspectorMaxWidth, INSPECTOR_NAME_BLANK.fontSize);
-  page.drawText(data.inspectorName, { x: INSPECTOR_NAME_BLANK.x, y: INSPECTOR_NAME_BLANK.y, size: inspectorFontSize, font, color: rgb(0, 0, 0) });
+  const inspectorFontSize = fitFontSizeToWidth(font, inspectorText, inspectorMaxWidth, INSPECTOR_NAME_BLANK.fontSize);
+  page.drawText(inspectorText, { x: INSPECTOR_NAME_BLANK.x, y: INSPECTOR_NAME_BLANK.y, size: inspectorFontSize, font, color: rgb(0, 0, 0) });
 
   // 세대 확인 — 호수 숫자만(원본 "호" 글자를 다시 쓰지 않는다, 2026-09-22 8차 CEO 지시),
   // "호" 라벨 바로 앞에 우측정렬로 채운다 + 서명 이미지(있을 때만, 미방문은 세대 부재라 없음).
-  drawRightAligned(page, font, data.ho, RESIDENT_CONFIRM_UNIT_LABEL.endX, RESIDENT_CONFIRM_UNIT_LABEL.y, RESIDENT_CONFIRM_UNIT_LABEL.fontSize);
+  drawRightAligned(page, font, glyphFont, "confirmHo", data.ho, RESIDENT_CONFIRM_UNIT_LABEL.endX, RESIDENT_CONFIRM_UNIT_LABEL.y, RESIDENT_CONFIRM_UNIT_LABEL.fontSize);
   if (data.signatureData) {
     const pngBytes = Buffer.from(data.signatureData.split(",")[1] ?? "", "base64");
     const png = await pdfDoc.embedPng(pngBytes);
@@ -262,7 +300,7 @@ export async function renderUnitInspectionPage1PathA(
   // 하단 관리사무소 명의(2026-09-22 2차 지시: 페이지 맨 하단, 잘림 0) — 원본에 없는 신설 줄
   // (위 타입 주석 참고, CEO 명시 지시에 따른 유일한 예외).
   const officeText = `${data.apartmentName} 관리사무소`;
-  drawRightAligned(page, font, officeText, OFFICE_FOOTER.endX, OFFICE_FOOTER.y, OFFICE_FOOTER.fontSize);
+  drawRightAligned(page, font, glyphFont, "officeText", officeText, OFFICE_FOOTER.endX, OFFICE_FOOTER.y, OFFICE_FOOTER.fontSize);
 
   return pdfDoc.save();
 }
