@@ -33,8 +33,8 @@ export type ChecklistItemDef = {
   simpleInspectable: boolean;
   /**
    * true면 워커가 현장에서 직접 ○/×를 눌러야만 다음 단계로 진행 가능(육안·수기 확인 필요).
-   * false는 실측값(현재는 절연저항만)으로 자동 판정되어 버튼 없이 통과 — autoJudgeInsulationItem 참고.
-   * 부하전류·누설전류(IGR)가 어떤 항목을 자동 판정하는지는 아직 확정되지 않아 전부 true로 둔다.
+   * false는 실측값(절연저항·누설전류·접지저항)으로 자동 판정되어 버튼 없이 통과한다.
+   * 부하전류는 분기회로 정격용량 대비라 고정 임계값이 없어 자동판정 항목이 아니다.
    */
   requiresManualCheck: boolean;
   regulation: string; // 별표3 근거규정
@@ -273,11 +273,15 @@ export function autoJudgeLeakageItem(igr: number | null, thresholdMa: number | n
  * 고감도형(정격감도전류 30mA, KEC 234.10)이 표준이고, 허용접촉전압은 일반장소 기준 50V다.
  * → 접지저항 ≤ 50V / 0.03A ≈ 1,666.7Ω. (대표님 확정, 구 전기설비기술기준의 제3종접지공사
  * 100Ω 이하 기준도 후보였으나 신KEC 공식으로 확정.)
+ *
+ * 표기·판정은 소수 첫째 자리 1,666.7Ω으로 맞춘다. 50/0.03의 raw float(1666.666…)와
+ * 비교하면 실측 1666.7Ω이 화면 문구 "1,666.7Ω 초과"에 해당하지 않는데도 부적합이 된다.
  */
 export const GROUNDING_RESISTANCE_ALLOWABLE_CONTACT_VOLTAGE_V = 50;
 export const GROUNDING_RESISTANCE_ELB_SENSITIVITY_A = 0.03;
-export const GROUNDING_RESISTANCE_THRESHOLD_OHM =
-  GROUNDING_RESISTANCE_ALLOWABLE_CONTACT_VOLTAGE_V / GROUNDING_RESISTANCE_ELB_SENSITIVITY_A;
+export const GROUNDING_RESISTANCE_THRESHOLD_OHM = Number(
+  (GROUNDING_RESISTANCE_ALLOWABLE_CONTACT_VOLTAGE_V / GROUNDING_RESISTANCE_ELB_SENSITIVITY_A).toFixed(1)
+);
 
 /** 회로수와 무관한 전국 공통 고정기준이라 circuitBreakerCount 파라미터가 없다(절연/누설과의
  * 유일한 구조적 차이 — 호출부에서 헷갈리지 않도록 시그니처 자체를 다르게 뒀다). */
@@ -337,8 +341,8 @@ function autoJudge(id: ChecklistItemId, m: AutoJudgeMeasurements): { result: Che
 /**
  * 워커가 입력한 항목별 결과(id+result+note)를 서버 신뢰 템플릿에 병합한다. category/riskFactors/
  * item 텍스트는 항상 CHECKLIST_ITEMS 기준으로 재구성해 클라이언트 위·변조를 막는다. requiresManualCheck
- * 가 false인 항목(절연 2개 + 누전차단기 미설치·동작불량)은 클라이언트가 뭘 보내든 무시하고
- * 실측값으로 서버가 다시 판정한다.
+ * 가 false인 항목(절연 2개 + 누전차단기 미설치·동작불량 + 분전반 접지저항)은 클라이언트가
+ * 뭘 보내든 무시하고 실측값으로 서버가 다시 판정한다.
  */
 export function applyChecklistResults(
   inspectionType: "visit" | "unvisited_simple",

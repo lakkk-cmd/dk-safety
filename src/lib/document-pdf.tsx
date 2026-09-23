@@ -6,6 +6,7 @@ import React from "react";
 import { ImageResponse } from "next/og";
 import { PDFDocument, PDFImage } from "pdf-lib";
 import {
+  computeGroundingResistanceThreshold,
   computeInsulationResistanceThreshold,
   computeLeakageCurrentThreshold,
   type ChecklistEntry,
@@ -394,6 +395,8 @@ export type UnitInspectionPdfData = {
   loadCurrent: number | null;
   igr: number | null;
   insulationResistance: number | null;
+  /** 접지저항(Ω). 경로 A 발급(renderUnitInspectionPdf → path A)이 이 값을 1·2페이지에 넘긴다. */
+  groundingResistance: number | null;
   etcNotes: string;
   /** 실측/기준 구조화 표시(2026-09-22 CEO 승인, 샘플)에 필요 — 없으면 해당 박스가 "판정기준 계산불가"로 표기된다 */
   circuitBreakerCount: number | null;
@@ -965,13 +968,10 @@ function UnitInspectionElement({
                     measured: data.loadCurrent !== null ? `${data.loadCurrent}A` : "미실측",
                     standard: "기준 없음 — 분기회로 정격용량과 비교 필요",
                   },
-                  // 접지저항(2026-09-22, 서비스·제품팀 품질기준안 필수항목) — 현재 시스템은
-                  // 접지저항을 별도 실측값으로 입력받지 않아(체크리스트 육안판정만 존재) 항상
-                  // "미측정"으로 명시한다. 빈칸으로 두지 않는 것이 원칙(품질기준안 1-1).
                   {
                     label: "접지저항",
-                    measured: "미측정",
-                    standard: "관련 고시 기준 있음 — 별도 측정 필요",
+                    measured: data.groundingResistance !== null ? `${data.groundingResistance}Ω` : "미측정",
+                    standard: `${computeGroundingResistanceThreshold().toFixed(1)}Ω 초과면 부적합`,
                   },
                 ];
                 return rows.map((row, idx) => (
