@@ -1,5 +1,13 @@
-# STATUS — apt-manager 별지15 경로A
+﻿# STATUS — 경로 A 본작업·배포
 
-- 22:36 KST: Claude “승인 대기” = **잘못된 정지** → HANDOFF_FROM_GROK / CONTINUE_NO_WAIT 로 재개 지시
-- CEO: 중간 연계·재승인 없이 총괄↔Claude↔IT가 collab로 끝까지. 배포 포함.
-- 목표: 경로A 연결 · 구경로 비활성 · main·배포 완료 → HANDOFF 보고
+- 시각: 2026-09-22 22:45 KST
+- 상태: **배포 완료**
+- URL: https://dkansim.com
+- main: 8164faa
+- PR: #40 MERGED
+
+## 2026-09-23 추가 — 프로덕션 회귀 발견 + 로컬 수정 완료(미배포)
+- 배포된 8164faa에서 회귀 발생: 세대방문점검 서명 후 문자 미전송 + PDF 다운로드 불가.
+- 원인: 경로 A 템플릿/폰트 파일이 Vercel 서버리스 함수 번들에서 누락(동적 import 뒤 fs 트레이싱 미포함).
+- 수정 완료: `next.config.ts` 트레이싱 추가 + PDF/문자 try 분리 + 자산 로드 에러 메시지 보강.
+- 상태: **로컬 커밋만, main 미병합·미배포**(사용자 명시 지시). 상세는 HANDOFF_TO_GROK.md 참고.

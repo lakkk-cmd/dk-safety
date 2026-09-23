@@ -189,14 +189,19 @@ export async function POST(request: Request) {
   // PDF는 방문/미방문 관계없이 항상 즉시 발급한다 — 직무고시 서류라 미방문 간이점검도
   // 관리사무소가 다운로드할 수 있어야 한다(2026-08-28 버그 수정: 예전엔 방문점검만 발급했음).
   // 세대 문자 발송·CRM 접점 기록은 방문점검만 — 미방문 간이점검은 세대주 연락처 자체를 안 받는다.
-  let notification: SendChannelResult | null = null;
+  //
+  // PDF 발급과 문자 발송은 서로 완전히 독립된 실패 경로라 별도 try/catch로 분리한다
+  // (2026-09-23 회귀 수정: 예전엔 한 try 블록에 다 묶여있어서, PDF 렌더링이 배포 자산 누락
+  // 등으로 실패하면 그 아래 문자 발송·CRM 기록 코드 자체가 실행되지 않았다 — "사인 후 문자가
+  // 안 온다"는 신고의 원인. PDF가 실패해도 문자는 독립적으로 시도돼야 한다).
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://dkansim.com").replace(/\/$/, "");
+  const inspectedAtLabel = new Date(inspection.inspectedAt).toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+
   try {
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://dkansim.com").replace(/\/$/, "");
-    const inspectedAtLabel = new Date(inspection.inspectedAt).toLocaleDateString("ko-KR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric"
-    });
     const pdfBytes = await renderUnitInspectionPdf({
       apartmentName: apartment.name,
       electricalSafetyManagerName: apartment.electricalSafetyManagerName,
@@ -231,8 +236,13 @@ export async function POST(request: Request) {
         console.error("[apt-manager/unit-inspections] AI 안전진단 사후보정 실패:", error);
       }
     });
+  } catch (error) {
+    console.error("[apt-manager/unit-inspections] PDF 발급 실패:", error);
+  }
 
-    if (inspectionType === "visit") {
+  let notification: SendChannelResult | null = null;
+  if (inspectionType === "visit") {
+    try {
       const reportUrl = `${appUrl}/unit-inspection/${inspection.id}`;
       notification = await sendUnitInspectionNotification({
         phone: residentPhoneRaw,
@@ -254,9 +264,9 @@ export async function POST(request: Request) {
         source: "unit_inspection",
         address: `${apartment.name} ${inspection.dong}동 ${inspection.ho}호`
       });
+    } catch (error) {
+      console.error("[apt-manager/unit-inspections] 문자 발송/CRM 기록 실패:", error);
     }
-  } catch (error) {
-    console.error("[apt-manager/unit-inspections] PDF 발급/문자 발송/CRM 기록 실패:", error);
   }
 
   return NextResponse.json({ inspection, notification });

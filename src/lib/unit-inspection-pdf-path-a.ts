@@ -28,7 +28,7 @@
 
 import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import path from "path";
 import type { ChecklistEntry, ChecklistItemId } from "@/lib/unit-inspection-rules";
 
@@ -196,6 +196,16 @@ export async function renderUnitInspectionPage1PathA(
   data: UnitInspectionPathAData,
   stampFontBytes: Uint8Array
 ): Promise<Uint8Array> {
+  // Vercel standalone 빌드는 outputFileTracingIncludes에 명시된 파일만 함수 번들에 포함한다
+  // (2026-09-23 실제 회귀: `await import()`로 간접 로드되는 이 모듈의 fs.readFileSync는 정적
+  // 트레이싱이 못 따라가 public/templates/*를 빠뜨렸다 — next.config.ts 참고). readFileSync의
+  // 기본 ENOENT는 어느 파일이 왜 없는지 안 알려줘서 재발 시 원인 파악이 오래 걸리므로, 여기서
+  // 먼저 존재를 확인해 어떤 배포 문제인지 바로 알 수 있는 에러로 바꾼다.
+  if (!existsSync(TEMPLATE_PATH)) {
+    throw new Error(
+      `경로 A 고시 원본 템플릿을 찾을 수 없습니다: ${TEMPLATE_PATH} (next.config.ts outputFileTracingIncludes 누락 가능성 — 배포 번들에 public/templates가 포함됐는지 확인)`
+    );
+  }
   const templateBytes = readFileSync(TEMPLATE_PATH);
   const pdfDoc = await PDFDocument.load(templateBytes);
   pdfDoc.registerFontkit(fontkit);
