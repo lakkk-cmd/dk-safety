@@ -208,10 +208,11 @@ DB를 다시 읽으므로 코드 변경 없이 자동 반영됨을 코드 추적
 - **미검증**: 이 세션은 브라우저 자동화 도구(claude-in-chrome)가 연결되지 않아 화면 육안
   확인은 못했다 — API 레벨 검증만 완료. 배포 후 실제 계정으로 화면 확인 권고.
 
-### 배포 결과 (2026-09-23 04:25 KST)
+### 배포 결과 (2026-09-23 13:25 KST)
 - PR: https://github.com/lakkk-cmd/dk-safety/pull/45 (MERGED)
 - CI: build pass, gemini-review pass, cursor-review pass, Vercel Preview pass — 전부 통과 확인 후 병합
-- 커밋(main): `e9f6b76616d82e09dbadb5d33664dea2c46adb6b` (short `e9f6b76`)
-- Vercel production 배포: Ready 확인, `https://dkansim.com/`, `https://dkansim.com/apt-manager/login` 200 확인
+- 커밋(main): `e9f6b76616d82e09dbadb5d33664dea2c46adb6b` (short `e9f6b76`, PR #45 머지 커밋, `2026-09-23 13:25:36 +0900`)
+- Vercel production 배포: Ready 확인 (배포 완료 `2026-09-23 13:28 KST`)
+- `https://dkansim.com/` 은 307 → `/home`(따라가면 200). `https://dkansim.com/apt-manager/login` 은 200
 
 시크릿 노출·결제·불가역 삭제 없음.
