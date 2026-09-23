@@ -96,4 +96,14 @@
 - `src/app/api/worker/unit-inspections/route.ts`
 - `src/app/api/apt-manager/unit-inspections/route.ts`
 
-로컬 커밋만 함. main 병합·배포는 하지 않았습니다(사용자 명시 지시). 시크릿·결제·불가역 삭제 없음.
+### 배포 결과 (2026-09-23 02:14 KST, 대표 지시로 진행)
+- PR: https://github.com/lakkk-cmd/dk-safety/pull/41 (MERGED)
+- CI: build pass, gemini-review pass, cursor-review pass, Vercel Preview pass — 전부 통과 확인 후 병합
+- 커밋(main): `119123a009b56cb74da4cd202a64686183d6e73b` (short `119123a`, PR #41 머지 커밋)
+- Vercel production 배포: Ready 확인(`dk-safety-e9etd3249-lakkk-1934s-projects.vercel.app`)
+- `https://dkansim.com/`, `https://dkansim.com/apt-manager/login` 응답 200 확인
+- **잔여**: 실제 세대방문점검 1건으로 문자 수신 + 전기과장 PDF 다운로드 스모크 테스트는 아직
+  미실시(운영 중 실제 케이스로 확인 권고) — 코드 수준 검증(빌드 산출물 트레이싱 비교, PDF 바이트
+  생성)은 완료했으나 프로덕션 Solapi 발송·실사용자 다운로드까지는 이 세션에서 트리거하지 않았다.
+
+시크릿 노출·결제·불가역 삭제 없음.
