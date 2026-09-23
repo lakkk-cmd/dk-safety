@@ -49,8 +49,13 @@ export function loadUnitInspectionStampFontBytes(): Uint8Array {
   for (const p of MALGUN_CANDIDATES) {
     if (p && existsSync(p)) return new Uint8Array(readFileSync(p));
   }
+  // 2026-09-23 회귀: 배포 번들에 public/fonts/NanumGothic-Regular.ttf가 빠진 채로 나가면
+  // 로컬(Windows, malgun.ttf 존재)에서는 안 재현되고 프로덕션에서만 실패한다 — 어느 후보
+  // 경로를 시도했는지 남겨야 다음에 같은 원인으로 헤매지 않는다.
   throw new Error(
-    "경로 A 스탬프 폰트를 찾을 수 없습니다. Windows malgun.ttf 또는 UNIT_INSPECTION_STAMP_FONT_PATH가 필요합니다."
+    `경로 A 스탬프 폰트를 찾을 수 없습니다. 시도한 경로: ${MALGUN_CANDIDATES.join(", ") || "(없음)"} ` +
+      "— Windows에서는 malgun.ttf, 배포본에서는 public/fonts/NanumGothic-Regular.ttf가 next.config.ts " +
+      "outputFileTracingIncludes로 함수 번들에 포함돼야 합니다."
   );
 }
 
