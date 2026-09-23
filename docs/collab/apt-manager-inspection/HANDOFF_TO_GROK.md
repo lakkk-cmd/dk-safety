@@ -107,3 +107,71 @@
   생성)은 완료했으나 프로덕션 Solapi 발송·실사용자 다운로드까지는 이 세션에서 트리거하지 않았다.
 
 시크릿 노출·결제·불가역 삭제 없음.
+
+---
+
+## Path A 스탬프 글리프 소실 회귀 수정 (2026-09-23, Claude Code — main 병합·배포 완료)
+
+바로 위 "잔여"에 적은 대로 실사용자 다운로드까지는 이전 세션에서 트리거하지 않았는데, 대표님이
+직접 시연전용아파트에서 세대방문점검을 실제로 하고 PDF를 다운로드해 보면서 이 회귀를 발견했다.
+
+### 신고 증상
+샘플(`docs/collab/apt-manager-inspection/samples/sample-pathA-visit-2026-09-22.pdf`)은 호/성명/
+날짜/점검결과/비고/기타사항/확인란/AI진단이 전부 정상인데, 실제 발급본은 **서명만 남고 나머지가
+빈칸이거나 깨져서** 나옴.
+
+### 원인 (직접 재현·확정)
+`renderUnitInspectionPage1PathA`의 `pdfDoc.embedFont(stampFontBytes, { subset: true })`가
+문제였다. `NanumGothic-Regular.ttf`는 fontkit으로 직접 실측해보면 필요한 글리프(○/×/모든 한글/
+숫자)를 전부 갖고 있다(13,297글리프, 테스트한 글자 전부 `hasGlyphForCodePoint=true`). 그런데도
+`subset: true`로 embed하면 글리프 인덱스가 큰(한글처럼 수천 단위) 폰트에서 다수 문자가 빠지거나
+다른 글자로 바뀌어 그려졌다 — pdf-lib의 CID 서브셋팅이 이런 폰트에서 깨지는 한계로 보인다(예외는
+안 던지고 조용히 잘못 그림).
+
+로컬(Windows) 샘플 생성 시엔 시스템 폰트 `malgun.ttf`를 썼는데(글리프 인덱스 구조가 달라 같은
+버그가 재현 안 됨), 프로덕션은 항상 번들 `NanumGothic-Regular.ttf` 폴백을 썼으므로 **QA가 한 번도
+본 적 없는 경로에서만 재현되는 버그**였다. 게다가 PR #41(자산 트레이싱 수정) 이전엔 이 폰트
+파일 자체를 못 찾아 렌더링이 아예 실패했으므로("PDF 다운로드 불가"), 이번 건이 발생하려면
+"폰트는 찾되 서브셋이 깨지는" PR #41 이후 상태여야 했다 — 즉 이 버그는 PR #41이 배포되면서
+비로소 겉으로 드러났다.
+
+부가로, 소스에서 쓰는 "Ω"(GREEK CAPITAL LETTER OMEGA, U+03A9)가 이 폰트에 아예 없는 글리프임도
+확인했다(대신 OHM SIGN U+2126은 있음, 시각적으로 동일) — "절연 0.013MΩ"의 단위기호가 사라지던
+2차 원인.
+
+### 수정
+1. `embedFont(..., { subset: true })` → `{ subset: false }`(풀 임베드). 문제 재현본과 동일한
+   데이터(111동 111호/나경문/홍길동/시연전용아파트)로 로컬에서 직접 재현·비교: subset:true는
+   실제 다운로드본과 같은 패턴으로 깨지고, subset:false는 전부 정상.
+2. "Ω" → OHM SIGN(U+2126) 자동 치환.
+3. 폰트에 없는 글리프가 남아있으면 조용히 빠지는 대신 콘솔 경고를 남기는
+   `warnIfUnsupportedGlyphs` 추가(다음 재발 시 원인 파악 시간 단축용).
+
+### 소급 적용 범위
+1페이지(경로 A) 스탬프는 `unit-inspection-pdf-path-a.ts` 하나를 worker 점검등록, apt-manager
+점검등록, 관리자 PDF 발급(`/api/admin/unit-inspections/[id]/pdf`), 정정본 재발급
+(`/api/admin/unit-inspections/[id]/reissue-pdf`) 4개 라우트가 전부 공유하므로, 이 수정 한 번으로
+4곳 전부에 소급 적용됨. Path A 렌더링 로직(좌표·폰트크기·문구)은 무변경.
+
+**이미 발급된 손상 PDF**: 원본 행(`unit_electrical_inspections`)은 법정보관 트리거로 불변이라
+되돌려 고칠 수 없지만, 관리자 화면(`/admin` 세대전기점검 패널)의 기존 "재발급"(정정본) 버튼이
+이 수정된 렌더러를 그대로 타므로 코드 변경 없이 바로 정정본을 재생성할 수 있다. 이번에 신고된
+시연전용아파트 111동 111호 건은 데모 전용 단지(실고객 아님)라 재발급 또는 삭제 후 재점검 둘 다
+가능 — 실고객 단지의 발급건이 이 창구(PR #41 배포 02:14 KST ~ 이번 수정 배포 03:42 KST 사이)에
+있었는지는 프로덕션 DB 조회 권한이 이 세션엔 없어 직접 확인하지 못했다(로컬 `.env.local`의
+Supabase 프로젝트가 프로덕션과 다른 빈 프로젝트임을 확인함) — 관리자 화면에서 그 시간대 발급건이
+있는지 한 번 확인해 보시길 권고한다.
+
+### 검증
+- `npm run build` exit 0, `npm run lint` 에러 0건.
+- 로컬 재현 테스트로 subset:true(깨짐) vs subset:false(정상) 직접 비교 완료.
+
+### 배포 결과 (2026-09-23 03:42 KST)
+- PR: https://github.com/lakkk-cmd/dk-safety/pull/43 (MERGED)
+- CI: build pass, gemini-review pass, cursor-review pass, Vercel Preview pass — 전부 통과 확인 후 병합
+- 커밋(main): `fd513e6bcee743bf08e7adde1f8a37c96659d10d` (short `fd513e6`)
+- Vercel production 배포: Ready 확인, `https://dkansim.com/` 200 확인
+- **잔여**: 관리자 화면에서 시연전용아파트 111동 111호 건 "재발급" 클릭 확인 + 실사용자 재점검
+  1건으로 최종 육안 확인 권고(이 세션은 admin 인증 정보가 없어 직접 클릭까지는 못함).
+
+시크릿 노출·결제·불가역 삭제 없음.
