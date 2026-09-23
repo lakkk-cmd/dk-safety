@@ -6,7 +6,7 @@ import { getKstDateTime } from "@/lib/agent-schedule";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { uploadUnitInspectionPdfCopies } from "@/lib/unit-inspection-pdf-storage";
 import { reissueWithFixedWording } from "@/lib/unit-inspection-rules";
-import { pgGetUnitInspection, pgSaveUnitInspectionPdfCorrection, sanitizeStoragePathSegment } from "@/lib/unit-inspections";
+import { pgGetUnitInspection, pgGetUnitInspectionAiDiagnosis, pgSaveUnitInspectionPdfCorrection, sanitizeStoragePathSegment } from "@/lib/unit-inspections";
 
 /**
  * 이미 pdf_url이 발급된 건은 DB 트리거(전기안전관리법 제24조 4년 보존 요건)가 원본 레코드
@@ -42,6 +42,12 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       day: "numeric"
     });
 
+    // AI 안전진단(사후보정, after()로 백그라운드 생성)이 이미 완료된 건이면 그 내용을 반드시
+    // 다시 실어야 한다 — 안 그러면 2페이지가 "AI 상세 진단이 아직 없어 요약만 안내합니다"
+    // placeholder로 되돌아간다(2026-09-23 실제 신고: 글리프 깨짐 수정을 위해 재발급을 눌렀더니
+    // 이미 생성돼 있던 AI 진단이 통째로 사라짐).
+    const savedAiDiagnosis = await pgGetUnitInspectionAiDiagnosis(id);
+
     const pdfBytes = await renderUnitInspectionPdf({
       apartmentName: apartment.name,
       electricalSafetyManagerName: apartment.electricalSafetyManagerName,
@@ -58,7 +64,8 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       autoDiagnosis: fixed.autoDiagnosis,
       companyAdvisories: fixed.companyAdvisories,
       residentName: inspection.residentName,
-      signatureData: inspection.signatureData
+      signatureData: inspection.signatureData,
+      aiDiagnosis: savedAiDiagnosis
     });
 
     const { dateKey } = getKstDateTime();

@@ -433,6 +433,11 @@ export type UnitInspectionAiDiagnosisRecord = {
   companyAdvisory: { item: string; explanation: string }[];
   measurements: { item: string; value: string; explanation: string }[];
   summary: string;
+  /** 2026-09-22 신설(응답 생성 단계에서는 이미 만들어지지만, 저장 컬럼은 아직 없다 —
+   * 128 마이그레이션(add column recommendations)을 프로덕션에 적용한 뒤에만 select/upsert에
+   * 추가할 것. 그 전에 컬럼을 참조하면 이 함수를 쓰는 모든 곳(관리자 PDF 조회 포함)이 통째로
+   * 깨진다 — 그래서 지금은 빈 배열 고정. */
+  recommendations: string[];
   generatedAt: string;
 };
 
@@ -453,6 +458,7 @@ export async function pgGetUnitInspectionAiDiagnosis(inspectionId: string): Prom
     companyAdvisory: Array.isArray(data.company_advisory) ? data.company_advisory : [],
     measurements: Array.isArray(data.measurements) ? data.measurements : [],
     summary: data.summary ?? "",
+    recommendations: [],
     generatedAt: data.generated_at
   };
 }
@@ -465,6 +471,7 @@ export async function pgSaveUnitInspectionAiDiagnosis(
     companyAdvisory: { item: string; explanation: string }[];
     measurements: { item: string; value: string; explanation: string }[];
     summary: string;
+    recommendations?: string[];
   }
 ): Promise<void> {
   const supabase = requireSupabaseAdmin();
