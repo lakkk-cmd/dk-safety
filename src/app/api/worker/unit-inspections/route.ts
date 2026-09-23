@@ -129,6 +129,7 @@ export async function POST(request: Request) {
   const loadCurrent = toNullableNumber(body.loadCurrent);
   const igr = toNullableNumber(body.igr);
   const insulationResistance = toNullableNumber(body.insulationResistance);
+  const groundingResistance = toNullableNumber(body.groundingResistance);
   // 절연저항/누설전류 자동판정 임계값 계산에 반드시 필요 — 단지별 수동 기준값을 폐지하고
   // (2026-08-28) 이 값으로 매번 계산하므로, 방문/미방문 관계없이 필수다.
   const circuitBreakerCount = toNullableNumber(body.circuitBreakerCount);
@@ -141,6 +142,7 @@ export async function POST(request: Request) {
   const checklistItems = applyChecklistResults(inspectionType, overrides, {
     insulationResistance,
     igr,
+    groundingResistance,
     circuitBreakerCount
   });
 
@@ -165,6 +167,7 @@ export async function POST(request: Request) {
     loadCurrent,
     igr,
     insulationResistance,
+    groundingResistance,
     circuitBreakerCount,
     etcNotes,
     residentName: inspectionType === "visit" ? residentNameRaw : null,
@@ -211,6 +214,7 @@ export async function POST(request: Request) {
       loadCurrent: inspection.loadCurrent,
       igr: inspection.igr,
       insulationResistance: inspection.insulationResistance,
+      groundingResistance: inspection.groundingResistance,
       etcNotes: inspection.etcNotes,
       circuitBreakerCount: inspection.circuitBreakerCount,
       autoDiagnosis: inspection.autoDiagnosis,

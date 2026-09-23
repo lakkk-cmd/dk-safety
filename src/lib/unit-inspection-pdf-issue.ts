@@ -30,6 +30,7 @@ export type UnitInspectionIssueInput = {
   loadCurrent: number | null;
   igr: number | null;
   insulationResistance: number | null;
+  groundingResistance: number | null;
   etcNotes: string;
   circuitBreakerCount: number | null;
   autoDiagnosis: DiagnosisEntry[];
@@ -70,7 +71,8 @@ function buildEtcNotes(data: UnitInspectionIssueInput): string {
   const parts = [
     data.loadCurrent !== null ? `부하 ${data.loadCurrent}A` : null,
     data.igr !== null ? `IGR ${data.igr}mA` : null,
-    data.insulationResistance !== null ? `절연 ${data.insulationResistance}MΩ` : null
+    data.insulationResistance !== null ? `절연 ${data.insulationResistance}MΩ` : null,
+    data.groundingResistance !== null ? `접지 ${data.groundingResistance}Ω` : null
   ].filter(Boolean) as string[];
   const base = parts.join(", ");
   if (data.etcNotes?.trim()) return base ? `${base} · ${data.etcNotes.trim()}` : data.etcNotes.trim();
@@ -168,6 +170,7 @@ export async function renderUnitInspectionPdfPathAOnly(data: UnitInspectionIssue
     loadCurrent: data.loadCurrent,
     igr: data.igr,
     insulationResistance: data.insulationResistance,
+    groundingResistance: data.groundingResistance,
     circuitBreakerCount: data.circuitBreakerCount
   });
   return mergePage1AndPage2(page1, page2);

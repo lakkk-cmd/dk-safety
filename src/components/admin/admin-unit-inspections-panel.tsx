@@ -18,6 +18,7 @@ type UnitInspection = {
   loadCurrent: number | null;
   igr: number | null;
   insulationResistance: number | null;
+  groundingResistance: number | null;
   etcNotes: string;
   autoDiagnosis: DiagnosisEntry[];
   companyAdvisories: CompanyAdvisoryEntry[];
@@ -885,6 +886,7 @@ export default function AdminUnitInspectionsPanel() {
                                           <p>부하전류: {item.loadCurrent ?? "-"} A</p>
                                           <p>IGR·누설전류: {item.igr ?? "-"} mA</p>
                                           <p>절연저항: {item.insulationResistance ?? "-"} MΩ</p>
+                                          <p>접지저항: {item.groundingResistance ?? "-"} Ω</p>
                                         </div>
                                         {item.etcNotes ? <p className="text-xs text-slate-600">기타사항: {item.etcNotes}</p> : null}
                                         {item.outletInstallYear || item.switchInstallYear ? (
