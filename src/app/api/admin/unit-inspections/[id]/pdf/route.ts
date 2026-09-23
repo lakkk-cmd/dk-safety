@@ -5,7 +5,7 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { getKstDateTime } from "@/lib/agent-schedule";
 import { isSupabaseReservationsDbReady } from "@/lib/supabase-pg";
 import { uploadUnitInspectionPdfCopies } from "@/lib/unit-inspection-pdf-storage";
-import { pgGetUnitInspection, pgSaveUnitInspectionPdf, sanitizeStoragePathSegment } from "@/lib/unit-inspections";
+import { pgGetUnitInspection, pgGetUnitInspectionAiDiagnosis, pgSaveUnitInspectionPdf, sanitizeStoragePathSegment } from "@/lib/unit-inspections";
 
 /** 이미 발급된(pdf_url 존재) 건은 재생성하지 않고 기존 URL을 그대로 반환한다 — DB 불변
  * 트리거가 재발급을 어차피 막아주지만, 여기서 한 번 더 걸러 불필요한 렌더링 비용을 아낀다. */
@@ -36,6 +36,10 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       day: "numeric"
     });
 
+    // 드물지만, 이 라우트가 호출되는 시점에 AI 안전진단 사후보정이 이미 끝나있을 수도 있다 —
+    // 있으면 반드시 실어야 placeholder 문구로 발급되는 걸 막는다(reissue-pdf와 동일한 이유).
+    const savedAiDiagnosis = await pgGetUnitInspectionAiDiagnosis(inspection.id);
+
     const pdfBytes = await renderUnitInspectionPdf({
       apartmentName: apartment.name,
       electricalSafetyManagerName: apartment.electricalSafetyManagerName,
@@ -52,7 +56,8 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
       autoDiagnosis: inspection.autoDiagnosis,
       companyAdvisories: inspection.companyAdvisories,
       residentName: inspection.residentName,
-      signatureData: inspection.signatureData
+      signatureData: inspection.signatureData,
+      aiDiagnosis: savedAiDiagnosis
     });
 
     const { dateKey } = getKstDateTime();
