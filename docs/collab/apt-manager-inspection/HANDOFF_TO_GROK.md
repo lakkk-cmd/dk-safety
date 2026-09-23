@@ -28,7 +28,7 @@
 
 ---
 
-## Path A 회귀 수정 (2026-09-23, Claude Code — 로컬만, 배포·main 병합 안 함)
+## Path A 회귀 수정 (2026-09-23, Claude Code — PR #41 병합·프로덕션 배포 완료)
 
 ### 신고 증상
 사인(세대방문점검 서명) 후 (1) 세대 문자(SMS/알림톡) 미전송, (2) 점검표 PDF 다운로드 불가.
@@ -85,9 +85,9 @@
 - 스탠드얼론 빌드 산출물 직접 검사로 트레이싱 포함 여부를 확인했고(위), 별도로 로컬에서
   `renderUnitInspectionPage1PathA`를 프로덕션과 동일하게 NanumGothic 폰트만으로(malgun.ttf 우회)
   직접 호출해 PDF 바이트가 정상 생성됨을 확인했다(110,671 bytes).
-- **미검증(범위 밖)**: 실제 Vercel 프로덕션 재배포 후 문자 수신·다운로드 성공 여부 — 이번 지시
-  ("배포·main merge 금지")에 따라 배포는 하지 않았다. main 병합·배포 승인 후 실제 세대방문점검
-  1건으로 문자 수신 + 전기과장 PDF 다운로드 스모크 테스트를 권고한다.
+- **미검증**: 코드 수준(빌드 산출물 트레이싱, PDF 바이트 생성)은 확인했다. 프로덕션 배포는
+  아래 "배포 결과"대로 완료됐으나, 실제 세대방문점검 1건의 문자 수신 + 전기과장 PDF
+  다운로드 스모크는 아직 미실시다(운영 중 실제 케이스로 확인 권고).
 
 ### 변경 파일
 - `next.config.ts`
@@ -96,12 +96,12 @@
 - `src/app/api/worker/unit-inspections/route.ts`
 - `src/app/api/apt-manager/unit-inspections/route.ts`
 
-### 배포 결과 (2026-09-23 02:14 KST, 대표 지시로 진행)
+### 배포 결과 (2026-09-23 11:14 KST, 대표 지시로 진행)
 - PR: https://github.com/lakkk-cmd/dk-safety/pull/41 (MERGED)
 - CI: build pass, gemini-review pass, cursor-review pass, Vercel Preview pass — 전부 통과 확인 후 병합
-- 커밋(main): `119123a009b56cb74da4cd202a64686183d6e73b` (short `119123a`, PR #41 머지 커밋)
-- Vercel production 배포: Ready 확인(`dk-safety-e9etd3249-lakkk-1934s-projects.vercel.app`)
-- `https://dkansim.com/`, `https://dkansim.com/apt-manager/login` 응답 200 확인
+- 커밋(main): `119123a009b56cb74da4cd202a64686183d6e73b` (short `119123a`, PR #41 머지 커밋, `2026-09-23 11:14:07 +0900`)
+- Vercel production 배포: Ready 확인(`dk-safety-e9etd3249-lakkk-1934s-projects.vercel.app`, 상태 완료 `2026-09-23 11:16:50 +0900`)
+- `https://dkansim.com/` 은 307 → `/home`(따라가면 200). `https://dkansim.com/apt-manager/login` 은 200
 - **잔여**: 실제 세대방문점검 1건으로 문자 수신 + 전기과장 PDF 다운로드 스모크 테스트는 아직
   미실시(운영 중 실제 케이스로 확인 권고) — 코드 수준 검증(빌드 산출물 트레이싱 비교, PDF 바이트
   생성)은 완료했으나 프로덕션 Solapi 발송·실사용자 다운로드까지는 이 세션에서 트리거하지 않았다.
@@ -154,24 +154,25 @@
 4곳 전부에 소급 적용됨. Path A 렌더링 로직(좌표·폰트크기·문구)은 무변경.
 
 **이미 발급된 손상 PDF**: 원본 행(`unit_electrical_inspections`)은 법정보관 트리거로 불변이라
-되돌려 고칠 수 없지만, 관리자 화면(`/admin` 세대전기점검 패널)의 기존 "재발급"(정정본) 버튼이
-이 수정된 렌더러를 그대로 타므로 코드 변경 없이 바로 정정본을 재생성할 수 있다. 이번에 신고된
-시연전용아파트 111동 111호 건은 데모 전용 단지(실고객 아님)라 재발급 또는 삭제 후 재점검 둘 다
-가능 — 실고객 단지의 발급건이 이 창구(PR #41 배포 02:14 KST ~ 이번 수정 배포 03:42 KST 사이)에
-있었는지는 프로덕션 DB 조회 권한이 이 세션엔 없어 직접 확인하지 못했다(로컬 `.env.local`의
-Supabase 프로젝트가 프로덕션과 다른 빈 프로젝트임을 확인함) — 관리자 화면에서 그 시간대 발급건이
-있는지 한 번 확인해 보시길 권고한다.
+되돌려 고칠 수 없지만, 관리자 화면(`/admin` 세대전기점검 패널)의 기존 "문구 수정본 재발급"
+버튼이 이 수정된 렌더러를 그대로 타므로 코드 변경 없이 바로 정정본을 재생성할 수 있다. 이번에
+신고된 시연전용아파트 111동 111호 건은 데모 전용 단지(실고객 아님)라 재발급 또는 삭제 후 재점검
+둘 다 가능 — 실고객 단지의 발급건이 이 창구(PR #41 프로덕션 반영 2026-09-23 11:14 KST ~ 이번
+수정 머지 12:42 KST, Vercel Ready는 12:45 KST)에 있었는지는 프로덕션 DB 조회 권한이 이 세션엔
+없어 직접 확인하지 못했다(로컬 `.env.local`의 Supabase 프로젝트가 프로덕션과 다른 빈 프로젝트임을
+확인함) — 관리자 화면에서 그 시간대 발급건이 있는지 한 번 확인해 보시길 권고한다. GitHub
+`mergedAt`은 UTC라, 02:14·03:42로 보이던 숫자는 KST가 아니다.
 
 ### 검증
 - `npm run build` exit 0, `npm run lint` 에러 0건.
 - 로컬 재현 테스트로 subset:true(깨짐) vs subset:false(정상) 직접 비교 완료.
 
-### 배포 결과 (2026-09-23 03:42 KST)
+### 배포 결과 (2026-09-23 12:42 KST)
 - PR: https://github.com/lakkk-cmd/dk-safety/pull/43 (MERGED)
 - CI: build pass, gemini-review pass, cursor-review pass, Vercel Preview pass — 전부 통과 확인 후 병합
-- 커밋(main): `fd513e6bcee743bf08e7adde1f8a37c96659d10d` (short `fd513e6`)
-- Vercel production 배포: Ready 확인, `https://dkansim.com/` 200 확인
-- **잔여**: 관리자 화면에서 시연전용아파트 111동 111호 건 "재발급" 클릭 확인 + 실사용자 재점검
+- 커밋(main): `fd513e6bcee743bf08e7adde1f8a37c96659d10d` (short `fd513e6`, 머지 `2026-09-23 12:42:29 +0900`)
+- Vercel production 배포: Ready 확인(상태 완료 `2026-09-23 12:45:10 +0900`). `https://dkansim.com/` 은 307 → `/home`(따라가면 200)
+- **잔여**: 관리자 화면에서 시연전용아파트 111동 111호 건 "문구 수정본 재발급" 클릭 확인 + 실사용자 재점검
   1건으로 최종 육안 확인 권고(이 세션은 admin 인증 정보가 없어 직접 클릭까지는 못함).
 
 시크릿 노출·결제·불가역 삭제 없음.
