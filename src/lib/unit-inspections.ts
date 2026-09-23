@@ -433,10 +433,8 @@ export type UnitInspectionAiDiagnosisRecord = {
   companyAdvisory: { item: string; explanation: string }[];
   measurements: { item: string; value: string; explanation: string }[];
   summary: string;
-  /** 2026-09-22 신설(응답 생성 단계에서는 이미 만들어지지만, 저장 컬럼은 아직 없다 —
-   * 128 마이그레이션(add column recommendations)을 프로덕션에 적용한 뒤에만 select/upsert에
-   * 추가할 것. 그 전에 컬럼을 참조하면 이 함수를 쓰는 모든 곳(관리자 PDF 조회 포함)이 통째로
-   * 깨진다 — 그래서 지금은 빈 배열 고정. */
+  /** 2026-09-22 신설. 128 마이그레이션(2026-09-23 프로덕션 적용 완료)으로 저장 컬럼이 생겨
+   * 이제 select/upsert에 포함한다. */
   recommendations: string[];
   generatedAt: string;
 };
@@ -445,7 +443,7 @@ export async function pgGetUnitInspectionAiDiagnosis(inspectionId: string): Prom
   const supabase = requireSupabaseAdmin();
   const { data, error } = await supabase
     .from("unit_inspection_ai_diagnoses")
-    .select("ok_summary, violations, company_advisory, measurements, summary, generated_at")
+    .select("ok_summary, violations, company_advisory, measurements, summary, recommendations, generated_at")
     .eq("inspection_id", inspectionId)
     .maybeSingle();
   if (error) {
@@ -458,7 +456,7 @@ export async function pgGetUnitInspectionAiDiagnosis(inspectionId: string): Prom
     companyAdvisory: Array.isArray(data.company_advisory) ? data.company_advisory : [],
     measurements: Array.isArray(data.measurements) ? data.measurements : [],
     summary: data.summary ?? "",
-    recommendations: [],
+    recommendations: Array.isArray(data.recommendations) ? data.recommendations : [],
     generatedAt: data.generated_at
   };
 }
@@ -482,6 +480,7 @@ export async function pgSaveUnitInspectionAiDiagnosis(
     company_advisory: diagnosis.companyAdvisory,
     measurements: diagnosis.measurements,
     summary: diagnosis.summary,
+    recommendations: diagnosis.recommendations ?? [],
     generated_at: new Date().toISOString()
   });
   if (error) {
