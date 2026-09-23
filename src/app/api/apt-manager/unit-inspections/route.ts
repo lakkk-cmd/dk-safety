@@ -64,10 +64,17 @@ export async function GET() {
     return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
   }
   try {
-    const [inspections, pdfCorrections] = await Promise.all([
+    const [inspections, allCorrections] = await Promise.all([
       pgListUnitInspectionsForApartment(scope.apartmentId),
       pgListUnitInspectionPdfCorrections()
     ]);
+    // 정정본 테이블은 단지 구분이 없다. 전량을 그대로 내리면 다른 단지 점검표의 공개 URL이
+    // 전기과장 브라우저로 간다. 이 세션 단지 점검 id만 남긴다.
+    const ownIds = new Set(inspections.map((item) => item.id));
+    const pdfCorrections: Record<string, string> = {};
+    for (const [id, url] of Object.entries(allCorrections)) {
+      if (ownIds.has(id)) pdfCorrections[id] = url;
+    }
     return NextResponse.json({ inspections, pdfCorrections });
   } catch (error) {
     const message = error instanceof Error ? error.message : "조회에 실패했습니다.";

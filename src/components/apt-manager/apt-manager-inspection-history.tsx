@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AI_DIAGNOSIS_POLL_INTERVAL_MS, isAiDiagnosisPending } from "@/lib/unit-inspection-ai-pending";
 import { pickRepresentativeInspection } from "@/lib/unit-inspection-representative";
 
 type ChecklistItem = { id: string; category: string; item: string; result: "O" | "X" | "/" | "N/A"; note: string };
@@ -46,12 +47,11 @@ function formatDate(iso: string): string {
 // 2026-08-26). 화면에 아무 안내가 없으면 이용자가 그 짧은 창 안에 다운로드해보고 "AI 진단이
 // 안 나온다"고 오해하게 된다(2026-09-23 실제 반복 신고로 확인된 원인) — 최근 제출건은 정정본이
 // 생기기 전까지 "생성 중" 배지를 보여주고, 그동안 자동으로 다시 조회해 완성되면 배지를 뗀다.
-const AI_DIAGNOSIS_PENDING_WINDOW_MS = 5 * 60 * 1000;
-const AI_DIAGNOSIS_POLL_INTERVAL_MS = 15 * 1000;
 
 export default function AptManagerInspectionHistory() {
   const [inspections, setInspections] = useState<UnitInspection[]>([]);
   const [pdfCorrections, setPdfCorrections] = useState<Record<string, string>>({});
+  const [now, setNow] = useState(() => Date.now());
   const [totalUnits, setTotalUnits] = useState<number | null>(null);
   const [quota, setQuota] = useState<QuotaSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,48 +72,52 @@ export default function AptManagerInspectionHistory() {
     if (data.quota) setQuota(data.quota);
   };
 
-  const loadInspections = async () => {
-    const inspRes = await fetch("/api/apt-manager/unit-inspections", { cache: "no-store" });
-    const inspData = (await inspRes.json()) as { inspections?: UnitInspection[]; pdfCorrections?: Record<string, string> };
-    if (inspRes.ok) {
+  const loadInspections = useCallback(async () => {
+    try {
+      const inspRes = await fetch("/api/apt-manager/unit-inspections", { cache: "no-store" });
+      const inspData = (await inspRes.json()) as { inspections?: UnitInspection[]; pdfCorrections?: Record<string, string> };
+      if (!inspRes.ok) return;
       setInspections(inspData.inspections ?? []);
       setPdfCorrections(inspData.pdfCorrections ?? {});
+      setNow(Date.now());
+    } catch {
+      // 폴링 중 네트워크 오류는 다음 주기에 다시 시도한다. 시각은 인터벌이 흘려서
+      // 대기 창이 끝나면 조회가 계속 실패해도 폴링은 멈춘다.
     }
-    return inspData.inspections ?? [];
-  };
+  }, []);
 
   useEffect(() => {
     (async () => {
       try {
-        const [insp, meRes] = await Promise.all([
+        const [, meRes] = await Promise.all([
           loadInspections(),
           fetch("/api/apt-manager/me", { cache: "no-store" })
         ]);
         const meData = (await meRes.json()) as { apartment?: { totalUnits: number | null } | null };
         if (meRes.ok) setTotalUnits(meData.apartment?.totalUnits ?? null);
         await loadQuota();
-        void insp;
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [loadInspections]);
+
+  const hasPendingAiDiagnosis = useMemo(
+    () => inspections.some((item) => isAiDiagnosisPending(item.inspectedAt, Boolean(pdfCorrections[item.id]), now)),
+    [inspections, pdfCorrections, now]
+  );
 
   // 최근 제출건 중 AI 상세진단(정정본)이 아직 없는 게 있으면, 완성될 때까지 주기적으로
   // 다시 조회한다 — 이용자가 수동으로 새로고침하지 않아도 배지가 자동으로 사라지게.
+  // 조회 성공 여부와 무관하게 시각을 갱신해야, 실패가 이어져도 5분 창이 끝나면 멈춘다.
   useEffect(() => {
-    const hasPending = inspections.some((i) => {
-      if (pdfCorrections[i.id]) return false;
-      const age = Date.now() - new Date(i.inspectedAt).getTime();
-      return age >= 0 && age < AI_DIAGNOSIS_PENDING_WINDOW_MS;
-    });
-    if (!hasPending) return;
+    if (!hasPendingAiDiagnosis) return;
     const timer = setInterval(() => {
+      setNow(Date.now());
       void loadInspections();
     }, AI_DIAGNOSIS_POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inspections, pdfCorrections]);
+  }, [hasPendingAiDiagnosis, loadInspections]);
 
   /** 공개 pdf_url을 직접 열지 않고 게이트 라우트를 거쳐 단기 서명 URL을 받아 연다. */
   const openPdf = async (inspectionId: string) => {
@@ -344,8 +348,7 @@ export default function AptManagerInspectionHistory() {
                         >
                           {pdfBusyId === g.latest.id ? "준비 중..." : "📄 점검표 PDF 다운로드"}
                         </button>
-                        {!pdfCorrections[g.latest.id] &&
-                        Date.now() - new Date(g.latest.inspectedAt).getTime() < AI_DIAGNOSIS_PENDING_WINDOW_MS ? (
+                        {isAiDiagnosisPending(g.latest.inspectedAt, Boolean(pdfCorrections[g.latest.id]), now) ? (
                           <p className="text-xs font-semibold text-amber-600">
                             🤖 AI 상세진단(2페이지) 생성 중이에요 — 완성되면 이 화면이 자동으로 갱신돼요. 지금
                             다운로드하면 2페이지 상세 진단 없이 요약만 나와요, 잠시 후 다시 받아주세요.

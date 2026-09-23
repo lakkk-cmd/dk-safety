@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { AI_DIAGNOSIS_POLL_INTERVAL_MS, isAiDiagnosisPending } from "@/lib/unit-inspection-ai-pending";
 import { pickRepresentativeInspection, pickSupersededIdsInCurrentYear } from "@/lib/unit-inspection-representative";
 
 type ChecklistItem = { id: string; category: string; item: string; result: "O" | "X" | "/" | "N/A"; note: string };
@@ -81,6 +82,7 @@ export default function AdminUnitInspectionsPanel() {
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [reissueLoadingId, setReissueLoadingId] = useState<string | null>(null);
   const [correctedPdfUrls, setCorrectedPdfUrls] = useState<Record<string, string>>({});
+  const [now, setNow] = useState(() => Date.now());
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [resettingDemo, setResettingDemo] = useState(false);
   const [page, setPage] = useState(1);
@@ -91,31 +93,57 @@ export default function AdminUnitInspectionsPanel() {
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) setLoading(true);
     try {
-      const [inspRes, aptRes] = await Promise.all([
-        fetch("/api/admin/unit-inspections", { cache: "no-store" }),
-        fetch("/api/admin/apartments", { cache: "no-store" })
-      ]);
+      const inspPromise = fetch("/api/admin/unit-inspections", { cache: "no-store" });
+      const aptPromise = silent ? null : fetch("/api/admin/apartments", { cache: "no-store" });
+      const inspRes = await inspPromise;
       const inspData = (await inspRes.json()) as { inspections?: UnitInspection[]; pdfCorrections?: Record<string, string>; message?: string };
-      const aptData = (await aptRes.json()) as { apartments?: ApartmentOption[]; message?: string };
       if (!inspRes.ok) {
-        setMessage(inspData.message ?? "점검 목록 조회 실패");
+        if (!silent) setMessage(inspData.message ?? "점검 목록 조회 실패");
         return;
       }
+      let aptData: { apartments?: ApartmentOption[]; message?: string } | null = null;
+      if (aptPromise) {
+        const aptRes = await aptPromise;
+        aptData = (await aptRes.json()) as { apartments?: ApartmentOption[]; message?: string };
+      }
       setInspections(inspData.inspections ?? []);
-      setApartments(aptData.apartments ?? []);
       setCorrectedPdfUrls(inspData.pdfCorrections ?? {});
+      setNow(Date.now());
+      if (!aptData) return;
+      setApartments(aptData.apartments ?? []);
       setMessage("");
+    } catch (error) {
+      // 대기 안내 폴링이 실패해도 목록·에러 배너는 건드리지 않는다. 사용자가 누른 새로고침은 그대로 올린다.
+      if (silent) return;
+      throw error;
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
+
+  const hasPendingAiDiagnosis = useMemo(
+    () => inspections.some((item) => isAiDiagnosisPending(item.inspectedAt, Boolean(correctedPdfUrls[item.id]), now)),
+    [inspections, correctedPdfUrls, now]
+  );
+
+  // Date.now()를 렌더 중에만 보면 5분이 지나도, 정정본이 올라와도 다시 그릴 때까지 안내가 남는다.
+  // 대기 중인 건이 있을 때만 조용히 다시 조회하고, 조회가 실패해도 시각은 흘려 창이 끝나면 멈춘다.
+  useEffect(() => {
+    if (!hasPendingAiDiagnosis) return;
+    const timer = setInterval(() => {
+      setNow(Date.now());
+      void load({ silent: true });
+    }, AI_DIAGNOSIS_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [hasPendingAiDiagnosis, load]);
 
   const apartmentNameById = useMemo(() => new Map(apartments.map((a) => [a.id, a.name])), [apartments]);
   const apartmentByName = useMemo(() => new Map(apartments.map((a) => [a.name, a])), [apartments]);
@@ -759,7 +787,7 @@ export default function AdminUnitInspectionsPanel() {
                                             PDF 다운로드
                                           </a>
                                         ) : item.pdfUrl ? (
-                                          <span className="inline-flex items-center gap-1.5">
+                                          <>
                                             <a
                                               href={item.pdfUrl}
                                               target="_blank"
@@ -768,12 +796,12 @@ export default function AdminUnitInspectionsPanel() {
                                             >
                                               PDF 다운로드
                                             </a>
-                                            {Date.now() - new Date(item.inspectedAt).getTime() < 5 * 60 * 1000 ? (
-                                              <span className="text-[11px] font-semibold text-amber-600">
-                                                🤖 AI 상세진단 생성 중(약 1분) — 지금 받으면 2페이지가 요약만 나와요
+                                            {isAiDiagnosisPending(item.inspectedAt, Boolean(correctedPdfUrls[item.id]), now) ? (
+                                              <span className="w-full text-[11px] font-semibold leading-snug text-amber-600">
+                                                🤖 AI 상세진단 생성 중(약 1분) — 지금 받으면 2페이지가 요약만 나와요. 완성되면 안내가 자동으로 사라져요.
                                               </span>
                                             ) : null}
-                                          </span>
+                                          </>
                                         ) : (
                                           <button
                                             type="button"
