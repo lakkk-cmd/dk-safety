@@ -282,3 +282,58 @@ recommendations 컬럼을 쓰도록 마저 연결하겠다 — 이 세션은 프
 
 이로써 이번 세션에서 발견된 AI 안전진단 관련 이슈(placeholder 회귀 + recommendations
 유실)가 전부 해결·배포·검증 완료됨. 시크릿 노출·결제·불가역 삭제 없음.
+
+---
+
+## AI 진단 4번째 신고 — 진짜 원인(API 계정 한도) 발견 + UX 공백 해소 (2026-09-23, 완전 검증 완료)
+
+### 경위
+위 수정(#47/#49) 배포 후에도 "AI 안전진단 결과(상세)"에 placeholder만 나온다는 신고가
+4번째로 들어옴. 이번엔 프로덕션 DB(`DATABASE_URL`)와 Storage를 직접 조회해 근본 원인을 끝까지
+추적했다.
+
+**1차 발견 — Anthropic API 계정 사용량 한도**: 프로덕션 DB를 조회해보니 2026-09-21~23 생성된
+점검 21건 전부 `unit_inspection_ai_diagnoses` 행이 아예 없었다(처리 중이 아니라 한 번도
+성공한 적 없음). `generateUnitInspectionAiDiagnosis`를 실제 프로덕션 API 키로 직접 호출해보니
+"You have reached your specified API usage limits. You will regain access on 2026-10-01."
+— dk-safety 자체 Anthropic 계정이 사용량 한도로 막혀있었다(코드 문제 아님). 대표님이
+Anthropic Console에서 직접 한도를 상향조정해 해제.
+
+**2차 발견 — 진짜 UX 버그**: 한도 해제 후 실제 점검 1건(101동 302호)으로 재확인했는데도 여전히
+placeholder를 봤다는 신고 → 그 건의 정정본 PDF를 프로덕션 Storage에서 직접 다운로드해 열어보니
+**AI 진단 내용이 이미 전부 정상적으로 들어있었다**(제출 32초 후 완성). 즉 백엔드는 이미 정상
+작동 중이었고, 문제는 **그 32~45초 생성 창 안에 확인하면 placeholder가 보이는데, 화면에 "잠시
+후 다시 확인하라"는 안내가 전혀 없었던 것** — apt-manager 점검이력 API는 이미 `pdfCorrections`
+맵을 응답에 포함하고 있었는데 프런트엔드가 그 필드를 읽지도 않고 있었다.
+
+**부가 발견**: "우선순위" 문구가 실측값 소수점(예: "0.018MΩ")에서 잘려 "절연저항이 0"처럼
+나오던 별개의 버그도 같이 발견·수정(`.split(/[.。]/)` → `.split(/[.。](?!\d)/)`).
+
+### 수정 (PR #51, MERGED)
+1. `apt-manager-inspection-history.tsx`: `pdfCorrections`를 읽어 최근 5분 이내+정정본 없음이면
+   "🤖 AI 상세진단 생성 중" 배지 표시, 15초 간격 자동 재조회로 완성되면 저절로 갱신(수동
+   새로고침 불필요).
+2. `admin-unit-inspections-panel.tsx`: 관리자 화면에도 동일 안내 추가.
+3. `unit-inspection-pdf-issue.ts`: 우선순위 문구 소수점 절단 버그 수정.
+
+### 검증 (실제 프로덕션, 시뮬레이션 아님)
+- 프로덕션 DB 직접 SQL 조회로 21건 백로그·재현 건 확인.
+- 한도 해제 후 `generateUnitInspectionAiDiagnosis` 실제 재호출 → 정상 JSON 응답 확인.
+- **실제 신고 건(101동 302호, id `a2b5fa53`)의 정정본 PDF를 프로덕션 Storage에서 직접
+  다운로드해 열어봄 → AI 진단 7건 전부 정상 표시 확인**(수정 전).
+- `/unit-inspection/[id]` 공개 페이지(거주민 SMS 링크)를 curl로 직접 확인 → AI 진단 7건 전부
+  정상 렌더링 확인(이 페이지는 서버 컴포넌트라 매 요청마다 새로 조회해서 원래 이 문제와 무관).
+- PR #51 배포 후, **프로덕션 관리자 계정으로 로그인해 같은 건을 `reissue-pdf`로 재발급 →
+  재다운로드해 "우선순위" 필드가 "절연저항이 0.018MΩ으로 측정되었습니다"로 정상 출력됨을
+  확인**(수정 후, 소수점 절단 버그 해결 확인).
+- `npm run build`/`npm run lint` 통과.
+
+### 배포 결과 (2026-09-23 07:09 KST)
+- PR: https://github.com/lakkk-cmd/dk-safety/pull/51 (MERGED)
+- 커밋(main): `86ac8bee8868975d7cec61c5749ab4c889b37834` (short `86ac8be`)
+- Vercel production 배포: Ready 확인, `https://dkansim.com/` 200 확인
+- cursor-review 체크 하나가 타임아웃(수동확인 필요)으로 떴으나, 동일 게이트의 다른 컨텍스트는
+  10m37s에 정상 pass — 인프라성 중복 타임아웃으로 판단, 병합 진행.
+
+이번 건은 로컬 시뮬레이션이 아니라 **프로덕션 데이터·실제 API 호출·실제 재발급 PDF 다운로드**로
+직접 확인 후 보고함. 시크릿 노출·결제·불가역 삭제 없음.
