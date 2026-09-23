@@ -259,3 +259,26 @@ recommendations 컬럼을 쓰도록 마저 연결하겠다 — 이 세션은 프
 
 시크릿 노출·결제·불가역 삭제 없음. DB 스키마 변경(마이그레이션 128)은 파일만 추가했고
 프로덕션 적용은 대표님 승인 후 진행.
+
+---
+
+## 마이그레이션 128 프로덕션 적용 + recommendations 코드 연결 완료 (2026-09-23)
+
+- 대표님이 직접 `.env.local`에 `DATABASE_URL`(프로덕션 Supabase, project ref
+  `mfecdmvieeylxnbqecli`)을 추가하고 `npm run db:apply` 실행 요청 → Claude Code가 실행.
+- 001~127은 이미 적용된 상태로 스킵됐고(`schema_migrations` 추적 테이블에 기록 있음),
+  128번(`recommendations` 컬럼 추가)만 새로 적용됨. `023a`/`055a`/`127`도 이번에 함께
+  적용됐는데, 대상 테이블이 이미 존재해 전부 `NOTICE: already exists, skipping`(무해)만
+  발생 — 에러 없이 완료.
+- `information_schema.columns` 직접 조회로 `unit_inspection_ai_diagnoses.recommendations`
+  컬럼(jsonb, default `'[]'::jsonb`) 존재를 프로덕션에서 확인.
+- 보류해뒀던 코드 연결 마무리(PR #49, MERGED): `pgGetUnitInspectionAiDiagnosis`/
+  `pgSaveUnitInspectionAiDiagnosis`가 이제 recommendations를 select/upsert. 이제부터
+  AI 안전진단 사후보정이 만드는 "권고사항" 목록이 재발급 PDF에서도 유지됨.
+- 커밋(main): `a80489768359769ae08022247773e6cad5038ccd` (short `a804897`)
+- Vercel production 배포: Ready 확인, `https://dkansim.com/` 200 확인
+- `npm run build`/`npm run lint` 통과. 프로덕션 실제 write 테스트는 진행하지 않음(운영
+  데이터 보호 — 스키마 확인은 읽기 전용 쿼리로만, 로직 자체는 #47에서 로컬로 이미 검증됨).
+
+이로써 이번 세션에서 발견된 AI 안전진단 관련 이슈(placeholder 회귀 + recommendations
+유실)가 전부 해결·배포·검증 완료됨. 시크릿 노출·결제·불가역 삭제 없음.
