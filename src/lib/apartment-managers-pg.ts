@@ -172,6 +172,25 @@ export async function pgRejectApartmentManagerSignup(id: string, reason: string)
   }
 }
 
+/** 전기과장 본인의 개인정보(이름/휴대전화) 자가수정 — 단지 정보(단지명/주소/세대수)는
+ * apartments 테이블 소관이라 여기서 건드리지 않는다(관리자 전용, /admin/apartments). */
+export async function pgUpdateApartmentManagerProfile(
+  id: string,
+  update: { name: string; phone: string }
+): Promise<ApartmentManager> {
+  const supabase = requireSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("apartment_managers")
+    .update({ name: update.name.trim(), phone: update.phone.trim() })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error || !data) {
+    throw new Error(`개인정보 수정 실패: ${error?.message ?? "unknown"}`);
+  }
+  return mapManager(data as ApartmentManagerRow);
+}
+
 export async function pgResetApartmentManagerPassword(id: string, newPasswordHash: string): Promise<void> {
   const supabase = requireSupabaseAdmin();
   const { error } = await supabase
