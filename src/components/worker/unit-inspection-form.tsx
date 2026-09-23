@@ -98,6 +98,7 @@ export default function UnitInspectionForm({
   const [loadCurrent, setLoadCurrent] = useState("");
   const [igr, setIgr] = useState("");
   const [insulationResistance, setInsulationResistance] = useState("");
+  const [groundingResistance, setGroundingResistance] = useState("");
   const [circuitBreakerCount, setCircuitBreakerCount] = useState("");
   const [outletInstallYear, setOutletInstallYear] = useState("");
   const [switchInstallYear, setSwitchInstallYear] = useState("");
@@ -126,6 +127,7 @@ export default function UnitInspectionForm({
   const [fastLoadCurrent, setFastLoadCurrent] = useState("");
   const [fastIgr, setFastIgr] = useState("");
   const [fastInsulationResistance, setFastInsulationResistance] = useState("");
+  const [fastGroundingResistance, setFastGroundingResistance] = useState("");
   type FastLogEntry = {
     id: string;
     ho: string;
@@ -138,6 +140,7 @@ export default function UnitInspectionForm({
       loadCurrent: string;
       igr: string;
       insulationResistance: string;
+      groundingResistance: string;
     };
   };
   const [fastLog, setFastLog] = useState<FastLogEntry[]>([]);
@@ -254,6 +257,7 @@ export default function UnitInspectionForm({
     setFastLoadCurrent("");
     setFastIgr("");
     setFastInsulationResistance("");
+    setFastGroundingResistance("");
   };
 
   const submitFastUnit = async (payload: FastLogEntry["payload"]) => {
@@ -279,6 +283,7 @@ export default function UnitInspectionForm({
           loadCurrent: payload.loadCurrent === "" ? null : Number(payload.loadCurrent),
           igr: payload.igr === "" ? null : Number(payload.igr),
           insulationResistance: payload.insulationResistance === "" ? null : Number(payload.insulationResistance),
+          groundingResistance: payload.groundingResistance === "" ? null : Number(payload.groundingResistance),
           circuitBreakerCount: payload.circuitBreakerCount,
           outletInstallYear: null,
           switchInstallYear: null,
@@ -319,7 +324,8 @@ export default function UnitInspectionForm({
       manualResults: fastManualResults,
       loadCurrent: fastLoadCurrent,
       igr: fastIgr,
-      insulationResistance: fastInsulationResistance
+      insulationResistance: fastInsulationResistance,
+      groundingResistance: fastGroundingResistance
     });
     resetFastUnitFields();
     requestAnimationFrame(() => document.getElementById("fast-ho-input")?.focus());
@@ -360,6 +366,7 @@ export default function UnitInspectionForm({
           loadCurrent: loadCurrent === "" ? null : Number(loadCurrent),
           igr: igr === "" ? null : Number(igr),
           insulationResistance: insulationResistance === "" ? null : Number(insulationResistance),
+          groundingResistance: groundingResistance === "" ? null : Number(groundingResistance),
           circuitBreakerCount: circuitBreakerCount === "" ? null : Number(circuitBreakerCount),
           outletInstallYear: outletInstallYear === "" ? null : Number(outletInstallYear),
           switchInstallYear: switchInstallYear === "" ? null : Number(switchInstallYear),
@@ -402,6 +409,7 @@ export default function UnitInspectionForm({
     setLoadCurrent("");
     setIgr("");
     setInsulationResistance("");
+    setGroundingResistance("");
     setCircuitBreakerCount("");
     setOutletInstallYear("");
     setSwitchInstallYear("");
@@ -573,6 +581,17 @@ export default function UnitInspectionForm({
                   value={fastInsulationResistance}
                   onChange={(e) => setFastInsulationResistance(e.target.value)}
                   placeholder="예: 0.15"
+                  className="soft-input w-full text-base"
+                />
+              </div>
+              <div>
+                <p className="mb-2 text-[15px] font-bold text-slate-800">접지저항 (Ω)</p>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={fastGroundingResistance}
+                  onChange={(e) => setFastGroundingResistance(e.target.value)}
+                  placeholder="예: 45"
                   className="soft-input w-full text-base"
                 />
               </div>
@@ -772,13 +791,16 @@ export default function UnitInspectionForm({
                   const def = CHECKLIST_ITEMS.find((d) => d.id === id)!;
                   if (!def.requiresManualCheck) {
                     const isLeakageItem = id === "elb_missing_or_faulty";
-                    const measurementLabel = isLeakageItem ? "누설전류(IGR)" : "절연저항";
+                    const isGroundingItem = id === "grounding_panel_resistance";
+                    // 접지저항은 회로수와 무관한 전국 공통 고정기준이라 다른 두 실측값과 문구를 다르게 둔다.
+                    const basisText = isGroundingItem
+                      ? "다음 단계에서 입력할 접지저항을 기준으로"
+                      : `다음 단계에서 입력할 ${isLeakageItem ? "누설전류(IGR)" : "절연저항"}·차단기 회로수를 기준으로`;
                     return (
                       <div key={id}>
                         <p className="mb-1 text-[14px] font-semibold text-slate-800">{def.label}</p>
                         <p className="rounded-xl bg-dk-sky px-3 py-2 text-[13px] text-dk-navy">
-                          ⚡ 다음 단계에서 입력할 {measurementLabel}·차단기 회로수를 기준으로 자동 판정됩니다 — 여기서 누를 필요
-                          없어요.
+                          ⚡ {basisText} 자동 판정됩니다 — 여기서 누를 필요 없어요.
                           {isLeakageItem ? " 단, \"미설치\"는 실측만으로 잡히지 않으니 육안으로 함께 확인해주세요." : ""}
                         </p>
                       </div>
@@ -871,6 +893,20 @@ export default function UnitInspectionForm({
                 placeholder="예: 0.15"
                 className="soft-input w-full text-base"
               />
+            </div>
+            <div>
+              <p className="mb-2 text-[15px] font-bold text-slate-800">접지저항 (Ω)</p>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={groundingResistance}
+                onChange={(e) => setGroundingResistance(e.target.value)}
+                placeholder="예: 45"
+                className="soft-input w-full text-base"
+              />
+              <p className="mt-1 text-[12px] text-slate-500">
+                220V 저압 세대 고감도 누전차단기(30mA) 기준, 1,666.7Ω 초과 시 부적합으로 자동판정합니다.
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

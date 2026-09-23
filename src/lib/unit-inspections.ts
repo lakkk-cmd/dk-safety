@@ -32,6 +32,8 @@ export type UnitInspectionInput = {
   loadCurrent: number | null;
   igr: number | null;
   insulationResistance: number | null;
+  /** 접지저항(Ω, 2026-09-23 신설) — 회로수와 무관한 전국 공통 고정기준(KEC 등전위본딩 공식)으로 자동판정. */
+  groundingResistance: number | null;
   /** 분전함 차단기 회로수 — 절연저항/누설전류 자동판정 임계값 계산용(117). 방문/미방문 공통 필수. */
   circuitBreakerCount: number | null;
   etcNotes: string;
@@ -78,6 +80,7 @@ type UnitInspectionRow = {
   load_current: number | null;
   igr: number | null;
   insulation_resistance: number | null;
+  grounding_resistance: number | null;
   circuit_breaker_count: number | null;
   etc_notes: string;
   auto_diagnosis: unknown;
@@ -117,6 +120,7 @@ function mapUnitInspection(row: UnitInspectionRow): UnitInspection {
     loadCurrent: row.load_current,
     igr: row.igr,
     insulationResistance: row.insulation_resistance,
+    groundingResistance: row.grounding_resistance,
     circuitBreakerCount: row.circuit_breaker_count,
     etcNotes: row.etc_notes,
     autoDiagnosis: fixed.autoDiagnosis,
@@ -155,6 +159,7 @@ export async function pgCreateUnitInspection(actor: UnitInspectionActor, input: 
       load_current: input.loadCurrent,
       igr: input.igr,
       insulation_resistance: input.insulationResistance,
+      grounding_resistance: input.groundingResistance,
       circuit_breaker_count: input.circuitBreakerCount,
       etc_notes: input.etcNotes.trim(),
       auto_diagnosis: autoDiagnosis,

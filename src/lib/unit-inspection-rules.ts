@@ -149,8 +149,9 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
     riskFactors: ["감전"],
     label: "금속제 분전반 접지저항 기준치 초과",
     simpleInspectable: false,
-    requiresManualCheck: true,
-    regulation: "별표3-5-가-1) (전기설비기술기준 6)",
+    // 접지저항 실측값으로 자동판정(2026-09-23 확정) — autoJudgeGroundingItem 참고.
+    requiresManualCheck: false,
+    regulation: "별표3-5-가-1) (전기설비기술기준 6 / KEC 감전보호용 등전위본딩 공식)",
     actionTypes: ["통지"],
     confidence: "exact"
   },
@@ -261,9 +262,40 @@ export function autoJudgeLeakageItem(igr: number | null, thresholdMa: number | n
   return igr > thresholdMa ? "X" : "O";
 }
 
+/**
+ * 접지저항(2026-09-23 신설, 220V 저압 세대 기준) — 절연저항/누설전류와 달리 회로수에 좌우되지
+ * 않는다: 절연저항·누설전류는 분전함이 여러 회로를 한번에 묶어서 재는(병렬합성/합산) 값이라
+ * 회로수만큼 보정이 필요하지만, 접지저항은 접지극 하나의 대지저항이라는 단일 물리량이라
+ * 회로수와 무관하다(대표님 확인, 2026-09-23).
+ *
+ * 기준값은 KEC(한국전기설비규정) 감전보호용 등전위본딩 공식 — "접지저항 × 누전차단기
+ * 정격감도전류 ≤ 허용접촉전압"을 따른다. 세대 옥내는 220V 저압, 인체감전보호용 누전차단기는
+ * 고감도형(정격감도전류 30mA, KEC 234.10)이 표준이고, 허용접촉전압은 일반장소 기준 50V다.
+ * → 접지저항 ≤ 50V / 0.03A ≈ 1,666.7Ω. (대표님 확정, 구 전기설비기술기준의 제3종접지공사
+ * 100Ω 이하 기준도 후보였으나 신KEC 공식으로 확정.)
+ */
+export const GROUNDING_RESISTANCE_ALLOWABLE_CONTACT_VOLTAGE_V = 50;
+export const GROUNDING_RESISTANCE_ELB_SENSITIVITY_A = 0.03;
+export const GROUNDING_RESISTANCE_THRESHOLD_OHM =
+  GROUNDING_RESISTANCE_ALLOWABLE_CONTACT_VOLTAGE_V / GROUNDING_RESISTANCE_ELB_SENSITIVITY_A;
+
+/** 회로수와 무관한 전국 공통 고정기준이라 circuitBreakerCount 파라미터가 없다(절연/누설과의
+ * 유일한 구조적 차이 — 호출부에서 헷갈리지 않도록 시그니처 자체를 다르게 뒀다). */
+export function computeGroundingResistanceThreshold(): number {
+  return GROUNDING_RESISTANCE_THRESHOLD_OHM;
+}
+
+/** 접지저항은 누설전류와 같은 방향 — 기준값보다 "높으면"(접지가 잘 안 될수록 저항이 커짐) 부적합이다. */
+export function autoJudgeGroundingItem(groundingResistance: number | null, thresholdOhm: number | null): ChecklistResult {
+  if (typeof groundingResistance !== "number" || !Number.isFinite(groundingResistance)) return "/";
+  if (typeof thresholdOhm !== "number" || !Number.isFinite(thresholdOhm)) return "/";
+  return groundingResistance > thresholdOhm ? "X" : "O";
+}
+
 type AutoJudgeMeasurements = {
   insulationResistance: number | null;
   igr: number | null;
+  groundingResistance: number | null;
   circuitBreakerCount: number | null;
 };
 
@@ -288,6 +320,15 @@ function autoJudge(id: ChecklistItemId, m: AutoJudgeMeasurements): { result: Che
       threshold === null
         ? "회로수 미입력 — 판정 보류"
         : `실측 ${m.igr}mA (기준 ${threshold}mA 초과 시 부적합)`;
+    return { result, note };
+  }
+  if (id === "grounding_panel_resistance") {
+    const threshold = computeGroundingResistanceThreshold();
+    const result = autoJudgeGroundingItem(m.groundingResistance, threshold);
+    const note =
+      m.groundingResistance === null
+        ? "미측정 — 판정 보류"
+        : `실측 ${m.groundingResistance}Ω (기준 ${threshold.toFixed(1)}Ω 초과 시 부적합)`;
     return { result, note };
   }
   return { result: "/", note: "" };

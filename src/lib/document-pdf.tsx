@@ -394,6 +394,7 @@ export type UnitInspectionPdfData = {
   loadCurrent: number | null;
   igr: number | null;
   insulationResistance: number | null;
+  groundingResistance: number | null;
   etcNotes: string;
   /** 실측/기준 구조화 표시(2026-09-22 CEO 승인, 샘플)에 필요 — 없으면 해당 박스가 "판정기준 계산불가"로 표기된다 */
   circuitBreakerCount: number | null;

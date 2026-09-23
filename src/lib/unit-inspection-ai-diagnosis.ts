@@ -14,6 +14,7 @@ import { pgFindApartmentByIdentifier } from "@/lib/apartments-pg";
 import { renderUnitInspectionPdf } from "@/lib/document-pdf";
 import { uploadUnitInspectionPdfCopies } from "@/lib/unit-inspection-pdf-storage";
 import {
+  computeGroundingResistanceThreshold,
   computeInsulationResistanceThreshold,
   computeLeakageCurrentThreshold,
   type ChecklistEntry,
@@ -73,13 +74,15 @@ const SYSTEM_PROMPT = `당신은 전기기사 자격을 보유한 전기안전 �
   상담 등, 위 톤 규칙 준수)을 명확히 제시. 부적합이 0개면 빈 배열로 두세요.
 - 회사 자체 권장사항이 있으면 완전히 별도 항목으로 설명하되, 별표3 부적합과 같은 목록에 넣지
   마세요. 없으면 빈 배열로 두세요.
-- 입력에 주어지는 "실측값"(절연저항/누설전류/부하전류)은 측정된 항목마다 반드시 하나씩
-  설명하세요(측정 안 됨으로 표시된 항목은 건너뛰세요). 이 값들은 이미 위 부적합/적합 판정에도
-  쓰였지만, 여기서는 "이 숫자 자체가 무엇을 의미하는지"를 입주민이 이해하도록 별도로 풀어
-  쓰는 것이 목적입니다.
-  - 절연저항·누설전류: 입력에 판정기준과 적합/부적합 결과가 함께 주어지면, 실측값과 기준을
-    비교해 적합/부적합 여부와 그 의미를 사실 위주로 설명하세요(공포 조성 표현 금지, 위 톤 규칙
-    참고). 판정기준 계산 불가(회로수 미입력)로 표시된 경우 그 사실만 담백하게 안내하세요.
+- 입력에 주어지는 "실측값"(절연저항/누설전류/부하전류/접지저항)은 측정된 항목마다 반드시
+  하나씩 설명하세요(측정 안 됨으로 표시된 항목은 건너뛰세요). 이 값들은 이미 위 부적합/적합
+  판정에도 쓰였지만, 여기서는 "이 숫자 자체가 무엇을 의미하는지"를 입주민이 이해하도록 별도로
+  풀어 쓰는 것이 목적입니다.
+  - 절연저항·누설전류·접지저항: 입력에 판정기준과 적합/부적합 결과가 함께 주어지면, 실측값과
+    기준을 비교해 적합/부적합 여부와 그 의미를 사실 위주로 설명하세요(공포 조성 표현 금지, 위
+    톤 규칙 참고). 절연저항·누설전류는 판정기준 계산 불가(회로수 미입력)로 표시될 수 있는데,
+    그 경우 그 사실만 담백하게 안내하세요. 접지저항은 220V 저압 세대 고정기준(누전차단기
+    감전보호 공식)이라 항상 판정기준이 존재합니다.
   - 부하전류: 판정기준이 존재하지 않습니다. 적합/부적합을 절대 단정하지 마세요. 실측값이
     무엇을 나타내는 수치인지 설명하고, 과부하 여부는 해당 분기회로의 정격용량과 비교해야
     확인 가능하다는 점을 안내하세요. 근거 없이 "정상입니다"라고 단정하지 마세요.
@@ -113,7 +116,7 @@ const SYSTEM_PROMPT = `당신은 전기기사 자격을 보유한 전기안전 �
   "okSummary": "적합 항목을 뭉뚱그린 한 문단, 100자 이내 (없으면 \\"\\")",
   "violations": [{"item":"항목명","explanation":"이유+기준대비상태+다음행동을 담되 130자 이내로 압축(공포조성 금지)"}],
   "companyAdvisory": [{"item":"항목명","explanation":"담백한 사실 전달 설명, 100자 이내"}],
-  "measurements": [{"item":"절연저항|누설전류|부하전류","value":"단위 포함 실측값","explanation":"이 값이 의미하는 바, 80자 이내"}],
+  "measurements": [{"item":"절연저항|누설전류|부하전류|접지저항","value":"단위 포함 실측값","explanation":"이 값이 의미하는 바, 80자 이내"}],
   "summary": "종합 총평 (별표3 부적합 개수를 violations 배열 길이와 정확히 일치시켜 언급), 120자 이내",
   "recommendations": ["[대상]+[관찰사실]+[다음행동] 형식 한 문장, 90자 이내, 최대 5개"]
 }`;
@@ -137,15 +140,16 @@ function clampText(text: string, maxLength: number): string {
   return text.slice(0, maxLength - 1).trimEnd() + "…";
 }
 
-/** 절연저항/누설전류는 판정기준을 계산해 적합·부적합을 함께 알려주고, 부하전류는 판정기준이
- * 없다는 사실 자체를 명시해 AI가 임의로 적합/부적합을 지어내지 못하게 한다. */
+/** 절연저항/누설전류/접지저항은 판정기준을 계산해 적합·부적합을 함께 알려주고, 부하전류는
+ * 판정기준이 없다는 사실 자체를 명시해 AI가 임의로 적합/부적합을 지어내지 못하게 한다. */
 function buildMeasurementLines(params: {
   loadCurrent: number | null;
   igr: number | null;
   insulationResistance: number | null;
+  groundingResistance: number | null;
   circuitBreakerCount: number | null;
 }): string[] {
-  const { loadCurrent, igr, insulationResistance, circuitBreakerCount } = params;
+  const { loadCurrent, igr, insulationResistance, groundingResistance, circuitBreakerCount } = params;
   const lines: string[] = [];
 
   if (insulationResistance !== null) {
@@ -176,6 +180,15 @@ function buildMeasurementLines(params: {
       : "- 부하전류: 측정 안 됨"
   );
 
+  if (groundingResistance !== null) {
+    const threshold = computeGroundingResistanceThreshold();
+    lines.push(
+      `- 접지저항: ${groundingResistance}Ω (판정기준: ${threshold.toFixed(1)}Ω 초과면 부적합, 220V 저압 세대 고감도 누전차단기(30mA) 기준 → ${groundingResistance > threshold ? "부적합" : "적합"})`
+    );
+  } else {
+    lines.push("- 접지저항: 측정 안 됨");
+  }
+
   return lines;
 }
 
@@ -188,6 +201,7 @@ function buildUserPrompt(params: {
   loadCurrent: number | null;
   igr: number | null;
   insulationResistance: number | null;
+  groundingResistance: number | null;
   circuitBreakerCount: number | null;
   etcNotes: string;
 }): string {
@@ -230,6 +244,7 @@ export async function generateUnitInspectionAiDiagnosis(params: {
   loadCurrent: number | null;
   igr: number | null;
   insulationResistance: number | null;
+  groundingResistance: number | null;
   circuitBreakerCount: number | null;
   etcNotes: string;
 }): Promise<UnitInspectionAiDiagnosis> {
@@ -300,6 +315,7 @@ export async function runUnitInspectionAiDiagnosisAndCorrect(inspectionId: strin
     loadCurrent: inspection.loadCurrent,
     igr: inspection.igr,
     insulationResistance: inspection.insulationResistance,
+    groundingResistance: inspection.groundingResistance,
     circuitBreakerCount: inspection.circuitBreakerCount,
     etcNotes: inspection.etcNotes
   });
@@ -321,6 +337,7 @@ export async function runUnitInspectionAiDiagnosisAndCorrect(inspectionId: strin
     loadCurrent: inspection.loadCurrent,
     igr: inspection.igr,
     insulationResistance: inspection.insulationResistance,
+    groundingResistance: inspection.groundingResistance,
     etcNotes: inspection.etcNotes,
     circuitBreakerCount: inspection.circuitBreakerCount,
     autoDiagnosis: inspection.autoDiagnosis,

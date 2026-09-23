@@ -26,7 +26,11 @@ import {
   pngToImageWithPdfDoc,
   renderElementToPng
 } from "@/lib/document-pdf";
-import { computeInsulationResistanceThreshold, computeLeakageCurrentThreshold } from "@/lib/unit-inspection-rules";
+import {
+  computeGroundingResistanceThreshold,
+  computeInsulationResistanceThreshold,
+  computeLeakageCurrentThreshold
+} from "@/lib/unit-inspection-rules";
 
 export type UnitInspectionDiagnosisV2 = {
   /** 관찰 요약(1~2문장) — 나열이 아니라 한 장면으로. */
@@ -51,6 +55,7 @@ export type MeasuredVsStandardInput = {
   loadCurrent: number | null;
   igr: number | null;
   insulationResistance: number | null;
+  groundingResistance: number | null;
   circuitBreakerCount: number | null;
 };
 
@@ -61,6 +66,7 @@ type MeasuredRow = { label: string; measured: string; standard: string; verdict:
 export function buildMeasuredVsStandardRows(input: MeasuredVsStandardInput): MeasuredRow[] {
   const insulationThreshold = computeInsulationResistanceThreshold(input.circuitBreakerCount);
   const leakageThreshold = computeLeakageCurrentThreshold(input.circuitBreakerCount);
+  const groundingThreshold = computeGroundingResistanceThreshold();
 
   const rows: MeasuredRow[] = [
     {
@@ -89,9 +95,14 @@ export function buildMeasuredVsStandardRows(input: MeasuredVsStandardInput): Mea
     },
     {
       label: "접지저항",
-      measured: "미측정",
-      standard: "관련 고시 기준 있음",
-      verdict: "별도 측정 필요"
+      measured: input.groundingResistance !== null ? `${input.groundingResistance}Ω` : "미측정",
+      standard: `${groundingThreshold.toFixed(1)}Ω 초과`,
+      verdict:
+        input.groundingResistance === null
+          ? "판정 보류"
+          : input.groundingResistance > groundingThreshold
+            ? "기준 초과"
+            : "기준 충족"
     }
   ];
   return rows;
