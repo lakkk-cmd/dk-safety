@@ -759,14 +759,21 @@ export default function AdminUnitInspectionsPanel() {
                                             PDF 다운로드
                                           </a>
                                         ) : item.pdfUrl ? (
-                                          <a
-                                            href={item.pdfUrl}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
-                                          >
-                                            PDF 다운로드
-                                          </a>
+                                          <span className="inline-flex items-center gap-1.5">
+                                            <a
+                                              href={item.pdfUrl}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+                                            >
+                                              PDF 다운로드
+                                            </a>
+                                            {Date.now() - new Date(item.inspectedAt).getTime() < 5 * 60 * 1000 ? (
+                                              <span className="text-[11px] font-semibold text-amber-600">
+                                                🤖 AI 상세진단 생성 중(약 1분) — 지금 받으면 2페이지가 요약만 나와요
+                                              </span>
+                                            ) : null}
+                                          </span>
                                         ) : (
                                           <button
                                             type="button"

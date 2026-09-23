@@ -41,8 +41,17 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+// AI 상세진단(2페이지)은 제출 후 백그라운드에서 25~45초 걸려 완성되고, 완성 전까지는 PDF가
+// "AI 상세 진단이 아직 없어 요약만 안내합니다" placeholder로 발급된다(사후보정형 설계,
+// 2026-08-26). 화면에 아무 안내가 없으면 이용자가 그 짧은 창 안에 다운로드해보고 "AI 진단이
+// 안 나온다"고 오해하게 된다(2026-09-23 실제 반복 신고로 확인된 원인) — 최근 제출건은 정정본이
+// 생기기 전까지 "생성 중" 배지를 보여주고, 그동안 자동으로 다시 조회해 완성되면 배지를 뗀다.
+const AI_DIAGNOSIS_PENDING_WINDOW_MS = 5 * 60 * 1000;
+const AI_DIAGNOSIS_POLL_INTERVAL_MS = 15 * 1000;
+
 export default function AptManagerInspectionHistory() {
   const [inspections, setInspections] = useState<UnitInspection[]>([]);
+  const [pdfCorrections, setPdfCorrections] = useState<Record<string, string>>({});
   const [totalUnits, setTotalUnits] = useState<number | null>(null);
   const [quota, setQuota] = useState<QuotaSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,23 +72,48 @@ export default function AptManagerInspectionHistory() {
     if (data.quota) setQuota(data.quota);
   };
 
+  const loadInspections = async () => {
+    const inspRes = await fetch("/api/apt-manager/unit-inspections", { cache: "no-store" });
+    const inspData = (await inspRes.json()) as { inspections?: UnitInspection[]; pdfCorrections?: Record<string, string> };
+    if (inspRes.ok) {
+      setInspections(inspData.inspections ?? []);
+      setPdfCorrections(inspData.pdfCorrections ?? {});
+    }
+    return inspData.inspections ?? [];
+  };
+
   useEffect(() => {
     (async () => {
       try {
-        const [inspRes, meRes] = await Promise.all([
-          fetch("/api/apt-manager/unit-inspections", { cache: "no-store" }),
+        const [insp, meRes] = await Promise.all([
+          loadInspections(),
           fetch("/api/apt-manager/me", { cache: "no-store" })
         ]);
-        const inspData = (await inspRes.json()) as { inspections?: UnitInspection[] };
         const meData = (await meRes.json()) as { apartment?: { totalUnits: number | null } | null };
-        if (inspRes.ok) setInspections(inspData.inspections ?? []);
         if (meRes.ok) setTotalUnits(meData.apartment?.totalUnits ?? null);
         await loadQuota();
+        void insp;
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  // 최근 제출건 중 AI 상세진단(정정본)이 아직 없는 게 있으면, 완성될 때까지 주기적으로
+  // 다시 조회한다 — 이용자가 수동으로 새로고침하지 않아도 배지가 자동으로 사라지게.
+  useEffect(() => {
+    const hasPending = inspections.some((i) => {
+      if (pdfCorrections[i.id]) return false;
+      const age = Date.now() - new Date(i.inspectedAt).getTime();
+      return age >= 0 && age < AI_DIAGNOSIS_PENDING_WINDOW_MS;
+    });
+    if (!hasPending) return;
+    const timer = setInterval(() => {
+      void loadInspections();
+    }, AI_DIAGNOSIS_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inspections, pdfCorrections]);
 
   /** 공개 pdf_url을 직접 열지 않고 게이트 라우트를 거쳐 단기 서명 URL을 받아 연다. */
   const openPdf = async (inspectionId: string) => {
@@ -301,14 +335,23 @@ export default function AptManagerInspectionHistory() {
                   <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
                     {g.latest.residentName ? <p className="text-sm text-slate-600">세대주: {g.latest.residentName}</p> : null}
                     {g.latest.pdfUrl ? (
-                      <button
-                        type="button"
-                        disabled={pdfBusyId === g.latest.id}
-                        onClick={() => void openPdf(g.latest.id)}
-                        className="inline-block rounded-xl bg-dk-blue px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-                      >
-                        {pdfBusyId === g.latest.id ? "준비 중..." : "📄 점검표 PDF 다운로드"}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          disabled={pdfBusyId === g.latest.id}
+                          onClick={() => void openPdf(g.latest.id)}
+                          className="inline-block rounded-xl bg-dk-blue px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                        >
+                          {pdfBusyId === g.latest.id ? "준비 중..." : "📄 점검표 PDF 다운로드"}
+                        </button>
+                        {!pdfCorrections[g.latest.id] &&
+                        Date.now() - new Date(g.latest.inspectedAt).getTime() < AI_DIAGNOSIS_PENDING_WINDOW_MS ? (
+                          <p className="text-xs font-semibold text-amber-600">
+                            🤖 AI 상세진단(2페이지) 생성 중이에요 — 완성되면 이 화면이 자동으로 갱신돼요. 지금
+                            다운로드하면 2페이지 상세 진단 없이 요약만 나와요, 잠시 후 다시 받아주세요.
+                          </p>
+                        ) : null}
+                      </>
                     ) : (
                       <p className="text-xs text-slate-400">PDF가 아직 발급되지 않았어요. 잠시 후 다시 확인해주세요.</p>
                     )}

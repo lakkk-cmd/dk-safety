@@ -113,8 +113,11 @@ export function adaptAiDiagnosisToV2(
         .slice(0, 2)
         .map((m) => `${m.item}: ${m.value}`)
         .join("; ") || "실측값은 1페이지 기타사항과 아래 표를 참고해 주세요.";
+    // "첫 문장"을 뽑을 때 단순히 "."로 split하면 "0.018MΩ" 같은 실측값의 소수점에서 잘려
+    // "절연저항이 0"처럼 의미 없는 문장이 나온다(2026-09-23 실제 발급본에서 재현 확인) —
+    // 숫자 뒤에 안 오는 마침표만 문장 끝으로 인정한다.
     const priority =
-      (ai.violations?.[0]?.explanation ?? "").split(/[.。]/)[0]?.trim() ||
+      (ai.violations?.[0]?.explanation ?? "").split(/[.。](?!\d)/)[0]?.trim() ||
       "관리사무소와 상의해 우선 확인이 필요한 구간부터 보시면 됩니다.";
     const limitation =
       "본 안내는 점검 기록과 실측을 바탕으로 한 상세 설명이며, 공식 적합·부적합 표기는 1페이지 점검기록표를 따릅니다.";
