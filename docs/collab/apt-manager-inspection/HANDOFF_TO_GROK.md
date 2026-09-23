@@ -215,3 +215,47 @@ DB를 다시 읽으므로 코드 변경 없이 자동 반영됨을 코드 추적
 - Vercel production 배포: Ready 확인, `https://dkansim.com/`, `https://dkansim.com/apt-manager/login` 200 확인
 
 시크릿 노출·결제·불가역 삭제 없음.
+
+---
+
+## AI 안전진단 2페이지 placeholder 회귀 수정 (2026-09-23, Claude Code — main 병합·배포 완료)
+
+### 신고 증상
+1페이지 점검기록표는 정상인데, 2페이지 "AI 안전진단 결과 (상세)"에는 "AI 상세 진단이 아직
+없어 요약만 안내합니다. 상세 AI 진단이 준비되면 정정본으로 안내가 보강됩니다"라는
+placeholder 문구만 나오고 실제 진단 내용이 없음.
+
+### 원인
+AI 안전진단은 제출 직후 백그라운드에서 생성돼 별도 테이블에 저장되고, 완성되면 "정정본"
+PDF로 조용히 교체되는 설계(2026-08-26)인데, 관리자용 `pdf`(최초 미발급건 생성)/`reissue-pdf`
+(문구 정정본 재발급) 두 라우트가 렌더링 시 저장된 AI 진단을 아예 조회하지 않아 항상
+placeholder로 폴백하고 있었다. 실제 재현 경로: 앞선 세션에서 "경로 A 글리프 깨짐" 수정 후
+관리자에게 "재발급" 클릭을 권했는데, 그 버튼이 이미 생성돼 있던 AI 진단을 지우고 placeholder로
+덮어쓴 것 — 두 회귀가 이어져 있었다.
+
+### 수정
+두 라우트 모두 렌더링 전 저장된 AI 진단을 조회해 넘기도록 수정. 부가로 "권고사항"
+(recommendations, 2026-09-22 신설) 필드가 저장 컬럼 자체가 없어 항상 유실되고 있던 것도
+발견 — 마이그레이션 128(`add column recommendations`)을 만들어뒀지만 **프로덕션에는 아직
+적용하지 않았다**. 미적용 상태에서 코드가 이 컬럼을 참조하면 AI 진단 조회·저장 전체가
+깨지므로, 이번 배포는 기존 컬럼만 쓰도록 의도적으로 분리해 안전하게 냈다.
+
+**남은 일(별도 승인 필요)**: `npm run db:apply`로 마이그레이션 128을 프로덕션에 적용한 뒤
+알려주시면, `pgGetUnitInspectionAiDiagnosis`/`pgSaveUnitInspectionAiDiagnosis`가
+recommendations 컬럼을 쓰도록 마저 연결하겠다 — 이 세션은 프로덕션 DB 자격증명이 없어 직접
+적용하지 못했다.
+
+### 검증
+- 로컬 빈 Supabase 프로젝트에 실제 시나리오 재현 데이터(점검기록 + 저장된 AI진단)를 시딩해
+  `reissue-pdf`를 실제로 호출, 반환된 PDF를 직접 열어 2페이지에 placeholder 대신 실제 진단
+  (관찰/의미인과/실측비교/종합총평)이 나오는 것을 확인. 테스트 데이터는 검증 후 삭제.
+- `npm run build`/`npm run lint` 통과.
+
+### 배포 결과 (2026-09-23 04:59 KST)
+- PR: https://github.com/lakkk-cmd/dk-safety/pull/47 (MERGED)
+- CI: build pass, gemini-review pass, cursor-review pass, Vercel Preview pass — 전부 통과 확인 후 병합
+- 커밋(main): `852f6ad82a8c7dad0c8f885a8b3af0e9f8afc204` (short `852f6ad`)
+- Vercel production 배포: Ready 확인, `https://dkansim.com/` 200 확인
+
+시크릿 노출·결제·불가역 삭제 없음. DB 스키마 변경(마이그레이션 128)은 파일만 추가했고
+프로덕션 적용은 대표님 승인 후 진행.
