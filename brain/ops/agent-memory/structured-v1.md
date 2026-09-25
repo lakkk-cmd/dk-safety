@@ -3,7 +3,7 @@ title: "에이전트 메모리 — structured_v1"
 category: agent-memory
 tags: ["agent-memory", "structured_v1"]
 source: "agent_memory (key=structured_v1)"
-synced_at: "2026-09-24T22:45:49.781Z"
+synced_at: "2026-09-25T22:52:28.938Z"
 ---
 
 <!-- AUTO:START -->
